@@ -951,7 +951,7 @@ names(hmlist) = names(hmlist) %>% str_replace_all("rep", "hm")
 dir.create(here("results","diffex", "figs", "08_onevsrest" ,"heatmaps"), showWarnings = F, recursive = T)
 for (i in 1:length(hmlist)){
   pdf(here("results", "diffex", "figs", "08_onevsrest", "heatmaps", paste0(names(hmlist)[i],".pdf")), width = 10, height = 8)
-  print(hmlist[i])
+  draw(hmlist[[i]], column_title = str_replace(str_remove(names(hmlist)[i], "hm_"), "_", " vs "))
   dev.off()
 }
 

@@ -406,7 +406,27 @@ shrinkRes <- function(dds, contrast, type="apeglm"){
   return(ape)
 }
 
+gene_results = function(list_reports, ensembl_id, pthresh = 0.05, abslogfcthresh = 0.5){
 
+  require(tidyverse)
+
+  #print(paste("Adjusted p value threshold:", pthresh, ", abs(log2FoldChange) threshold:", abslogfcthresh))
+
+  comp = lapply(res_list,
+                function(x) x$annotated_results[x$annotated_results$ensembl_gene_id==ensembl_id,
+                                                c("ensembl_gene_id","gene_name","log2FoldChange","padj")]) %>%
+    unlist() %>% enframe() %>% separate(name, into = c("comparison", "field"), sep="\\.") %>%
+    spread(key=field, value=value) %>%
+    mutate(log2FoldChange = as.numeric(log2FoldChange),
+           padj = as.numeric(padj),
+           padj_cutoff = !!pthresh,
+           absLog2FoldChange_cutoff = !!abslogfcthresh)
+
+  comp = comp %>% mutate(sig = (padj < !!pthresh) & (abs(log2FoldChange) > !!abslogfcthresh)) %>%
+    select(comparison, sig, padj, log2FoldChange, everything())
+
+  return(comp)
+}
 
 
 
