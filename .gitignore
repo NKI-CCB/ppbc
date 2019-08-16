@@ -3,7 +3,7 @@
 *.Rproj.user
 *.Rhistory
 *.html
-*tar.xy
+*.tar.xy
 *.csv
 *.xlsx
 
@@ -22,6 +22,7 @@ bin/
 reports/dec2018
 reports/multiqc_data
 reports/unused
+reports/*.tar.xy
 
 #Only the scripts within src
 src/dec2018_samples
