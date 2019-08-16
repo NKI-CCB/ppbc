@@ -1,0 +1,27 @@
+*.RData
+*.Rdata
+*.Rproj.user
+*.Rhistory
+*.html
+*tar.xy
+*.csv
+*.xlsx
+
+.snakemake
+.here
+postpartbc.Rproj
+
+results/
+data/
+doc/
+.git_old/
+snakemake_notuptodate/
+bin/
+
+#Only the Rmd notebooks within the reports folder
+reports/dec2018
+reports/multiqc_data
+reports/unused
+
+#Only the scripts within src
+src/dec2018_samples

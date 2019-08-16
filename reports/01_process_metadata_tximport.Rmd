@@ -1,0 +1,292 @@
+---
+title: "Process metadata"
+output: 
+  html_notebook:
+    toc: yes
+    toc_float: yes
+---
+
+
+```{r, include=F}
+library(tidyverse)
+#library(readxl) #Misbehaves with date formats: accepts 5/5/2019, ignores 05/05/2019
+library(openxlsx)
+library(tximport)
+library(here)
+```
+
+# Process patient annotations
+
+```{r}
+patient_annotations <- openxlsx::read.xlsx(here("data/external/Hecoderingslijst HL-FA_v26062019.xlsx"),
+                                           startRow = 3, detectDates = T, na.strings=c("x", "extracted", "opvragen", "-"))
+
+colnames(patient_annotations)
+```
+
+Rename columns to be syntactically valid. Copy the patient_ref into a new column called sample ref, which will later be used to match either the patient_ref or the old_ref to the corresponding fastq file.
+
+```{r}
+patient_annotations = patient_annotations %>%
+dplyr::select(
+    patient_ref = NEW.REF,
+    old_ref = OLD.REF,
+    study_group = Study.Group,
+    study_int = `Study_group_2.0.(1=PPBC-inv.1.Y.;2=PPBC-inv.2Y;.3=PPBC-lac;.4=PrBC;.5=PPBC-inv;.6=PPBC.no.info)`,
+    status = `Status`,
+    library_prep = `Library.Prep`,
+    extraction_date = `Extraction`,
+    FFPE_age = `Ouderdom.FFPE`,
+    molecular_subtype = `Molecular.Subtype`,
+    stage = `Stage`,
+    grade = `Grade`,
+    ki67 = `Ki67`,
+    country = `Country.of.Diagnosis`,
+    involution_months = `Involution_Time.(months)`,
+    breastfeeding_months = `Time.Breastfeeding.(months)`,
+    TIL_percent = `TIL.%`,
+    tissue_biopsy = `Tissue.Availability./.Core.Biopsy`,
+    ng_nanodrop = `Nanodrop.(ng/µl)`, 
+    ng_bioanalyzer = `Bioanalyser.(ng/µl)`,
+    dv200 = `DV.200.(%)`,
+    has_match = In.matching.list,
+    everything()
+  ) %>%
+  dplyr::mutate(
+    patient_ref = str_replace_all(patient_ref, "_", "-"),
+    old_ref    = str_replace_all(old_ref, "_", "-"),
+    sample_ref = patient_ref)
+
+colnames(patient_annotations)
+```
+
+
+```{r}
+head(patient_annotations)
+```
+
+We only want those samples for which the status is SEQUENCED
+
+```{r}
+patient_annotations$status %>% unique()
+```
+
+```{r}
+discard_patients = patient_annotations %>% filter(status!="SEQUENCED")
+patient_annotations = patient_annotations %>% filter(status=="SEQUENCED")
+```
+
+
+# Process sample names
+
+```{r}
+samples <- list.files(here("data", "RNA-seq", "salmon"))
+
+#All samples begin with this string
+samples <- samples[str_detect(samples,"^rHLE")]
+
+head(samples)
+```
+
+Sample name consists of an identifier string that corresponds to the patient_ref or old_ref, the date, the sequencer, the lane, some unknown gcap thing, and the strand (always single stranded). Separate the fields of interest into a data frame.
+
+```{r}
+seq_annot <- 
+tibble("sample_id" = samples) %>%
+  separate(
+    sample_id,
+    into = c("sample_ref", "date",
+             "dummy1", #HiSeq4000
+             "dummy2", #FCB
+             "lane",
+             "dummy3", #gcap_number
+             "dummy4"), #R1
+    sep = "\\.",
+    remove = FALSE
+  ) %>%
+  select(-contains("dummy")) %>%
+  mutate(sample_ref = str_replace_all(sample_ref, "_", "-")) %>%
+  mutate(sample_ref = str_replace(sample_ref, "rHLE-FA", "HL-FA"))
+
+
+head(seq_annot)
+```
+
+#Combine metadata with file names
+
+Some of the sequencing runs were done using the old identifiers. These won't be found in the patient_ref column (from which sample_ref was built).
+
+```{r}
+setdiff(seq_annot$sample_ref, patient_annotations$sample_ref)
+```
+
+HL-FA-117-and-rHLE-FA-151-index14 is a mistake in library prep from which the sample will need to be discarded.
+
+```{r}
+seq_annot = seq_annot %>% filter(!str_detect(sample_ref, pattern="117-and-"))
+setdiff(seq_annot$sample_ref, patient_annotations$sample_ref)
+```
+
+In this series, the ones beginning with HL-FA had neo-adjuvant therapy and were discarded ex post facto.
+
+```{r}
+discard_patients %>% filter(patient_ref %in% c("HL-FA-138", "HL-FA-145", "HL-FA-149","HL-FA-158","HL-FA-24","HL-FA-51"))
+```
+
+Remove these from the samples to be read.
+
+```{r}
+seq_annot = seq_annot %>% filter(!sample_ref %in% c("HL-FA-138", "HL-FA-145", "HL-FA-149","HL-FA-158","HL-FA-24","HL-FA-51"))
+
+setdiff(seq_annot$sample_ref, patient_annotations$sample_ref)
+```
+
+
+The rest contain an LP or UZ-HL pattern. Use this as the identifier instead of the new ref.
+
+```{r}
+patient_annotations = bind_rows(patient_annotations,
+                                mutate(filter(patient_annotations, str_detect(old_ref, "LP|UZ-HL")), sample_ref=old_ref))
+duplicated(patient_annotations$sample_ref) %>% table() #Should be unique
+```
+
+Combine based on fastq file names
+
+```{r}
+sample_annot = left_join(seq_annot, patient_annotations, by="sample_ref")
+
+head(sample_annot)
+```
+
+
+# Standardize study group and molecular subtype
+
+Check the study group for irregular strings and dangling whitespace.
+
+```{r}
+sample_annot = sample_annot %>% mutate(study_group = str_replace_all(tolower(str_trim(study_group, side="both")), "-", "_")) %>%
+  select(sample_ref, study_group, everything())
+sample_annot %>% group_by(study_group) %>% summarise(n=n())
+```
+
+The NAs here correspond to old references for patients that have been removed for either CT or because they were past the maximum age for the study.
+
+```{r}
+discard_patients %>% filter(old_ref %in% (sample_annot %>% filter(is.na(study_group)) %>% pull(sample_ref)))
+```
+
+Remove these from the sample annotation.
+
+```{r}
+sample_annot = sample_annot %>% filter(!is.na(study_group))
+
+sample_annot %>% group_by(study_group) %>% summarise(n=n())
+```
+
+
+Standardize molecular subtype
+
+```{r}
+sample_annot = sample_annot %>% mutate(molecular_subtype = case_when(
+  molecular_subtype == "Luminal B (HER2-)" ~ "LumB_Her2neg",
+  molecular_subtype == "Triple Negative" ~ "TripleNegative",
+  molecular_subtype == "Luminal A" ~ "LumA",
+  molecular_subtype == "Luminal B (HER2+)" ~ "LumB_Her2pos",
+  molecular_subtype == "HER2+ (non-luminal)" ~ "Her2pos_nonluminal",
+  TRUE ~ molecular_subtype
+))
+
+sample_annot %>% group_by(molecular_subtype) %>% summarise(n=n())
+```
+
+
+# Individual sample checks
+
+Also double check a few samples based on this info from Hanne:
+
+* HL-FA-90 is PPBC-lac en dus niet PPBC-inv
+
+Already corrected in the current metadata:
+```{r}
+sample_annot %>% filter(str_detect(patient_ref, "HL-FA-90")) %>% select(sample_ref, study_group)
+```
+
+* HL-FA-111: This is also a patient from Berlin. Here I seemed to have made a mistake. This patient is not HER2+, but Triple Negative. 
+
+This sample has also been corrected.
+
+```{r}
+sample_annot %>% filter(str_detect(patient_ref, "HL-FA-111")) %>% select(sample_ref, molecular_subtype)
+```
+
+
+# Sample identifiers
+
+Add an easily readable sample name.
+
+```{r}
+sample_annot = sample_annot %>% mutate(sample_name = paste(sample_annot$study_group, str_remove(string = sample_annot$patient_ref, pattern = "HL-FA-"), sep="_"))
+
+sample_annot = sample_annot %>% select(sample_id, sample_ref, patient_ref, sample_name, study_group, everything())
+
+head(sample_annot)
+```
+
+```{r}
+stopifnot(length(unique(sample_annot$patient_ref))==length(unique(sample_annot$sample_name)))
+```
+
+
+Save the metadata.
+
+```{r}
+write_tsv(sample_annot, here("data", "metadata", "01_sample_annot.tsv"))
+```
+
+# Gene annotation processing
+
+Biomart export contains unfriendly column names : fix that.
+
+```{r}
+tx_annot <- read_tsv(here("data", "external", "biomart_ensemblgenes_v94.txt")) %>%
+  select(
+    gene_id = `Gene stable ID`,
+    transcript_id = `Transcript stable ID`,
+    transcript_id_version = `Transcript stable ID version`,
+    gene_name = `Gene name`,
+    gene_type = `Gene type`,
+    hgnc_symbol = `HGNC symbol`,
+    gene_description = `Gene description`,
+    chromosome_name = `Chromosome/scaffold name`,
+    transcipt_start =  `Transcript start (bp)`,
+    transcipt_end =  `Transcript end (bp)`,
+    transcription_start_site = `Transcription start site (TSS)`
+  )
+write_tsv(tx_annot, here("data", "metadata", "01_tx_annot.tsv"))
+```
+
+```{r}
+head(tx_annot)
+```
+
+# Tximport
+
+```{r}
+quant_files <- here("data", "RNA-seq", "salmon", sample_annot$sample_id, "quant.sf")
+names(quant_files) <- sample_annot$sample_id
+
+tx2gene <- select(tx_annot, transcript_id_version, gene_id)
+tx <- tximport(quant_files, type = "salmon", tx2gene = tx2gene)
+```
+
+Save the tx data for downstream analysis.
+
+```{r}
+saveRDS(tx,file = here("data", "Rds","01_tx.Rds"))
+```
+
+
+
+
+
+

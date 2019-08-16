@@ -1,0 +1,237 @@
+---
+title: "Tumor purity"
+output: html_notebook
+---
+
+```{r, include=F}
+library(DESeq2)
+library(here)
+library(estimate)
+library(tidyverse)
+```
+
+# Load data
+
+
+```{r}
+dds <- readRDS(here("data/Rds/03_dds_PAM50.Rds"))
+
+tx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+```
+
+We only need the gene id and hgnc symbol for this script.
+
+```{r}
+tx_annot = tx_annot %>% select(gene_id, hgnc_symbol) %>% distinct()
+```
+
+# Conversion to FPKM with HUGO symbols
+
+Esimate requires transcript length normalization and gene names instead of ensembl ids.
+
+Debatable: whether to use robust = T or F when calculating fpkm for the purposes of determining tumor purity with Estimate. When True, estimateSizeFactors is called to more accurately normalize by library size. Use the robust = F option to disable the median ratio normalization and just get classical fpkm via colSums.
+
+Since we prefer a more robust correction for library size, choose robust = T unless we hear otherwise.
+
+```{r}
+fpkm <- fpkm(dds, robust = T)
+```
+
+Add the HUGO symbols
+
+```{r}
+fpkm <- fpkm %>% as.data.frame() %>% rownames_to_column("gene_id") %>% right_join(select(tx_annot, gene_id, hgnc_symbol),., "gene_id")
+
+head(fpkm)
+```
+
+Make sure we don't have any NAs in the HGNC field.
+
+```{r}
+print(paste("Removing", sum(is.na(fpkm$hgnc_symbol)), "genes without HUGO ids from the fpkm matrix."))
+fpkm <- fpkm %>% filter(!is.na(hgnc_symbol))
+```
+
+```{r}
+print(paste(nrow(fpkm), "genes remaining in the fpkm matrix."))
+```
+
+Drop the ensembl id column.
+
+```{r}
+fpkm <- fpkm %>% select(-gene_id)
+```
+
+# De-duplicate gene symbols
+
+Non-unique identifiers are the bane of bioinformaticians everywhere. 
+
+When dealing with duplicated gene names, take the mean fpkm.
+
+```{r}
+summarize_expression_duplicate_ids <- function(mat, id_column, f=colMeans, final_gene_symbol_colname="GeneSymbol"){
+  require(dplyr)
+  
+  print(paste("Starting with gene expression matrix containing", nrow(mat), "rows."))
+  
+  #Easiest way to write functions with dplyr is to standardize the column name
+  
+  if(id_column != "symbol"){
+    colnames(mat)[colnames(mat)==id_column] <- "symbol"
+  }
+  
+  #Make frequency table
+  id_table <- as.data.frame(table(mat$symbol))
+  
+  #Identify duplicate genes
+  dups <- id_table$Var1[id_table$Freq > 1]
+  stopifnot(length(dups) == length(unique(dups)))
+  print(paste("Number of genes with duplicate names:", length(dups)))
+  
+  #Set aside rows with unique gene names
+  nodup_df <- mat[!mat$symbol %in% dups,]
+  
+  #Set aside rows with duplicate ids
+  dup_df <- mat[mat$symbol %in% dups,]
+  stopifnot(nrow(nodup_df) + nrow(dup_df) == nrow(mat))
+  
+  #Sort by recurring id
+  dup_df <- dup_df[order(dup_df$symbol),]
+  
+  print(paste("Number of rows with duplicate gene ids:", nrow(dup_df)))
+  
+  #Mean expression fpkm of genes with the same symbol
+  mean_exps <- matrix(ncol = ncol(dup_df)-1, nrow=0) #Empty matrix, -1 gene symbol column
+
+  for (i in 1:length(unique(dup_df$symbol))){
+    #Subset rows with same symbol, discard symbol column, then apply aggregate function
+    exp <- f(as.matrix(dup_df[dup_df$symbol==unique(dup_df$symbol)[i], -1])) 
+    mean_exps <- rbind(mean_exps, exp)
+  }
+  stopifnot(nrow(mean_exps) == length(unique(dup_df$symbol)))
+  
+  rownames(mean_exps) <- unique(dup_df$symbol)
+  mean_exps <- as.data.frame(mean_exps) %>% rownames_to_column("symbol")
+  
+  dedupped_df <- rbind(mean_exps, nodup_df)
+  dedupped_df <- dedupped_df[order(dedupped_df$symbol),]
+  
+  stopifnot(length(unique(dedupped_df$symbol))==length(dedupped_df$symbol)) #All symbols should not be unique
+  stopifnot(nrow(mat) - #starting number
+            nrow(dup_df) + #rows with duplicate genes...
+            length(dups) == #...which condense down into this many unique genes...
+            nrow(dedupped_df)) #...should equal the number of rows in the final matrix
+
+  print(paste("Number of genes after applying", substitute(f),  "to duplicate ids:", nrow(dedupped_df)))
+  
+  #For estimate, the column with identifiers HAS to be called GeneSymbol or EntrezGeneID
+  colnames(dedupped_df)[colnames(dedupped_df)=="symbol"] <- final_gene_symbol_colname
+  
+  return(dedupped_df)
+}
+```
+
+```{r}
+clean_fpkm <- summarize_expression_duplicate_ids(fpkm, "hgnc_symbol")
+```
+
+```{r}
+head(clean_fpkm)
+```
+
+
+The input for ESTIMATE can supposedly be a dataframe, but the function throws an error unless provided with a file..
+
+```{r}
+write.table(clean_fpkm, sep = "\t", file = here("data","RNA-seq","hugo_fpkm.txt"), col.names = T, row.names =F, quote=F)
+```
+
+# ESTIMATE
+
+Estimate really only has two functions of interest for us. The first is filterCommonGenes, which unifies genes symbols provided versus the 10,412 used for determining tumor purity.
+
+Annoyingly, it insists on writing a file instead of returning an object within the R environment. 
+
+
+```{r}
+dir.create(here("results","tumor_purity"))
+
+filterCommonGenes(input.f=here("data","RNA-seq","hugo_fpkm.txt"),
+                  output.f = here("results","tumor_purity","filterCommonGenes.gct"), id="GeneSymbol")
+```
+
+The next function computes stromal, immune, and ESTIMATE scores per sample using gene expression data. It also insists on writing files.
+
+```{r}
+estimateScore(input.ds = here("results","tumor_purity","filterCommonGenes.gct"),
+              output.ds = here("results","tumor_purity","results_estimate_score.gct"),
+              platform="illumina")
+```
+
+```{r}
+scores <- read.delim(here("results","tumor_purity","results_estimate_score.gct"), skip=2, sep="\t")
+head(scores)
+```
+
+## Purity score calculation
+
+Note: Only validated for microarray data:
+Tumour purity=cos (0.6049872018+0.0001467884 × ESTIMATE score)
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3826632/
+
+```{r}
+purity_score <- scores %>%dplyr::select(-Description) %>% rename(score=NAME) %>% gather(key="sample_name", -score, value=value) %>%
+  mutate(sample_name=str_replace_all(sample_name, "\\.","-")) %>% spread(key=score,value=value) %>%
+  mutate(tumor_purity = cos(0.6049872018+0.0001467884 * ESTIMATEScore))
+```
+
+## Visualizations
+
+```{r}
+scores %>% dplyr::select(-Description) %>% gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(.,as.data.frame(colData(dds)), by="sample_name") %>% arrange(study_group) %>%
+  ggplot(aes(x=factor(sample_name, levels = unique(sample_name)),y=Score, fill=study_group)) +
+  geom_bar(stat="identity") + facet_wrap(~NAME, ncol=1) + theme(axis.text.x=element_blank()) +
+  xlab("Samples")
+``` 
+
+```{r}
+purity_score %>% gather(key=score, -sample_name, value=value) %>%left_join(.,as.data.frame(colData(dds)), by="sample_name") %>%
+  arrange(study_group) %>%
+  ggplot(aes(x=factor(sample_name, levels = unique(sample_name)),y=value, fill=study_group)) +
+  geom_bar(stat="identity") + facet_wrap(~score, ncol=1, scales="free") + theme(axis.text.x=element_blank()) +
+  xlab("Sample")
+```
+
+```{r}
+coldata_purity <- purity_score %>% select(sample_name, tumor_purity) %>% left_join(.,as.data.frame(colData(dds)), by="sample_name")
+
+coldata_purity %>% ggplot(aes(x=study_group, y=tumor_purity)) + geom_boxplot() + ggtitle("Tumor purity by study group")
+```
+
+# Save tumor purity for downstream analyses
+
+```{r}
+head(coldata_purity)
+```
+
+Add tumor purity to dds coldata
+
+```{r}
+stopifnot(colData(dds)$sample_name == coldata_purity$sample_name)
+dds$tumor_purity = coldata_purity$tumor_purity
+design(dds) <- ~PAM50 + tumor_purity + study_group
+```
+
+
+Write both the coldata and the new dds object
+
+```{r}
+write.csv(coldata_purity, file=here("data","metadata", "04_sample_annot_filtered_PAM50_purity.csv"), row.names = F)
+saveRDS(dds, file=here("data","Rds","04_dds_PAM50_tumorpurity.Rds"))
+```
+
+
+```{r}
+save.image(here("reports","04_tumor_purity.RData"))
+```

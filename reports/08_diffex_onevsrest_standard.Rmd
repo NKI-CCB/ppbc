@@ -1,0 +1,980 @@
+---
+title: "One vs rest Wald tests, standard threshold"
+output: 
+  html_notebook:
+    toc: yes
+    toc_float: yes
+---
+
+```{r, include=F}
+#library(devtools)
+#install_github("jokergoo/ComplexHeatmap")
+#install_github("mikelove/DESeq2") 
+#install_github("azhu513/apeglm")
+
+library(DESeq2)
+library(apeglm)
+library(here)
+library(tidyverse)
+library(ggrepel)
+library(ComplexHeatmap)
+library(openxlsx)
+library(scrime)
+library(RColorBrewer)
+```
+
+# Load and pre-process data
+
+```{r}
+dds <- readRDS(file = here("data/Rds/05_dds_PAM50_tumorpurity_batch.Rds"))
+
+gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
+```
+
+
+## Filtering
+
+
+Minimum threshold is a nonzero count in at least a 3rd of all samples
+
+```{r}
+
+keep <- rowSums(counts(dds)!=0) >= ceiling(ncol(dds)/3)
+table(keep)
+
+#Hang on to what we discard for later analysis
+dds.discarded <-dds[!keep,]
+
+#Keep the rest
+dds <- dds[keep,]
+
+```
+
+
+## Retrieve immune genes
+
+For downstream analyses, we'd like to know which of the differentially expressed genes are immunologically relevant.
+
+An immune gene is defined as follows:
+
+Either immune/immuno/interleukin is part of the gene name and description OR the gene is part of the the ImmPort database. See https://www.innatedb.com/redirect.do?go=resourcesGeneLists
+
+The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The principal investigator of the BISC project is Dr. Richard Scheuermann at University of Texas Southwestern Medical Center. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
+
+```{r}
+immune_gene_list <- read_csv(here("data", "external","gene-sets","InnateDB_genes.csv"))
+head(immune_gene_list)
+```
+
+## Helper functions
+
+
+### Annotate results 
+
+```{r}
+annotate_results <- function(results_object, anno_df = gx_annot, mark_immune = T, immune_list = immune_gene_list){
+  require(tidyverse)
+  
+  anno_res <- results_object %>% as.data.frame() %>% rownames_to_column("ensembl_gene_id") %>%
+    right_join(anno_df,., by = "ensembl_gene_id") %>% arrange(padj)
+  
+  if (mark_immune==T){
+    anno_res = anno_res %>% mutate(immune_gene = if_else(
+      ensembl_gene_id %in% immune_list$ensembl |
+        str_detect(string = description, "immuno") |
+        str_detect(string = description, "immune") |
+        str_detect(string = description, "interleukin"),
+      TRUE, FALSE
+    )) %>% #When description is NA, immune_gene is also NA
+      mutate(immune_gene = replace_na(immune_gene, FALSE))
+  }
+  
+  return(anno_res)
+}
+```
+
+### Significant gene threshold
+
+```{r}
+significance <- function(annotated_results, pthresh = 0.05, absl2fc = 1){
+  require(tidyverse)
+  sig = annotated_results %>% filter(padj < !!pthresh & (abs(log2FoldChange) > !!absl2fc))
+  return(sig)
+}
+```
+
+### Volcano plot
+```{r}
+volcano_plot <- function(annotated_results, title, path_save_fig = NULL, pthresh = 0.05, absl2fc=1, shape_col=NULL){
+  
+  require(tidyverse)
+  require(ggrepel)
+  require(here)
+  
+  volcdf <- annotated_results %>% mutate(NegLog10FDR = -log10(padj),
+                   Significant = if_else(
+                     (padj < !!pthresh & abs(log2FoldChange) > !!absl2fc),
+                     TRUE, FALSE),
+                   Type=case_when(
+                     gene_type == "protein_coding" ~ "protein coding",
+                     str_detect(string=gene_type,pattern="IG") ~ "IG gene",
+                     TRUE ~ "other noncoding"),
+                   Color = if_else(
+                     Significant == T, Type, "n.s."
+                   )) %>% 
+  filter(!is.na(Significant))
+  
+  colors = c(`IG gene` = "red", `n.s.` = "gray",`other noncoding`="purple",`protein coding`="darkgreen")
+
+  volcplot <-ggplot(volcdf, aes(x=log2FoldChange,y=NegLog10FDR, color=Color)) +
+    geom_point() +
+    scale_color_manual(values=colors) +
+    geom_hline(yintercept = -log10(pthresh), colour="darkred", linetype="dashed") + 
+    geom_vline(xintercept = absl2fc, color="darkred", linetype="dashed") +
+    geom_vline(xintercept = -absl2fc, color="darkred", linetype="dashed") +
+    theme_bw()
+  
+  volcplot <-
+    volcplot + 
+    geom_text_repel(data=head(volcdf[volcdf$Significant==T,], 10), aes(label=gene_name), show.legend = F) +
+    ggtitle(title) +
+    labs(y="-log10(FDR)")
+  
+  if (is.null(path_save_fig)==F){
+    suppressMessages(ggsave(filename=path_save_fig, plot = volcplot))
+    }
+
+  if (is.null(shape_col)==F){
+    volcplot = volcplot + aes(shape=get(shape_col)) + labs(shape=shape_col)
+    }
+
+  return(volcplot)
+
+}
+```
+
+### Complex heatmap
+
+```{r}
+
+complex_heatmap <- function(vsd, annotated_results, col_annot = "study_group",groups_to_plot=levels(colData(vsd)[,col_annot]) ,
+                            row_scale = FALSE, row_id = "gene_name",
+                            row_size = 8, col_size = 8, distance_method = "pearson", ...){
+
+  require(DESeq2)
+  require(ComplexHeatmap)
+  require(tidyverse)
+  require(scrime)
+  require(RColorBrewer)
+
+
+  stopifnot(row_id %in% c("gene_name", "ensembl_gene_id", "concatenate"))
+  stopifnot(groups_to_plot %in% levels(colData(vsd)[,col_annot]))
+  genes_to_plot = annotated_results[,c("ensembl_gene_id", "gene_name")]
+
+  if (!class(vsd) %in% c("DESeqDataSet","DESeqTransform")){
+    stop("Provide a dds using DESeqDataSetfrommatrix or DeseqTransform(summarizedexperiment(matrix,coldata))")
+  }
+
+
+
+  samples_to_plot = colnames(vsd)[as.data.frame(colData(vsd)[col_annot])[,1] %in% groups_to_plot]
+  vsd = vsd[genes_to_plot$ensembl_gene_id, samples_to_plot]
+  mat = assay(vsd)
+
+  if (row_scale==T){
+    mat = scrime::rowScales(mat)
+  }
+
+  title = if_else(groups_to_plot == levels(colData(vsd)[,col_annot]),
+                  "All groups",
+                  paste(groups_to_plot, collapse="vs"))
+
+  stopifnot(identical(rownames(mat), genes_to_plot$ensembl_gene_id))
+
+  if (row_id == "gene_name"){
+    row_labels = genes_to_plot$gene_name
+  } else if (row_id == "concatenate"){
+    row_labels = paste(genes_to_plot$gene_name, genes_to_plot$ensembl_gene_id, ":")
+  } else {
+    row_labels = rownames(mat)
+  }
+
+  # Top column annotation
+  ann_top = as.data.frame(colData(vsd)[col_annot])
+
+  #Colors must be named lists with named elements
+  study_colors=suppressWarnings(colorRampPalette(brewer.pal(length(levels(colData(vsd)[,col_annot])),"Spectral"))(length(levels(colData(vsd)[,col_annot]))))
+  names(study_colors) = levels(colData(vsd)[,col_annot])
+
+  top_cols=list(study_group=study_colors)
+
+  colTop <- HeatmapAnnotation(df=ann_top, which="col", col = top_cols)
+
+  #Bottom column annotation
+  ann_bottom = as.data.frame(colData(vsd)["PAM50"])
+  pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(vsd$PAM50)),"Paired"))(length(unique(vsd$PAM50))))
+  names(pam_colors)= unique(vsd$PAM50)
+  bottom_cols = list(PAM50 = pam_colors)
+  colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = bottom_cols)
+
+  # Row annotation
+  anno_rows = tibble(ensembl_gene_id = annotated_results$ensembl_gene_id, gene_type=annotated_results$gene_type) %>%
+    mutate(Type=case_when(gene_type == "protein_coding" ~ "protein coding",
+                          str_detect(string=gene_type,pattern="IG") ~ "IG gene",
+                          TRUE ~ "other noncoding")) %>%
+    column_to_rownames("ensembl_gene_id") %>% select(Type)
+
+  anno_rows$Type = as.factor(anno_rows$Type)
+
+  type_colors = suppressWarnings(colorRampPalette(brewer.pal(length(levels(anno_rows$Type)),"Set1"))(length(levels(anno_rows$Type))))
+  names(type_colors) = levels(anno_rows$Type)
+  row_colors = list(Type = type_colors)
+
+  rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=row_colors)
+
+
+  if (row_scale==T){
+    hlp = list(title="rowscaled vst")
+  } else {
+    hlp = list(title="vst counts")
+  }
+
+  Heatmap(mat, top_annotation = colTop, bottom_annotation = colBottom, left_annotation = rowAnno,
+          heatmap_legend_param = hlp, row_labels = row_labels, clustering_distance_rows = distance_method,
+          row_names_gp = gpar(fontsize = row_size), column_names_gp = gpar(fontsize = col_size), ...)
+}
+
+
+
+```
+
+### Plot beehive
+
+```{r}
+plot_gene_beehive = function(dds, result_df, groups_to_plot = levels(colData(dds)[,intgroup]),
+                             intgroup="study_group", colorby="PAM50", path_save_fig = NULL){
+  
+  require(DESeq2)
+  require(tidyverse)
+  
+  if(nrow(result_df) > 1){
+    warning("More than one result provided, plotting first row")
+    result_df = head(result_df, 1)
+  }
+  
+  ensembl_gene_id = result_df$ensembl_gene_id
+  gene_name = result_df$gene_name
+  
+  stopifnot(groups_to_plot %in% levels(colData(dds)[,intgroup]))
+  
+  comparison = if_else(groups_to_plot == levels(colData(dds)[,intgroup]),
+                       "all groups", paste(groups_to_plot, collapse = " vs "))
+  
+  
+  samples_to_keep = colnames(dds)[as.data.frame(colData(dds)[intgroup])[,1] %in% groups_to_plot]
+  
+  dds.trim = dds[,samples_to_keep]
+  
+  #Normalizes by size factors
+  d <- plotCounts(dds.trim, gene=ensembl_gene_id, intgroup=c(intgroup,colorby), normalize=T, returnData=TRUE)
+  
+  title = paste0(paste(gene_name,ensembl_gene_id, sep=":"), ", ", comparison, ", padj: ",
+                 formatC(result_df$padj, format = "e", digits = 2),
+                 ", log2fc: ", round(result_df$log2FoldChange,2))
+  
+  dplot = ggplot(d, aes(x=get(intgroup), y=count)) + 
+    geom_boxplot(alpha=0, show.legend = F, outlier.shape = NA) +
+    geom_point(position=position_jitter(w=0.1,h=0), aes(color=get(colorby))) + 
+    scale_y_log10() + xlab(intgroup) + labs(color=colorby) + ylab("size-factor normalized counts") +
+    ggtitle(title)
+  
+  if (is.null(path_save_fig)!=T){
+    suppressMessages(ggsave(filename=path_save_fig, plot = volcplot))
+  }
+  
+  return(dplot)
+}
+```
+
+### Plot multiple beehives
+
+```{r}
+plot_many_beehives = function(dds, result_df, ...){
+  plotlist = list()
+  for (i in 1 : nrow(result_df)){
+    plotlist[[length(plotlist)+1]]= plot_gene_beehive(dds, result_df = result_df[i,], ...)
+  }
+  return(plotlist)
+}
+```
+
+### Report wrapper function
+
+```{r}
+deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, immune_list=immune_gene_list,
+                        pthresh = 0.05, absl2fc = 1, variance_stabilized_dds = vsd,
+                        intgroup="group", colorby="PAM50", shape_volc_col = "immune_gene",
+                        groups=levels(colData(dds)[,intgroup]),
+                        n_beehive_plots=5, verbose=F, ...){
+  require(DESeq2)
+  require(tidyverse)
+  
+  mega = list()
+  
+  #Merge deseq results object with gene name and type annotation
+  if(verbose==T){
+    print("Annotating results...")
+  }
+  
+  df = annotate_results(results_object, mark_immune = mark_immune, immune_list = immune_list)
+  
+  mega$annotated_results = df
+  
+  #Set significance threshold and save significant hits
+  print(paste("Significance threshold is padj:", pthresh, "and abs(log2foldchange):", absl2fc))
+  
+  mega$sig_threshold = list(padj = pthresh, absl2fc = absl2fc)
+  
+  sig = significance(df, pthresh = pthresh, absl2fc = absl2fc)
+  
+  print(paste("Number of significant genes:", nrow(sig)))
+  
+  mega$significant_genes = sig
+    
+  #Draw volcano plot
+  if(verbose==T){
+    print("Creating volcano plot...")
+  }
+  
+  title = if_else(groups==levels(colData(dds)[,intgroup]), "All groups - Interpret with caution",
+                  paste(groups, collapse=" vs "))
+  
+  vp = volcano_plot(annotated_results = df, title=title, pthresh = pthresh, absl2fc = absl2fc, shape_col = shape_volc_col)
+  
+  mega$volcano_plot = vp
+  
+  #Draw heatmap
+  if(verbose==T){
+    print("Creating heatmap...")
+  }
+  
+  #Only plot row labels if there are fewer than 50 rows
+  show_rown = if_else(nrow(sig) < 50, T, F)
+  
+  hm = complex_heatmap(vsd = variance_stabilized_dds, annotated_results = sig, groups_to_plot=levels(dds$study_group), row_scale = T,
+                      show_column_names=F, show_row_names=show_rown, row_size = 7)
+  
+  mega$heatmap = hm
+  
+  #Draw a selection of beehive plots from top hits
+  if(verbose==T){
+    print(paste("Creating beehive plots from top", n_beehive_plots, "genes..."))
+  }
+  beelist = plot_many_beehives(dds = dds, result_df = head(sig, n_beehive_plots), groups_to_plot = levels(dds$study_group))
+  
+  mega$beehive_plots = beelist
+  
+  return(mega)
+
+}
+```
+
+### Extract results and shrink log2fold changes
+
+```{r}
+shrinkRes <- function(dds, contrast, type="apeglm"){
+  require(DESeq2)
+  require(tidyverse)
+  
+  cdf = enframe(colnames(coef(dds)), "coef", "name")
+  contrast_name = paste(contrast[1], contrast[2], "vs",contrast[3], sep="_")
+  
+  if(!contrast_name %in% cdf$name){
+    stop("Contrast name not found within coefficients. Do you need to relevel your design formula?")
+  }
+  
+  print("Detecting coefficient corresponding to contrast:")
+
+  c = cdf[cdf$name==contrast_name,]
+  print(paste("Contrast name:", c$name))
+  print(paste("Coefficient:", c$coef))
+  
+  print("Retrieving results from deseq dataset with contrast...")
+  res = results(dds, contrast=contrast)
+
+  print(paste("Shrinking log2foldchanges via method", type))
+  ape <- lfcShrink(dds, coef = c$coef, res = res, type="apeglm")
+  
+  return(ape)
+}
+```
+
+### Retrieve gene results from comparisons
+
+```{r}
+gene_results = function(list_reports, ensembl_id, pthresh = 0.05, abslogfcthresh = 0.5){
+  
+  require(tidyverse)
+  
+  #print(paste("Adjusted p value threshold:", pthresh, ", abs(log2FoldChange) threshold:", abslogfcthresh))
+  
+  comp = lapply(res_list,
+         function(x) x$annotated_results[x$annotated_results$ensembl_gene_id==ensembl_id,
+                                         c("ensembl_gene_id","gene_name","log2FoldChange","padj")]) %>%
+    unlist() %>% enframe() %>% separate(name, into = c("comparison", "field"), sep="\\.") %>%
+    spread(key=field, value=value) %>%
+    mutate(log2FoldChange = as.numeric(log2FoldChange),
+           padj = as.numeric(padj),
+           padj_cutoff = !!pthresh,
+           absLog2FoldChange_cutoff = !!abslogfcthresh)
+  
+  comp = comp %>% mutate(sig = (padj < !!pthresh) & (abs(log2FoldChange) > !!abslogfcthresh)) %>%
+    select(comparison, sig, padj, log2FoldChange, everything())
+  
+  return(comp)
+}
+```
+
+## Variance stabilizing transformation
+
+We want a transformation that is fully blind to the experimental design, but still uses the faster sampling method in the vst wrapper for varianceStabilizingTransformation.
+
+This homoskedastic dataset will be used later on for heatmap visualization.
+
+```{r}
+blind_vst = function(dds){
+  design(dds) = formula(~ 1)
+  vsd = vst(dds, blind=T)
+  #mat = assay(vsd)
+  return(vsd)
+}
+```
+
+```{r}
+vsd = blind_vst(dds)
+```
+
+# One vs rest formula levels
+
+```{r}
+design(dds)
+```
+
+```{r, collapse=T}
+dds$inv_vs_rest  = colData(dds) %>% as.data.frame() %>% mutate(inv_vs_rest = if_else(study_group == "ppbc_inv", "ppbc_inv", "rest")) %>%
+  pull(inv_vs_rest) %>% factor(levels=c("rest", "ppbc_inv"))
+
+dds$prbc_vs_rest  = colData(dds) %>% as.data.frame() %>% mutate(prbc_vs_rest = if_else(study_group == "prbc", "prbc", "rest")) %>%
+  pull(prbc_vs_rest) %>% factor(levels=c("rest", "prbc"))
+
+dds$lac_vs_rest  = colData(dds) %>% as.data.frame() %>% mutate(lac_vs_rest = if_else(study_group == "ppbc_lac", "ppbc_lac", "rest")) %>%
+  pull(lac_vs_rest) %>% factor(levels=c("rest", "ppbc_lac"))
+
+dds$nonprbc_vs_rest  = colData(dds) %>% as.data.frame() %>% mutate(nonprbc_vs_rest = if_else(study_group == "non_prbc", "non_prbc", "rest")) %>%
+  pull(nonprbc_vs_rest) %>% factor(levels=c("rest", "non_prbc"))
+
+table(dds$inv_vs_rest, dds$study_group)
+table(dds$prbc_vs_rest, dds$study_group)
+table(dds$lac_vs_rest, dds$study_group)
+table(dds$nonprbc_vs_rest, dds$study_group)
+```
+
+
+
+# Diffex: involution vs rest
+
+In this call to DESeq, we're focusing one one vs rest contrasts and using a Wald test instead of a likelihood ratio test.
+
+```{r}
+dds$group = dds$inv_vs_rest
+
+levels(dds$group)
+```
+
+```{r}
+design(dds) = ~batch + PAM50 + tumor_purity + group
+```
+
+Perform differential expression analysis.
+
+```{r}
+start = Sys.time()
+dds <- DESeq(dds)
+end = Sys.time()
+end-start
+```
+
+
+```{r}
+saveRDS(dds,here("data/Rds/08_dds_inv_vs_rest_standard.Rds"))
+```
+
+
+
+## Coefficient overview
+
+Make it easier to find the coefficient we need.
+
+```{r}
+cdf = enframe(colnames(coef(dds)), "coef", "name")
+
+cdf
+```
+
+
+## Extract results
+
+```{r}
+ape_inv_rest = shrinkRes(dds,  contrast=c("group", "ppbc_inv", "rest"))
+```
+
+## Summary report
+
+A log2 fold change cutoff of 0.5 is equivalent to 1.414.
+
+```{r}
+rep_inv_rest = deseq_report(ape_inv_rest, dds=dds, absl2fc = 0.5, groups = c("ppbc_inv", "rest"))
+```
+
+## Top genes
+
+```{r}
+rep_inv_rest$significant_genes
+```
+
+## Volcano plot
+
+
+```{r}
+rep_inv_rest$volcano_plot
+```
+
+## Heatmap
+
+
+
+```{r, fig.width=10}
+draw(rep_inv_rest$heatmap, column_title = "Involution vs rest")
+```
+
+
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+rep_inv_rest$beehive_plots
+```
+
+
+
+
+# Diffex: Pregnancy vs rest
+
+```{r}
+dds$group = dds$prbc_vs_rest
+
+levels(dds$group)
+```
+
+Perform differential expression analysis.
+
+From the manual: 
+
+Although apeglm cannot be used with contrast, we note that many designs can be easily rearranged such that what was a contrast becomes its own coefficient. In this case, the dispersion does not have to be estimated again, as the designs are equivalent, up to the meaning of the coefficients. Instead, one need only run nbinomWaldTest to re-estimate MLE coefficients – these are necessary for apeglm – and then run lfcShrink specifying the coefficient of interest in resultsNames(dds). We give some examples below of producing equivalent designs for use with coef. We show how the coefficients change with model.matrix, but the user would, for example, either change the levels of dds$condition or replace the design using design(dds)<-, then run nbinomWaldTest followed by lfcShrink.
+
+```{r}
+start = Sys.time()
+dds <- nbinomWaldTest(dds)
+end = Sys.time()
+end-start
+```
+
+
+```{r}
+saveRDS(dds,here("data/Rds/08_dds_prbc_vs_rest_standard.Rds"))
+```
+
+
+## Extract results
+
+```{r}
+ape_prbc_rest = shrinkRes(dds,  contrast=c("group", "prbc", "rest"))
+```
+
+## Summary report
+
+A log2 fold change cutoff of 0.5 is equivalent to 1.414.
+
+```{r}
+rep_prbc_rest = deseq_report(ape_prbc_rest, dds=dds, absl2fc = 0.5, groups = c("prbc", "rest"))
+```
+
+## Top genes
+
+There's a noticeable chemokine/innate immune enrichment among the top hits.
+
+```{r}
+rep_prbc_rest$significant_genes %>% head(30)
+```
+
+## Volcano plot
+
+```{r}
+rep_prbc_rest$volcano_plot
+```
+
+## Heatmap
+
+```{r, fig.width=10}
+draw(rep_prbc_rest$heatmap, column_title = "Pregnancy vs rest")
+```
+
+
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+rep_prbc_rest$beehive_plots
+```
+
+# Diffex: Lac vs rest
+
+```{r}
+dds$group = dds$lac_vs_rest
+
+levels(dds$group)
+```
+
+Perform differential expression analysis.
+
+From the manual: 
+
+Although apeglm cannot be used with contrast, we note that many designs can be easily rearranged such that what was a contrast becomes its own coefficient. In this case, the dispersion does not have to be estimated again, as the designs are equivalent, up to the meaning of the coefficients. Instead, one need only run nbinomWaldTest to re-estimate MLE coefficients – these are necessary for apeglm – and then run lfcShrink specifying the coefficient of interest in resultsNames(dds). We give some examples below of producing equivalent designs for use with coef. We show how the coefficients change with model.matrix, but the user would, for example, either change the levels of dds$condition or replace the design using design(dds)<-, then run nbinomWaldTest followed by lfcShrink.
+
+```{r}
+start = Sys.time()
+dds <- nbinomWaldTest(dds)
+end = Sys.time()
+end-start
+```
+
+
+```{r}
+saveRDS(dds,here("data/Rds/08_dds_lac_vs_rest_standard.Rds"))
+```
+
+
+## Extract results
+
+```{r}
+ape_lac_rest = shrinkRes(dds,  contrast=c("group", "ppbc_lac", "rest"))
+```
+
+## Summary report
+
+A log2 fold change cutoff of 0.5 is equivalent to 1.414.
+
+```{r}
+rep_lac_rest = deseq_report(ape_lac_rest, dds=dds, absl2fc = 0.5, groups = c("ppbc_lac", "rest"))
+```
+
+## Top genes
+
+```{r}
+rep_lac_rest$significant_genes %>% head(30)
+```
+
+## Volcano plot
+
+
+```{r}
+rep_lac_rest$volcano_plot
+```
+
+## Heatmap
+
+```{r, fig.width=10}
+draw(rep_lac_rest$heatmap, column_title = "Lactation vs rest")
+```
+
+
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+rep_lac_rest$beehive_plots
+```
+
+# Diffex: Non-prbc vs rest
+
+```{r}
+dds$group = dds$nonprbc_vs_rest
+
+levels(dds$group)
+```
+
+Perform differential expression analysis.
+
+From the manual: 
+
+Although apeglm cannot be used with contrast, we note that many designs can be easily rearranged such that what was a contrast becomes its own coefficient. In this case, the dispersion does not have to be estimated again, as the designs are equivalent, up to the meaning of the coefficients. Instead, one need only run nbinomWaldTest to re-estimate MLE coefficients – these are necessary for apeglm – and then run lfcShrink specifying the coefficient of interest in resultsNames(dds). We give some examples below of producing equivalent designs for use with coef. We show how the coefficients change with model.matrix, but the user would, for example, either change the levels of dds$condition or replace the design using design(dds)<-, then run nbinomWaldTest followed by lfcShrink.
+
+```{r}
+start = Sys.time()
+dds <- nbinomWaldTest(dds)
+end = Sys.time()
+end-start
+```
+
+
+```{r}
+saveRDS(dds,here("data/Rds/08_dds_nonprbc_vs_rest_standard.Rds"))
+```
+
+
+## Extract results
+
+```{r}
+ape_nonprbc_rest = shrinkRes(dds,  contrast=c("group", "non_prbc", "rest"))
+```
+
+## Summary report
+
+A log2 fold change cutoff of 0.5 is equivalent to 1.414.
+
+```{r}
+rep_nonprbc_rest = deseq_report(ape_nonprbc_rest, dds=dds, absl2fc = 0.5, groups = c("non_prbc", "rest"))
+```
+
+## Top genes
+
+```{r}
+rep_nonprbc_rest$significant_genes %>% head(30)
+```
+
+## Volcano plot
+
+```{r}
+rep_nonprbc_rest$volcano_plot
+```
+
+## Heatmap
+
+```{r, fig.width=10}
+draw(rep_nonprbc_rest$heatmap, column_title = "Nulliparous vs rest")
+```
+
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+rep_nonprbc_rest$beehive_plots
+```
+
+# Gene plots
+
+```{r}
+res_list = mget(ls(pattern="rep_"))
+names(res_list)
+```
+
+
+## Notable differentially expressed genes
+
+### AL590867.2
+
+An example of how a few extreme outliers within a group can be statistically significant without being representative of expression within the group.
+
+https://www.genecards.org/cgi-bin/carddisp.pl?gene=RPL27AP6
+
+
+```{r}
+gene_results(res_list, "ENSG00000218426")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000218426",])
+```
+
+### JChain
+
+Frequently reoccuring significant hit JChain
+
+```{r}
+gene_results(res_list,"ENSG00000132465")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000132465",])
+```
+
+## B cells markers 
+
+### IL10
+
+B-reg marker IL10: ENSG00000136634
+
+```{r}
+gene_results(res_list,"ENSG00000136634")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000136634",])
+```
+
+### SIRPA
+
+Immune gene SIRPA ENSG00000198053
+http://www.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=ENSG00000198053;r=20:1894167-1940592
+
+Significant in prbc vs inv, but below l2fc cutoff in prbc vs rest
+
+```{r}
+gene_results(res_list,"ENSG00000198053")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_prbc_rest$annotated_results[rep_prbc_rest$annotated_results$ensembl_gene_id=="ENSG00000198053",])
+```
+
+### CD20
+
+Official name of CD20 is MS4A1 ENSG00000156738
+http://www.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=ENSG00000156738;r=11:60455752-60470760
+
+```{r}
+gene_results(res_list,"ENSG00000156738")
+```
+
+Appears as though there might be a difference in inv/nonprbc vs prbc? Basals in particular seem to have less CD20 in prbc than in inv/nonprbc.
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000156738",])
+```
+
+Other plasma cells markers: CD138, CD98, TACI, BCMA
+https://www.ncbi.nlm.nih.gov/pubmed/28787106
+
+### CD138
+
+CD138 = SDC1 syndecan 1  ENSG00000115884
+http://www.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=ENSG00000115884;r=2:20200797-20225433
+
+```{r}
+gene_results(res_list,"ENSG00000115884")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000115884",])
+```
+
+### CD98
+
+Official name SLC3A2 ENSG00000168003
+http://www.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=ENSG00000168003;r=11:62856102-62888875
+
+```{r}
+gene_results(res_list,"ENSG00000168003")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000168003",])
+```
+
+### TACI
+
+Official name TNFRSF13B ENSG00000240505
+
+```{r}
+gene_results(res_list,"ENSG00000240505")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000240505",])
+```
+
+### BCMA
+
+Official name TNFRSF17 ENSG00000048462
+
+```{r}
+gene_results(res_list,"ENSG00000048462")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000048462",])
+```
+
+
+
+# Save data
+
+Save the individual reports. Main comparison separately.
+
+```{r}
+saveRDS(rep_inv_rest, here("data", "Rds", "08_report_inv_vs_rest.Rds"))
+```
+
+Save the significant genes and results from each comparison. Future reference: do this instead `mget(ls(pattern="rep_"))`
+
+```{r}
+#Save the results for all genes in an Excel file with multiple tabs
+#The tab names will be the list names
+resdf = lapply(res_list, function(x) x$annotated_results)
+names(resdf) = paste(names(resdf),"all", sep="_")
+openxlsx::write.xlsx(resdf, file = here("results", "diffex", "08_one_vs_rest_allgenes.xlsx"))
+
+#Save the significant genes in a multi-tab excel file
+resdf = lapply(res_list, function(x) x$significant_genes)
+names(resdf) = paste("sig",names(resdf), sep="_")
+#Also keep the thresholds used for significance
+resdf[[length(resdf)+1]] = enframe(unlist(lapply(res_list, function(x) x$sig_threshold)), "name", "value") %>%
+                 separate(name, into = c("comparison", "threshold"), sep="\\.")
+names(resdf)[length(resdf)] = "thresholds"
+write.xlsx(resdf, file = here("results", "diffex", "08_one_vs_rest_sig_genes.xlsx"))
+
+rm(resdf)
+```
+
+Save the figures
+
+```{r}
+hmlist = lapply(res_list, function(x) x$heatmap)
+names(hmlist) = names(hmlist) %>% str_replace_all("rep", "hm")
+
+dir.create(here("results","diffex", "figs", "08_onevsrest" ,"heatmaps"), showWarnings = F, recursive = T)
+for (i in 1:length(hmlist)){
+  pdf(here("results", "diffex", "figs", "08_onevsrest", "heatmaps", paste0(names(hmlist)[i],".pdf")), width = 10, height = 8)
+  print(hmlist[i])
+  dev.off()
+}
+
+rm(hm_list)
+```
+
+```{r}
+volclist = lapply(res_list, function(x) x$volcano_plot)
+names(volclist) = names(volclist) %>% str_replace("rep", "volc")
+
+dir.create(here("results","diffex", "figs", "08_onevsrest" ,"volcano_plots"), showWarnings = F)
+lapply(names(volclist), 
+       function(x) ggsave(filename=here("results","diffex", "figs", "08_onevsrest","volcano_plots",
+                                        paste(x,".jpeg",sep="")), plot=volclist[[x]],
+                          height = 6, width = 8))
+rm(volclist)
+```
+
+
+
+Save the notebook data.
+
+```{r}
+save.image(here("reports/08_diffex_onevsrest_standard.RData"))
+```
+

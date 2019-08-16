@@ -1,0 +1,277 @@
+---
+title: "To do"
+output: html_notebook
+---
+
+* Rerun the analysis with 2.5% overrepresentation threshold and excluding extreme PAM50/receptor outliers
+* Test apeglm via whatever means necessary
+* Focus on LRT, inv vs rest, and inv vs non-prbc
+  * Come up with a way to discriminate between subtypes (unsupervised clustering of some kind)
+  * Start with immune signature
+* Try out CibersortX
+* Zoom in on IG cluster of heatmap
+* Look at specific B cell markers
+* Pearson hierarchical clustering approach - because shape is more important than aboslute value - for identifying subtypes - do this on the less stringent filtering
+	put the clusters into kaplan meijer survival (library survminer)
+* also look at t-sne
+
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Involution vs prbc
+
+```{r}
+res_inv_prbc <- results(dds, contrast=c("study_group", "ppbc_inv", "prbc"))
+ape_inv_prbc <- lfcShrink(dds, res= res_inv_prbc, type="apeglm")
+
+head(ape_inv_prbc)
+```
+
+```{r}
+df_inv_prbc <- annotate_results(ape_inv_prbc)
+
+print(paste("Involution vs prbc, padj < 0.05 & abs(log2foldchange) > 1:", df_inv_prbc %>% significance() %>% nrow()))
+
+```
+
+```{r}
+print(paste("Immune genes:", sum(significance(df_inv_prbc)$immune_gene, na.rm=T), "/", nrow(significance(df_inv_prbc))))
+```
+
+Page through some of the top hits
+
+```{r}
+significance(df_inv_prbc) %>% select(gene_name, description, padj) %>% head(30)
+```
+
+
+## Volcano plot
+
+Note that IG gene refers to the gene type (immunoglobulin) rather than "immune gene".
+
+```{r}
+volcano_plot(df_inv_prbc, "Involution vs prbc, ~batch + PAM50 + tumor_purity + study_group",
+             shape_col = "immune_gene", path_save_fig = here("results","diffex","figs", "volc_inv_prbc.jpg"))
+```
+## Heatmap
+
+```{r}
+annotated_heatmap(vsd, annotated_results = significance(df_inv_prbc), groups_to_plot = c("ppbc_inv", "prbc"),
+                  row_dend_reorder = TRUE, row_scale = T, show_row_names=F, show_column_names=F)
+```
+
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+plot_many_beehives(dds, head(significance(df_inv_prbc), 5), groups_to_plot = c("ppbc_inv", "prbc"))
+```
+
+# Involution vs lactation
+
+```{r}
+res_inv_lac <- results(dds, contrast=c("study_group", "ppbc_inv", "ppbc_lac"))
+ape_inv_lac <- lfcShrink(dds, res= res_inv_lac, type="apeglm")
+
+head(ape_inv_lac)
+```
+
+```{r}
+df_inv_lac <- annotate_results(ape_inv_lac)
+
+print(paste("Involution vs lactation, padj < 0.05 & abs(log2foldchange) > 1:", df_inv_lac %>% significance() %>% nrow()))
+
+```
+
+```{r}
+print(paste("Immune genes:", sum(significance(df_inv_lac)$immune_gene, na.rm=T), "/", nrow(significance(df_inv_lac))))
+```
+
+Page through some of the top hits
+
+```{r}
+significance(df_inv_lac) %>% select(gene_name, description, padj) %>% head(30)
+```
+
+
+## Volcano plot
+
+Note that IG gene refers to the gene type (immunoglobulin) rather than "immune gene".
+
+```{r}
+volcano_plot(df_inv_lac, "Involution vs lactation, ~batch + PAM50 + tumor_purity + study_group",
+             shape_col = "immune_gene", path_save_fig = here("results","diffex","figs", "volc_inv_lac.jpg"))
+```
+
+## Heatmap
+
+```{r}
+annotated_heatmap(vsd, annotated_results = significance(df_inv_lac), groups_to_plot = c("ppbc_inv", "ppbc_lac"),
+                  row_dend_reorder = TRUE, row_scale = T, show_row_names=F, show_column_names=F)
+```
+
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+plot_many_beehives(dds, head(significance(df_inv_lac), 5), groups_to_plot = c("ppbc_inv", "ppbc_lac"))
+```
+
+# Prbc vs lac
+
+```{r}
+res_prbc_lac <- results(dds, contrast=c("study_group", "prbc", "ppbc_lac"))
+ape_prbc_lac <- lfcShrink(dds, res= res_prbc_lac, type="apeglm")
+
+head(ape_prbc_lac)
+```
+
+```{r}
+df_prbc_lac <- annotate_results(ape_prbc_lac)
+
+print(paste("Prbc vs lac, padj < 0.05 & abs(log2foldchange) > 1:", df_prbc_lac %>% significance() %>% nrow()))
+
+```
+
+```{r}
+print(paste("Immune genes:", sum(significance(df_prbc_lac)$immune_gene, na.rm=T), "/", nrow(significance(df_prbc_lac))))
+```
+
+Page through some of the top hits
+
+```{r}
+significance(df_prbc_lac) %>% select(gene_name, description, padj) %>% head(30)
+```
+
+
+## Volcano plot
+
+Note that IG gene refers to the gene type (immunoglobulin) rather than "immune gene".
+
+```{r}
+volcano_plot(df_prbc_lac, "Prbc vs lac, ~ batch + PAM50 + tumor_purity + study_group",
+             shape_col = "immune_gene", path_save_fig = here("results","diffex","figs", "volc_prbc_lac.jpg"))
+```
+
+## Heatmap
+
+```{r}
+annotated_heatmap(vsd, annotated_results = significance(df_prbc_lac), groups_to_plot = c("prbc", "ppbc_lac"),
+                  row_dend_reorder = TRUE, row_scale = T, show_row_names=F, show_column_names=F)
+```
+
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+plot_many_beehives(dds, head(significance(df_prbc_lac), 5), groups_to_plot = c("prbc", "ppbc_lac"))
+```
+
+
+
+# Prbc vs lac
+
+```{r}
+res_prbc_lac <- results(dds, contrast=c("study_group", "prbc", "ppbc_lac"))
+ape_prbc_lac <- lfcShrink(dds, res= res_prbc_lac, type="apeglm")
+
+head(ape_prbc_lac)
+```
+
+```{r}
+df_prbc_lac <- annotate_results(ape_prbc_lac)
+
+print(paste("Prbc vs lac, padj < 0.05 & abs(log2foldchange) > 1:", df_prbc_lac %>% significance() %>% nrow()))
+
+```
+
+```{r}
+print(paste("Immune genes:", sum(significance(df_prbc_lac)$immune_gene, na.rm=T), "/", nrow(significance(df_prbc_lac))))
+```
+
+Page through some of the top hits
+
+```{r}
+significance(df_prbc_lac) %>% select(gene_name, description, padj) %>% head(30)
+```
+
+
+## Volcano plot
+
+Note that IG gene refers to the gene type (immunoglobulin) rather than "immune gene".
+
+```{r}
+volcano_plot(df_prbc_lac, "Prbc vs lac, ~ batch + PAM50 + tumor_purity + study_group",
+             shape_col = "immune_gene", path_save_fig = here("results","diffex","figs", "volc_prbc_lac.jpg"))
+```
+
+## Heatmap
+
+```{r}
+annotated_heatmap(vsd, annotated_results = significance(df_prbc_lac), groups_to_plot = c("prbc", "ppbc_lac"),
+                  row_dend_reorder = TRUE, row_scale = T, show_row_names=F, show_column_names=F)
+```
+
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+plot_many_beehives(dds, head(significance(df_prbc_lac), 5), groups_to_plot = c("prbc", "ppbc_lac"))
+```
+
+# Lac vs non-prbc
+
+```{r}
+res_lac_nonprbc <- results(dds, contrast=c("study_group",  "ppbc_lac", "non_prbc"))
+ape_lac_nonprbc <- lfcShrink(dds, res = res_lac_nonprbc, type="apeglm")
+
+head(ape_lac_nonprbc)
+```
+
+```{r}
+df_lac_nonprbc <- annotate_results(ape_lac_nonprbc)
+
+print(paste("Lac vs non_prbc, padj < 0.05 & abs(log2foldchange) > 1:", df_lac_nonprbc %>% significance() %>% nrow()))
+
+```
+
+```{r}
+print(paste("Immune genes:", sum(significance(df_lac_nonprbc)$immune_gene, na.rm=T), "/", nrow(significance(df_lac_nonprbc))))
+```
+
+Page through some of the top hits
+
+```{r}
+significance(df_lac_nonprbc) %>% select(gene_name, description, padj) %>% head(30)
+```
+
+
+## Volcano plot
+
+Note that IG gene refers to the gene type (immunoglobulin) rather than "immune gene".
+
+```{r}
+volcano_plot(df_lac_nonprbc, "Lac vs non_prbc, ~ batch + PAM50 + tumor_purity + study_group",
+             shape_col = "immune_gene", path_save_fig = here("results","diffex","figs", "volc_lac_nonprbc.jpg"))
+```
+
+## Heatmap
+
+```{r}
+annotated_heatmap(vsd, annotated_results = significance(df_lac_nonprbc), groups_to_plot = c("non_prbc", "ppbc_lac"),
+                  row_dend_reorder = TRUE, row_scale = T, show_row_names=F, show_column_names=F)
+```
+
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+plot_many_beehives(dds, head(significance(df_lac_nonprbc), 5), groups_to_plot = c("non_prbc", "ppbc_lac"))
+```

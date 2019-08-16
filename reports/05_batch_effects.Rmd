@@ -1,0 +1,293 @@
+---
+title: "Batch effects in ppbc"
+author: Kat Moore and Tycho Bismeijer
+output: 
+  html_notebook:
+    toc: yes
+    toc_float: yes
+
+---
+
+Based off the notebook imagene-batch-effects.Rmd by Tycho Bismeijer. Adapted for the post-partum breast cancer project (ppbc).
+
+```{r, include=F}
+library(here)
+library(openxlsx)
+library(DESeq2)
+library(tidyverse)
+library(RColorBrewer)
+library(scales) #For shape_pal
+```
+
+# Load data
+
+```{r Load data}
+#Count matrix post QC, with PAM50 and tumor purity determined, and replicates collapsed
+dds <- readRDS(file=here("data/Rds/04_dds_PAM50_tumorpurity.Rds"))
+
+#Load gene annotation (Ensembl -> Gene name)
+gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+```
+
+Select only gene-level information
+
+```{r}
+gx_annot <- gx_annot %>% select(gene_name, gene_description, gene_id)
+```
+
+Save separate df for sample metadata, including country
+
+```{r}
+sd = as.data.frame(colData(dds))
+```
+
+```{r}
+head(sd)
+```
+
+# Collapse small batches
+
+Distribution of samples over batches.
+
+```{r}
+sd %>% group_by(library_prep) %>% summarise(n=n())
+```
+
+Very small batches are going to cause problems in differential expression later on if batch is used as part of the design formula. To handle this, we combine batches to ensure that they are at least 10 samples in size. Double check the interpretation with Hanne here.
+
+```{r}
+sd = sd %>% mutate(batch = str_replace_all(
+  library_prep, "&", "en"
+))
+
+sd = sd %>%  mutate(batch = dplyr::case_when(
+  batch %in% c("2.0 en 5.0", "2.0") ~ "5.0",
+  batch == "1.0 en 5.0" ~ "5.0",
+  batch %in% c("7.0", "6.0 en 7.0") ~ "7.0",
+  TRUE ~ library_prep))
+
+sd$batch = as.factor(sd$batch)
+
+```
+
+New distribution of samples by batch:
+
+```{r}
+sd %>% group_by(batch) %>% summarise(n=n())
+```
+
+
+# Normalize count data
+
+Using a variance stabilizing transformation that is fully blind to experimental design.
+
+```{r}
+blind_vst = function(dds){
+  design(dds) = formula(~ 1)
+  vsd = vst(dds, blind=T)
+  mat = assay(vsd)
+  return(mat)
+}
+```
+
+```{r}
+normcounts <- blind_vst(dds)
+normcounts[1:4,1:4]
+```
+
+
+# Calculate PCA
+
+Minimum expression filter: the sum of all counts must exceed the number of genes. This is true in all samples
+
+```{r calc-pca}
+table(colSums(normcounts) > nrow(normcounts))
+nc.pca <- prcomp(t(normcounts[,colSums(normcounts) > nrow(normcounts)]))
+```
+
+## Scree plot
+
+```{r}
+scree_plot = function(res_prcomp, n_pca=20){
+  require(tidyverse)
+  percentVar <- res_prcomp$sdev^2/sum(res_prcomp$sdev^2) * 100
+  names(percentVar) = paste0("PC", seq(1, length(percentVar)))
+  percentVar = enframe(percentVar, "PC", "variance")
+  percentVar$PC=factor(percentVar$PC, levels=percentVar$PC)
+  percentVar %>% slice(1:n_pca) %>% ggplot(aes(x=PC, y=variance)) + geom_bar(stat="identity") +
+    ggtitle("Scree plot") + ylab("Percent total variance")
+  
+}
+```
+
+```{r}
+scree_plot(nc.pca)
+```
+
+And put first 10 components into a data frame with sample annotations.
+
+```{r pca-data-frame}
+pca.df <- as.data.frame(nc.pca$x[, 1:100])
+pca.df$sample_name <- rownames(nc.pca$x)
+pca.df <- inner_join(pca.df, sd, by='sample_name')
+pca.df = pca.df %>% select(sample_name, batch, everything())
+head(pca.df)
+```
+
+Check we didn't lose samples.
+```{r}
+stopifnot(nrow(pca.df) == nrow(t(normcounts)))
+```
+
+## PCA library prep and country
+
+```{r}
+ncolors <- length(unique(pca.df$batch))
+#getPalette = colorRampPalette(brewer.pal(9, "Set1"))
+
+ggplot(pca.df, aes(x=PC1, y=PC2, color=batch, shape=country)) +
+  geom_point()  + 
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(ncolors)) +
+  ggtitle("Country and library prep")
+
+ggplot(pca.df,aes(x=PC3, y=PC4, color=batch, shape=country)) +
+  geom_point() + 
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(ncolors))+
+  ggtitle("Country and library prep")
+
+ggplot(pca.df, aes(x=PC5, y=PC6, color=batch, shape=country)) +
+  geom_point() + 
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(ncolors))+
+  ggtitle("Country and library prep")
+```
+
+It looks like there might be something of a batch effect around principle component 5/6.
+
+By contrast, this is what study group and molecular subtype looks like. Note that it's a bit different than the PCA we produced in earlier notebooks, because the DESeq wrapper for PCA only plots the top 500 genes with the highest row variance. Here we're looking at all genes.
+
+```{r}
+ggplot(pca.df, aes(x=PC1, y=PC2, color=PAM50, shape=study_group)) +
+  geom_point()  + 
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(ncolors)) +
+  ggtitle("PAM50 and study group")
+```
+
+# Kruskal-Wallis genewise significance test by batch
+
+We use the Kruskal-Wallis Ranked Sum Test.
+
+```{r kw-test}
+batch <- sd[match(colnames(normcounts), sd$sample_name),]$batch
+
+res <- apply(normcounts, 1, function (x) {kruskal.test(x, batch)})
+
+```
+
+This test will give us genes that are signfiicantly differentially expressed in at least one batch vs the rest.
+
+```{r kw-df}
+kw.tests <- data_frame(
+    gene = rownames(normcounts),
+    nom.p = map_dbl(res, 'p.value'),
+    kw.stat = map_dbl(res, 'statistic'),
+    df = map_dbl(res, 'parameter'))
+#kw.tests <- kw.tests[colSums(gexp.counts) > nrow(gexp.counts), ]
+kw.tests <- mutate(kw.tests,
+    fdr = p.adjust(nom.p, 'BH'),
+    p = p.adjust(nom.p, 'bonferroni'))
+
+kw.tests = kw.tests %>% arrange(p)
+
+head(kw.tests)
+```
+
+## Histogram significant genes by batch
+
+```{r plot-kw-p}
+hist(kw.tests$fdr,
+     main=paste("FDR histogram of Gene Expresion ~ Batch,", nrow(kw.tests), "total genes"),
+     xlab="fdr of Kruskal-Wallis Test")
+```
+
+Extract the top most significant genes in the batch analysis.
+
+```{r show-top-kw-diff}
+top.tests <- slice(arrange(kw.tests, nom.p), 1:20)
+top.tests <- left_join(top.tests, gx_annot, by = c("gene"="gene_id")) %>% filter(duplicated(gene_name)==F)
+```
+
+Make box plots of the top 10.
+
+```{r boxplot-top-kw-diff}
+for (gene.name in top.tests$gene[1:10]) {
+  boxplot(t(normcounts)[, gene.name] ~ batch, main=gene.name)
+}
+```
+
+It's interesting that the top 10 genes all seem to hold the same S-form shape. Is this directly attributable to library size?
+
+```{r}
+sd %>% ggplot(aes(x=batch, y = lib.size)) + geom_boxplot()  + scale_y_log10()
+```
+
+
+
+# Kruskal-Wallis PC significance by batches
+
+Testing the first 100 principal components for significance by library prep batch.
+
+```{r kw-test-pca, cache=T}
+rp <- list()
+for (pc in paste0('PC', 1:100)) {
+    rp[[pc]] <- kruskal.test(pca.df[[pc]], as.factor(pca.df$batch))
+} 
+
+```
+
+Extract significant hits
+
+```{r}
+PC_batch = lapply(rp, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
+  mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
+  filter(fdr < 0.05) %>% arrange(fdr)
+
+print(paste("There are", nrow(PC_batch), "principal components significantly associated with library batch."))
+
+print(paste("These are:", paste(sort(PC_batch$PC), collapse = ", ")))
+```
+
+## Box plots significant PCs by batch
+
+Keep it to the top 10
+
+```{r boxplot-top-pca-diff}
+for (i in 1:10){
+  boxplot(get(PC_batch$PC[i]) ~ batch, data=pca.df, main=PC_batch$PC[i])
+}
+```
+
+
+# Conclusion
+
+The overall amount of variance associated with the principal components is relatively low (~9% for PC1). However, around 15K/60K genes are significant in a kruskal-wallis test of gene expression vs batch. 16 out of the first 100 principal components are significantly associated with batch. This suggests that include batch in the design formula for differential expression analysis is prudent.
+
+```{r}
+stopifnot(identical(sd$sample_name, dds$sample_name))
+dds$batch = sd$batch
+
+design(dds) <- formula(~ batch + PAM50 + tumor_purity + study_group)
+```
+
+# Write data
+
+```{r}
+write.csv(as.data.frame(colData(dds)),
+          file=here("data","metadata", "05_sample_annot_filtered.csv"), row.names = F)
+
+saveRDS(dds, file=here("data","Rds","05_dds_PAM50_tumorpurity_batch.Rds"))
+```
+
+```{r}
+save.image(here("reports/05_batch_effects.Rdata"))
+```
+

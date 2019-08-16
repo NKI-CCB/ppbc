@@ -1,0 +1,45 @@
+---
+title: "Check files"
+output: html_notebook
+---
+
+```{r}
+library(here)
+library(tidyverse)
+```
+
+File names from Hanne
+
+```{r}
+new_sample_names = read_tsv(here("data/RNA-seq/new_samples_jun2019.txt"), col_names = F)
+new_sample_names %>% head()
+```
+
+List of new directories copied from /share/wessels/postpartbc
+
+```{r}
+list.files("/DATA/share/postpartbc/fastq_jun2019/")
+```
+
+Combine by
+
+```{r}
+new_sample_names = new_sample_names %>% rename(sample_id=X1) %>% mutate(dirname_ref = str_replace_all(sample_id,"HL", "rHLE")) 
+
+new_sample_names
+```
+
+Which are missing?
+
+```{r}
+setdiff(new_sample_names$dirname_ref, list.files("/DATA/share/postpartbc/fastq_jun2019/"))
+```
+
+These samples were originally failed sequence runs: They were later resequenced and delivered as fastq.gz only (no loopy directory structure). You can see them in the output of list.files()
+
+```{r}
+list.files("/DATA/share/postpartbc/fastq_jun2019/")[list.files("/DATA/share/postpartbc/fastq_jun2019/") %>% str_detect("fastq.gz")]
+```
+
+All files present and accounted for!
+

@@ -1,0 +1,644 @@
+---
+title: "Identification of involution subtypes"
+output: html_notebook
+---
+
+```{r, include=F}
+library(DESeq2)
+library(apeglm)
+library(here)
+library(tidyverse)
+library(ggrepel)
+library(ComplexHeatmap)
+library(openxlsx)
+library(scrime)
+library(sva)
+library(RColorBrewer)
+```
+
+# Setup and pre-processing
+
+## Gene count data
+
+This data has been filtered on the basis of having a gene-wise non-zero count in at least a third of the samples. 
+
+>keep <- rowSums(counts(dds)!=0) >= ceiling(ncol(dds)/3)
+table(keep)
+dds <- dds[keep,]
+
+```{r}
+dds = readRDS(here("data/Rds/07_dds_apeglm_nonprbcref_standard.Rds"))
+```
+
+```{r}
+table(dds$study_group)
+```
+
+Subset for just the involution samples.
+
+```{r}
+inv.dds = dds[,colnames(dds)[dds$study_group == "ppbc_inv"]]
+colData(inv.dds) = droplevels(colData(inv.dds))
+table(inv.dds$study_group)
+```
+
+
+### Variance stabilizing transformation
+
+Renders the data homoskedastic, useful for visualization purposes.
+
+We want a transformation that is fully blind to the experimental design, but still uses the faster sampling method in the vst wrapper for varianceStabilizingTransformation.
+
+
+```{r}
+blind_vst = function(dds){
+  design(dds) = formula(~ 1)
+  vsd = vst(dds, blind=T)
+  #mat = assay(vsd)
+  return(vsd)
+}
+```
+
+```{r}
+vsd = blind_vst(dds)
+inv.vsd = blind_vst(inv.dds)
+```
+
+### Gene metadata
+
+```{r}
+gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
+```
+
+### Diffex reports
+
+Read in significant results from comparison involution vs non-prbc.
+
+```{r}
+rep_inv_nonprbc = readRDS(here("data", "Rds", "07_report_inv_nonprbc.Rds"))
+```
+
+All results
+
+```{r}
+res_inv = rep_inv_nonprbc$annotated_results
+```
+
+
+## Helper functions
+
+### Complex heatmap
+
+
+
+
+```{r}
+
+complex_heatmap <- function(vsd, annotated_results, col_annot = "study_group",groups_to_plot=levels(colData(vsd)[,col_annot]) ,
+                            row_annot=F, row_scale = FALSE, row_id = "gene_name",
+                            row_size = 8, col_size = 8, distance_method = "pearson", ...){
+
+  require(DESeq2)
+  require(ComplexHeatmap)
+  require(tidyverse)
+  require(scrime)
+  require(RColorBrewer)
+
+
+  stopifnot(row_id %in% c("gene_name", "ensembl_gene_id", "concatenate"))
+  stopifnot(groups_to_plot %in% levels(colData(vsd)[,col_annot]))
+  genes_to_plot = annotated_results[,c("ensembl_gene_id", "gene_name")]
+
+  if (!class(vsd) %in% c("DESeqDataSet","DESeqTransform")){
+    stop("Provide a dds using DESeqDataSetfrommatrix or DeseqTransform(summarizedexperiment(matrix,coldata))")
+  }
+
+
+
+  samples_to_plot = colnames(vsd)[as.data.frame(colData(vsd)[col_annot])[,1] %in% groups_to_plot]
+  vsd = vsd[genes_to_plot$ensembl_gene_id, samples_to_plot]
+  mat = assay(vsd)
+
+  if (row_scale==T){
+    mat = scrime::rowScales(mat)
+  }
+
+  title = if_else(groups_to_plot == levels(colData(vsd)[,col_annot]),
+                  "All groups",
+                  paste(groups_to_plot, collapse="vs"))
+
+  stopifnot(identical(rownames(mat), genes_to_plot$ensembl_gene_id))
+
+  if (row_id == "gene_name"){
+    row_labels = genes_to_plot$gene_name
+  } else if (row_id == "concatenate"){
+    row_labels = paste(genes_to_plot$gene_name, genes_to_plot$ensembl_gene_id, ":")
+  } else {
+    row_labels = rownames(mat)
+  }
+
+  # Top column annotation
+  ann_top = as.data.frame(colData(vsd)[col_annot])
+
+  #Colors must be named lists with named elements
+  study_colors=suppressWarnings(colorRampPalette(brewer.pal(length(levels(colData(vsd)[,col_annot])),"Spectral"))(length(levels(colData(vsd)[,col_annot]))))
+  names(study_colors) = levels(colData(vsd)[,col_annot])
+
+  top_cols=list(study_group=study_colors)
+
+  colTop <- HeatmapAnnotation(df=ann_top, which="col", col = top_cols)
+
+  #Bottom column annotation
+  ann_bottom = as.data.frame(colData(vsd)["PAM50"])
+  pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(vsd$PAM50)),"Paired"))(length(unique(vsd$PAM50))))
+  names(pam_colors)= unique(vsd$PAM50)
+  bottom_cols = list(PAM50 = pam_colors)
+  colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = bottom_cols)
+
+  # Row annotation - not working in current version?
+  anno_rows = tibble(ensembl_gene_id = annotated_results$ensembl_gene_id, gene_type=annotated_results$gene_type) %>%
+    mutate(Type=case_when(gene_type == "protein_coding" ~ "protein coding",
+                          str_detect(string=gene_type,pattern="IG") ~ "IG gene",
+                          TRUE ~ "other noncoding")) %>%
+    column_to_rownames("ensembl_gene_id") %>% select(Type)
+
+  anno_rows$Type = as.factor(anno_rows$Type)
+
+  type_colors = suppressWarnings(colorRampPalette(brewer.pal(length(levels(anno_rows$Type)),"Set1"))(length(levels(anno_rows$Type))))
+  names(type_colors) = levels(anno_rows$Type)
+  row_colors = list(Type = type_colors)
+
+  rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=row_colors)
+
+
+  if (row_scale==T){
+    hlp = list(title="rowscaled vst")
+  } else {
+    hlp = list(title="vst counts")
+  }
+
+  Heatmap(mat, top_annotation = colTop, bottom_annotation = colBottom, left_annotation = rowAnno,
+          heatmap_legend_param = hlp, row_labels = row_labels, clustering_distance_rows = distance_method,
+          row_names_gp = gpar(fontsize = row_size), column_names_gp = gpar(fontsize = col_size), ...)
+}
+
+
+```
+
+### PCA
+
+
+```{r}
+get_PCA <- function(dds, labelled_samples = NULL, color.group, shape.group, variancetransform = T){
+
+  require(DESeq2)
+  require(tidyverse)
+  require(ggrepel)
+  
+
+  if(variancetransform == T){
+    vsd = vst(dds, blind=T)
+  } else {
+    vsd = dds
+  }
+  
+  sampleDists <- dist(t(assay(vsd))) 
+  pcaData <- plotPCA(vsd, intgroup=c(color.group, shape.group), returnData=TRUE) #To do: Make intgroup variables
+  percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+  if (is.null(labelled_samples)==T){
+    ggplot(pcaData, aes(PC1, PC2, color=get(color.group), shape=get(shape.group))) +
+      geom_point(size=3) +
+      xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+      coord_fixed() + labs(color = color.group, shape = shape.group)
+  } else {
+    pcaData = pcaData %>% mutate(labels = if_else(name %in% labelled_samples, name, NULL))
+    ggplot(pcaData, aes(PC1, PC2, color=get(color.group), shape=get(shape.group), label=labels)) +
+      geom_point(size=3) +
+      xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+      coord_fixed() + ggrepel::geom_label_repel(size=4, show.legend = F) +
+      labs(color = color.group, shape = shape.group)
+  }
+
+}
+
+```
+
+
+```{r}
+get_PCA_from_matrix <- function(mat, sampledata, labelled_samples = NULL, color.group, shape.group, ntop=500){
+
+  require(tidyverse)
+  require(ggrepel)
+  
+
+  rv <- rowVars(mat)
+  select <- order(rv, decreasing = TRUE)[seq_len(min(ntop, length(rv)))]
+  pca <- prcomp(t(mat[select, ]))
+  percentVar <- pca$sdev^2/sum(pca$sdev^2)
+  
+  if (!all(rownames(sampledata) %in% colnames(mat))) {
+    stop("The column names of the input matrix should match the row names of the sample data")
+    }
+  
+  intgroup = c(color.group, shape.group)
+  intgroup.df <- sampledata[, intgroup, drop = FALSE]
+  
+  group <- if (length(intgroup) > 1) {
+    factor(apply(intgroup.df, 1, paste, collapse = ":"))
+    } else {
+      sampledata[[intgroup]]
+      }
+  
+  pcaData <- data.frame(PC1 = pca$x[, 1], PC2 = pca$x[, 2], group = group, 
+                  intgroup.df, name = colnames(mat))
+  
+  attr(pcaData, "percentVar") <- percentVar[1:2]
+  
+  #sampleDists <- dist(t(assay(vsd))) 
+  #pcaData <- plotPCA(vsd, intgroup=c(color.group, shape.group), returnData=TRUE) 
+  percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+  if (is.null(labelled_samples)==T){
+    ggplot(pcaData, aes(PC1, PC2, color=get(color.group), shape=get(shape.group))) +
+      geom_point(size=3) +
+      xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+      coord_fixed() + labs(color = color.group, shape = shape.group)
+  } else {
+    pcaData = pcaData %>% mutate(labels = if_else(name %in% labelled_samples, name, NULL))
+    ggplot(pcaData, aes(PC1, PC2, color=get(color.group), shape=get(shape.group), label=labels)) +
+      geom_point(size=3) +
+      xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+      coord_fixed() + ggrepel::geom_label_repel(size=4, show.legend = F) +
+      labs(color = color.group, shape = shape.group)
+  }
+
+}
+```
+
+
+```{r}
+scree_plot = function(res_prcomp, n_pca=20){
+  require(tidyverse)
+  percentVar <- res_prcomp$sdev^2/sum(res_prcomp$sdev^2) * 100
+  names(percentVar) = paste0("PC", seq(1, length(percentVar)))
+  percentVar = enframe(percentVar, "PC", "variance")
+  percentVar$PC=factor(percentVar$PC, levels=percentVar$PC)
+  percentVar %>% slice(1:n_pca) %>% ggplot(aes(x=PC, y=variance)) + geom_bar(stat="identity") +
+    ggtitle("Scree plot") + ylab("Percent total variance")
+
+}
+```
+
+
+# Diffex genes
+
+Threshold applied:
+
+```{r}
+rep_inv_nonprbc$sig_threshold
+```
+
+```{r}
+sig.inv = rep_inv_nonprbc$significant_genes
+print(paste("There are", nrow(sig.inv), "significant genes in the comparison involution vs non-prbc"))
+```
+
+Top genes
+
+```{r}
+sig.inv %>% head(30)
+```
+
+
+# Two-way Heatmap
+
+Depicted are genes significant in the comparison involution vs non-prbc using counts normalized via the variance stabilizing transformation.
+
+## Dendrogram split
+
+```{r, fig.width=10}
+
+
+draw(
+  complex_heatmap(vsd, annotated_results = sig.inv, row_scale = T, show_column_names=F,
+                  col_annot = "study_group",
+                  groups_to_plot = c("ppbc_inv", "non_prbc"), distance_method = "pearson",
+                  column_split=2, row_split = 3),
+     column_title = "Involution vs non-prbc significant genes, Cutree split")
+```
+
+```{r, fig.width=10}
+colData(vsd)[, col_annot]
+draw(
+  complex_heatmap(vsd, annotated_results = sig.inv, row_scale = T, show_column_names=F,
+                  groups_to_plot = c("ppbc_inv", "non_prbc"), distance_method = "pearson",
+                  column_split=2, row_split = 3),
+     column_title = "Involution vs non-prbc significant genes, Cutree split")
+```
+
+## K-means
+
+```{r, fig.width=10}
+set.seed(1)
+draw(
+  complex_heatmap(vsd, annotated_results = sig.inv, row_scale = T, show_column_names=F, col_annot="study_group",
+                  groups_to_plot = c("ppbc_inv", "non_prbc"), distance_method = "pearson",
+                  column_km=3, row_km = 3),
+     column_title = "Involution vs non-prbc significant genes, K-means")
+```
+
+# Heatmap all groups
+
+## Dendrogram split
+
+Depicted are genes significant in the comparison involution vs non-prbc using counts normalized via the variance stabilizing transformation.
+
+```{r, fig.width=10}
+draw(complex_heatmap(vsd, annotated_results = sig.inv, row_scale = T, show_column_names=F, distance_method = "pearson", col_annot="study_group",
+                     column_split = 3, row_split = 3),
+     column_title = "Involution vs non-prbc significant genes in all groups, Cutree split")
+```
+
+## K-means
+
+Depicted are genes significant in the comparison involution vs non-prbc using counts normalized via the variance stabilizing transformation.
+
+
+```{r, fig.width=10}
+set.seed(1)
+
+inv.hm =
+draw(complex_heatmap(vsd, annotated_results = sig.inv, row_scale = T, show_column_names=F, distance_method = "pearson", row_size = 7, col_annot="study_group",
+                     column_km = 3, column_km_repeats=5, row_km = 3, row_km_repeats = 5),
+     column_title = "Involution vs non-prbc significant genes in all groups, K-means")
+```
+
+```{r}
+png(here("results", "diffex", "figs", "09_kmeans_hm_inv_sig.png"))
+print(inv.hm)
+dev.off()
+```
+
+to do: collapse cluster 2 into single metagene by averaging experession, then test assocation between metagene and survival/subgroups
+
+### Summary column clusters
+
+The column clusters can be split into a low (1), medium(2) and high(3) Ig-expressing groups
+
+We can retrieve the gene/sample names either with row/column_order functions, which return indices:
+
+```{r, eval=F}
+row_order(inv.hm)
+```
+
+...or by using the row/column_dend followed by as.hclust, after which the sample and gene names are accessible via the label operator.
+
+```{r}
+coldend.hm = column_dend(inv.hm)
+col_clust =
+bind_rows(
+  tibble(sample_name = as.hclust(coldend.hm$`1`)$labels,IG_col_cluster = "low", col_cluster=1),
+  tibble(sample_name = as.hclust(coldend.hm$`2`)$labels,IG_col_cluster = "medium", col_cluster=2),
+  tibble(sample_name = as.hclust(coldend.hm$`3`)$labels,IG_col_cluster = "high", col_cluster=3)
+) %>% left_join(.,select(as.data.frame(colData(dds)), sample_name, study_group, PAM50), by="sample_name") %>%
+  mutate(IG_col_cluster = factor(IG_col_cluster, levels = c("low", "medium", "high")))
+
+table(col_clust$study_group, col_clust$IG_col_cluster)
+
+```
+
+```{r, fig.width=10}
+
+#library(ggpubr)
+#ggarrange(
+#  col_clust %>% ggplot(aes(x = IG_col_cluster, fill=study_group)) + geom_bar(position = "fill") +
+#  scale_fill_brewer(type="qual", palette = 6),
+#  col_clust %>% ggplot(aes(fill = IG_col_cluster, x=study_group)) + geom_bar(position = "fill") +
+#  scale_fill_brewer(type="div", palette = 9),
+#  ncol =1, nrow = 2
+#) %>% annotate_figure(top="IG cluster enrichment")
+
+col_clust %>% ggplot(aes(x = IG_col_cluster, fill=study_group)) + geom_bar(position = "fill") +
+  scale_fill_brewer(type="qual", palette = 6)
+
+col_clust %>% ggplot(aes(fill = IG_col_cluster, x=study_group)) + geom_bar(position = "fill") +
+  scale_fill_brewer(type="div", palette = 9)
+
+```
+
+
+### Summary row clusters
+
+Extract and store the row clusters:
+
+```{r}
+rowdend.hm = row_dend(inv.hm)
+
+row_clust = 
+bind_rows(
+  tibble(ensembl_gene_id = as.hclust(rowdend.hm$`1`)$labels,row_cluster = 1),
+  tibble(ensembl_gene_id = as.hclust(rowdend.hm$`2`)$labels,row_cluster = 2),
+  tibble(ensembl_gene_id = as.hclust(rowdend.hm$`3`)$labels,row_cluster = 3)
+) %>%
+  right_join(select(sig.inv, ensembl_gene_id, gene_name, description, padj, log2FoldChange, immune_gene),
+             ., by = "ensembl_gene_id") %>% select(gene_name, immune_gene, row_cluster, description, everything())
+```
+
+```{r}
+row_clust[row_clust$row_cluster==1,]
+row_clust[row_clust$row_cluster==2,]
+row_clust[row_clust$row_cluster==3,]
+```
+
+
+
+# Clustering involution samples
+
+We will attempt clustering both before and after removal of molecular subtype as a confounding factor. See if the samples also cluster based on immune high-medium-low categories.
+
+```{r}
+#Remeber to use the [[1]] or else you'll mess up the data frame structure by adding a dataframe with one column to an existing data frame
+inv.dds$IG_cluster = col_clust[match(colData(inv.dds)$sample_name,col_clust$sample_name), "IG_col_cluster"][[1]]
+inv.vsd$IG_cluster = col_clust[match(colData(inv.dds)$sample_name,col_clust$sample_name), "IG_col_cluster"][[1]]
+```
+
+
+```{r}
+library(openxlsx)
+
+write.xlsx(list(row_clusters = row_clust, col_clusters = col_clust), file = here("results", "clustering", "inv_clusters.xlsx"))
+```
+
+
+## ComBat mol subtype
+
+```{r}
+cb_inv = ComBat(assay(inv.vsd), batch=inv.vsd$PAM50)
+```
+
+## Inv heatmaps
+
+### Significant genes in involution vs non-prbc
+
+```{r, fig.width=10}
+set.seed(1)
+draw(complex_heatmap(inv.vsd, annotated_results = sig.inv, row_scale = T, show_column_names=F, distance_method = "pearson",
+                     col_annot = "IG_cluster",
+                     column_km = 3, column_km_repeats=50, row_km = 3, row_km_repeats = 50
+                     ),
+     column_title = "Clustering involution samples, sig genes")
+
+
+```
+
+### Top 500 genes with most variance
+
+```{r}
+rv = rowVars(assay(inv.vsd))
+select = order(rv, decreasing = TRUE)[seq_len(min(500, 
+            length(rv)))]
+
+vargenes = rownames(assay(inv.vsd[select,]))
+```
+
+#### VSD
+
+```{r, fig.width=10}
+set.seed(1)
+draw(complex_heatmap(inv.vsd[select,], annotated_results = res_inv[res_inv$ensembl_gene_id %in% vargenes,],
+                     col_annot = "IG_cluster",
+                     row_scale = T, show_column_names=F, distance_method = "pearson", show_row_names = F,
+                     column_km = 4, column_km_repeats=50, row_km = 3, row_km_repeats = 50
+                     ),
+     column_title = "Clustering involution samples, top 500 most variant genes vst")
+```
+
+Try with norm transform
+
+(Doesn't help, disabled)
+
+```{r, eval=F}
+nsd = normTransform(inv.dds)
+rv2 = rowVars(assay(nsd))
+select2 = order(rv2, decreasing = TRUE)[seq_len(min(500, 
+            length(rv2)))]
+
+vargenes2 = rownames(assay(nsd[select2,]))
+```
+
+#### Log transform
+
+```{r, fig.width=10, eval=F}
+set.seed(1)
+draw(complex_heatmap(nsd[select2,], annotated_results = res_inv[res_inv$ensembl_gene_id %in% vargenes2,],
+                     row_scale = T, show_column_names=F, distance_method = "pearson", show_row_names = F,
+                     column_km = 3, column_km_repeats=5, row_km = 3, row_km_repeats = 5
+                     ),
+     column_title = "Clustering involution samples, top 500 most variant genes, log2 transform")
+```
+
+### Post-Combat 
+
+```{r, fig.width=10}
+
+cb.dds = DESeqTransform(SummarizedExperiment(cb_inv, colData = colData(inv.vsd)))
+
+set.seed(1)
+draw(complex_heatmap(cb.dds, annotated_results = res_inv[res_inv$ensembl_gene_id %in% vargenes,], col_annot="IG_cluster",
+                     row_scale = T, show_column_names=F, distance_method = "pearson", show_row_names = F,
+                     column_km = 2, column_km_repeats=5, row_km = 2, row_km_repeats = 5
+                     ),
+     column_title = "Clustering involution samples, top 500 most variant genes, post Combat")
+```
+
+
+# PCA involution
+
+### Mol subtype
+
+No manipulation necessary for molecular subtype to emerge as prominent.
+
+```{r}
+get_PCA(inv.dds, shape.group = "PAM50", color.group="IG_cluster") +
+  ggtitle("PCA involution patients, top 500 variant genes")
+```
+
+### Post-ComBat
+
+```{r}
+get_PCA_from_matrix(cb_inv, as.data.frame(colData(inv.vsd)), shape.group = "PAM50", color.group="IG_cluster") +
+  ggtitle("PCA involution, post ComBat for PAM50")
+```
+
+
+
+
+
+
+# Exploration survival data
+
+```{r}
+surv = readxl::read_excel(here("data", "external", "Survival_Hecoderingslijst HL-FA_v29072019_KM.xlsx"))
+
+head(surv)
+```
+
+
+```{r}
+surv %>% filter(`Time of FU (Months)`!="x") %>%
+  select(`Time of FU (Months)`,
+         death = `Death (0=no;1=due to disease; 2=other cause; 3=unknown)`,
+         study_group = `Study Group`) %>%
+  mutate(follow_up = as.integer(`Time of FU (Months)`),
+         study_group = str_replace(study_group, "non-PrBc", "non-PrBC"),
+         keep = (follow_up > 20 | death == 1)) %>%
+  ggplot(aes(x=study_group, y = follow_up, color=keep)) +
+  geom_jitter(width=0.1, height=0) + geom_hline(yintercept = 20, color="red") +
+  ggtitle("Cutoff: Less than 20 months follow up, or death before 20 months") +
+  ylab("Months of follow up") + xlab("study group")
+```
+
+Samples lost by study group
+
+```{r}
+surv %>% filter(`Time of FU (Months)`!="x") %>%
+  select(`Time of FU (Months)`,
+         death = `Death (0=no;1=due to disease; 2=other cause; 3=unknown)`,
+         study_group = `Study Group`) %>%
+  mutate(follow_up = as.integer(`Time of FU (Months)`),
+         study_group = str_replace(study_group, "non-PrBc", "non-PrBC"),
+         keep = (follow_up > 20 | death == 1)) %>%
+  select(study_group, keep) %>% table()
+```
+
+Total samples lost vs kept:
+
+```{r}
+surv %>% filter(`Time of FU (Months)`!="x") %>%
+  select(`Time of FU (Months)`,
+         death = `Death (0=no;1=due to disease; 2=other cause; 3=unknown)`,
+         study_group = `Study Group`) %>%
+  mutate(follow_up = as.integer(`Time of FU (Months)`),
+         study_group = str_replace(study_group, "non-PrBc", "non-PrBC"),
+         keep = (follow_up > 20 | death == 1)) %>%
+  select(keep) %>% table()
+```
+
+```{r}
+#TO do: fix
+as.data.frame(colData(dds))[as.data.frame(colData(dds))$sample_ref=="HL-FA-38",]
+
+```
+
+# Save data
+
+```{r}
+save.image(here("reports", "09_clustering_involution.RData"))
+```
+
