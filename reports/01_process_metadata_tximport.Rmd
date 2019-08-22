@@ -17,63 +17,275 @@ library(here)
 
 # Process patient annotations
 
-```{r}
-patient_annotations <- openxlsx::read.xlsx(here("data/external/Hecoderingslijst HL-FA_v26062019.xlsx"),
-                                           startRow = 3, detectDates = T, na.strings=c("x", "extracted", "opvragen", "-"))
+The issue with dates appears to be caused by mixed format. In OuderdomFFPE for example, we have
 
+9/25/2013 *American format (mo, day, year)
+5/9/2007 *ambiguous
+...
+21/09/2004 *European format (day, mo, year)
+
+This appears to break openxlsx's date detection. Reading it as text is no solution, because excel handles encoding of dates oddly, writing them as integers instead of strings.
+
+```{r}
+#No longer handles dates properly (*SOB*)
+#patient_annotations <- openxlsx::read.xlsx(here("data/external/Survival_Hecoderingslijst HL-FA_v29072019_KM.xlsx"),
+#                                           startRow = 1, detectDates = T, na.strings=c("x", "extracted", "opvragen", "-"))
+
+#Handles dates, but only if you tell it which is column is which
+patient_annotations <- readxl::read_excel(here("data/external/Survival_Hecoderingslijst HL-FA_v29072019_KM.xlsx"),
+                                          na=c("x", "extracted", "opvragen", "-"),
+                                          col_types = c("text", #NEW.REF
+                                                        "text", #"OLD.REF"
+                                                        "text", #"Status...3" 
+                                                        "numeric", #"Status...4"         
+                                                        "date", #"Ouderdom.FFPE
+                                                        "text", #"Study.Group"
+                                                        "numeric", #Study_group_2.0..1.PPBC.inv.1                    
+                                                        "text", #"Country.of.Diagnosis"
+                                                        "numeric", #"ER"
+                                                        "numeric", #"PR"                                                                                       
+                                                        "numeric", #"HER2"                                                                                        
+                                                        "text", #"Molecular.Subtype"
+                                                        "numeric", #"Stage..1.2.3.4."                                                                              
+                                                        "numeric", #"Stage..0.satge0..1
+                                                        "numeric",#"Grade"                                                                                      
+                                                        "text",#"Ki67"                                                                                             
+                                                        "guess", #"TIL.."                                                                                          
+                                                        "numeric", #"Year.of.Birth"                                                                                
+                                                        "numeric", #"Year.of.Diagnosis"
+                                                        "numeric", #"Age.of.Diagnosis"                                                                             
+                                                        "numeric", #"FU.Year"                                                                                      
+                                                        "numeric", #"Time.of.FU..Years."                                                                           
+                                                        "numeric", #"Time.of.FU..Months."                                                                          
+                                                        "numeric", #"Death..0.no.1.due.to.disease..2.other.cause..3.unknown."                                      
+                                                        "numeric", #"Year.of.Death"                                                                                
+                                                        "numeric", #"Overall.Survival..OS."                                                                        
+                                                        "numeric", #"Time.to.OS..Years."                                                                           
+                                                        "numeric", #"Time.to.OS..Months."                                                                          
+                                                        "numeric", #"Distant.Recurrence.free.Survival..DRS."                                                       
+                                                        "numeric", #"Distant.Recurrence"                                                                           
+                                                        "numeric", #"Metastasis.at.Diagnosis"                                                                      
+                                                        "numeric", #"Year.of.DRS"                                                                                  
+                                                        "numeric", #"Time.to.DRS..Years."                                                                          
+                                                        "numeric", #"Time.to.DRS..Months."                                                                         
+                                                        "text", #"Metastasized.to"                                                                                 
+                                                        "numeric", #"Liver.yes.no"                                                                                 
+                                                        "numeric", #"Bone.yes.no"                                                                                  
+                                                        "numeric", #"Brain.yes.no"                                                                                 
+                                                        "numeric", #"Lung.yes.no"                                                                                  
+                                                        "numeric", #"Other.yes.no"                                                                                 
+                                                        "numeric", #"Local.Recurrence.free.Survival..LRS."                                                         
+                                                        "numeric", #"Year.of.LRS"                                                                                  
+                                                        "numeric", #"Time.to.LRS..Years."                                                                          
+                                                        "numeric", #"Time.to.LRS..Months."                                                                         
+                                                        "numeric", #"Herval.Borst..Nee.0..Lokaal.1..contralateraal.2..bilateraal.3."                               
+                                                        "numeric", #"LRS.Local"                                                                                    
+                                                        "numeric", #"LRS.contralateral"                                                                            
+                                                        "numeric", #"LRS.bilateral"                                                                                
+                                                        "numeric", #"Months_Involution_Delivery_OR_weeks_pregnant..PrBC."                                          
+                                                        "numeric", #"Months_Involution_Breastfeeding"                                                              
+                                                        "numeric", #"Breastfeeding..No.0..Yes.1."                                                                  
+                                                        "numeric", #"Months.breastfeeding.for.cancer.related.pregnancy"                                            
+                                                        "text", #"Tissue.Availability...Core.Biopsy"                                                               
+                                                        "date", #"Extraction"                                                                                      
+                                                        "numeric", #"Nanodrop..ng.µl."                                                                             
+                                                        "numeric", #"Bioanalyser..ng.µl."                                                                          
+                                                        "guess", #"DV.200...."                                                                                     
+                                                        "text", #"Library.Prep"                                                                                    
+                                                        "text"#...59"                            
+                                                        )
+                                          )                                                                                                               
+                                                                                                          
 colnames(patient_annotations)
 ```
 
-Rename columns to be syntactically valid. Copy the patient_ref into a new column called sample ref, which will later be used to match either the patient_ref or the old_ref to the corresponding fastq file.
+## Fix dates
+
+When this issue occurs, the date is skipped
 
 ```{r}
+patient_annotations %>% filter(`NEW REF` == "HL-FA-34") %>% select(`NEW REF`, `Ouderdom FFPE`)
+```
+
+Fix these.
+
+```{r}
+#Expecting date in E20 / R20C5: got '01/09/1997'
+patient_annotations[[19,"Ouderdom FFPE"]] <- as.POSIXct("01/09/1997", tz="UTC")
+#Expecting date in E22 / R22C5: got '04/02/2002'
+patient_annotations[[21,"Ouderdom FFPE"]] <- as.POSIXct("04/02/2002", tz="UTC")
+#Expecting date in E23 / R23C5: got '07/01/2003'
+patient_annotations[[22,"Ouderdom FFPE"]] <- as.POSIXct("07/01/2003", tz="UTC")
+#Expecting date in E26 / R26C5: got '12/03/2004'
+patient_annotations[[25,"Ouderdom FFPE"]] <- as.POSIXct("12/03/2004", tz="UTC")
+#Expecting date in E27 / R27C5: got '02/04/2004'
+patient_annotations[[26,"Ouderdom FFPE"]] <- as.POSIXct("02/04/2004", tz="UTC")
+#Expecting date in E29 / R29C5: got '21/09/2004'
+patient_annotations[[28,"Ouderdom FFPE"]] <- as.POSIXct("21/09/2004", tz="UTC")
+#Expecting date in E30 / R30C5: got '13/10/2004'
+patient_annotations[[29,"Ouderdom FFPE"]] <- as.POSIXct("13/10/2004", tz="UTC")
+#Expecting date in E32 / R32C5: got '16/11/2005'
+patient_annotations[[31,"Ouderdom FFPE"]] <- as.POSIXct("16/11/2005", tz="UTC")
+#Expecting date in E33 / R33C5: got '23/11/2005'
+patient_annotations[[32,"Ouderdom FFPE"]] <- as.POSIXct("23/11/2005", tz="UTC")
+#Expecting date in E34 / R34C5: got '28/11/2005'
+patient_annotations[[33,"Ouderdom FFPE"]] <- as.POSIXct("28/11/2005", tz="UTC")
+#Expecting date in E35 / R35C5: got '07/02/2006'
+patient_annotations[[34,"Ouderdom FFPE"]] <- as.POSIXct("07/02/2006", tz="UTC")
+#Expecting date in E36 / R36C5: got '11/06/2007'
+patient_annotations[[35,"Ouderdom FFPE"]] <- as.POSIXct("11/06/2007", tz="UTC")
+#Expecting date in E38 / R38C5: got '21/10/2008'
+patient_annotations[[37,"Ouderdom FFPE"]] <- as.POSIXct("21/10/2008", tz="UTC")
+#Expecting date in E40 / R40C5: got '29/04/2010'
+patient_annotations[[39,"Ouderdom FFPE"]] <- as.POSIXct("29/04/2010", tz="UTC")
+#Expecting date in E41 / R41C5: got '09/07/2010'
+patient_annotations[[40,"Ouderdom FFPE"]] <- as.POSIXct("09/07/2010", tz="UTC")
+#Expecting date in E42 / R42C5: got '05/08/2010'
+patient_annotations[[41,"Ouderdom FFPE"]] <- as.POSIXct("05/08/2010", tz="UTC")
+#Expecting date in E44 / R44C5: got '22/12/2010'
+patient_annotations[[43,"Ouderdom FFPE"]] <- as.POSIXct("22/12/2010", tz="UTC")
+
+filter(patient_annotations, is.na(patient_annotations$`Ouderdom FFPE`))
+
+
+```
+
+## Fix column names
+
+Rename columns to be legible. Copy the patient_ref into a new column called sample ref, which will later be used to match either the patient_ref or the old_ref to the corresponding fastq file.
+
+```{r, include=F}
+paste(colnames(patient_annotations), collapse = '\`,\`')
+```
+
+
+```{r}
+
 patient_annotations = patient_annotations %>%
-dplyr::select(
-    patient_ref = NEW.REF,
-    old_ref = OLD.REF,
-    study_group = Study.Group,
-    study_int = `Study_group_2.0.(1=PPBC-inv.1.Y.;2=PPBC-inv.2Y;.3=PPBC-lac;.4=PrBC;.5=PPBC-inv;.6=PPBC.no.info)`,
-    status = `Status`,
-    library_prep = `Library.Prep`,
-    extraction_date = `Extraction`,
-    FFPE_age = `Ouderdom.FFPE`,
-    molecular_subtype = `Molecular.Subtype`,
-    stage = `Stage`,
+  dplyr::select(
+    patient_ref = `NEW REF`,
+    old_ref = `OLD REF`,
+    status = `Status...3`,
+    status_int = `Status...4`,
+    FFPE_age = `Ouderdom FFPE`,
+    study_group = `Study Group`,
+    study_int = `Study_group_2.0 (1=PPBC-inv 1 Y ;2=PPBC-inv 2Y; 3=PPBC-lac; 4=PrBC; 5=non-PrBC; 6=PPBC no info)`,
+    library_prep = `Library Prep`,
+    country = `Country of Diagnosis`,
+    `ER`,
+    `PR`,
+    `HER2`,
+    molecular_subtype = `Molecular Subtype`,
+    stage = `Stage (1,2,3,4)`,
+    stage_detailed = `Stage (0=satge0; 1=stage IA; 2=stage IB; 3=stage IIA; 4=stage IIB; 5=stage IIIA; 6=stage IIIB; 7=stageIIIC; 8=stageIV)`,
     grade = `Grade`,
     ki67 = `Ki67`,
-    country = `Country.of.Diagnosis`,
-    involution_months = `Involution_Time.(months)`,
-    breastfeeding_months = `Time.Breastfeeding.(months)`,
-    TIL_percent = `TIL.%`,
-    tissue_biopsy = `Tissue.Availability./.Core.Biopsy`,
-    ng_nanodrop = `Nanodrop.(ng/µl)`, 
-    ng_bioanalyzer = `Bioanalyser.(ng/µl)`,
-    dv200 = `DV.200.(%)`,
-    has_match = In.matching.list,
-    everything()
-  ) %>%
+    TIL_percent = `TIL %`,
+    year_of_birth = `Year of Birth`,
+    year_of_diagnosis = `Year of Diagnosis`,
+    age_at_diagnosis = `Age of Diagnosis`,
+    followup_year = `FU Year`,
+    years_of_followup = `Time of FU (Years)`,
+    months_of_followup = `Time of FU (Months)`,
+    death = `Death (0=no;1=due to disease; 2=other cause; 3=unknown)`,
+    year_of_death = `Year of Death`,
+    overall_survival = `Overall Survival (OS)`,
+    years_overall_survival = `Time to OS (Years)`,
+    months_overall_survival = `Time to OS (Months)`,
+    dist_recurrence_free_survival = `Distant Recurrence-free Survival (DRS)`,
+    distant_recurrence = `Distant Recurrence`,
+    metastasis_at_diagnosis = `Metastasis at Diagnosis`,
+    year_of_drs = `Year of DRS`,
+    years_to_drs = `Time to DRS (Years)`,
+    months_to_drs = `Time to DRS (Months)`,
+    metastasis_site = `Metastasized to`,
+    liver_metastasis = `Liver yes/no`,
+    bone_metastasis = `Bone yes/no`,
+    brain_metastasis = `Brain yes/no`,
+    lung_metastasis = `Lung yes/no`,
+    other_metastasis = `Other yes/no`,
+    local_recurrence_free_survival = `Local Recurrence-free Survival (LRS)`,
+    year_of_lrs = `Year of LRS`,
+    years_to_lrs = `Time to LRS (Years)`,
+    months_to_lrs = `Time to LRS (Months)`,
+    recurrence_breast = `Herval Borst (Nee=0; Lokaal=1; contralateraal=2; bilateraal=3)`,
+    lrs_local = `LRS Local`,
+    lrs_contralateral = `LRS contralateral`,
+    lrs_bilateral = `LRS bilateral`,
+    months_involution_delivery_or_weeks_pregnant = `Months_Involution_Delivery_OR_weeks_pregnant (PrBC)`,
+    months_involution_breastfeeding = `Months_Involution_Breastfeeding`,
+    breastfeeding = `Breastfeeding (No=0; Yes=1)`,
+    months_breastfeeding_cancer_related_pregnancy = `Months breastfeeding for cancer-related pregnancy`,
+    tissue_biopsy = `Tissue Availability / Core Biopsy`,
+    extraction = `Extraction`,
+    ng_nanodrop= `Nanodrop (ng/µl)`,
+    ng_bioanalyser = `Bioanalyser (ng/µl)`,
+    dv200 = `DV 200 (%)`,
+    comment = `...59`
+  ) %>% 
   dplyr::mutate(
     patient_ref = str_replace_all(patient_ref, "_", "-"),
     old_ref    = str_replace_all(old_ref, "_", "-"),
     sample_ref = patient_ref)
 
+
 colnames(patient_annotations)
 ```
 
+```{r}
+patient_annotations
+```
+
+## Fix factors
+
+For some categories, the key to reading the factor was in the column title. Recode these so that they're readable later on.
 
 ```{r}
-head(patient_annotations)
+
+patient_annotations = patient_annotations %>% mutate(
+  stage_detailed = case_when(
+    stage_detailed == 0 ~ "stage 0",
+    stage_detailed == 1 ~ "stage IA",
+    stage_detailed == 2 ~ "stage IB",
+    stage_detailed == 3 ~ "stage IIA",
+    stage_detailed == 4 ~ "stage IIB",
+    stage_detailed == 5 ~ "stage IIIA",
+    stage_detailed == 6 ~ "stage IIIB",
+    stage_detailed == 7 ~ "stage IIIC",
+    stage_detailed == 8 ~ "stage IV",
+    TRUE ~ as.character(stage_detailed)
+  ),
+  death = case_when(
+    death == 0 ~ "no",
+    death == 1 ~ "due to disease",
+    death == 2 ~ "other cause",
+    death == 3 ~ "unknown",
+    TRUE ~ as.character(death)
+  ),
+  liver_metastasis = if_else(liver_metastasis==1, TRUE, FALSE),
+  bone_metastasis = if_else(bone_metastasis==1, TRUE, FALSE),
+  brain_metastasis = if_else(brain_metastasis==1, TRUE, FALSE),
+  lung_metastasis = if_else(lung_metastasis==1, TRUE, FALSE),
+  other_metastasis = if_else(other_metastasis==1, TRUE, FALSE),
+  recurrence_breast = case_when(
+    recurrence_breast == 0 ~ "none",
+    recurrence_breast == 1 ~ "local",
+    recurrence_breast == 2 ~ "contralateral",
+    recurrence_breast == 3 ~ "bilateraal",
+    TRUE ~ as.character(recurrence_breast)),
+  breastfeeding = if_else(breastfeeding==1, TRUE, FALSE)
+)
+
 ```
+
+
+
+## Filter on sequenced samples
 
 We only want those samples for which the status is SEQUENCED
 
 ```{r}
-patient_annotations$status %>% unique()
-```
-
-```{r}
-discard_patients = patient_annotations %>% filter(status!="SEQUENCED")
-patient_annotations = patient_annotations %>% filter(status=="SEQUENCED")
+stopifnot(sum(patient_annotations$status == "SEQUENCED") == length(patient_annotations$status=="SEQUENCED"))
 ```
 
 
@@ -128,26 +340,33 @@ setdiff(seq_annot$sample_ref, patient_annotations$sample_ref)
 ```
 
 In this series, the ones beginning with HL-FA had neo-adjuvant therapy and were discarded ex post facto.
+We can see this by looking at older versions of the Hecoderingslijst.
 
 ```{r}
-discard_patients %>% filter(patient_ref %in% c("HL-FA-138", "HL-FA-145", "HL-FA-149","HL-FA-158","HL-FA-24","HL-FA-51"))
+old_patients = readxl::read_excel(here("data", "external", "Hecoderingslijst HL-FA_v26062019.xlsx"), skip = 2)
+
+had_ct = old_patients %>%
+  filter(`NEW REF` %in% setdiff(seq_annot$sample_ref, patient_annotations$sample_ref)[
+    str_detect(setdiff(seq_annot$sample_ref, patient_annotations$sample_ref), "HL-FA")]) %>%
+  select(`NEW REF`, Status)
+
+had_ct
 ```
 
 Remove these from the samples to be read.
 
 ```{r}
-seq_annot = seq_annot %>% filter(!sample_ref %in% c("HL-FA-138", "HL-FA-145", "HL-FA-149","HL-FA-158","HL-FA-24","HL-FA-51"))
+seq_annot = seq_annot %>% filter(!sample_ref %in% had_ct$`NEW REF`)
 
 setdiff(seq_annot$sample_ref, patient_annotations$sample_ref)
 ```
-
 
 The rest contain an LP or UZ-HL pattern. Use this as the identifier instead of the new ref.
 
 ```{r}
 patient_annotations = bind_rows(patient_annotations,
                                 mutate(filter(patient_annotations, str_detect(old_ref, "LP|UZ-HL")), sample_ref=old_ref))
-duplicated(patient_annotations$sample_ref) %>% table() #Should be unique
+stopifnot(sum(duplicated(patient_annotations$sample_ref)) == 0)
 ```
 
 Combine based on fastq file names
@@ -170,11 +389,6 @@ sample_annot %>% group_by(study_group) %>% summarise(n=n())
 ```
 
 The NAs here correspond to old references for patients that have been removed for either CT or because they were past the maximum age for the study.
-
-```{r}
-discard_patients %>% filter(old_ref %in% (sample_annot %>% filter(is.na(study_group)) %>% pull(sample_ref)))
-```
-
 Remove these from the sample annotation.
 
 ```{r}
@@ -182,7 +396,6 @@ sample_annot = sample_annot %>% filter(!is.na(study_group))
 
 sample_annot %>% group_by(study_group) %>% summarise(n=n())
 ```
-
 
 Standardize molecular subtype
 
@@ -199,25 +412,32 @@ sample_annot = sample_annot %>% mutate(molecular_subtype = case_when(
 sample_annot %>% group_by(molecular_subtype) %>% summarise(n=n())
 ```
 
-
 # Individual sample checks
 
 Also double check a few samples based on this info from Hanne:
 
-* HL-FA-90 is PPBC-lac en dus niet PPBC-inv
+> HL-FA-90 is PPBC-lac en dus niet PPBC-inv
 
 Already corrected in the current metadata:
+
 ```{r}
 sample_annot %>% filter(str_detect(patient_ref, "HL-FA-90")) %>% select(sample_ref, study_group)
 ```
 
-* HL-FA-111: This is also a patient from Berlin. Here I seemed to have made a mistake. This patient is not HER2+, but Triple Negative. 
+> HL-FA-111: This is also a patient from Berlin. Here I seemed to have made a mistake. This patient is not HER2+, but Triple Negative. 
 
 This sample has also been corrected.
 
 ```{r}
 sample_annot %>% filter(str_detect(patient_ref, "HL-FA-111")) %>% select(sample_ref, molecular_subtype)
 ```
+
+> HL-FA-38 is ppbc-inv instead of prbc
+
+```{r}
+sample_annot %>% filter(str_detect(patient_ref, "HL-FA-38")) %>% select(sample_ref, study_group)
+```
+
 
 
 # Sample identifiers
@@ -265,6 +485,7 @@ tx_annot <- read_tsv(here("data", "external", "biomart_ensemblgenes_v94.txt")) %
 write_tsv(tx_annot, here("data", "metadata", "01_tx_annot.tsv"))
 ```
 
+
 ```{r}
 head(tx_annot)
 ```
@@ -285,7 +506,11 @@ Save the tx data for downstream analysis.
 saveRDS(tx,file = here("data", "Rds","01_tx.Rds"))
 ```
 
+Save notebook data.
 
+```{r}
+save.image(here("01_process_metadata_tximport.RData"))
+```
 
 
 

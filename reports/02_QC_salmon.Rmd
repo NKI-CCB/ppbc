@@ -13,6 +13,7 @@ library(DESeq2)
 library(fastqcr)
 library(ggbeeswarm)
 library(tidyverse)
+library(ggrepel)
 ```
 
 # Sample Origin
@@ -486,7 +487,6 @@ Which additional samples do we lose, after filtering on library size?
 sample_annot %>% filter(low_count_sample != TRUE) %>% select(study_group, too_high_overrepresented_sequences) %>% table()
 ```
 
-### To do: Run the the pipeline with 2.5
 
 ## Percent GC content
 
@@ -642,8 +642,6 @@ sample_annot %>% filter(sample_id %in% low_correlation_samples) %>% filter(low_c
   select(too_high_overrepresented_sequences, per_sequence_gc_content) %>% table()
 ```
 
-
-
 ```{r, include=F}
 testdf = data_frame(num=c(1,2,3,4,5),let = c("a", "b", "b", "c", "d"))
 testdf$let[duplicated(testdf$let)|duplicated(testdf$let, fromLast = T)]
@@ -728,46 +726,6 @@ summary_discarded_samples = summary_discarded_samples %>% t() %>% as.data.frame(
 summary_discarded_samples
 ```
 
-Many of these samples fail for multiple reasons. Which were excluded for one reason only?
-
-With the 2.5% cutoff:
-
-```{r}
-sample_annot_filtered2 = sample_annot %>%
-  filter(low_count_sample == FALSE &
-           poor_mapping == FALSE &
-           alt_overrep_threhold == FALSE &
-           per_sequence_gc_content!="FAIL" &
-           low_correlation_sample == FALSE)
-
-discarded_samples2 <- sample_annot %>% filter(sample_id %in% setdiff(sample_annot$sample_id,
-                                                                    sample_annot_filtered2$sample_id))
-
-discarded_samples2 = discarded_samples2 %>% select(sample_id, sample_name,
-                             low_count_sample, poor_mapping, alt_overrep_threhold,
-                             low_correlation_sample, per_sequence_gc_content, everything())
-
-patients_discarded2 = setdiff(unique(discarded_samples2$patient_ref),unique(sample_annot_filtered2$patient_ref))
-summary_discarded_samples2=
-discarded_samples2 %>% summarise(total_samples_discarded=nrow(discarded_samples2),
-                                total_patients_discarded=length(patients_discarded2),
-                                total_low_count = sum(low_count_sample==T),
-                                total_poor_mapping = sum(poor_mapping ==T),
-                                total_alt_overrep_threhold = sum(alt_overrep_threhold==T),
-                                total_low_cor = sum(low_correlation_sample==T),
-                                total_gc_fail = sum(per_sequence_gc_content=="FAIL"))
-
-summary_discarded_samples2 = summary_discarded_samples2 %>% t() %>% as.data.frame() %>% rename(count=V1)
-
-summary_discarded_samples2
-```
-
-```{r}
-filter(sample_annot_filtered, patient_ref %in% setdiff(sample_annot_filtered$patient_ref,sample_annot_filtered2$patient_ref))
-```
-
-# DECISION: First run the pipeline with these samples, then find out what happens once they're removed.
-
 Write discarded samples
 
 ```{r}
@@ -830,7 +788,6 @@ dds <- collapseReplicates(dds, dds$sample_name)
 dim(dds)
 ```
 
-
 Write dds
 
 ```{r}
@@ -876,7 +833,6 @@ get_PCA <- function(dds, labelled_samples = NULL, color.group, shape.group){
 ```{r}
 get_PCA(dds, color.group = "molecular_subtype", shape.group = "study_group")
 ```
-
 
 Save notebook data
 
