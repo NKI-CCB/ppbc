@@ -1,0 +1,1095 @@
+---
+title: "10_CibersortX"
+output: 
+  html_notebook:
+    toc: yes
+    toc_float: yes
+    theme: "darkly"
+---
+
+```{r, include =F}
+library(here)
+library(ggbeeswarm)
+library(RColorBrewer)
+library(tidyverse)
+library(circlize)
+library(ComplexHeatmap)
+library(scrime)
+```
+
+# Input and parameters
+
+Sample metadata:
+
+```{r}
+meta = read_csv(here("data","metadata", "05_sample_annot_filtered.csv"))
+```
+
+
+CibersortX can be found at https://cibersortx.stanford.edu/
+
+As input, it takes a mixture file with samples as column names and genes as row names within the first column. The values should be normalized by library size or (better) lib size and transcript length (tpm/fpkm). CibersortX can add unique identifiers to duplicate gene names, but ideally the duplicates are already handled by the user. We have already produced such a matrix in notebook 4 (04_tumor_purity.Rmd) for running ESTIMATE, using fpkm.
+
+```{r}
+hugo_mat = read_tsv(here("data", "RNA-seq", "hugo_fpkm.txt"))
+head(hugo_mat)
+```
+
+
+
+Job Parameters used for this run:
+
+    Date: 2019-08-19 02:44:23
+    Job type: Impute Cell Fractions
+    Signature matrix file: LM22.update-gene-symbols.txt
+    Mixture file: hugo_fpkm.txt
+    Batch correction: enabled
+    Batch correction mode: B-mode
+    Source GEP file used for batch correction: LM22.update-gene-symbols.txt
+    Disable quantile normalization: true
+    Run mode (relative or absolute): relative
+    Permutations: 100
+
+
+CibersortX takes a signature matrix as well as a mixture matrix to perform deconvolution. It is possible to generate a unique signature matrix, but this requires single cell RNAseq data, which the PPBC project lacks. As such, we use the default version on the website: the LM22 matrix, which contains 22 functionally defined human immune subsets. 
+
+LM22 was generated based on microarray data. The documentation recommends applying batch correction when the signature matrix and mixture matrix are profiled on different platforms. Batch correction was run in B-mode ("bulk", as opposed to "s" mode for single cell) using the optional GEP file provided for LM22 on the website. Disabling quantile normalization is recommended for RNA-Seq data. As we are working with RNA-Seq data in this tutorial, we leave this box checked. 
+
+# Load Cibersort results
+
+```{r}
+ciber_input = read_csv(here("results", "cibersortX", "CIBERSORTx_Job2_Results.csv"))
+
+head(ciber_input)
+```
+
+All results are reported as relative fractions normalized to 1 across all cell subsets.
+The following metrics are provided for each mixture sample:
+
+    P-value: Statistical significance of the deconvolution result across all cell subsets; useful for filtering out results with a poor "goodness of fit." Increase the number of permutations (input page) to increase the number of significant digits.
+    
+    Correlation: Pearson's correlation coefficient (R), generated from comparing the original mixture with the estimated mixture, the latter of which is calculated using imputed cell fractions and corresponding expression profiles from the signature genes file. Of note, the correlation is restricted to signature genes.
+    
+    RMSE: Root mean squared error between the original mixture and the imputed mixture, restricted to genes in the signature gene file.
+
+Melt data frame to long format and add metadata:
+
+```{r}
+ciberdf = ciber_input %>%
+  gather(key = "type", value = "ciberval", -Mixture) %>%
+  select(sample_name = Mixture, everything()) %>%
+  left_join(., select(meta, sample_name, study_group,
+                      PAM50, molecular_subtype,tumor_purity, batch,
+                      stage, grade,ki67, involution_months,
+                      breastfeeding_months), by = "sample_name")
+
+head(ciberdf)  
+```
+
+# Goodness of fit
+
+Start with the quality control metrics that come from cibersort.
+
+```{r}
+ciberdf %>% filter(type %in% c("P-value", "Correlation", "RMSE")) %>%
+  ggplot(aes(x = type, y = ciberval)) + geom_jitter(aes(color = study_group), width = 0.2) + geom_boxplot(alpha = 0) +
+  ggtitle("Goodness of fit metrics from CibersortX") +
+  ylab("Value") + xlab("Metric")
+```
+
+Looks like the P value is flat 0 for every sample except one.
+
+```{r}
+ciberdf %>% filter(type == "P-value" & ciberval != 0)
+```
+
+
+
+```{r}
+ciberdf %>% filter(type %in% c("Correlation", "RMSE")) %>%
+  spread(key = type, value = ciberval) %>%
+  ggplot(aes(x = RMSE, y = Correlation)) + geom_point(aes(color = study_group)) +
+  ggtitle("Relationship between CibersortX correlation and RMSE: possible filters") +
+  geom_segment(x = 0.9, y = 0.45, xend = 0.9, yend = 1, color = "blue", linetype = "dashed") +
+  geom_segment(x = 0, y = 0.45, xend = 0.9, yend = 0.45, color = "red", linetype = "dashed")
+```
+
+How many would we lose if we applied this filter?
+
+```{r}
+passthresh = ciberdf %>% filter(type %in% c("Correlation", "RMSE")) %>%
+  spread(key = type, value = ciberval) %>%
+  mutate(fithresh = (Correlation >= 0.45 & RMSE <= 0.9)) %>%
+  filter(fithresh == T) %>% pull(sample_name)
+
+ciberdf = ciberdf %>%
+  mutate(passthresh = sample_name %in% passthresh)
+
+ciberdf %>%
+  select(sample_name, study_group, passthresh) %>% distinct() %>%
+  select(-sample_name) %>% table()
+
+```
+
+For now, no filter, since P-value is universally below 0.05.
+
+# Cell groups
+
+```{r}
+#ciberdf %>% filter(!(type %in% c("P-value", "Correlation", "RMSE"))) %>% select(type) %>% unique()
+
+ciberdf = ciberdf %>% mutate(cellgroup = case_when(
+  type %in% c("B cells naive", "B cells memory", "Plasma cells") ~ "B cell",
+  str_detect(type, "T cells") ~ "T cell",
+  type %in% c("Monocytes", "Macrophages M0", "Macrophages M1", "Macrophages M2") ~ "Macrophage",
+  type %in% c("P-value", "Correlation", "RMSE") ~ "metric",
+  TRUE ~ "other"
+))
+
+cibermetrics = ciberdf %>% filter(cellgroup == "metric")
+ciberdf = ciberdf %>% filter(cellgroup != "metric")
+
+cellgroups = ciberdf %>% select(cellgroup, type) %>% distinct
+cellgroups
+```
+
+# Heatmaps 
+
+## General overview
+
+```{r, fig.width=12}
+#Matrix from df
+hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%column_to_rownames("Mixture") %>% as.matrix %>% t()
+
+# Top column annotation
+ann_top = select(meta, sample_name, study_group, PAM50) %>%
+  mutate(study_group = factor(study_group, levels=c("non_prbc", "ppbc_inv", "ppbc_lac", "prbc"))) %>%
+  column_to_rownames("sample_name")
+
+#Colors must be named lists with named elements
+study_colors=suppressWarnings(colorRampPalette(brewer.pal(length(levels(ann_top$study_group)),"Spectral"))(length(levels(ann_top$study_group))))
+names(study_colors) = levels(ann_top$study_group)
+pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(ann_top$PAM50)),"Paired"))(length(unique(ann_top$PAM50))))
+names(pam_colors)= unique(ann_top$PAM50)
+top_cols=list(study_group=study_colors, PAM50 = pam_colors)
+
+colTop <- HeatmapAnnotation(df = ann_top, which="col", col = top_cols)
+
+Heatmap(hmat, top_annotation = colTop, show_column_names = F,
+        col = colorRamp2(c(0, 0.5, 1), c("white", "orange", "red")),
+        column_title = "Overview CibersortX", heatmap_legend_param = list(title="Relative cell fraction"))
+```
+
+## K-means overview
+
+Row-scaled. Exclude Tregs since there's hardly anything there.
+
+```{r, fig.width=12}
+set.seed(1)
+
+#Matrix from df
+hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%column_to_rownames("Mixture") %>% as.matrix %>% t()
+hmat = rowScales(hmat)
+
+# Top column annotation
+ann_top = select(meta, sample_name, study_group, PAM50) %>%
+  mutate(study_group = factor(study_group, levels=c("non_prbc", "ppbc_inv", "ppbc_lac", "prbc"))) %>%
+  column_to_rownames("sample_name")
+
+#Colors must be named lists with named elements
+study_colors=suppressWarnings(colorRampPalette(brewer.pal(length(levels(ann_top$study_group)),"Spectral"))(length(levels(ann_top$study_group))))
+names(study_colors) = levels(ann_top$study_group)
+top_cols=list(study_group=study_colors)
+pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(ann_top$PAM50)),"Paired"))(length(unique(ann_top$PAM50))))
+names(pam_colors)= unique(ann_top$PAM50)
+top_cols=list(study_group=study_colors, PAM50 = pam_colors)
+
+hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
+        column_title = "Overview CibersortX, k-means clustering",
+        heatmap_legend_param = list(title="Row-scaled relative fraction", legend_direction = "horizontal"),
+        column_km = 3, row_km = 3, column_km_repeats = 10, row_km_repeats = 10)
+
+draw(hm,  heatmap_legend_side = "bottom")
+```
+
+## B cells
+
+
+```{r}
+set.seed(1)
+
+#Matrix from df
+hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%
+  column_to_rownames("Mixture") %>% as.matrix %>% t()
+
+#Select cell group
+hmat = hmat[rownames(hmat) %in% cellgroups[cellgroups$cellgroup=="B cell","type", drop=T], ]
+
+hmat = rowScales(hmat)
+
+# Top column annotation
+ann_top = select(meta, sample_name, study_group, PAM50) %>%
+  mutate(study_group = factor(study_group, levels=c("non_prbc", "ppbc_inv", "ppbc_lac", "prbc"))) %>%
+  column_to_rownames("sample_name")
+
+#Colors must be named lists with named elements
+study_colors=suppressWarnings(colorRampPalette(brewer.pal(length(levels(ann_top$study_group)),"Spectral"))(length(levels(ann_top$study_group))))
+names(study_colors) = levels(ann_top$study_group)
+top_cols=list(study_group=study_colors)
+pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(ann_top$PAM50)),"Paired"))(length(unique(ann_top$PAM50))))
+names(pam_colors)= unique(ann_top$PAM50)
+top_cols=list(study_group=study_colors, PAM50 = pam_colors)
+
+hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
+        column_title = "B-cells CibersortX",
+        heatmap_legend_param = list(title="Row-scaled relative fraction",legend_direction = "horizontal")
+        )
+
+draw(hm,  heatmap_legend_side = "bottom")
+```
+
+## T cells
+
+```{r}
+set.seed(1)
+
+#Matrix from df
+hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%
+  column_to_rownames("Mixture") %>% as.matrix %>% t()
+
+#Select cell group
+hmat = hmat[rownames(hmat) %in% cellgroups[cellgroups$cellgroup=="T cell","type", drop=T], ]
+
+hmat = rowScales(hmat)
+
+# Top column annotation
+ann_top = select(meta, sample_name, study_group, PAM50) %>%
+  mutate(study_group = factor(study_group, levels=c("non_prbc", "ppbc_inv", "ppbc_lac", "prbc"))) %>%
+  column_to_rownames("sample_name")
+
+#Colors must be named lists with named elements
+study_colors=suppressWarnings(colorRampPalette(brewer.pal(length(levels(ann_top$study_group)),"Spectral"))(length(levels(ann_top$study_group))))
+names(study_colors) = levels(ann_top$study_group)
+top_cols=list(study_group=study_colors)
+pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(ann_top$PAM50)),"Paired"))(length(unique(ann_top$PAM50))))
+names(pam_colors)= unique(ann_top$PAM50)
+top_cols=list(study_group=study_colors, PAM50 = pam_colors)
+
+hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
+        column_title = "T-cells CibersortX",
+        heatmap_legend_param = list(title="Row-scaled relative fraction",legend_direction = "horizontal")
+        )
+
+draw(hm,  heatmap_legend_side = "bottom")
+```
+
+## Macrophages
+
+```{r}
+set.seed(1)
+
+#Matrix from df
+hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%
+  column_to_rownames("Mixture") %>% as.matrix %>% t()
+
+#Select cell group
+hmat = hmat[rownames(hmat) %in% cellgroups[cellgroups$cellgroup=="Macrophage","type", drop=T], ]
+
+hmat = rowScales(hmat)
+
+# Top column annotation
+ann_top = select(meta, sample_name, study_group, PAM50) %>%
+  mutate(study_group = factor(study_group, levels=c("non_prbc", "ppbc_inv", "ppbc_lac", "prbc"))) %>%
+  column_to_rownames("sample_name")
+
+#Colors must be named lists with named elements
+study_colors=suppressWarnings(colorRampPalette(brewer.pal(length(levels(ann_top$study_group)),"Spectral"))(length(levels(ann_top$study_group))))
+names(study_colors) = levels(ann_top$study_group)
+top_cols=list(study_group=study_colors)
+pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(ann_top$PAM50)),"Paired"))(length(unique(ann_top$PAM50))))
+names(pam_colors)= unique(ann_top$PAM50)
+top_cols=list(study_group=study_colors, PAM50 = pam_colors)
+
+hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
+        column_title = "Macrophages CibersortX",
+        heatmap_legend_param = list(title="Row-scaled relative fraction",legend_direction = "horizontal")
+        )
+
+draw(hm,  heatmap_legend_side = "bottom")
+```
+
+## Macrophages
+
+```{r}
+set.seed(1)
+
+#Matrix from df
+hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%
+  column_to_rownames("Mixture") %>% as.matrix %>% t()
+
+#Select cell group
+hmat = hmat[rownames(hmat) %in% cellgroups[cellgroups$cellgroup=="other","type", drop=T], ]
+
+hmat = rowScales(hmat)
+
+# Top column annotation
+ann_top = select(meta, sample_name, study_group, PAM50) %>%
+  mutate(study_group = factor(study_group, levels=c("non_prbc", "ppbc_inv", "ppbc_lac", "prbc"))) %>%
+  column_to_rownames("sample_name")
+
+#Colors must be named lists with named elements
+study_colors=suppressWarnings(colorRampPalette(brewer.pal(length(levels(ann_top$study_group)),"Spectral"))(length(levels(ann_top$study_group))))
+names(study_colors) = levels(ann_top$study_group)
+top_cols=list(study_group=study_colors)
+pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(ann_top$PAM50)),"Paired"))(length(unique(ann_top$PAM50))))
+names(pam_colors)= unique(ann_top$PAM50)
+top_cols=list(study_group=study_colors, PAM50 = pam_colors)
+
+hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
+        column_title = "Other immune cells CibersortX",
+        heatmap_legend_param = list(title="Row-scaled relative fraction",legend_direction = "horizontal")
+        )
+
+draw(hm,  heatmap_legend_side = "bottom")
+```
+
+# Bar plots by cell type
+
+## B cells
+
+Enrichment of B cells in the involution group not as intense as the preponderance of IG genes from differential expression analysis would suggest.
+
+```{r, fig.width=10}
+ciberdf %>% filter(cellgroup == "B cell") %>%
+  ggplot(aes(x = sample_name, y = ciberval, fill=study_group)) + geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative B cell fractions")
+```
+
+Applying a goodness of fit filter doesn't help.
+
+```{r, fig.width=10}
+ciberdf %>% filter(cellgroup == "B cell" & passthresh == T) %>%
+  ggplot(aes(x = sample_name, y = ciberval, fill=study_group)) + geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative B cell fractions, RMSE < 0.9 & cor > 0.45")
+```
+
+## T cells
+
+Surprising number of CD8 cells in the involution group. CD8 cells are normally positively associated with prognosis, but the involution group has the worst prognosis.
+
+```{r, fig.width=10, fig.height=10}
+ciberdf %>% filter(cellgroup == "T cell") %>%
+  ggplot(aes(x = sample_name, y = ciberval, fill=study_group)) + geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative T cell fractions")
+```
+
+## Macrophages
+
+More M1 (pro-inflammatory) macrophages in the involution group vs pregnancy, less M2 (wound-healing) macrophages in the involution group vs pregnancy.
+
+```{r, fig.width=10}
+ciberdf %>% filter(cellgroup == "Macrophage") %>%
+  ggplot(aes(x = sample_name, y = ciberval, fill=study_group)) + geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative Macrophage fractions")
+```
+
+## Other immune cells
+
+```{r, fig.width=10, fig.height=10}
+ciberdf %>% filter(cellgroup == "other") %>%
+  ggplot(aes(x = sample_name, y = ciberval, fill=study_group)) + geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative other immune cell fractions")
+```
+
+
+# Relationship CD8 and M1/M2 macrophages
+
+Speculated that M2 macrophages in particular would be positively correlated with higher CD8 levels, effectively "suppressing" the CD8 activity and explaining why a normally beneficial cell group would be enriched in the group with the worst prognosis. Does not appear to be the case.
+
+```{r}
+inner_join(ciberdf %>% filter(type == "T cells CD8") %>%
+             spread(key = type, value = ciberval) %>% select(sample_name, study_group,  `T cells CD8`),
+           ciberdf %>% filter(type == "Macrophages M1") %>%
+             spread(key = type, value = ciberval) %>% select(sample_name,  `Macrophages M1`), by="sample_name") %>%
+  ggplot(aes(x = `T cells CD8`, y = `Macrophages M1`)) + geom_point(aes( color = study_group)) +
+  ggtitle("Relative fraction CD8 T cells vs M1 Macrophages") +
+  geom_smooth(method="lm")
+```
+
+```{r}
+inner_join(ciberdf %>% filter(type == "T cells CD8") %>%
+             spread(key = type, value = ciberval) %>% select(sample_name, study_group,  `T cells CD8`),
+           ciberdf %>% filter(type == "Macrophages M2") %>%
+             spread(key = type, value = ciberval) %>% select(sample_name,  `Macrophages M2`), by="sample_name") %>%
+  ggplot(aes(x = `T cells CD8`, y = `Macrophages M2`)) + geom_point(aes(color = study_group)) +
+  ggtitle("Relative fraction CD8 T cells vs M2 Macrophages") +
+  geom_smooth(method = "lm")
+```
+
+```{r}
+inner_join(ciberdf %>% filter(type == "Plasma cells") %>%
+             spread(key = type, value = ciberval) %>% select(sample_name, study_group,  `Plasma cells`),
+           ciberdf %>% filter(type == "T cells follicular helper") %>%
+             spread(key = type, value = ciberval) %>% select(sample_name,  `T cells follicular helper`), by="sample_name") %>%
+  ggplot(aes(x = `Plasma cells`, y = `T cells follicular helper`)) + geom_point(aes(color = study_group)) +
+  ggtitle("Relative fraction Plasma vs Follicular helpers T cells") +
+  geom_smooth(method = "lm")
+```
+
+# Wilcoxon pairwise tests
+
+Generate a matrix of all possible comparisons and reorder so involution is always x (when present) and non_prbc is always y (when present).
+
+```{r}
+comparison = t(combn(unique(ciberdf$study_group), 2))
+colnames(comparison) = c("x", "y")
+for (i in 1:nrow(comparison)){
+  if (comparison[i,"y"]=="ppbc_inv"){
+    oldx = comparison[i,"x"]
+    oldy = comparison[i,"y"]
+    comparison[i,"y"] = oldx
+    comparison[i,"x"] = oldy
+  } else if (comparison[i,"x"]=="non_prbc"){
+    oldx = comparison[i,"x"]
+    oldy = comparison[i,"y"]
+    comparison[i,"y"] = oldx
+    comparison[i,"x"] = oldy
+  }
+}
+
+comparison
+```
+
+## Calculate nom.p and fdr for pairwise comparisons
+
+```{r, warning=F}
+
+wil_res = matrix(ncol=6, nrow=0)
+
+for (i in 1:length(unique(ciberdf$type))){ 
+  celltype = unique(ciberdf$type)[i]
+  subdf = ciberdf %>% filter(type == celltype)
+  for (i in 1:nrow(comparison)){ 
+    x = comparison[i, "x"] 
+    y = comparison[i, "y"] 
+    xdata = filter(subdf, study_group == x)$ciberval
+    ydata = filter(subdf, study_group == y)$ciberval
+
+    #print(xdata)
+    #print(ydata)
+    wil = wilcox.test(x = xdata,
+                      y = ydata,
+                      paired = F)
+    wil = enframe(unlist(wil), "stat", "value")[1:2,]
+    
+    
+    wil = wil %>% mutate(cell = celltype,
+                         x = x, y = y,
+                         comparison = paste(x, y, sep = " vs "))
+    wil = as.matrix(wil)
+    #print(wil)
+    wil_res = rbind(wil_res, wil)
+  }
+}
+
+wil_res = as.data.frame(wil_res)
+wil_res = wil_res %>% mutate(value= as.numeric(as.character(value))) %>% spread(key="stat", value="value")
+wil_res = wil_res %>% mutate(fdr = p.adjust(p.value, method = "BH"))
+
+wil_res %>% filter(fdr < 0.05)
+
+```
+
+Spread into matrix and make heat map.
+
+```{r}
+#Exclude Tregs because there's so little data that the p-value is misleading
+pmat = wil_res %>% filter(!str_detect(cell, "Tregs")) %>%
+  select(comparison,cell,fdr) %>% spread(key = comparison, value = fdr) %>% column_to_rownames("cell") %>%
+  as.matrix()
+
+pmat
+```
+
+
+
+Adjust so that the directionality is shown. 
+
+## Calculate pairwise fold change
+
+Create separate fold change matrix.
+
+```{r}
+fc_res = matrix(ncol=5, nrow=0)
+
+for (i in 1:length(unique(ciberdf$type))){ 
+  celltype = unique(ciberdf$type)[i]
+  subdf = ciberdf %>% filter(type == celltype)
+  for (i in 1:nrow(comparison)){ 
+    x = comparison[i, "x"] 
+    y = comparison[i, "y"] 
+    xdata = filter(subdf, study_group == x)$ciberval
+    ydata = filter(subdf, study_group == y)$ciberval
+
+    #print(xdata)
+    #print(ydata)
+
+    Fc = tibble(foldchange = if_else(mean(xdata) > mean(ydata),
+                                     mean(xdata)/mean(ydata),
+                                     -mean(ydata)/mean(xdata)),
+                cell = celltype, 
+                x = x, y = y, comparison = paste(x, y, sep = " vs "))
+    
+    Fc = as.matrix(Fc)
+    #print(Fc)
+    fc_res = rbind(fc_res, Fc)
+  }
+}
+
+fc_res = as.data.frame(fc_res) %>% mutate(foldchange = as.numeric(as.character(foldchange)))
+
+head(fc_res)
+```
+
+Ensure the dimensions, row and column names are the same as the p value matrix.
+
+```{r}
+fcmat = fc_res %>% filter(!str_detect(cell, "Tregs")) %>%
+  select(comparison,cell,foldchange) %>% spread(key = comparison, value = foldchange) %>% column_to_rownames("cell") %>%
+  as.matrix()
+
+fcmat
+stopifnot(identical(colnames(fcmat),colnames(pmat)))
+stopifnot(identical(rownames(fcmat), rownames(pmat)))
+```
+
+## FDR heatmap
+
+```{r, fig.width=10}
+Heatmap(pmat, col=colorRamp2(c(0, 0.05, 0.5, 1), c("red", "orange","gold", "white")),
+        column_title = "Wilcoxon rank sum test by cell group (+ pos fc, - neg fc)",
+        cell_fun = function(j, i, x, y, width, height, fill) 
+        {
+          if (fcmat[i,j] > 0){
+            grid.text(paste0(sprintf("%.2f", pmat[i, j]),"+"), x, y, gp = gpar(fontsize = 12))
+          } else {
+            grid.text(paste0(sprintf("%.2f", pmat[i, j]),"-"), x, y, gp = gpar(fontsize = 12))
+          }
+          
+        },
+        heatmap_legend_param = list(title="BH adj. pval"), column_names_rot = 45,
+        column_labels = str_replace_all(str_replace_all(str_replace_all(colnames(pmat), " vs ", ":"), "ppbc_", ""),"non_prbc", "nullpar"))
+
+
+```
+
+## Fold change heatmap
+
+Be aware that outliers may be misleading due to missing values.
+
+```{r, fig.width=10}
+Heatmap(fcmat, #col=colorRamp2(c(0, 0.05, 0.5, 1), c("red", "orange","gold", "white")),
+        column_title = "Fold change by by cell group (* sig fdr)",
+        cell_fun = function(j, i, x, y, width, height, fill) 
+        {
+          if (pmat[i,j] <= 0.05){
+            grid.text(paste0(sprintf("%.2f", fcmat[i, j]),"*"), x, y, gp = gpar(fontsize = 12))
+          } else {
+            grid.text(sprintf("%.2f", fcmat[i, j]), x, y, gp = gpar(fontsize = 12))
+          }
+          
+        },
+        heatmap_legend_param = list(title="Fold change"), column_names_rot = 45,
+        column_labels = str_replace_all(str_replace_all(str_replace_all(colnames(pmat), " vs ", ":"), "ppbc_", ""),"non_prbc", "nullpar"))
+
+
+```
+
+## Cohen's d effect size
+
+Similar to fold change, except that with [Cohen's d](https://www.statisticshowto.datasciencecentral.com/cohens-d/), the standard deviation is taken into account. Formula:
+
+`d = (meanx - meany)/sqrt((sdx**2 + sdy**2)/2))`
+
+...where the denominator represents the pooled standard deviance between the two groups.
+An additional correction factor for sample sizes less than 50 is recommended:
+
+`d = (meanx - meany)/sdpooled * ((n-3)/(n-2.25)) * sqrt((n-2)/n)`
+
+For sample sizes below 20, a very similar metric, [Hedge's g](https://www.itl.nist.gov/div898/software/dataplot/refman2/auxillar/hedgeg.htm) is recommended. Here, the pooled sd's are also weighted. You can convert Cohen's d to Hedge's g using the following formula:
+
+`g = d/sqrt(N/df)`
+
+
+```{r}
+cohen.d = function(x, y, small_sample_correction = T, convert_to_hedge = F){
+  
+  d = (mean(x) - mean(y))/sqrt((sd(x)**2 + sd(y)**2)/2)
+  
+  n = length(x) + length(y)
+  
+  if (n < 50 & small_sample_correction == F){
+    warning("n < 50, consider using small sample correction")
+  }
+  
+  if (n < 20 & convert_to_hedge == F){
+    warning("n < 20, consider converting to Hedge's g")
+  }
+  
+  if (small_sample_correction == T){
+    d = d * ((n-3)/(n-2.25)) * sqrt((n-2)/n) * sqrt((n-2)/n)
+  }
+  
+  if (convert_to_hedge == T){
+    g = d/sqrt(N-1)
+  }
+  return(d)
+}
+  
+
+```
+
+Compute Cohen's d for each comparison per cell.
+
+```{r}
+d_res = matrix(ncol=5, nrow=0)
+
+for (i in 1:length(unique(ciberdf$type))){ 
+  celltype = unique(ciberdf$type)[i]
+  subdf = ciberdf %>% filter(type == celltype)
+  for (i in 1:nrow(comparison)){ 
+    x = comparison[i, "x"] 
+    y = comparison[i, "y"] 
+    xdata = filter(subdf, study_group == x)$ciberval
+    ydata = filter(subdf, study_group == y)$ciberval
+
+    #print(xdata)
+    #print(ydata)
+    
+    cd = cohen.d(xdata, ydata, small_sample_correction = F, convert_to_hedge = F)
+    
+    #print(cd)
+
+    d = tibble(cohen_d = cd,
+                cell = celltype, 
+                x = x, y = y, comparison = paste(x, y, sep = " vs "))
+    
+    d = as.matrix(d)
+    #print(d)
+    d_res = rbind(d_res, d)
+  }
+}
+
+d_res = as.data.frame(d_res) %>% mutate(cohen_d = as.numeric(as.character(cohen_d)))
+
+#head(d_res)
+
+dmat = d_res %>% filter(!str_detect(cell, "Tregs")) %>%
+  select(comparison,cell,cohen_d) %>% spread(key = comparison, value = cohen_d) %>% column_to_rownames("cell") %>%
+  as.matrix()
+
+dmat
+stopifnot(identical(colnames(dmat),colnames(pmat)))
+stopifnot(identical(rownames(dmat), rownames(pmat)))
+#If fold change is negative, cohen d should also be negative
+stopifnot(identical(sapply(dmat, function(x) x<0), sapply(fcmat, function(x) x<0)))
+```
+
+## Cohen's d heatmap
+
+
+```{r, fig.width=10}
+Heatmap(dmat, #col=colorRamp2(c(0, 0.05, 0.5, 1), c("red", "orange","gold", "white")),
+        column_title = "Cohen's d effect size by by cell group (*sig fdr)",
+        cell_fun = function(j, i, x, y, width, height, fill) 
+        {
+          if (pmat[i,j] <= 0.05){
+            grid.text(paste0(sprintf("%.2f", dmat[i, j]),"*"), x, y, gp = gpar(fontsize = 12))
+          } else {
+            grid.text(sprintf("%.2f", dmat[i, j]), x, y, gp = gpar(fontsize = 12))
+          }
+          
+        },
+        heatmap_legend_param = list(title="Cohen's d"), column_names_rot = 45,
+        column_labels = str_replace_all(str_replace_all(str_replace_all(colnames(pmat), " vs ", ":"), "ppbc_", ""),"non_prbc", "nullpar"))
+
+#draw(hm, Legend(labels = c("+"), title="Significant"))
+```
+
+
+# Short vs long term breast feeding
+
+The time progression is as follows
+
+1) nulliparous
+2) pregnant
+3) lactation
+4) involution (less than 1 mo breastfeeding)
+5) involution (1 or more mo breastfeeding)
+
+involution (unknown breastfeeding duration) consists of only two points and can skew the trend, so it is excluded
+
+For this we need an updated column from a new metadata file. Use Months_Involution_Breastfeeding to incorporate the time between diagnosis and pregnancy as well as involution.
+
+```{r}
+meta2 = readxl::read_excel(here("data", "external", "Survival_Hecoderingslijst HL-FA_v29072019_KM.xlsx"))
+
+meta2 = meta2 %>% dplyr::mutate(
+    patient_ref = str_replace_all(`NEW REF`, "_", "-"),
+    old_ref    = str_replace_all(`OLD REF`, "_", "-"),
+    sample_ref = patient_ref)
+meta2 = meta2 %>% mutate(study_group = str_replace_all(tolower(str_trim(`Study Group`, side="both")), "-", "_")) %>%
+  mutate(sample_name = paste(study_group, str_remove(string = patient_ref, pattern = "HL-FA-"), sep="_")) %>%
+  select(sample_name, study_group, everything())
+
+
+
+ciberdf %>% inner_join(.,select(meta2, sample_name, Months_Involution_Breastfeeding), by = "sample_name")
+```
+
+Ensure that there are no samples lost from the inner join. It looks like when joining on sample names, one sample is lost because it was marked as prbc in the old metadata file and involution in the new metadata file. This case should in fact be involution.
+
+```{r}
+setdiff(meta$sample_name, meta2$sample_name) #prbc_38
+meta %>% filter(sample_name == "prbc_38") %>% pull(study_group)
+meta2 %>% filter(patient_ref == "HL-FA-38") %>% pull(study_group)
+```
+
+However all the patient refs from both metadata files are the same.
+
+```{r}
+stopifnot(length(setdiff(meta$patient_ref, meta2$patient_ref))==0)
+```
+
+Define short as less than 1 month and long as greater than 1 month (999 = unknown)
+
+```{r}
+ciberdf = ciberdf %>% 
+  mutate(newstudygroup = case_when(
+    study_group == "ppbc_inv" & breastfeeding_months == 999 ~ "unknownBFinv", 
+    study_group == "ppbc_inv" & breastfeeding_months != 999 & breastfeeding_months <= 1 ~ "shortBFinv",
+    study_group == "ppbc_inv" & breastfeeding_months != 999 & breastfeeding_months > 1 ~ "longBFinv",
+    TRUE ~ study_group
+  )) %>% mutate(newstudygroup = factor(newstudygroup, levels=c("non_prbc","prbc","ppbc_lac","shortBFinv","longBFinv","unknownBFinv"))) %>%
+  arrange(newstudygroup)
+
+ciberdf %>% select(sample_name, study_group, newstudygroup) %>% distinct() %>% select(-sample_name)%>% table()
+```
+
+
+## Bar plots by cell type
+
+```{r, fig.width=10}
+ciberdf %>% filter(cellgroup == "B cell") %>%
+  ggplot(aes(x = factor(sample_name, levels = unique(sample_name)), y = ciberval, fill=newstudygroup)) + geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative B cell fractions") +
+  labs(fill = "study group")
+
+```
+
+```{r, fig.width=10}
+ciberdf %>% filter(cellgroup == "T cell") %>%
+  ggplot(aes(x = factor(sample_name, levels = unique(sample_name)), y = ciberval, fill=newstudygroup)) + geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative T cell fractions")+
+  labs(fill = "study group")
+
+```
+
+```{r, fig.width=10}
+ciberdf %>% filter(cellgroup == "Macrophage") %>% 
+  ggplot(aes(x = factor(sample_name, levels = unique(sample_name)), y = ciberval, fill=newstudygroup)) + geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative macrophage fractions")+
+  labs(fill = "study group")
+
+```
+
+```{r, fig.width=10}
+ciberdf %>%filter(cellgroup == "other") %>%
+  ggplot(aes(x = factor(sample_name, levels = unique(sample_name)), y = ciberval, fill=newstudygroup)) + geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative other immune cell fractions")+
+  labs(fill = "study group")
+
+```
+
+## FDR and Cohen's d short vs longterm
+
+Calculate nom p with Wilcoxon rank sum test. Spread into matrix. Only 26 and 37 in each group respectively.
+
+```{r}
+ciberdf %>% select(sample_name, study_group, newstudygroup) %>% distinct() %>% select(newstudygroup)%>% table()
+```
+
+FDR is always quite high with relatively few samples.
+
+```{r, warning=F}
+
+bf_res = matrix(ncol=6, nrow=0)
+
+for (i in 1:length(unique(ciberdf$type))){ #length(unique(ciberdf$type)))
+  celltype = unique(ciberdf$type)[i]
+  subdf = ciberdf %>% filter(type == celltype)
+
+  x = "shortBFinv" 
+  y = "longBFinv" 
+  
+  #print(select(filter(subdf, newstudygroup == x), study_groupx = newstudygroup, typex = type, valx = ciberval))
+  #print(select(filter(subdf, newstudygroup == y), study_groupy = newstudygroup, typey = type, valy = ciberval))
+
+  xdata = filter(subdf, newstudygroup == x)$ciberval
+  ydata = filter(subdf, newstudygroup == y)$ciberval
+  
+  bf = wilcox.test(x = xdata,
+                      y = ydata,
+                      paired = F)
+  bf = enframe(unlist(bf), "stat", "value")[1:2,]
+    
+  
+  bf = bf %>% mutate(cell = celltype,
+                         x = x, y = y,
+                         comparison = paste(x, y, sep = " vs "))
+  bf = as.matrix(bf)
+  #print(bf)
+  bf_res = rbind(bf_res, bf)
+}
+
+bf_res = as.data.frame(bf_res)
+bf_res = bf_res %>% mutate(value= as.numeric(as.character(value))) %>% spread(key="stat", value="value")
+bf_res = bf_res %>% mutate(fdr = p.adjust(p.value, method = "BH"))
+
+#bf_res %>% filter(p.value < 0.05)
+
+
+#Exclude Tregs because there's so little data that the p-value is misleading
+bfmat = bf_res %>% filter(!str_detect(cell, "Tregs")) %>%
+  select(cell,p.value, fdr)  %>% column_to_rownames("cell") %>%
+  as.matrix()
+
+bfmat
+```
+
+We'll make the heatmap from the nominal p-value, but bear in mind that this is primarily exploratory.
+
+```{r}
+bfd_res = matrix(ncol=5, nrow=0)
+
+for (i in 1:length(unique(ciberdf$type))){ 
+  celltype = unique(ciberdf$type)[i]
+  subdf = ciberdf %>% filter(type == celltype)
+
+    
+    x = "shortBFinv" 
+    y = "longBFinv" 
+    
+    xdata = filter(subdf, newstudygroup == x)$ciberval
+    ydata = filter(subdf, newstudygroup == y)$ciberval
+  
+    #print(xdata)
+    #print(ydata)
+    
+    bfcd = cohen.d(xdata, ydata, small_sample_correction = F, convert_to_hedge = F)
+    
+    #print(cd)
+
+    bfd = tibble(cohen_d = bfcd,
+                cell = celltype, 
+                x = x, y = y, comparison = paste(x, y, sep = " vs "))
+    
+    bfd = as.matrix(bfd)
+    #print(d)
+    bfd_res = rbind(bfd_res, bfd)
+  
+}
+
+bfd_res = as.data.frame(bfd_res) %>% mutate(cohen_d = as.numeric(as.character(cohen_d)))
+
+#head(bfd_res)
+
+bfdmat = bfd_res %>% filter(!str_detect(cell, "Tregs")) %>%
+  select(comparison,cell,cohen_d) %>% spread(key = comparison, value = cohen_d) %>% column_to_rownames("cell") %>%
+  as.matrix()
+
+bfdmat
+
+
+stopifnot(identical(rownames(bfdmat), rownames(bfmat)))
+
+```
+
+## Heatmap nom.p short vs long term
+
+```{r}
+Heatmap(bfmat[,1], col=colorRamp2(c(0, 0.06, 0.5, 1), c("red", "orange","gold", "white")),
+        column_title = "Breastfeeding involution (+ pos fc, - neg fc)",
+        cell_fun = function(j, i, x, y, width, height, fill) 
+        {
+          if (bfdmat[i,j] > 0){
+            grid.text(paste0(sprintf("%.2f", bfmat[i, j]),"+"), x, y, gp = gpar(fontsize = 12))
+          } else {
+            grid.text(paste0(sprintf("%.2f", bfmat[i, j]),"-"), x, y, gp = gpar(fontsize = 12))
+          }
+          
+        },
+        heatmap_legend_param = list(title="wilcoxon nom.pval"), column_names_rot = 45,
+        column_labels = "short vs long")
+```
+
+## Heatmap Cohen d short vs long term
+
+```{r}
+Heatmap(bfdmat, #col=colorRamp2(c(0, 0.05, 0.5, 1), c("red", "orange","gold", "white")),
+        column_title = "Breastfeeding duration (*sig fdr)",
+        cell_fun = function(j, i, x, y, width, height, fill) 
+        {
+          if (bfmat[i,j] <= 0.05){
+            grid.text(paste0(sprintf("%.2f", bfdmat[i, j]),"*"), x, y, gp = gpar(fontsize = 12))
+          } else {
+            grid.text(sprintf("%.2f", bfdmat[i, j]), x, y, gp = gpar(fontsize = 12))
+          }
+          
+        },
+        heatmap_legend_param = list(title="Cohen's d"), column_names_rot = 45,
+        column_labels ="short vs long")
+
+#draw(hm, Legend(labels = c("+"), title="Significant"))
+```
+
+# Cell fractions over time
+
+
+
+
+```{r}
+levels(ciberdf$newstudygroup)
+```
+
+There's too much variance to easily show a trend line from the individual points.
+
+```{r, include =F}
+ciberdf %>% filter(cellgroup == "B cell") %>%
+  ggplot(aes(x = newstudygroup, y = ciberval, color=type)) +
+  geom_point() + stat_smooth(aes(group = type), method = "loess")
+  
+```
+
+Calculate sem and use that for error bars.
+
+```{r}
+cibermean = ciberdf %>% filter(newstudygroup != "unknownBFinv") %>%
+  group_by(type, newstudygroup) %>% summarise(mean = mean(ciberval), sd = sd(ciberval), n = n()) %>%
+  mutate(sem = sd/sqrt(n))
+```
+
+## B cells
+
+```{r}
+cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "B cell")$type) %>%
+  ggplot(aes(x = newstudygroup, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.1)) +
+  ggtitle("Time arc B cells PPBC") + xlab("study group")
+```
+
+## T cells
+
+```{r}
+cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "T cell")$type) %>%
+  ggplot(aes(x = newstudygroup, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.0)) +
+  ggtitle("Time arc T cells PPBC") + xlab("study group")
+```
+
+Exclude Tregs and CD4 memory resting so we can zoom in on the others
+
+```{r}
+cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "T cell")$type) %>%
+  filter(!type %in% c("T cells CD4 memory resting", "T cells regulatory (Tregs)")) %>%
+  ggplot(aes(x = newstudygroup, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.15)) +
+  ggtitle("Time arc T cells PPBC, excluding Tmemrest and Tregs") + xlab("study group")
+```
+
+## Macrophages
+
+```{r}
+cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "Macrophage")$type) %>%
+  ggplot(aes(x = newstudygroup, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.1)) +
+  ggtitle("Time arc macrophages PPBC") + xlab("study group")
+```
+
+## Other immune
+
+```{r}
+cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "other")$type) %>%
+  ggplot(aes(x = newstudygroup, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.15)) +
+  ggtitle("Time arc other immune cells PPBC") + xlab("study group")
+```
+
+## Most interesting changes
+
+```{r}
+wil_res %>% filter(fdr < 0.05) %>% pull(cell) %>% as.character() %>% unique()
+```
+
+Plot significant comparisons if the mean fraction is at least 0.02 (excludes NK resting and neutrophils).
+
+```{r}
+cibermean %>% filter(type %in% (wil_res %>% filter(fdr < 0.05) %>% pull(cell) %>% as.character() %>% unique())) %>%
+  filter(mean > 0.02) %>%
+  ggplot(aes(x = newstudygroup, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.15)) +
+  ggtitle("Time arc : significant comparisons") + xlab("study group")
+```
+
+```{r}
+save.image(here("reports", "10_CibersortX.RData"))
+```
+

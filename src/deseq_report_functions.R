@@ -92,7 +92,7 @@ summarize_expression_duplicate_ids <- function(mat, id_column, f=colMeans, final
   colnames(dedupped_df)[colnames(dedupped_df)=="symbol"] <- final_gene_symbol_colname
 
   return(dedupped_df)
-
+}
 
 volcano_plot <- function(annotated_results, title, path_save_fig = NULL, pthresh = 0.05, absl2fc=1, shape_col=NULL, dedup_ids = T){
 
@@ -196,7 +196,7 @@ complex_heatmap <- function(vsd, annotated_results, groups_to_plot=levels(vsd$st
     mat = right_join(select(annotated_results, ensembl_gene_id, gene_name), mat, by = "ensembl_gene_id") %>%
       mutate(gene_name = if_else(is.na(gene_name), ensembl_gene_id, gene_name)) %>% select(-ensembl_gene_id)
 
-    mat = summarize_expression_duplicate_ids(mat, "gene_name")
+    mat = summarize_expression_duplicate_ids(mat, "gene_name") #Gene name de-deduplication function
     rownames(mat) = mat[,colnames(mat)=="GeneSymbol"]
     mat = mat[,colnames(mat) != "GeneSymbol"]
     mat = as.matrix(mat)
@@ -238,17 +238,13 @@ complex_heatmap <- function(vsd, annotated_results, groups_to_plot=levels(vsd$st
                             TRUE ~ "other noncoding")) %>%
       column_to_rownames("ensembl_gene_id") %>% select(Type)
   }
-
-
   anno_rows$Type = as.factor(anno_rows$Type)
-
   type_colors = suppressWarnings(colorRampPalette(brewer.pal(length(levels(anno_rows$Type)),"Set1"))(length(levels(anno_rows$Type))))
   names(type_colors) = levels(anno_rows$Type)
   row_colors = list(Type = type_colors)
-
   rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=row_colors)
 
-
+  #Change legend according to whether input is scaled
   if (row_scale==T){
     hlp = list(title="rowscaled vst")
   } else {
@@ -363,8 +359,11 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
     print("Creating heatmap...")
   }
 
+  #Show row names if fewer than 50 genes plotted
+  rn = nrow(sig) <= 50
+
   hm = complex_heatmap(vsd = variance_stabilized_dds, annotated_results = sig, groups_to_plot=groups, row_scale = T,
-                       show_column_names=F, show_row_names=F, title = title)
+                       show_column_names=F, show_row_names=rn, title = title)
 
   mega$heatmap = hm
 
@@ -412,7 +411,7 @@ gene_results = function(list_reports, ensembl_id, pthresh = 0.05, abslogfcthresh
 
   #print(paste("Adjusted p value threshold:", pthresh, ", abs(log2FoldChange) threshold:", abslogfcthresh))
 
-  comp = lapply(res_list,
+  comp = lapply(list_reports,
                 function(x) x$annotated_results[x$annotated_results$ensembl_gene_id==ensembl_id,
                                                 c("ensembl_gene_id","gene_name","log2FoldChange","padj")]) %>%
     unlist() %>% enframe() %>% separate(name, into = c("comparison", "field"), sep="\\.") %>%
@@ -431,11 +430,8 @@ gene_results = function(list_reports, ensembl_id, pthresh = 0.05, abslogfcthresh
 
 
 blind_vst = function(dds){
-  #We want a transformation that is fully blind to the experimental design,
-  #but still uses the faster sampling method in the vst wrapper for varianceStabilizingTransformation.
-  #This homoskedastic dataset will be used later on for heatmap visualization.
   design(dds) = formula(~ 1)
   vsd = vst(dds, blind=T)
   #mat = assay(vsd)
   return(vsd)
-}
+  }
