@@ -400,7 +400,7 @@ shrinkRes <- function(dds, contrast, type="apeglm"){
   res = results(dds, contrast=contrast)
 
   print(paste("Shrinking log2foldchanges via method", type))
-  ape <- lfcShrink(dds, coef = c$coef, res = res, type="apeglm")
+  ape <- lfcShrink(dds, coef = c$coef, res = res, type=type)
 
   return(ape)
 }

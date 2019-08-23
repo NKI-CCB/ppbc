@@ -70,429 +70,8 @@ head(immune_gene_list)
 
 ## Helper functions
 
-### Cooks distance
-
 ```{r}
-plot_cooks <- function(dds, colorby="study_group", method="box", outlier.shape=NA, groupwise_threshold=F, returnOutliers=F,...){
-  require(tidyverse)
-  require(ggrepel)
-  require(RColorBrewer)
-  
-  stopifnot(method %in% c("box", "upperquartile"))
-  if (groupwise_threshold == T & method != "upperquartile"){
-    stop("Use groupwise threshold with method = upperquartile.")
-  }
-  if (returnOutliers == T & groupwise_threshold == F){
-    stop("Return outliers only works when groupwise_threshold is TRUE.")
-  }
-  
-  #Spare ourselves the nightmare of trying to use dplyr with variable column names
-  sampledata <- data.frame(sample = rownames(as.data.frame(colData(dds))),
-                           group = as.data.frame(colData(dds))[,colorby],
-                           stringsAsFactors = F)
-
-  #Get the Cooks distances
-  cooks <- log10(assays(dds)[["cooks"]])
-
-  #Melt into tidy data frame
-  cooks_df <- cooks %>% as.data.frame() %>% rownames_to_column("gene_id") %>% gather(key=sample,-gene_id,value="cooks")
-  
-  #Add study group info
-  cooks_df <- cooks_df %>% left_join(., sampledata, by="sample")
-  
-  #Sort by the color variable so all the colors are plotted together
-  cooks_df <- cooks_df %>% arrange(group)
-  
-  
-  #Create a box plot of all cooks distances by samples, including or excluding the outliers depending on outlier.shape
-  if (method=="box"){
-    graph = cooks_df %>%
-      ggplot(aes(x=factor(sample, levels=unique(sample)), y=cooks, color=group)) +
-      geom_boxplot(outlier.shape = outlier.shape) +
-      theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-      labs(color=colorby) + xlab("sample") +
-      scale_colour_brewer(type = "qual", palette = "Set1")
-  }
-  
-  
-  #Plot just the upper quartile of the cooks distances as a single point
-  #Allows more readable labels
-  if (method=="upperquartile"){
-    cooksQuartile = cooks_df %>% group_by(sample) %>% summarise(upper_cook = quantile(cooks)[4]) #Get the upper quartile
-    cooksQuartile = cooksQuartile %>% left_join(.,sampledata, by="sample")
-
-    #Sort by group to have colors plotted together
-    cooksQuartile = cooksQuartile %>% arrange(group)
-    
-    if (groupwise_threshold==T){
-      
-      #Set a threshold of two standard deviations above the mean upper quartile for Cook's distance
-      cooksThreshold = cooksQuartile %>% group_by(group) %>%
-        summarise(meanUC=mean(upper_cook), stdevUC=sd(upper_cook, na.rm=T)) %>% mutate(threshold=meanUC+2*stdevUC)
-      
-      cooksThreshold = left_join(cooksQuartile,cooksThreshold, by="group")  %>%
-        mutate(label = if_else(upper_cook > threshold, sample, NULL)) #Label those samples above the threshold
-
-      #First plot the UQ cooks distance by color group
-      graph = cooksThreshold %>% ggplot(aes(x=factor(sample, level=unique(sample)), y = upper_cook, color=group, label=label)) +
-        geom_point() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-        labs(color=colorby, title="Labelled samples exceed groupwise Cooks threshold of 2sd + mean(UQ)") + xlab("sample") +
-        scale_colour_brewer(type = "qual", palette = "Set1")
-      
-      #Add labels for samples above the threshold
-      graph = graph + ggrepel::geom_label_repel(size=4, show.legend = F)
-      
-      #store the outliers as a vector
-      outliers = cooksThreshold %>% filter(!is.na(label)) %>% select(sample, group)
-
-    } else {
-
-      #Produce a graph of upper quartiles cooks distance with no samples labeled
-      graph = cooksQuartile %>% ggplot(aes(x=factor(sample, level=unique(sample)), y = upper_cook,color=group)) +
-        geom_point() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-        labs(color=colorby) + xlab("sample") +
-        scale_colour_brewer(type = "qual", palette = "Set1")
-    }
-  }
-  if (returnOutliers == T){
-    return(outliers)
-  } else {
-    return(graph)
-  }
-}
-```
-
-### Annotate results 
-```{r}
-annotate_results <- function(results_object, anno_df = gx_annot, mark_immune = T, immune_list = immune_gene_list){
-  require(tidyverse)
-  
-  anno_res <- results_object %>% as.data.frame() %>% rownames_to_column("ensembl_gene_id") %>%
-    right_join(anno_df,., by = "ensembl_gene_id") %>% arrange(padj)
-  
-  if (mark_immune==T){
-    anno_res = anno_res %>% mutate(immune_gene = if_else(
-      ensembl_gene_id %in% immune_list$ensembl |
-        str_detect(string = description, "immuno") |
-        str_detect(string = description, "immune") |
-        str_detect(string = description, "interleukin"),
-      TRUE, FALSE
-    )) %>% #When description is NA, immune_gene is also NA
-      mutate(immune_gene = replace_na(immune_gene, FALSE))
-  }
-  
-  return(anno_res)
-}
-```
-
-### Significant gene threshold
-
-```{r}
-significance <- function(annotated_results, pthresh = 0.05, absl2fc = 1){
-  require(tidyverse)
-  sig = annotated_results %>% filter(padj < !!pthresh & (abs(log2FoldChange) > !!absl2fc))
-  return(sig)
-}
-```
-
-### Volcano plot
-```{r}
-volcano_plot <- function(annotated_results, title, path_save_fig = NULL, pthresh = 0.05, absl2fc=1, shape_col=NULL){
-  
-  require(tidyverse)
-  require(ggrepel)
-  require(here)
-  
-  volcdf <- annotated_results %>% mutate(NegLog10FDR = -log10(padj),
-                   Significant = if_else(
-                     (padj < !!pthresh & abs(log2FoldChange) > !!absl2fc),
-                     TRUE, FALSE),
-                   Type=case_when(
-                     gene_type == "protein_coding" ~ "protein coding",
-                     str_detect(string=gene_type,pattern="IG") ~ "IG gene",
-                     TRUE ~ "other noncoding"),
-                   Color = if_else(
-                     Significant == T, Type, "n.s."
-                   )) %>% 
-  filter(!is.na(Significant))
-  
-  colors = c(`IG gene` = "red", `n.s.` = "gray",`other noncoding`="purple",`protein coding`="darkgreen")
-
-  volcplot <-ggplot(volcdf, aes(x=log2FoldChange,y=NegLog10FDR, color=Color)) +
-    geom_point() +
-    scale_color_manual(values=colors) +
-    geom_hline(yintercept = -log10(pthresh), colour="darkred", linetype="dashed") + 
-    geom_vline(xintercept = absl2fc, color="darkred", linetype="dashed") +
-    geom_vline(xintercept = -absl2fc, color="darkred", linetype="dashed") +
-    theme_bw()
-  
-  volcplot <-
-    volcplot + 
-    geom_text_repel(data=head(volcdf[volcdf$Significant==T,], 10), aes(label=gene_name), show.legend = F) +
-    ggtitle(title) +
-    labs(y="-log10(FDR)")
-  
-  if (is.null(path_save_fig)==F){
-    suppressMessages(ggsave(filename=path_save_fig, plot = volcplot))
-    }
-
-  if (is.null(shape_col)==F){
-    volcplot = volcplot + aes(shape=get(shape_col)) + labs(shape=shape_col)
-    }
-
-  return(volcplot)
-
-}
-```
-
-### Complex heatmap
-
-```{r}
-
-
-complex_heatmap <- function(vsd, annotated_results, groups_to_plot=levels(vsd$study_group),
-                            row_annot=F, row_scale = FALSE, row_id = "gene_name",
-                            row_size = 8, col_size = 8, ...){
-  
-  require(DESeq2)
-  require(ComplexHeatmap)
-  require(tidyverse)
-  require(scrime)
-  require(RColorBrewer)
-  
-  stopifnot(row_id %in% c("gene_name", "ensembl_gene_id", "concatenate"))
-  stopifnot(groups_to_plot %in% levels(vsd$study_group))
-  
-  genes_to_plot = annotated_results[,c("ensembl_gene_id", "gene_name")]
-  samples_to_plot = colnames(vsd)[as.data.frame(colData(vsd)["study_group"])[,1] %in% groups_to_plot]
-  
-  vsd = vsd[genes_to_plot$ensembl_gene_id, samples_to_plot]
-  
-  mat = assay(vsd)
-  
-  if (row_scale==T){
-    mat = scrime::rowScales(mat)
-  }
-  
-  title = if_else(groups_to_plot == levels(vsd$study_group),
-                  "All groups",
-                  paste(groups_to_plot, collapse="vs"))
-  
-  stopifnot(identical(rownames(mat), genes_to_plot$ensembl_gene_id))
-  
-  if (row_id == "gene_name"){
-    row_labels = genes_to_plot$gene_name
-  } else if (row_id == "concatenate"){
-    row_labels = paste(genes_to_plot$gene_name, genes_to_plot$ensembl_gene_id, ":")
-  } else {
-    row_labels = rownames(mat)
-  }
-  
-  # Top column annotation
-  ann_top = as.data.frame(colData(vsd)["study_group"])
-  
-  #Colors must be named lists with named elements
-  study_colors=suppressWarnings(colorRampPalette(brewer.pal(length(unique(vsd$study_group)),"Spectral"))(length(unique(vsd$study_group))))
-  names(study_colors) = unique(vsd$study_group)
-  
-  top_cols=list(study_group=study_colors)
-  
-  colTop <- HeatmapAnnotation(df=ann_top, which="col", col = top_cols)
-  
-  #Bottom column annotation
-  ann_bottom = as.data.frame(colData(vsd)["PAM50"])
-  pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(vsd$PAM50)),"Paired"))(length(unique(vsd$PAM50))))
-  names(pam_colors)= unique(vsd$PAM50)
-  bottom_cols = list(PAM50 = pam_colors)
-  colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = bottom_cols)
-  
-  # Row annotation
-  anno_rows = tibble(ensembl_gene_id = annotated_results$ensembl_gene_id, gene_type=annotated_results$gene_type) %>% 
-    mutate(Type=case_when(gene_type == "protein_coding" ~ "protein coding",
-                     str_detect(string=gene_type,pattern="IG") ~ "IG gene",
-                     TRUE ~ "other noncoding")) %>%
-    column_to_rownames("ensembl_gene_id") %>% select(Type)
-  
-  anno_rows$Type = as.factor(anno_rows$Type)
-  
-  type_colors = suppressWarnings(colorRampPalette(brewer.pal(length(levels(anno_rows$Type)),"Set1"))(length(levels(anno_rows$Type))))
-  names(type_colors) = levels(anno_rows$Type)
-  row_colors = list(Type = type_colors)
-  
-  rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=row_colors)
-  
-  
-  if (row_scale==T){
-   hlp = list(title="rowscaled vst") 
-  } else {
-    hlp = list(title="vst counts")
-  }
-  
-  Heatmap(mat, top_annotation = colTop, bottom_annotation = colBottom, left_annotation = rowAnno,
-          heatmap_legend_param = hlp, row_labels = row_labels, #column_title=title, #Column title causes errors in wrapper
-          row_names_gp = gpar(fontsize = row_size), column_names_gp = gpar(fontsize = col_size), ...)
-}
-
-
-
-```
-
-### Plot beehive
-
-```{r}
-plot_gene_beehive = function(dds, result_df, groups_to_plot = levels(colData(dds)[,intgroup]),
-                             intgroup="study_group", colorby="PAM50", path_save_fig = NULL){
-  
-  require(DESeq2)
-  require(tidyverse)
-  
-  if(nrow(result_df) > 1){
-    warning("More than one result provided, plotting first row")
-    result_df = head(result_df, 1)
-  }
-  
-  ensembl_gene_id = result_df$ensembl_gene_id
-  gene_name = result_df$gene_name
-  
-  stopifnot(groups_to_plot %in% levels(colData(dds)[,intgroup]))
-  
-  comparison = if_else(groups_to_plot == levels(colData(dds)[,intgroup]),
-                       "all groups", paste(groups_to_plot, collapse = " vs "))
-  
-  
-  samples_to_keep = colnames(dds)[as.data.frame(colData(dds)[intgroup])[,1] %in% groups_to_plot]
-  
-  dds.trim = dds[,samples_to_keep]
-  
-  #Normalizes by size factors
-  d <- plotCounts(dds.trim, gene=ensembl_gene_id, intgroup=c(intgroup,colorby), normalize=T, returnData=TRUE)
-  
-  title = paste0(paste(gene_name,ensembl_gene_id, sep=":"), ", ", comparison, ", padj: ",
-                 formatC(result_df$padj, format = "e", digits = 2),
-                 ", log2fc: ", round(result_df$log2FoldChange,2))
-  
-  dplot = ggplot(d, aes(x=get(intgroup), y=count)) + 
-    geom_boxplot(alpha=0, show.legend = F, outlier.shape = NA) +
-    geom_point(position=position_jitter(w=0.1,h=0), aes(color=get(colorby))) + 
-    scale_y_log10() + xlab(intgroup) + labs(color=colorby) + ylab("size-factor normalized counts") +
-    ggtitle(title)
-  
-  if (is.null(path_save_fig)!=T){
-    suppressMessages(ggsave(filename=path_save_fig, plot = volcplot))
-  }
-  
-  return(dplot)
-}
-```
-
-### Plot multiple beehives
-
-```{r}
-plot_many_beehives = function(dds, result_df, ...){
-  plotlist = list()
-  for (i in 1 : nrow(result_df)){
-    plotlist[[length(plotlist)+1]]= plot_gene_beehive(dds, result_df = result_df[i,], ...)
-  }
-  return(plotlist)
-}
-```
-
-### Report wrapper function
-
-```{r}
-deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, immune_list=immune_gene_list,
-                        pthresh = 0.05, absl2fc = 1, variance_stabilized_dds = vsd,
-                        intgroup="study_group", colorby="PAM50", shape_volc_col = "immune_gene",
-                        groups=levels(colData(dds)[,intgroup]),
-                        n_beehive_plots=5, verbose=F, ...){
-  require(DESeq2)
-  require(tidyverse)
-  
-  mega = list()
-  
-  #Merge deseq results object with gene name and type annotation
-  if(verbose==T){
-    print("Annotating results...")
-  }
-  
-  df = annotate_results(results_object, mark_immune = mark_immune, immune_list = immune_list)
-  
-  mega$annotated_results = df
-  
-  #Set significance threshold and save significant hits
-  print(paste("Significance threshold is padj:", pthresh, "and abs(log2foldchange):", absl2fc))
-  
-  mega$sig_threshold = list(padj = pthresh, absl2fc = absl2fc)
-  
-  sig = significance(df, pthresh = pthresh, absl2fc = absl2fc)
-  
-  print(paste("Number of significant genes:", nrow(sig)))
-  
-  mega$significant_genes = sig
-    
-  #Draw volcano plot
-  if(verbose==T){
-    print("Creating volcano plot...")
-  }
-  
-  title = if_else(groups==levels(colData(dds)[,intgroup]), "All groups - Interpret with caution",
-                  paste(groups, collapse=" vs "))
-  
-  vp = volcano_plot(annotated_results = df, title=title, pthresh = pthresh, absl2fc = absl2fc, shape_col = shape_volc_col)
-  
-  mega$volcano_plot = vp
-  
-  #Draw heatmap
-  if(verbose==T){
-    print("Creating heatmap...")
-  }
-  
-  hm = complex_heatmap(vsd = variance_stabilized_dds, annotated_results = sig, groups_to_plot=groups, row_scale = T,
-                      show_column_names=F, show_row_names=F)
-  
-  mega$heatmap = hm
-  
-  #Draw a selection of beehive plots from top hits
-  if(verbose==T){
-    print(paste("Creating beehive plots from top", n_beehive_plots, "genes..."))
-  }
-  beelist = plot_many_beehives(dds = dds, result_df = head(sig, n_beehive_plots), groups_to_plot = groups)
-  
-  mega$beehive_plots = beelist
-  
-  return(mega)
-
-}
-```
-
-### Extract results and shrink log2fold changes
-
-```{r}
-shrinkRes <- function(dds, contrast, type="apeglm"){
-  require(DESeq2)
-  require(tidyverse)
-  
-  cdf = enframe(colnames(coef(dds)), "coef", "name")
-  contrast_name = paste(contrast[1], contrast[2], "vs",contrast[3], sep="_")
-  
-  if(!contrast_name %in% cdf$name){
-    stop("Contrast name not found within coefficients. Do you need to relevel your design formula?")
-  }
-  
-  print("Detecting coefficient corresponding to contrast:")
-
-  c = cdf[cdf$name==contrast_name,]
-  print(paste("Contrast name:", c$name))
-  print(paste("Coefficient:", c$coef))
-  
-  print("Retrieving results from deseq dataset with contrast...")
-  res = results(dds, contrast=contrast)
-
-  print(paste("Shrinking log2foldchanges via method", type))
-  ape <- lfcShrink(dds, coef = c$coef, res = res, type="apeglm")
-  
-  return(ape)
-}
+source(here("src", "deseq_report_functions.R"))
 ```
 
 ## Variance stabilizing transformation
@@ -501,14 +80,6 @@ We want a transformation that is fully blind to the experimental design, but sti
 
 This homoskedastic dataset will be used later on for heatmap visualization.
 
-```{r}
-blind_vst = function(dds){
-  design(dds) = formula(~ 1)
-  vsd = vst(dds, blind=T)
-  #mat = assay(vsd)
-  return(vsd)
-}
-```
 
 ```{r}
 vsd = blind_vst(dds)
@@ -542,6 +113,7 @@ saveRDS(ddsLRT, here("data/Rds/06_ddsLRT_standard.Rds"))
 resLRT <- results(ddsLRT)
 ```
 
+
 # LRT report
 
 ## Summary
@@ -573,6 +145,49 @@ repLRT$beehive_plots
 
 # Specific genes of interest
 
+##Significant genes
+
+### Interleukin 18 receptor 1
+
+ENSG00000115604
+
+```{r}
+plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000115604",])
+```
+
+### NOS1
+
+Nitric oxide synthase
+
+```{r}
+plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000089250",])
+```
+
+### CD68
+
+CD68 (Cluster of Differentiation 68) is a protein highly expressed by cells in the monocyte lineage (e.g., monocytic phagocytes, osteoclasts), by circulating macrophages, and by tissue macrophages (e.g., Kupffer cells, microglia).[5] 
+
+```{r}
+plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000129226",])
+```
+
+### Granulin precursor
+ENSG00000030582	GRN
+
+```{r}
+plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000030582",])
+```
+
+### Major histocompatibility complex, class II, DQ alpha 1	
+
+ENSG00000228284	HLA-DQA1
+
+```{r}
+plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000228284",])
+```
+
+## Various immune markers
+
 ### CD20
 
 Official name of CD20 is MS4A1 ENSG00000156738
@@ -602,7 +217,7 @@ ENSG00000117322
 plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000117322",])
 ```
 
-## CD30
+### CD30
 
 TNFRSF8 ENSG00000120949
 ```{r}
