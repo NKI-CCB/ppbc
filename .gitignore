@@ -6,6 +6,7 @@
 *.tar.xy
 *.csv
 *.xlsx
+*.pdf
 
 .snakemake
 .here
