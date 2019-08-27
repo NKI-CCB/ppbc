@@ -122,6 +122,11 @@ resLRT <- results(ddsLRT)
 repLRT = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0.5)
 ```
 
+```{r}
+saveRDS(repLRT, here("data", "Rds", "06_repLRT.Rds"))
+```
+
+
 ## Top genes
 
 ```{r}

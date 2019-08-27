@@ -10,6 +10,17 @@ library(here)
 ```
 
 ```{r}
+ddsLRT = readRDS(here("data", "Rds","06_ddsLRT_standard.Rds"))
+repLRT = readRDS(here("data", "Rds", "06_repLRT.Rds"))
+```
+
+
+```{r}
+source(here("src", "deseq_report_functions.R"))
+```
+
+
+```{r}
 gene_report = function(list_reports, ensembl_id, pthresh = 0.05, abslogfcthresh = 0.5){
 
   require(tidyverse)
@@ -54,15 +65,54 @@ names(res_list) = str_remove_all(str_remove_all(names(res_list), "rep_"), "_all"
 names(res_list)
 ```
 
+
+
+## CD20
+
 Example for CD20 (official name MS4A1 ENSG00000156738)
 
 ```{r}
-gene_report(res_list, "ENSG00000156738")
+gene_report(res_list, "ENSG00000156738") %>% arrange(padj)
 ```
 
-Optionally sort by adjusted p value
+```{r}
+plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000156738",])
+```
+
+
+## NFKB1
+
+ENSG00000109320
 
 ```{r}
-gene_report(res_list, "ENSG00000156738") %>% arrange(padj)
+gene_report(res_list, "ENSG00000109320") %>% arrange(padj)
+```
+
+```{r}
+plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000109320",])
+```
+
+
+## Androgen receptor
+
+AR ENSG00000169083
+```{r}
+gene_report(res_list, "ENSG00000169083") %>% arrange(padj)
+```
+
+```{r}
+plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000169083",])
+```
+
+
+## JChain
+
+```{r}
+gene_report(res_list,"ENSG00000132465")
+```
+
+
+```{r}
+plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000132465",])
 ```
 

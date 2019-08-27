@@ -3,18 +3,18 @@ title: "To do"
 output: html_notebook
 ---
 
-* Rerun the analysis with 2.5% overrepresentation threshold and excluding extreme PAM50/receptor outliers
-* Test apeglm via whatever means necessary
-* Focus on LRT, inv vs rest, and inv vs non-prbc
-  * Come up with a way to discriminate between subtypes (unsupervised clustering of some kind)
-  * Start with immune signature
-* Try out CibersortX
-* Zoom in on IG cluster of heatmap
-* Look at specific B cell markers
-* Pearson hierarchical clustering approach - because shape is more important than aboslute value - for identifying subtypes - do this on the less stringent filtering
-	put the clusters into kaplan meijer survival (library survminer)
-* also look at t-sne
+
+* in notebook 10, redo breastfeeding over time with immune analysis, use pregnancy as timepoint 
+* also look at t-sne in clustering
 * To do: Add two column annotations for the heatmap, showing both group vs rest and all groups separately in notebook 8.
+* Cox regression to identify genes associated with survival
+** First make Kaplan meijer without covariates, then compare with covariates
+** Covariates: grade, stage, molecular subtype, age at diagnosis and year of diagnosis (Also possibly therapy type)
+* Clustering with other comparisons (not just inv vs nonprbc)
+* GSEA with "interesting gene list"
+* Formally test for correlation between batch and study group
+* CHeck batch effect for androgen receptor
+
 
 ALTERNATE THRESHOLD possibility:
 
