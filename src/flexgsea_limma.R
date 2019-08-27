@@ -4,15 +4,30 @@ library(edgeR)
 library(tidyverse)
 library(doParallel)
 library(flexgsea) #https://github.com/NKI-CCB/flexgsea-r
+library(devtools)
+#install_github("NKI-CCB/flexgsea-r", "fix_running_es_at")
 library(here)
 
+# Consider: Addiing 'running_es_pos', 'running_es_neg', 'running_es_at' to return_values in flexgsea for producing mountain plots
+
 dir.create(here("results", "flexgsea", "logs"), showWarnings = F, recursive = T)
-sink(here("results", "flexgsea", "logs", "flexgsea_limma_log.txt"))
+sink(here("results", "flexgsea", "logs", "flexgsea_limma_extraval_log.txt"))
 
 #Set number of permutations for flexgsea
 nperm = 1000 #5 for testing, 1000 for real thing
 print(paste("Number of permutations:", nperm))
 
+
+#Set output dirs
+
+# Input before running function
+DIR = here("results","flexgsea", "limma_extraval")
+input_DIR = file.path(DIR,"input")
+dir.create(input_DIR, showWarnings = F, recursive = T)
+
+#Results dir
+results_DIR = file.path(DIR,"results")
+dir.create(results_DIR, showWarnings = F, recursive = T)
 
 # Main comparisons of interest
 # Involution vs nulliparous
@@ -224,6 +239,7 @@ geneEx = df %>% select(-ensembl_gene_id)
 geneEx = summarize_expression_duplicate_ids(mat = geneEx, id_column = "gene_name")
 rownames(geneEx) = NULL
 geneEx = as.matrix(column_to_rownames(geneEx, "GeneSymbol"))
+saveRDS(geneEx, file.path(input_DIR, "geneSymbol_countmatrix.Rds"))
 
 #### Comparison setup ----
 
@@ -275,12 +291,8 @@ for (i in 1:length(comparisons)){
   v <- voom(dge, design=m, plot=T, save.plot=T)
 
   # Save objects
-  dir.create(here("results","flexgsea","limma_input"), showWarnings = F, recursive = T)
   saveRDS(list(model = m, voom = v),
-          file=here("results", "flexgsea", "limma_input", paste0(comp,"_input_flimma.Rds")))
-
-  #Results dir
-  dir.create(here("results","flexgsea","limma_results"), showWarnings = F, recursive = T)
+          file=file.path(input_DIR, paste0(comp,"_input_flimma.Rds")))
 
   #### Flexgsea ----
 
@@ -298,7 +310,10 @@ for (i in 1:length(comparisons)){
                        gene.score.fn = flexgsea_limma,
                        es.fn=flexgsea_weighted_ks,
                        sig.fun=flexgsea_calc_sig,
-                       nperm=nperm, parallel = T)
+                       nperm=nperm, parallel = T,
+                       return_values = c("gene_name","leading_edge",'running_es_pos','running_es_neg', "running_es_at"))
+    #'running_es_at' = Error in res$running_es_at[[i]] <- list() : replacement has length zero
+    #save.image("/DATA/share/postpartumbc/results/flexgsea/testenv_flexgsea.RData")
     end = Sys.time()
     print(end - start)
 
@@ -314,7 +329,7 @@ for (i in 1:length(comparisons)){
 
 
     saveRDS(list(parameters = parameters, sampledata = comparison_samples, flexgsea_results = flexres),
-            file=here("results", "flexgsea", "limma_results",
+            file=file.path(results_DIR,
                       paste(comp, sig_name, "results_flimma.Rds", sep="_")))
 
     print("") #Empty line
