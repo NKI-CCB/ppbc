@@ -49,7 +49,6 @@ Renders the data homoskedastic, useful for visualization purposes.
 
 We want a transformation that is fully blind to the experimental design, but still uses the faster sampling method in the vst wrapper for varianceStabilizingTransformation.
 
-
 ```{r}
 blind_vst = function(dds){
   design(dds) = formula(~ 1)
@@ -59,18 +58,18 @@ blind_vst = function(dds){
 }
 ```
 
+Calculate for involution samples only. All samples were subjected to vsd in notebook 6.
+
 ```{r, eval=F}
-vsd = blind_vst(dds)
 inv.vsd = blind_vst(inv.dds)
 
-saveRDS(vsd, here("data", "Rds", "09_vsd.Rds"))
 saveRDS(inv.vsd, here("data", "Rds", "09_inv_vsd.Rds"))
 ```
 
 To reduce notebook running time, save and reload these for reuse.
 
 ```{r}
-vsd = readRDS(here("data", "Rds", "09_vsd.Rds"))
+vsd = readRDS(here("data","Rds","06_vsd_standardfilter.Rds"))
 inv.vsd = readRDS(here("data", "Rds", "09_inv_vsd.Rds"))
 ```
 
