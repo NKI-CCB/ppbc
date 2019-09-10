@@ -82,10 +82,11 @@ source(here("src", "deseq_report_functions.R"))
 We want a transformation that is fully blind to the experimental design, but still uses the faster sampling method in the vst wrapper for varianceStabilizingTransformation.
 
 This homoskedastic dataset will be used later on for heatmap visualization.
+Previously performed in notebook 6.
 
 
 ```{r}
-vsd = blind_vst(dds)
+vsd = readRDS(here("data","Rds","06_vsd_standardfilter.Rds"))
 ```
 
 
@@ -103,16 +104,28 @@ levels(dds$study_group)
 
 Perform differential expression analysis.
 
-```{r}
+```{r, eval=F}
 start = Sys.time()
 dds <- DESeq(dds)
 end = Sys.time()
 end-start
+
+saveRDS(dds,here("data/Rds/07_dds_apeglm_nonprbcref_standard.Rds"))
 ```
 
+>estimating size factors
+using 'avgTxLength' from assays(dds), correcting for library size
+estimating dispersions
+gene-wise dispersion estimates
+Warning in doTryCatch(return(expr), name, parentenv, handler) :
+  restarting interrupted promise evaluation
+mean-dispersion relationship
+final dispersion estimates
+fitting model and testing
+Time difference of 1.71209 hours
 
 ```{r}
-saveRDS(dds,here("data/Rds/07_dds_apeglm_nonprbcref_standard.Rds"))
+dds = readRDS(here("data/Rds/07_dds_apeglm_nonprbcref_standard.Rds"))
 ```
 
 
@@ -270,15 +283,25 @@ dds$study_group = relevel(dds$study_group, ref="prbc")
 levels(dds$study_group)
 ```
 
-```{r}
+```{r, eval=F}
 start = Sys.time()
 dds = nbinomWaldTest(dds)
 end = Sys.time()
 end - start
+
+saveRDS(dds,here("data/Rds/07_dds_apeglm_prbcref_standard.Rds"))
 ```
 
+>found results columns, replacing these
+Warning in eval(formal.args[[as.character(substitute(arg))]]) :
+  restarting interrupted promise evaluation
+Warning in doTryCatch(return(expr), name, parentenv, handler) :
+  restarting interrupted promise evaluation
+2 rows did not converge in beta, labelled in mcols(object)$betaConv. Use larger maxit argument with nbinomWaldTest
+Time difference of 35.17508 mins
+
 ```{r}
-saveRDS(dds,here("data/Rds/07_dds_apeglm_prbcref_standard.Rds"))
+dds = readRDS(here("data/Rds/07_dds_apeglm_prbcref_standard.Rds"))
 ```
 
 
@@ -378,15 +401,21 @@ dds$study_group = relevel(dds$study_group, ref="ppbc_lac")
 levels(dds$study_group)
 ```
 
-```{r}
+```{r, eval=F}
 start = Sys.time()
 dds = nbinomWaldTest(dds)
 end = Sys.time()
 end - start
+
+saveRDS(dds,here("data/Rds/07_dds_apeglm_lacref_standard.Rds"))
 ```
 
+>found results columns, replacing these
+3 rows did not converge in beta, labelled in mcols(object)$betaConv. Use larger maxit argument with nbinomWaldTest
+Time difference of 1.431062 hours
+
 ```{r}
-saveRDS(dds,here("data/Rds/07_dds_apeglm_lacref_standard.Rds"))
+dds = readRDS(here("data/Rds/07_dds_apeglm_lacref_standard.Rds"))
 ```
 
 ## Coefficient summary

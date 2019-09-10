@@ -81,9 +81,15 @@ We want a transformation that is fully blind to the experimental design, but sti
 This homoskedastic dataset will be used later on for heatmap visualization.
 
 
-```{r}
+```{r, eval=F}
 vsd = blind_vst(dds)
+saveRDS(vsd, here("data","Rds","06_vsd_standardfilter.Rds"))
 ```
+
+```{r}
+vsd = readRDS(here("data","Rds","06_vsd_standardfilter.Rds"))
+```
+
 
 
 # Likelihood ratio test
@@ -97,16 +103,29 @@ design(dds)
 ```
 
 We will test it versus a formula that lacks the study group for genes of interest.
+To save time, run once, then load the object.
 
-```{r}
+```{r, eval=F}
 start <- Sys.time()
 ddsLRT = DESeq(dds, test="LRT", reduced= ~ batch + PAM50 + tumor_purity)
 end <- Sys.time()
 end-start
+
+saveRDS(ddsLRT, here("data/Rds/06_ddsLRT_standard.Rds"))
 ```
 
+>estimating size factors
+using 'avgTxLength' from assays(dds), correcting for library size
+estimating dispersions
+gene-wise dispersion estimates
+mean-dispersion relationship
+final dispersion estimates
+fitting model and testing
+Time difference of 2.100146 hours
+
+
 ```{r}
-saveRDS(ddsLRT, here("data/Rds/06_ddsLRT_standard.Rds"))
+ddsLRT = readRDS(here("data/Rds/06_ddsLRT_standard.Rds"))
 ```
 
 ```{r}
@@ -122,9 +141,7 @@ resLRT <- results(ddsLRT)
 repLRT = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0.5)
 ```
 
-```{r}
-saveRDS(repLRT, here("data", "Rds", "06_repLRT.Rds"))
-```
+
 
 
 ## Top genes
