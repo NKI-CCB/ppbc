@@ -38,7 +38,7 @@ Subset for just the involution samples.
 
 ```{r}
 inv.dds = dds[,colnames(dds)[dds$study_group == "ppbc_inv"]]
-colData(inv.dds) = droplevels(colData(inv.dds))
+inv.dds$study_group = droplevels(inv.dds$study_group)
 table(inv.dds$study_group)
 ```
 
@@ -59,10 +59,21 @@ blind_vst = function(dds){
 }
 ```
 
-```{r}
+```{r, eval=F}
 vsd = blind_vst(dds)
 inv.vsd = blind_vst(inv.dds)
+
+saveRDS(vsd, here("data", "Rds", "09_vsd.Rds"))
+saveRDS(inv.vsd, here("data", "Rds", "09_inv_vsd.Rds"))
 ```
+
+To reduce notebook running time, save and reload these for reuse.
+
+```{r}
+vsd = readRDS(here("data", "Rds", "09_vsd.Rds"))
+inv.vsd = readRDS(here("data", "Rds", "09_inv_vsd.Rds"))
+```
+
 
 ### Gene metadata
 
@@ -76,24 +87,26 @@ gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, 
 Read in significant results from comparison involution vs non-prbc.
 
 ```{r}
-rep_inv_nonprbc = readRDS(here("data", "Rds", "07_report_inv_nonprbc.Rds"))
+#rep_inv_nonprbc = readRDS(here("data", "Rds", "07_report_inv_nonprbc.Rds")) #Unnecesarily large file
+#openxlsx::getSheetNames(here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx"))
+res_inv = openxlsx::read.xlsx(here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx"), sheet="rep_inv_nonprbc_all")
+head(res_inv)
+
+#openxlsx::getSheetNames(here("results", "diffex", "07_pairwise_comparisons_sig_genes.xlsx"))
+sig.inv = openxlsx::read.xlsx(here("results", "diffex", "07_pairwise_comparisons_sig_genes.xlsx"), sheet="sig_rep_inv_nonprbc")
+head(sig.inv)
 ```
 
-All results
-
-```{r}
-res_inv = rep_inv_nonprbc$annotated_results
-```
 
 
 ## Helper functions
 
+
+
+
 ### Complex heatmap
 
-
-
-
-```{r}
+```{r, eval=T}
 
 complex_heatmap <- function(vsd, annotated_results, col_annot = "study_group",groups_to_plot=levels(colData(vsd)[,col_annot]) ,
                             row_annot=F, row_scale = FALSE, row_id = "gene_name",
@@ -189,7 +202,7 @@ complex_heatmap <- function(vsd, annotated_results, col_annot = "study_group",gr
 ### PCA
 
 
-```{r}
+```{r, eval=T}
 get_PCA <- function(dds, labelled_samples = NULL, color.group, shape.group, variancetransform = T){
 
   require(DESeq2)
@@ -228,7 +241,7 @@ get_PCA <- function(dds, labelled_samples = NULL, color.group, shape.group, vari
 ```
 
 
-```{r}
+```{r, eval=T}
 get_PCA_from_matrix <- function(mat, sampledata, labelled_samples = NULL, color.group, shape.group, ntop=500){
 
   require(tidyverse)
@@ -282,7 +295,7 @@ get_PCA_from_matrix <- function(mat, sampledata, labelled_samples = NULL, color.
 ```
 
 
-```{r}
+```{r, eval=T}
 scree_plot = function(res_prcomp, n_pca=20){
   require(tidyverse)
   percentVar <- res_prcomp$sdev^2/sum(res_prcomp$sdev^2) * 100
@@ -301,11 +314,13 @@ scree_plot = function(res_prcomp, n_pca=20){
 Threshold applied:
 
 ```{r}
-rep_inv_nonprbc$sig_threshold
+openxlsx::read.xlsx(here("results", "diffex", "07_pairwise_comparisons_sig_genes.xlsx"), sheet="thresholds") %>%
+  filter(comparison == "rep_inv_nonprbc")
 ```
 
+
+
 ```{r}
-sig.inv = rep_inv_nonprbc$significant_genes
 print(paste("There are", nrow(sig.inv), "significant genes in the comparison involution vs non-prbc"))
 ```
 
@@ -334,7 +349,6 @@ draw(
 ```
 
 ```{r, fig.width=10}
-colData(vsd)[, col_annot]
 draw(
   complex_heatmap(vsd, annotated_results = sig.inv, row_scale = T, show_column_names=F,
                   groups_to_plot = c("ppbc_inv", "non_prbc"), distance_method = "pearson",

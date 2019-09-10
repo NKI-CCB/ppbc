@@ -254,8 +254,7 @@ complex_heatmap <- function(vsd, annotated_results, groups_to_plot=levels(vsd$st
   hm = Heatmap(mat, top_annotation = colTop, bottom_annotation = colBottom, left_annotation = rowAnno,
                heatmap_legend_param = hlp, row_labels = row_labels,
                row_names_gp = gpar(fontsize = row_size), column_names_gp = gpar(fontsize = col_size), ...)
-  #hm = draw(hm, column_title = title)
-  #return(hm)
+
 }
 
 
@@ -456,4 +455,101 @@ gene_report = function(list_reports, ensembl_id, pthresh = 0.05, abslogfcthresh 
     select(comparison, sig, padj, log2FoldChange, everything())
 
   return(comp)
+}
+
+get_PCA <- function(dds, labelled_samples = NULL, color.group, shape.group, variancetransform = T){
+
+  require(DESeq2)
+  require(tidyverse)
+  require(ggrepel)
+
+
+  if(variancetransform == T){
+    vsd = vst(dds, blind=T)
+  } else {
+    vsd = dds
+  }
+
+  sampleDists <- dist(t(assay(vsd)))
+  pcaData <- plotPCA(vsd, intgroup=c(color.group, shape.group), returnData=TRUE) #To do: Make intgroup variables
+  percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+  if (is.null(labelled_samples)==T){
+    ggplot(pcaData, aes(PC1, PC2, color=get(color.group), shape=get(shape.group))) +
+      geom_point(size=3) +
+      xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+      coord_fixed() + labs(color = color.group, shape = shape.group)
+  } else {
+    pcaData = pcaData %>% mutate(labels = if_else(name %in% labelled_samples, name, NULL))
+    ggplot(pcaData, aes(PC1, PC2, color=get(color.group), shape=get(shape.group), label=labels)) +
+      geom_point(size=3) +
+      xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+      coord_fixed() + ggrepel::geom_label_repel(size=4, show.legend = F) +
+      labs(color = color.group, shape = shape.group)
+  }
+
+}
+
+get_PCA_from_matrix <- function(mat, sampledata, labelled_samples = NULL, color.group, shape.group, ntop=500){
+
+  require(tidyverse)
+  require(ggrepel)
+
+
+  rv <- rowVars(mat)
+  select <- order(rv, decreasing = TRUE)[seq_len(min(ntop, length(rv)))]
+  pca <- prcomp(t(mat[select, ]))
+  percentVar <- pca$sdev^2/sum(pca$sdev^2)
+
+  if (!all(rownames(sampledata) %in% colnames(mat))) {
+    stop("The column names of the input matrix should match the row names of the sample data")
+  }
+
+  intgroup = c(color.group, shape.group)
+  intgroup.df <- sampledata[, intgroup, drop = FALSE]
+
+  group <- if (length(intgroup) > 1) {
+    factor(apply(intgroup.df, 1, paste, collapse = ":"))
+  } else {
+    sampledata[[intgroup]]
+  }
+
+  pcaData <- data.frame(PC1 = pca$x[, 1], PC2 = pca$x[, 2], group = group,
+                        intgroup.df, name = colnames(mat))
+
+  attr(pcaData, "percentVar") <- percentVar[1:2]
+
+  #sampleDists <- dist(t(assay(vsd)))
+  #pcaData <- plotPCA(vsd, intgroup=c(color.group, shape.group), returnData=TRUE)
+  percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+  if (is.null(labelled_samples)==T){
+    ggplot(pcaData, aes(PC1, PC2, color=get(color.group), shape=get(shape.group))) +
+      geom_point(size=3) +
+      xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+      coord_fixed() + labs(color = color.group, shape = shape.group)
+  } else {
+    pcaData = pcaData %>% mutate(labels = if_else(name %in% labelled_samples, name, NULL))
+    ggplot(pcaData, aes(PC1, PC2, color=get(color.group), shape=get(shape.group), label=labels)) +
+      geom_point(size=3) +
+      xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+      coord_fixed() + ggrepel::geom_label_repel(size=4, show.legend = F) +
+      labs(color = color.group, shape = shape.group)
+  }
+
+}
+
+scree_plot = function(res_prcomp, n_pca=20){
+  require(tidyverse)
+  percentVar <- res_prcomp$sdev^2/sum(res_prcomp$sdev^2) * 100
+  names(percentVar) = paste0("PC", seq(1, length(percentVar)))
+  percentVar = enframe(percentVar, "PC", "variance")
+  percentVar$PC=factor(percentVar$PC, levels=percentVar$PC)
+  percentVar %>% slice(1:n_pca) %>% ggplot(aes(x=PC, y=variance)) + geom_bar(stat="identity") +
+    ggtitle("Scree plot") + ylab("Percent total variance")
+
 }

@@ -16,6 +16,8 @@ output: html_notebook
 * CHeck batch effect for androgen receptor
 * Make correlation matrix between batch and study group
 * Variable influence factor (VIF)
+* Set standardized colors for study group etc in heatmaps across the entire dataset
+* Debug the row annotation colors in deduplicated heatmaps
 
 
 ALTERNATE THRESHOLD possibility:

@@ -99,3 +99,9 @@ summarize_expression_duplicate_ids <- function(mat, id_column, f=colMeans, final
 
   return(dedupped_df)
 }
+
+normTMMlog2 <- function(object){
+  object = calcNormFactors(object, method="TMM")
+  object = cpm(object, log=T, normalized.lib.sizes=T)
+  return(object)
+}
