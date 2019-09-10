@@ -1,0 +1,117 @@
+---
+title: "Experiments with limma and combat"
+output: html_notebook
+---
+
+
+```{r, include=F}
+library(DESeq2)
+library(limma)
+library(edgeR)
+library(sva)
+library(here)
+library(tidyverse)
+```
+
+DESeq can't be run with transformed data, and ComBat requires that the input matrix be cleaned and normalized beforehand. 
+
+We'll therefore need to use limma to perform differential expression analysis on the ComBat-corrected counts.
+
+# Load and filter
+
+Our pipeline has been in DESeq so far.
+
+```{r}
+dds = readRDS(here("data", "Rds", "05_dds_PAM50_tumorpurity_batch.Rds"))
+gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
+sd = as.data.frame(colData(dds))
+```
+
+
+Discard genes that don't have a cpm of at at least 1 in n samples, where n is the size of the smallest study group.
+
+```{r}
+print(paste("Started with", nrow(dds), "genes"))
+genEx = counts(dds, normalize=F)[rowSums(fpm(dds, robust = F) > 1) >= (sd %>% group_by(study_group) %>%
+                                        summarise(n=n()) %>% arrange(n) %>%
+                                        pull(n) %>% head(1)),]
+print(paste("After filtering,", nrow(genEx), "genes"))
+```
+
+# Combat
+
+Set up DGEList
+
+```{r}
+dge = DGEList(counts = genEx, samples = sd, group = sd$study_group,
+              genes = gx_annot[gx_annot$ensembl_gene_id %in% rownames(genEx),])
+```
+
+Normalize and voom transform
+
+```{r}
+dge  = calcNormFactors(dge, method="TMM")
+
+vmodel = model.matrix(~ PAM50 + tumor_purity + study_group, data = dge$samples)
+
+v = voom(dge, design = vmodel, log=T, normalized.lib.sizes=T, plot = T)
+
+```
+
+Apply ComBat to voom-transformed data.
+
+```{r}
+modcombat = model.matrix(~1, data=v$targets)
+
+combat_counts <- sva::ComBat(
+  dat = v$E, batch = v$targets$batch, mod = modcombat, 
+  par.prior = TRUE, prior.plots = FALSE
+  )
+```
+
+
+# Diffex with Limma
+
+Our design matrix:
+
+```{r}
+head(vmodel)
+```
+
+Basic approach, with non-prbc as reference level:
+
+```{r}
+fit = lmFit(combat_counts, design=vmodel)
+efit = eBayes(fit)
+```
+
+Add gene annotation
+
+```{r}
+efit$genes = v$genes
+```
+
+
+Inv vs non-prbc
+
+```{r}
+print(paste("Significant genes with adjusted p val < 0.05:", nrow(topTable(efit, coef = 7, p.value = 0.05, number = Inf))))
+topTable(efit, coef = 7, p.value = 0.05, number = Inf)
+```
+
+Lac vs non-prbc
+
+```{r}
+print(paste("Significant genes with adjusted p val < 0.05:", nrow(topTable(efit, coef = 8, p.value = 0.05, number = Inf))))
+topTable(efit, coef = 8, p.value = 0.05, number = Inf)
+```
+
+Prbc vs non-prbc
+
+```{r}
+print(paste("Significant genes with adjusted p val < 0.05:", nrow(topTable(efit, coef = 9, p.value = 0.05, number = Inf))))
+topTable(efit, coef = 9, p.value = 0.05, number = Inf) 
+```
+
+
