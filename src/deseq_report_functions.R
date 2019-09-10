@@ -148,10 +148,55 @@ volcano_plot <- function(annotated_results, title, path_save_fig = NULL, pthresh
 
 }
 
+color_grid = function (colours, labels = T, names = T, borders = NULL, cex_label = 1)
+{
+
+  #Adapted from scales' show_colors
+  #Visualizes colors chosen for each study group
+
+  n <- length(colours)
+  ncol <- ceiling(sqrt(n))
+  nrow <- ceiling(n/ncol)
+
+  #Also add option to plot group labels
+  colornames = c(names(colours), rep(NA, nrow * ncol - length(names(colours))))
+  colornames <- matrix(colornames, ncol = ncol, byrow = TRUE)
+
+  #Original scales code
+  colours <- c(colours, rep(NA, nrow * ncol - length(colours)))
+  colours <- matrix(colours, ncol = ncol, byrow = TRUE)
+
+
+  old <- par(pty = "s", mar = c(0, 0, 0, 0))
+  on.exit(par(old))
+  size <- max(dim(colours))
+  plot(c(0, size), c(0, -size), type = "n", xlab = "", ylab = "",
+       axes = FALSE)
+  rect(col(colours) - 1, -row(colours) + 1, col(colours), -row(colours),
+       col = colours, border = borders)
+
+
+
+  if (labels) {
+    text(col(colours) - 0.5, -row(colours) + 0.3, colours,
+         cex = cex_label)
+  }
+
+  #Plot the group labels
+  if (names) {
+    text(col(colornames) - 0.5, -row(colornames) + 0.5, colornames,
+         cex = cex_label)
+  }
+}
+
+
 
 complex_heatmap <- function(vsd, annotated_results, groups_to_plot=levels(vsd$study_group),
                             row_annot=F, row_scale = FALSE, row_id = "gene_name",
                             row_size = 8, col_size = 8, dedup_gene_ids = T, title=NULL, ...){
+
+  #This function has some issues with the row annotation getting shuffled if the
+  #Deduplication option is used
 
   require(DESeq2)
   require(ComplexHeatmap)
