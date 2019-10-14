@@ -17,6 +17,7 @@ library(DESeq2)
 library(tidyverse)
 library(RColorBrewer)
 library(scales) #For shape_pal
+library(corrplot)
 ```
 
 # Load data
@@ -147,25 +148,46 @@ ncolors <- length(unique(pca.df$batch))
 
 ggplot(pca.df, aes(x=PC1, y=PC2, color=batch, shape=country)) +
   geom_point()  + 
-  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(ncolors)) +
-  ggtitle("Country and library prep")
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Set1"))(ncolors)) +
+  ggtitle("Library prep and country")
 
 ggplot(pca.df,aes(x=PC3, y=PC4, color=batch, shape=country)) +
   geom_point() + 
-  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(ncolors))+
-  ggtitle("Country and library prep")
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Set1"))(ncolors))+
+  ggtitle("Library prep and country")
 
 ggplot(pca.df, aes(x=PC5, y=PC6, color=batch, shape=country)) +
   geom_point() + 
-  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(ncolors))+
-  ggtitle("Country and library prep")
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Set1"))(ncolors))+
+  ggtitle("Library prep and country")
 ```
+
+And again with country as the color
+
+```{r}
+ggplot(pca.df, aes(x=PC1, y=PC2, color=country, shape=batch)) +
+  geom_point()  + 
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Set1"))(ncolors)) +
+  ggtitle("Library prep and country")
+
+ggplot(pca.df,aes(x=PC3, y=PC4, color=country, shape=batch)) +
+  geom_point() + 
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Set1"))(ncolors))+
+  ggtitle("Library prep and country")
+
+ggplot(pca.df, aes(x=PC5, y=PC6, color=country, shape=batch)) +
+  geom_point() + 
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Set1"))(ncolors))+
+  ggtitle("Library prep and country")
+```
+
 
 It looks like there might be something of a batch effect around principle component 5/6.
 
 By contrast, this is what study group and molecular subtype looks like. Note that it's a bit different than the PCA we produced in earlier notebooks, because the DESeq wrapper for PCA only plots the top 500 genes with the highest row variance. Here we're looking at all genes.
 
 ```{r}
+
 ggplot(pca.df, aes(x=PC1, y=PC2, color=PAM50, shape=study_group)) +
   geom_point()  + 
   scale_color_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(ncolors)) +
@@ -256,6 +278,8 @@ print(paste("There are", nrow(PC_batch), "principal components significantly ass
 print(paste("These are:", paste(sort(PC_batch$PC), collapse = ", ")))
 ```
 
+
+
 ## Box plots significant PCs by batch
 
 Keep it to the top 10
@@ -266,10 +290,198 @@ for (i in 1:10){
 }
 ```
 
+## PCA batch PCs
+
+Plot the top PCs associated with batch
+
+```{r}
+ggplot(pca.df, aes(x=PC5, y=PC6, color=batch, shape=study_group)) +
+  geom_point()  + 
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Set1"))(ncolors)) +
+  ggtitle("PCs significantly associated with study group")
+```
+
+# KW PC significance by study group
+
+```{r}
+sp <- list()
+
+for (pc in paste0('PC', 1:100)) {
+    sp[[pc]] <- kruskal.test(pca.df[[pc]], as.factor(pca.df$study_group))
+} 
+
+PC_studygroup = lapply(sp, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
+  mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
+  filter(fdr < 0.05) %>% arrange(fdr)
+
+print(paste("There are", nrow(PC_studygroup), "principal components significantly associated with study group."))
+
+print(paste("These are:", paste(sort(PC_studygroup$PC), collapse = ", ")))
+```
+
+## Box plots significant PCs by study group
+
+```{r}
+for (i in 1:nrow(PC_studygroup)){
+  boxplot(get(PC_studygroup$PC[i]) ~ study_group, data=pca.df, main=PC_studygroup$PC[i])
+}
+```
+
+## PCA study group PCs
+
+Only two principle components significantly associated with study group. How does this look on PCA plot together with batch?
+
+```{r}
+ggplot(pca.df, aes(x=PC10, y=PC13, color=study_group, shape=batch)) +
+  geom_point()  + 
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Dark2"))(ncolors)) +
+  ggtitle("PCs significantly associated with study group")
+```
+
+Flip the colors and shapes.
+
+```{r}
+ggplot(pca.df, aes(x=PC10, y=PC13, color=batch, shape=study_group)) +
+  geom_point()  + 
+  scale_color_manual(values = colorRampPalette(brewer.pal(8, "Set1"))(ncolors)) +
+  ggtitle("PCs significantly associated with study group")
+#display.brewer.all()
+```
+
+# Kruskal-Wallis PC significance by PAM50
+
+Should be very strong given the obvious patterns on PC1 and 2.
+
+```{r}
+pm <- list()
+for (pc in paste0('PC', 1:100)) {
+    pm[[pc]] <- kruskal.test(pca.df[[pc]], as.factor(pca.df$PAM50))
+} 
+
+
+PC_pam = lapply(pm, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
+  mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
+  filter(fdr < 0.05) %>% arrange(fdr)
+
+print(paste("There are", nrow(PC_pam), "principal components significantly associated with PAM50."))
+
+print(paste("These are:", paste(sort(PC_pam$PC), collapse = ", ")))
+```
+
+# KW PC significance by tumor purity
+
+```{r}
+tp <- list()
+for (pc in paste0('PC', 1:100)) {
+    tp[[pc]] <- kruskal.test(pca.df[[pc]], as.factor(pca.df$tumor_purity))
+} 
+
+PC_tp = lapply(tp, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
+  mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
+  filter(fdr < 0.05) %>% arrange(fdr)
+
+print(paste("There are", nrow(PC_tp), "principal components significantly associated with tumor purity."))
+
+print(paste("These are:", paste(sort(PC_tp$PC), collapse = ", ")))
+```
+
+
+# Overview PC significance
+
+```{r}
+PC_pam
+```
+
+# Correlation between variables
+
+```{r}
+corvars = t(combn(c("batch", "PAM50", "study_group", "tumor_purity"), 2))
+corvars
+```
+
+Pearson correlation is inappropriate because these are not two normally distributed continuous variables. Unclear whether Spearman or Kendal is more appropriate.
+
+```{r}
+for (i in 1:nrow(corvars)){
+  thisx = corvars[i,1]
+  thisy = corvars[i,2]
+  thiscor = round(cor(as.numeric(sd[,thisx]), as.numeric(sd[,thisy]), method = "spearman"), 3)
+  print(paste("Spearman between", thisx, "and", thisy, ":", thiscor))
+}
+```
+
+As it happens, they're not that different.
+
+```{r}
+for (i in 1:nrow(corvars)){
+  thisx = corvars[i,1]
+  thisy = corvars[i,2]
+  thiscor = round(cor(as.numeric(sd[,thisx]), as.numeric(sd[,thisy]), method = "kendall"), 3)
+  print(paste("Kendall between", thisx, "and", thisy, ":", thiscor))
+}
+```
+
+# Chi Square test for independence
+
+Arguably more appropriate than either of the correlation methods for categorical variables.
+
+Also look at [Cramer's V](https://en.wikipedia.org/wiki/Cram%C3%A9r%27s_V)L a measure of association between two nominal variables, giving a value between 0 and +1 (inclusive). (The smaller v, the lower the correlation) 
+See also [this explanation](https://datascience.stackexchange.com/questions/893/how-to-get-correlation-between-two-categorical-variable-and-a-categorical-variab).
+
+Regenerate combinations of categorical variables only.
+
+```{r}
+corvars_cat = t(combn(c("batch", "PAM50", "study_group"), 2))
+corvars_cat
+```
+
+```{r}
+for (i in 1:nrow(corvars_cat)){
+  thisx = corvars_cat[i,1]
+  thisy = corvars_cat[i,2]
+  tbl = table(sd[,thisx], sd[,thisy])
+  chires =chisq.test(sd[,thisx], sd[,thisy], simulate.p.value = T)
+  v = sqrt(chires$statistic / sum(tbl))
+  print(paste("ChiSq pval between", thisx, "and", thisy, ":", round(chires$p.value, 4), ", V:", round(v,2)))
+  
+}
+```
+
+## Correlation plots
+
+See also [this example](http://www.sthda.com/english/wiki/chi-square-test-of-independence-in-r) for making correlation plots from chisq results.
+
+Positive residuals are in blue. Positive values in cells specify an attraction (positive association) between the corresponding row and column variables.
+
+Negative residuals are in red. This implies a repulsion (negative association) between the corresponding row and column variables.
+
+
+
+
+```{r}
+for (i in 1:nrow(corvars_cat)){
+  thisx = corvars_cat[i,1]
+  thisy = corvars_cat[i,2]
+  tbl = table(sd[,thisx], sd[,thisy])
+  chires =chisq.test(sd[,thisx], sd[,thisy], simulate.p.value = T)
+  corrplot(chires$residuals, is.corr=F)
+}
+```
+
+```{r}
+library(pheatmap)
+as.matrix(table(sd$batch, sd$study_group)) %>%
+  pheatmap(cluster_rows = F, cluster_cols = F, display_numbers = T,
+           number_format = "%i", fontsize_number = 12)
+```
+
+
 
 # Conclusion
 
 The overall amount of variance associated with the principal components is relatively low (~9% for PC1). However, around 15K/60K genes are significant in a kruskal-wallis test of gene expression vs batch. 16 out of the first 100 principal components are significantly associated with batch. This suggests that include batch in the design formula for differential expression analysis is prudent.
+
+More problematically, only 2 PCs are associated with study group. Even worse is that a chisquare analysis indicates a strong association between batch and study group. It is unclear what, if anything, can be done about this
 
 ```{r}
 stopifnot(identical(sd$sample_name, dds$sample_name))
