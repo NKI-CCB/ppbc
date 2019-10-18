@@ -41,11 +41,9 @@ keep <- rowSums(counts(dds)!=0) >= ceiling(ncol(dds)/3)
 table(keep)
 dds <- dds[keep,]
 
-
 ## Helper functions
 
 source(here("src", "deseq_report_functions.R"))
-
 
 
 # Likelihood ratio test

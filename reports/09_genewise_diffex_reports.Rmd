@@ -1,6 +1,9 @@
 ---
 title: "Genewise reports"
-output: html_notebook
+output: 
+  html_notebook:
+    toc: yes
+    toc_float: yes
 ---
 
 ```{r, include=F}
@@ -353,6 +356,14 @@ plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id
 ```
 
 ## T cell markers
+
+See [this overview](https://www.abcam.com/primary-antibodies/effector-t-cell-markers)
+
+### [CD3G](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CD3G&keywords=CD3)
+
+>Part of the TCR-CD3 complex present on T-lymphocyte cell surface that plays an essential role in adaptive immune response. When antigen presenting cells (APCs) activate T-cell receptor (TCR), TCR-mediated signals are transmitted across the cell membrane by the CD3 chains CD3D, CD3E, CD3G and CD3Z
+
+ENSG00000160654
 
 ### [CD30](https://www.genecards.org/cgi-bin/carddisp.pl?gene=TNFRSF8&keywords=ENSG00000120949)
 

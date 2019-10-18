@@ -207,6 +207,7 @@ table(dds$lac_vs_rest, dds$study_group)
 table(dds$nonprbc_vs_rest, dds$study_group)
 ```
 
+
 Do the same to our vsd data.
 
 ```{r}

@@ -20,6 +20,7 @@ output: html_notebook
 * Debug the row annotation colors in deduplicated heatmaps
 * Redo diffex looking at just Leuven data
 * Clustering involution low med high b cell signature with short vs long term breastfeeding
+* Edit shrinkRes function to disable Cook's distance filtering in calls to results(), add additional column to track these genes
 
 
 ALTERNATE THRESHOLD possibility:
