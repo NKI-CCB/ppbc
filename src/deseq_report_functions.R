@@ -1,37 +1,62 @@
 
+#### Standard report functions ####
+
 annotate_results <- function(results_object, anno_df = gx_annot, mark_immune = T, immune_list = immune_gene_list){
+
+  #Takes a res object from deseq, merges it with a gene annotation file, and an optional immune list to create a data frame sorted by adjusted p value
+  #Type is an aggregate of immunoglobulin genes from gene type and genes with a known immune function from ImmPort
   require(tidyverse)
 
   anno_res <- results_object %>% as.data.frame() %>% rownames_to_column("ensembl_gene_id") %>%
     right_join(anno_df,., by = "ensembl_gene_id") %>% arrange(padj)
 
   if (mark_immune==T){
-    anno_res = anno_res %>% mutate(immune_gene = if_else(
-      ensembl_gene_id %in% immune_list$ensembl |
-        str_detect(string = description, "immuno") |
-        str_detect(string = description, "immune") |
-        str_detect(string = description, "interleukin"),
-      TRUE, FALSE
-    )) %>% #When description is NA, immune_gene is also NA
-      mutate(immune_gene = replace_na(immune_gene, FALSE))
+    anno_res = anno_res %>% mutate(ImmPort_gene = if_else(
+      ensembl_gene_id %in% immune_list$ensembl, T, F
+    ))
+    #Redundant:
+    #anno_res = anno_res %>% mutate(immune_gene = if_else(
+      #ensembl_gene_id %in% immune_list$ensembl |
+        #str_detect(string = description, "immuno") |
+        #str_detect(string = description, "immune") |
+        #str_detect(string = description, "interleukin"),
+      #TRUE, FALSE
+    #)) %>% #When description is NA, immune_gene is also NA
+      #mutate(immune_gene = replace_na(immune_gene, FALSE))
+
+    anno_res = anno_res %>%
+      mutate(Type=case_when( #Order is hierarchical
+        str_detect(string=gene_type,pattern="^IG") ~ "immunoglobulin",
+        str_detect(string=gene_type,pattern="^TR") ~ "T cell receptor",
+        ImmPort_gene == T ~ "immune protein coding",
+        gene_type == "protein_coding" ~ "protein coding",
+        TRUE ~ "other noncoding"))
+
+    anno_res = anno_res %>% select(gene_name,gene_type,Type, everything())
   }
 
   return(anno_res)
 }
 
 
-significance <- function(annotated_results, pthresh = 0.05, absl2fc = 1){
+significance <- function(annotated_results, pthresh = 0.05, absl2fc = 0.5){
   require(tidyverse)
   sig = annotated_results %>% filter(padj < !!pthresh & (abs(log2FoldChange) > !!absl2fc))
   return(sig)
 }
 
-summarize_expression_duplicate_ids <- function(mat, id_column, f=colMeans, final_gene_symbol_colname="GeneSymbol"){
+summarize_expression_duplicate_ids <- function(mat, id_column=NULL, f=colMeans){
   require(dplyr)
 
   #Easiest way to write functions with dplyr is to standardize the column name
 
-  input = mat
+  input = mat #Save input before doing anything to it in case there are no duplicates
+
+  if(is.null(id_column)==T){
+    mat = as.data.frame(mat)
+    mat = rownames_to_column(mat, "symbol")
+    id_column = "symbol"
+  }
 
   if(id_column != "symbol"){
     colnames(mat)[colnames(mat)==id_column] <- "symbol"
@@ -88,13 +113,14 @@ summarize_expression_duplicate_ids <- function(mat, id_column, f=colMeans, final
 
   print(paste("Number of genes after applying", substitute(f),  "to duplicate ids:", nrow(dedupped_df)))
 
-  #For estimate, the column with identifiers HAS to be called GeneSymbol or EntrezGeneID
-  colnames(dedupped_df)[colnames(dedupped_df)=="symbol"] <- final_gene_symbol_colname
+  rownames(dedupped_df) = NULL #Required for column_to_rownames
+  dedupped_df = column_to_rownames(dedupped_df, "symbol")
 
   return(dedupped_df)
 }
 
-volcano_plot <- function(annotated_results, title, path_save_fig = NULL, pthresh = 0.05, absl2fc=1, shape_col=NULL, dedup_ids = T){
+volcano_plot <- function(annotated_results, title="", path_save_fig = NULL, pthresh = 0.05, absl2fc=0.5,
+                         shape_col=NULL, dedup_ids = T, colors = gene_colors){
 
   require(tidyverse)
   require(ggrepel)
@@ -104,10 +130,10 @@ volcano_plot <- function(annotated_results, title, path_save_fig = NULL, pthresh
                                          Significant = if_else(
                                            (padj < !!pthresh & abs(log2FoldChange) > !!absl2fc),
                                            TRUE, FALSE),
-                                         Type=case_when(
-                                           gene_type == "protein_coding" ~ "protein coding",
-                                           str_detect(string=gene_type,pattern="IG") ~ "IG gene",
-                                           TRUE ~ "other noncoding"),
+                                         #Type=case_when( #Redundant
+                                          # gene_type == "protein_coding" ~ "protein coding",
+                                           #str_detect(string=gene_type,pattern="IG") ~ "IG gene",
+                                           #TRUE ~ "other noncoding"),
                                          Color = if_else(
                                            Significant == T, Type, "n.s."
                                          )) %>%
@@ -115,12 +141,12 @@ volcano_plot <- function(annotated_results, title, path_save_fig = NULL, pthresh
 
   if (dedup_ids == T){
     print("Summarizing -log10FDR and log2FoldChange by median for duplicate gene names in volcano plot")
-    volcdf = volcdf %>% group_by(gene_name, gene_type, immune_gene, Significant, Type, Color) %>%
+    volcdf = volcdf %>% group_by(gene_name, Significant, Type, Color) %>%
       summarise(log2FoldChange = median(log2FoldChange), NegLog10FDR = median(NegLog10FDR)) %>%
       arrange(desc(NegLog10FDR))
   }
 
-  colors = c(`IG gene` = "red", `n.s.` = "gray",`other noncoding`="purple",`protein coding`="darkgreen")
+  colors = c(colors,"n.s."="gray")
 
   volcplot <-ggplot(volcdf, aes(x=log2FoldChange,y=NegLog10FDR, color=Color)) +
     geom_point() +
@@ -191,104 +217,52 @@ color_grid = function (colours, labels = T, names = T, borders = NULL, cex_label
 
 
 
-complex_heatmap <- function(vsd, annotated_results, groups_to_plot=levels(vsd$study_group),
-                            row_annot=F, row_scale = FALSE, row_id = "gene_name",
-                            row_size = 8, col_size = 8, dedup_gene_ids = T, title=NULL, ...){
 
-  #This function has some issues with the row annotation getting shuffled if the
-  #Deduplication option is used
 
-  require(DESeq2)
+deseq_heatmap = function(mat, sampledata, sig_results,
+                         groups_to_plot=levels(sampledata$study_group),
+                         title=NULL,
+                         top_colors = study_colors,
+                         bottom_colors = pam_colors,
+                         row_colors = gene_colors,
+                         row_scale = T,
+                         maxn_rownames = 50,
+                         row_size = 8, col_size = 8, ...){
+  require(scrime)
   require(ComplexHeatmap)
   require(tidyverse)
-  require(scrime)
-  require(RColorBrewer)
 
-  stopifnot(row_id %in% c("gene_name", "ensembl_gene_id", "concatenate"))
-  stopifnot(groups_to_plot %in% levels(vsd$study_group))
-  if (dedup_gene_ids == T & row_id != "gene_name"){
-    stop("Deduplication only applicable with gene names")
+  stopifnot(groups_to_plot %in% levels(sampledata$study_group))
+  stopifnot(identical(colnames(mat), sampledata$sample_name)) #Ensure that a column containing all sample names exists
+
+
+  if(is.null(title)==T){
+    title = if_else(identical(groups_to_plot,levels(sampledata$study_group)),
+                    "All groups",
+                    paste(groups_to_plot, collapse="vs"))
   }
 
-  genes_to_plot = annotated_results[,c("ensembl_gene_id", "gene_name")]
-  samples_to_plot = colnames(vsd)[as.data.frame(colData(vsd)["study_group"])[,1] %in% groups_to_plot]
 
-  vsd = vsd[genes_to_plot$ensembl_gene_id, samples_to_plot]
+  #Reduce genes to significant only
+  genestoplot = sig_results$gene_name
+  mat = mat[rownames(mat) %in% genestoplot, ]
 
-  mat = assay(vsd)
+  #Reduce genes and sample data to compared groups only
+  sampledata = sampledata %>% filter(study_group %in% groups_to_plot)
+  mat = mat[,colnames(mat) %in% sampledata$sample_name]
+  stopifnot(identical(colnames(mat), sampledata$sample_name))
 
+  #Toggle row labels depending on size of heatmap
+  if (nrow(mat) <= maxn_rownames){
+    show_row_names = T
+  } else {
+    show_row_names = F
+  }
+
+  #Row scale settings
   if (row_scale==T){
     mat = scrime::rowScales(mat)
   }
-
-  title = if_else(groups_to_plot == levels(vsd$study_group),
-                  "All groups",
-                  paste(groups_to_plot, collapse="vs"))
-
-  stopifnot(identical(rownames(mat), genes_to_plot$ensembl_gene_id))
-
-  if (row_id == "gene_name"){
-    row_labels = genes_to_plot$gene_name
-  } else if (row_id == "concatenate"){
-    row_labels = paste(genes_to_plot$gene_name, genes_to_plot$ensembl_gene_id, ":")
-  } else {
-    row_labels = rownames(mat)
-  }
-
-  if (dedup_gene_ids == T & sum(duplicated(genes_to_plot$gene_name)) > 0){
-    print("Averaging expression for duplicate genes in heatmap matrix")
-    mat = rownames_to_column(as.data.frame(mat), "ensembl_gene_id")
-    mat = right_join(select(annotated_results, ensembl_gene_id, gene_name), mat, by = "ensembl_gene_id") %>%
-      mutate(gene_name = if_else(is.na(gene_name), ensembl_gene_id, gene_name)) %>% select(-ensembl_gene_id)
-
-    mat = summarize_expression_duplicate_ids(mat, "gene_name") #Gene name de-deduplication function
-    rownames(mat) = mat[,colnames(mat)=="GeneSymbol"]
-    mat = mat[,colnames(mat) != "GeneSymbol"]
-    mat = as.matrix(mat)
-    row_labels = rownames(mat)
-  }
-
-  # Top column annotation
-  ann_top = as.data.frame(colData(vsd)["study_group"])
-
-  #Colors must be named lists with named elements
-  study_colors=suppressWarnings(colorRampPalette(brewer.pal(length(unique(vsd$study_group)),"Spectral"))(length(unique(vsd$study_group))))
-  names(study_colors) = unique(vsd$study_group)
-
-  top_cols=list(study_group=study_colors)
-
-  colTop <- HeatmapAnnotation(df=ann_top, which="col", col = top_cols)
-
-  #Bottom column annotation
-  ann_bottom = as.data.frame(colData(vsd)["PAM50"])
-  pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(vsd$PAM50)),"Paired"))(length(unique(vsd$PAM50))))
-  names(pam_colors)= unique(vsd$PAM50)
-  bottom_cols = list(PAM50 = pam_colors)
-  colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = bottom_cols)
-
-  # Row annotation
-  if (dedup_gene_ids == T){ #Ensure we don't have too many row annotation entries after removing duplicate gene ids
-    anno_rows = tibble(ensembl_gene_id = annotated_results$ensembl_gene_id,
-                       gene_name = annotated_results$gene_name,
-                       gene_type=annotated_results$gene_type) %>%
-      filter(!duplicated(gene_name)) %>%
-      mutate(Type=case_when(gene_type == "protein_coding" ~ "protein coding",
-                            str_detect(string=gene_type,pattern="IG") ~ "IG gene",
-                            TRUE ~ "other noncoding")) %>%
-      column_to_rownames("ensembl_gene_id") %>% select(Type)
-  } else {
-    anno_rows = tibble(ensembl_gene_id = annotated_results$ensembl_gene_id, gene_type=annotated_results$gene_type) %>%
-      mutate(Type=case_when(gene_type == "protein_coding" ~ "protein coding",
-                            str_detect(string=gene_type,pattern="IG") ~ "IG gene",
-                            TRUE ~ "other noncoding")) %>%
-      column_to_rownames("ensembl_gene_id") %>% select(Type)
-  }
-  anno_rows$Type = as.factor(anno_rows$Type)
-  type_colors = suppressWarnings(colorRampPalette(brewer.pal(length(levels(anno_rows$Type)),"Set1"))(length(levels(anno_rows$Type))))
-  names(type_colors) = levels(anno_rows$Type)
-  row_colors = list(Type = type_colors)
-  rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=row_colors)
-
   #Change legend according to whether input is scaled
   if (row_scale==T){
     hlp = list(title="rowscaled vst")
@@ -296,10 +270,44 @@ complex_heatmap <- function(vsd, annotated_results, groups_to_plot=levels(vsd$st
     hlp = list(title="vst counts")
   }
 
-  hm = Heatmap(mat, top_annotation = colTop, bottom_annotation = colBottom, left_annotation = rowAnno,
-               heatmap_legend_param = hlp, row_labels = row_labels,
-               row_names_gp = gpar(fontsize = row_size), column_names_gp = gpar(fontsize = col_size), ...)
+  #Ensure input is matrix
+  mat = as.matrix(mat)
 
+  #Heatmap annotation
+  ann_top = sampledata[,"study_group", drop=F]
+
+  #Top column annotation
+  colTop <- HeatmapAnnotation(df=ann_top, which="col",
+                              col = list(study_group=top_colors))
+
+  #Bottom column annotation
+  ann_bottom = sampledata[,"PAM50", drop=F]
+  colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = list(PAM50 = bottom_colors))
+
+  # Row annotation
+  anno_rows = sig_results %>%
+    select(gene_name, Type) %>%
+    distinct() %>%
+    filter(!duplicated(gene_name)) %>%
+    column_to_rownames("gene_name")
+
+  #Essential that the order be the same!
+  anno_rows = anno_rows[match(rownames(mat),rownames(anno_rows)), ,drop=F]
+
+  rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=list(Type = row_colors))
+
+  Heatmap(mat,
+          top_annotation = colTop,
+          bottom_annotation = colBottom,
+          left_annotation = rowAnno,
+          heatmap_legend_param = hlp,
+          show_row_names = show_row_names,
+          show_column_names = F,
+          cluster_rows = T,
+          row_names_gp = gpar(fontsize = row_size),
+          column_names_gp = gpar(fontsize = col_size),
+          column_title = title,
+          ...)
 }
 
 
@@ -357,14 +365,21 @@ plot_many_beehives = function(dds, result_df, ...){
 
 
 deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, immune_list=immune_gene_list,
-                        pthresh = 0.05, absl2fc = 1, variance_stabilized_dds = vsd,
-                        intgroup="study_group", colorby="PAM50", shape_volc_col = "immune_gene",
+                        pthresh = 0.05, absl2fc = 0.5, variance_stabilized_dds = vsd,
+                        title=NULL,
+                        intgroup="study_group", colorby="PAM50",
                         groups=levels(colData(dds)[,intgroup]),
-                        n_beehive_plots=5, verbose=F, ...){
+                        n_beehive_plots=5, verbose=T, ...){
   require(DESeq2)
   require(tidyverse)
 
   mega = list()
+
+  if(is.null(title==T)){
+    title = if_else(identical(sort(groups),
+                              sort(levels(colData(dds)[,"study_group"]))), "All groups - Interpret with caution",
+                    paste(groups, collapse=" vs "))
+  }
 
   #Merge deseq results object with gene name and type annotation
   if(verbose==T){
@@ -391,10 +406,7 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
     print("Creating volcano plot...")
   }
 
-  title = if_else(identical(sort(groups), sort(levels(colData(dds)[,"study_group"]))), "All groups - Interpret with caution",
-                  paste(groups, collapse=" vs "))
-
-  vp = volcano_plot(annotated_results = df, title=title, pthresh = pthresh, absl2fc = absl2fc, shape_col = shape_volc_col)
+  vp = volcano_plot(annotated_results = df, title=title, pthresh = pthresh, absl2fc = absl2fc)
 
   mega$volcano_plot = vp
 
@@ -403,11 +415,16 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
     print("Creating heatmap...")
   }
 
-  #Show row names if fewer than 50 genes plotted
-  rn = nrow(sig) <= 50
+  #Prepare deduplication
+  geneEx = rownames_to_column(as.data.frame(assay(variance_stabilized_dds)), "ensembl_gene_id")
+  geneEx = right_join(select(anno_df, gene_name, ensembl_gene_id), geneEx, by = "ensembl_gene_id") %>%
+    select(-ensembl_gene_id)
 
-  hm = complex_heatmap(vsd = variance_stabilized_dds, annotated_results = sig, groups_to_plot=groups, row_scale = T,
-                       show_column_names=F, show_row_names=rn, title = title)
+  dedup_geneEx = summarize_expression_duplicate_ids(geneEx, id_column = "gene_name")
+
+  hm = deseq_heatmap(mat = dedup_geneEx, sampledata = as.data.frame(colData(variance_stabilized_dds)),
+                     sig_results = sig, title = title, groups_to_plot = groups)
+
 
   mega$heatmap = hm
 
@@ -598,3 +615,142 @@ scree_plot = function(res_prcomp, n_pca=20){
     ggtitle("Scree plot") + ylab("Percent total variance")
 
 }
+
+gene_report = function(list_reports, ensembl_id, pthresh = 0.05, abslogfcthresh = 0.5){
+
+  require(tidyverse)
+
+  #print(paste("Adjusted p value threshold:", pthresh, ", abs(log2FoldChange) threshold:", abslogfcthresh))
+
+  comp = lapply(list_reports,
+                function(x) x[x$ensembl_gene_id==ensembl_id,
+                              c("ensembl_gene_id","gene_name","log2FoldChange","padj")]) %>%
+    unlist() %>% enframe() %>% separate(name, into = c("comparison", "field"), sep="\\.") %>%
+    spread(key=field, value=value) %>%
+    mutate(log2FoldChange = as.numeric(log2FoldChange),
+           padj = as.numeric(padj),
+           padj_cutoff = !!pthresh,
+           absLog2FoldChange_cutoff = !!abslogfcthresh)
+
+  comp = comp %>% mutate(sig = (padj < !!pthresh) & (abs(log2FoldChange) > !!abslogfcthresh)) %>%
+    select(comparison, sig, padj, log2FoldChange, everything())
+
+  return(comp)
+}
+
+#### WIP ####
+
+#This swiss army function attempts to aggregate the heat map by duplicate gene names as well as plotting the heatmap
+#Appears to have issues in swapping positions for row aggregation colors
+
+complex_heatmap_dedup <- function(vsd, annotated_results, groups_to_plot=levels(vsd$study_group),
+                                  row_annot=F, row_scale = FALSE, row_id = "gene_name",
+                                  row_size = 8, col_size = 8, dedup_gene_ids = T, title=NULL, ...){
+
+  #This function has some issues with the row annotation getting shuffled if the
+  #Deduplication option is used
+
+  require(DESeq2)
+  require(ComplexHeatmap)
+  require(tidyverse)
+  require(scrime)
+  require(RColorBrewer)
+
+  stopifnot(row_id %in% c("gene_name", "ensembl_gene_id", "concatenate"))
+  stopifnot(groups_to_plot %in% levels(vsd$study_group))
+  if (dedup_gene_ids == T & row_id != "gene_name"){
+    stop("Deduplication only applicable with gene names")
+  }
+
+  genes_to_plot = annotated_results[,c("ensembl_gene_id", "gene_name")]
+  samples_to_plot = colnames(vsd)[as.data.frame(colData(vsd)["study_group"])[,1] %in% groups_to_plot]
+
+  vsd = vsd[genes_to_plot$ensembl_gene_id, samples_to_plot]
+
+  mat = assay(vsd)
+
+  if (row_scale==T){
+    mat = scrime::rowScales(mat)
+  }
+
+  title = if_else(groups_to_plot == levels(vsd$study_group),
+                  "All groups",
+                  paste(groups_to_plot, collapse="vs"))
+
+  stopifnot(identical(rownames(mat), genes_to_plot$ensembl_gene_id))
+
+  if (row_id == "gene_name"){
+    row_labels = genes_to_plot$gene_name
+  } else if (row_id == "concatenate"){
+    row_labels = paste(genes_to_plot$gene_name, genes_to_plot$ensembl_gene_id, ":")
+  } else {
+    row_labels = rownames(mat)
+  }
+
+  if (dedup_gene_ids == T & sum(duplicated(genes_to_plot$gene_name)) > 0){
+    print("Averaging expression for duplicate genes in heatmap matrix")
+    mat = rownames_to_column(as.data.frame(mat), "ensembl_gene_id")
+    mat = right_join(select(annotated_results, ensembl_gene_id, gene_name), mat, by = "ensembl_gene_id") %>%
+      mutate(gene_name = if_else(is.na(gene_name), ensembl_gene_id, gene_name)) %>% select(-ensembl_gene_id)
+
+    mat = summarize_expression_duplicate_ids(mat, "gene_name") #Gene name de-deduplication function
+    rownames(mat) = mat[,colnames(mat)=="GeneSymbol"]
+    mat = mat[,colnames(mat) != "GeneSymbol"]
+    mat = as.matrix(mat)
+    row_labels = rownames(mat)
+  }
+
+  # Top column annotation
+  ann_top = as.data.frame(colData(vsd)["study_group"])
+
+  #Colors must be named lists with named elements
+  study_colors=suppressWarnings(colorRampPalette(brewer.pal(length(unique(vsd$study_group)),"Spectral"))(length(unique(vsd$study_group))))
+  names(study_colors) = unique(vsd$study_group)
+
+  top_cols=list(study_group=study_colors)
+
+  colTop <- HeatmapAnnotation(df=ann_top, which="col", col = top_cols)
+
+  #Bottom column annotation
+  ann_bottom = as.data.frame(colData(vsd)["PAM50"])
+  pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(vsd$PAM50)),"Paired"))(length(unique(vsd$PAM50))))
+  names(pam_colors)= unique(vsd$PAM50)
+  bottom_cols = list(PAM50 = pam_colors)
+  colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = bottom_cols)
+
+  # Row annotation
+  if (dedup_gene_ids == T){ #Ensure we don't have too many row annotation entries after removing duplicate gene ids
+    anno_rows = tibble(ensembl_gene_id = annotated_results$ensembl_gene_id,
+                       gene_name = annotated_results$gene_name,
+                       gene_type=annotated_results$gene_type) %>%
+      filter(!duplicated(gene_name)) %>%
+      mutate(Type=case_when(gene_type == "protein_coding" ~ "protein coding",
+                            str_detect(string=gene_type,pattern="IG") ~ "IG gene",
+                            TRUE ~ "other noncoding")) %>%
+      column_to_rownames("ensembl_gene_id") %>% select(Type)
+  } else {
+    anno_rows = tibble(ensembl_gene_id = annotated_results$ensembl_gene_id, gene_type=annotated_results$gene_type) %>%
+      mutate(Type=case_when(gene_type == "protein_coding" ~ "protein coding",
+                            str_detect(string=gene_type,pattern="IG") ~ "IG gene",
+                            TRUE ~ "other noncoding")) %>%
+      column_to_rownames("ensembl_gene_id") %>% select(Type)
+  }
+  anno_rows$Type = as.factor(anno_rows$Type)
+  type_colors = suppressWarnings(colorRampPalette(brewer.pal(length(levels(anno_rows$Type)),"Set1"))(length(levels(anno_rows$Type))))
+  names(type_colors) = levels(anno_rows$Type)
+  row_colors = list(Type = type_colors)
+  rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=row_colors)
+
+  #Change legend according to whether input is scaled
+  if (row_scale==T){
+    hlp = list(title="rowscaled vst")
+  } else {
+    hlp = list(title="vst counts")
+  }
+
+  hm = Heatmap(mat, top_annotation = colTop, bottom_annotation = colBottom, left_annotation = rowAnno,
+               heatmap_legend_param = hlp, row_labels = row_labels,
+               row_names_gp = gpar(fontsize = row_size), column_names_gp = gpar(fontsize = col_size), ...)
+
+}
+
