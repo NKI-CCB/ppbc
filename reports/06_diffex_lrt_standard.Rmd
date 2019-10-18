@@ -208,93 +208,7 @@ Plot the top 5 most significant.
 repLRT$beehive_plots
 ```
 
-# Specific genes of interest
 
-##Significant genes
-
-### Interleukin 18 receptor 1
-
-ENSG00000115604
-
-```{r}
-plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000115604",])
-```
-
-### NOS1
-
-Nitric oxide synthase
-
-```{r}
-plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000089250",])
-```
-
-### CD68
-
-CD68 (Cluster of Differentiation 68) is a protein highly expressed by cells in the monocyte lineage (e.g., monocytic phagocytes, osteoclasts), by circulating macrophages, and by tissue macrophages (e.g., Kupffer cells, microglia).[5] 
-
-```{r}
-plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000129226",])
-```
-
-### Granulin precursor
-ENSG00000030582	GRN
-
-```{r}
-plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000030582",])
-```
-
-### Major histocompatibility complex, class II, DQ alpha 1	
-
-ENSG00000228284	HLA-DQA1
-
-```{r}
-plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000228284",])
-```
-
-## Various immune markers
-
-### CD20
-
-Official name of CD20 is MS4A1 ENSG00000156738
-http://www.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=ENSG00000156738;r=11:60455752-60470760
-
-```{r}
-plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000156738",])
-```
-
-Other plasma cells markers: CD138, CD98, TACI, BCMA
-https://www.ncbi.nlm.nih.gov/pubmed/28787106
-
-### CD138
-
-CD138 = SDC1 syndecan 1  ENSG00000115884
-http://www.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=ENSG00000115884;r=2:20200797-20225433
-
-```{r}
-plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000115884",])
-```
-
-### CD21
-
-ENSG00000117322
-
-```{r}
-plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000117322",])
-```
-
-### CD30
-
-TNFRSF8 ENSG00000120949
-```{r}
-plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000120949",])
-```
-
-### JCHAIN
-
- 	ENSG00000132465
-```{r}
-plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000132465",])
-```
 # Save data
 
 
@@ -326,6 +240,8 @@ ggsave(filename=here("results","diffex", "figs", "06_LRT", "O6_LRT_vp.jpeg"),
        plot = repLRT$volcano_plot, height = 6, width = 8)
 
 ```
+
+
 
 ```{r}
 save.image(here("reports/06_diffex_lrt_standard.Rdata"))

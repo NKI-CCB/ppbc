@@ -314,12 +314,19 @@ deseq_heatmap = function(mat, sampledata, sig_results,
 plot_gene_beehive = function(dds, result_df, groups_to_plot = levels(colData(dds)[,intgroup]),
                              intgroup="study_group", colorby="PAM50", path_save_fig = NULL){
 
+  #Takes a results data frame subsetted down to just the gene of interest
+  #For example : plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000156738",])
+
   require(DESeq2)
   require(tidyverse)
 
   if(nrow(result_df) > 1){
     warning("More than one result provided, plotting first row")
     result_df = head(result_df, 1)
+  }
+
+  if(nrow(result_df) < 1){
+    stop("Gene ID not in results")
   }
 
   ensembl_gene_id = result_df$ensembl_gene_id
@@ -634,6 +641,8 @@ gene_report = function(list_reports, ensembl_id, pthresh = 0.05, abslogfcthresh 
 
   comp = comp %>% mutate(sig = (padj < !!pthresh) & (abs(log2FoldChange) > !!abslogfcthresh)) %>%
     select(comparison, sig, padj, log2FoldChange, everything())
+
+  comp = comp %>% arrange(padj)
 
   return(comp)
 }

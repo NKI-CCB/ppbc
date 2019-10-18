@@ -601,7 +601,7 @@ dev.off()
 nsig_hm
 ```
 
-# Individual gene checks
+# Diagnostics
 
 Check on lactalbumin in pregnant vs nulliparous.
 
