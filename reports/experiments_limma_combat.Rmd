@@ -28,6 +28,27 @@ gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, 
 sd = as.data.frame(colData(dds))
 ```
 
+Set up one vs rest comparisons
+
+
+```{r}
+dds$inv_vs_rest  = colData(dds) %>% as.data.frame() %>% mutate(inv_vs_rest = if_else(study_group == "ppbc_inv", "ppbc_inv", "rest")) %>%
+  pull(inv_vs_rest) %>% factor(levels=c("rest", "ppbc_inv"))
+
+dds$prbc_vs_rest  = colData(dds) %>% as.data.frame() %>% mutate(prbc_vs_rest = if_else(study_group == "prbc", "prbc", "rest")) %>%
+  pull(prbc_vs_rest) %>% factor(levels=c("rest", "prbc"))
+
+dds$lac_vs_rest  = colData(dds) %>% as.data.frame() %>% mutate(lac_vs_rest = if_else(study_group == "ppbc_lac", "ppbc_lac", "rest")) %>%
+  pull(lac_vs_rest) %>% factor(levels=c("rest", "ppbc_lac"))
+
+dds$nonprbc_vs_rest  = colData(dds) %>% as.data.frame() %>% mutate(nonprbc_vs_rest = if_else(study_group == "non_prbc", "non_prbc", "rest")) %>%
+  pull(nonprbc_vs_rest) %>% factor(levels=c("rest", "non_prbc"))
+
+table(dds$inv_vs_rest, dds$study_group)
+table(dds$prbc_vs_rest, dds$study_group)
+table(dds$lac_vs_rest, dds$study_group)
+table(dds$nonprbc_vs_rest, dds$study_group)
+```
 
 Discard genes that don't have a cpm of at at least 1 in n samples, where n is the size of the smallest study group.
 
@@ -73,6 +94,8 @@ combat_counts <- sva::ComBat(
 
 # Diffex with Limma
 
+# Pairwise
+
 Our design matrix:
 
 ```{r}
@@ -93,25 +116,104 @@ efit$genes = v$genes
 ```
 
 
-Inv vs non-prbc
+## Inv vs non-prbc
 
 ```{r}
 print(paste("Significant genes with adjusted p val < 0.05:", nrow(topTable(efit, coef = 7, p.value = 0.05, number = Inf))))
 topTable(efit, coef = 7, p.value = 0.05, number = Inf)
 ```
 
-Lac vs non-prbc
+## Lac vs non-prbc
 
 ```{r}
 print(paste("Significant genes with adjusted p val < 0.05:", nrow(topTable(efit, coef = 8, p.value = 0.05, number = Inf))))
 topTable(efit, coef = 8, p.value = 0.05, number = Inf)
 ```
 
-Prbc vs non-prbc
+## Prbc vs non-prbc
 
 ```{r}
 print(paste("Significant genes with adjusted p val < 0.05:", nrow(topTable(efit, coef = 9, p.value = 0.05, number = Inf))))
 topTable(efit, coef = 9, p.value = 0.05, number = Inf) 
 ```
+
+# One vs rest
+
+
+```{r}
+model.matrix(~ PAM50 + tumor_purity + inv_vs_rest, data = colData(dds)) %>% head()
+```
+
+Basic approach, with non-prbc as reference level:
+
+```{r}
+fit = lmFit(combat_counts, design=model.matrix(~ PAM50 + tumor_purity + inv_vs_rest, data = colData(dds)))
+efit = eBayes(fit)
+```
+
+Add gene annotation
+
+```{r}
+efit$genes = v$genes
+```
+
+
+## Inv vs rest
+
+```{r}
+print(paste("Significant genes with adjusted p val < 0.05:", nrow(topTable(efit, coef = 7, p.value = 0.05, number = Inf))))
+topTable(efit, coef = 7, p.value = 0.05, number = Inf)
+```
+
+## Prbc vs rest
+
+
+```{r}
+fit = lmFit(combat_counts, design=model.matrix(~ PAM50 + tumor_purity + prbc_vs_rest, data = colData(dds)))
+efit = eBayes(fit)
+```
+
+Add gene annotation
+
+```{r}
+efit$genes = v$genes
+```
+
+
+```{r}
+print(paste("Significant genes with adjusted p val < 0.05:", nrow(topTable(efit, coef = 7, p.value = 0.05, number = Inf))))
+topTable(efit, coef = 7, p.value = 0.05, number = Inf)
+```
+
+## Non-prbc vs rest
+
+```{r}
+fit = lmFit(combat_counts, design=model.matrix(~ PAM50 + tumor_purity + nonprbc_vs_rest, data = colData(dds)))
+efit = eBayes(fit)
+
+efit$genes = v$genes
+
+print(paste("Significant genes with adjusted p val < 0.05:", nrow(topTable(efit, coef = 7, p.value = 0.05, number = Inf))))
+topTable(efit, coef = 7, p.value = 0.05, number = Inf)
+```
+
+
+## Lac vs rest
+
+```{r}
+fit = lmFit(combat_counts, design=model.matrix(~ PAM50 + tumor_purity + lac_vs_rest, data = colData(dds)))
+efit = eBayes(fit)
+
+efit$genes = v$genes
+
+print(paste("Significant genes with adjusted p val < 0.05:", nrow(topTable(efit, coef = 7, p.value = 0.05, number = Inf))))
+topTable(efit, coef = 7, p.value = 0.05, number = Inf)
+```
+
+
+```{r}
+save.image(here("reports", "experiments_limma_combat.RData"))
+```
+
 
 

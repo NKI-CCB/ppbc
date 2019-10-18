@@ -19,6 +19,7 @@ output: html_notebook
 * Set standardized colors for study group etc in heatmaps across the entire dataset
 * Debug the row annotation colors in deduplicated heatmaps
 * Redo diffex looking at just Leuven data
+* Clustering involution low med high b cell signature with short vs long term breastfeeding
 
 
 ALTERNATE THRESHOLD possibility:

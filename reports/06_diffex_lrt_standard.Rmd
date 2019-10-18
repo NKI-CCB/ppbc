@@ -6,7 +6,10 @@ output:
     toc_float: yes
 ---
 
+
+
 ```{r, include=F}
+rm(list = ls())
 #library(devtools)
 #install_github("jokergoo/ComplexHeatmap")
 #install_github("mikelove/DESeq2")
@@ -28,7 +31,7 @@ In this notebook, we enact differential expression as a fourway comparison betwe
 # Load and pre-process data
 
 ```{r}
-dds <- readRDS(file = here("data/Rds/05_dds_PAM50_tumorpurity_batch.Rds"))
+dds <- readRDS(file = here("data/Rds/05_dds_PAM50_batch.Rds"))
 
 gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
@@ -40,16 +43,11 @@ gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, 
 Require non-zero counts in 1/3 of the dataset.
 
 ```{r}
-
 keep <- rowSums(counts(dds)!=0) >= ceiling(ncol(dds)/3)
 table(keep)
 
-#Hang on to what we discard for later analysis
-dds.discarded <-dds[!keep,]
-
 #Keep the rest
 dds <- dds[keep,]
-
 ```
 
 
@@ -59,20 +57,71 @@ For downstream analyses, we'd like to know which of the differentially expressed
 
 An immune gene is defined as follows:
 
-Either immune/immuno/interleukin is part of the gene name and description OR the gene is part of the the ImmPort database. See https://www.innatedb.com/redirect.do?go=resourcesGeneLists
+Either immune/immuno/interleukin is part of the gene name and description OR the gene is part of the the [ImmPort database](https://www.innatedb.com/redirect.do?go=resourcesGeneLists).
 
-The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The principal investigator of the BISC project is Dr. Richard Scheuermann at University of Texas Southwestern Medical Center. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
+The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
 
 ```{r}
+
 immune_gene_list <- read_csv(here("data", "external","gene-sets","InnateDB_genes.csv"))
 head(immune_gene_list)
 ```
+
+
 
 ## Helper functions
 
 ```{r}
 source(here("src", "deseq_report_functions.R"))
 ```
+
+## Heatmap color parameters
+ 
+Function to visualize the colors we've chosen for each group.
+Adapted version of show_col from the scales package to plot group labels
+
+```{r}
+#All annotation info
+ann_top = select(as.data.frame(colData(dds)), sample_name, study_group, PAM50) %>%
+  mutate(study_group = factor(study_group, levels=c("non_prbc", "ppbc_inv", "ppbc_lac", "prbc", "rest"))) %>%
+  column_to_rownames("sample_name")
+
+#Colors must be named lists with named elements
+
+#Define study group colors
+study_colors=suppressWarnings(colorRampPalette(brewer.pal(length(levels(ann_top$study_group)),"Spectral"))(length(levels(ann_top$study_group))))
+names(study_colors) = levels(ann_top$study_group)
+
+#Define PAM50 colors
+pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(ann_top$PAM50)),"Paired"))(length(unique(ann_top$PAM50))))
+names(pam_colors)= unique(ann_top$PAM50)
+top_cols=list(study_group=study_colors, PAM50 = pam_colors)
+
+#Define row annotation colors
+#Reduce the possible types of genes down to those defined in annotate_results()
+gene_types = c("other noncoding", "immune protein coding", "protein coding", "immunoglobulin", "T cell receptor")
+gene_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(gene_types)),"Dark2"))(length(unique(gene_types))))
+names(gene_colors) = gene_types
+
+color_grid(study_colors)
+color_grid(pam_colors)
+color_grid(gene_colors)
+```
+
+```{r}
+saveRDS(list(study_colors = study_colors, pam_colors = pam_colors, gene_colors = gene_colors),
+        here("data", "Rds", "06_heatmap_colors.Rds"))
+```
+
+
+
+
+
+```{r}
+#Annotation object for heatmap
+colTop <- HeatmapAnnotation(df = ann_top, which="col", col = top_cols)
+```
+
 
 ## Variance stabilizing transformation
 
@@ -91,12 +140,11 @@ vsd = readRDS(here("data","Rds","06_vsd_standardfilter.Rds"))
 ```
 
 
-
 # Likelihood ratio test
 
 The likelihood ratio test (LRT) is an ANOVA-like test design to check for genes which are significantly differentially expressed in at least one group. From the manual: "The LRT examines two models for the counts, a full model with a certain number of terms and a reduced model, in which some of the terms of the full model are removed. The test determines if the increased likelihood of the data using the extra terms in the full model is more than expected if those extra terms are truly zero."
 
-Our design formula is as follows:
+Our design formula is as follows (tumor_purity has been removed on the basis of notebook 5):
 
 ```{r}
 design(dds)
@@ -107,21 +155,12 @@ To save time, run once, then load the object.
 
 ```{r, eval=F}
 start <- Sys.time()
-ddsLRT = DESeq(dds, test="LRT", reduced= ~ batch + PAM50 + tumor_purity)
+ddsLRT = DESeq(dds, test="LRT", reduced= ~ batch + PAM50)
 end <- Sys.time()
 end-start
 
 saveRDS(ddsLRT, here("data/Rds/06_ddsLRT_standard.Rds"))
 ```
-
->estimating size factors
-using 'avgTxLength' from assays(dds), correcting for library size
-estimating dispersions
-gene-wise dispersion estimates
-mean-dispersion relationship
-final dispersion estimates
-fitting model and testing
-Time difference of 2.100146 hours
 
 
 ```{r}
@@ -132,15 +171,19 @@ ddsLRT = readRDS(here("data/Rds/06_ddsLRT_standard.Rds"))
 resLRT <- results(ddsLRT)
 ```
 
+```{r}
+resLRT
+```
+
+
 
 # LRT report
 
 ## Summary
 
 ```{r}
-repLRT = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0.5)
+repLRT = deseq_report(resLRT, dds=ddsLRT, absl2fc = 1, title="Likelihood ratio test")
 ```
-
 
 
 
@@ -152,8 +195,8 @@ repLRT$significant_genes %>% head(30)
 
 ## Heatmap
 
-```{r}
-draw(repLRT$heatmap, column_title = "Likelihood ratio test")
+```{r, fig.height=6, fig.width=10}
+repLRT$heatmap
 ```
 
 
@@ -244,6 +287,44 @@ plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_
 TNFRSF8 ENSG00000120949
 ```{r}
 plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000120949",])
+```
+
+### JCHAIN
+
+ 	ENSG00000132465
+```{r}
+plot_gene_beehive(ddsLRT, result_df = repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id == "ENSG00000132465",])
+```
+# Save data
+
+
+Save the individual results lists, without the figures.
+
+```{r}
+library(openxlsx)
+
+resdf = list(parameters = enframe(unlist(repLRT$sig_threshold)),
+             sig_genes = repLRT$significant_genes,
+             all_genes = repLRT$annotated_results)
+
+
+openxlsx::write.xlsx(resdf, file = here("results", "diffex", "06_LRT.xlsx"))
+
+rm(resdf)
+```
+
+Save the figures
+
+```{r}
+dir.create(here("results","diffex", "figs", "06_LRT"), showWarnings = F)
+
+pdf(here("results", "diffex", "figs", "06_LRT", "06_LRT_hm.pdf"), width = 10, height = 8)
+repLRT$heatmap
+dev.off()
+
+ggsave(filename=here("results","diffex", "figs", "06_LRT", "O6_LRT_vp.jpeg"),
+       plot = repLRT$volcano_plot, height = 6, width = 8)
+
 ```
 
 ```{r}

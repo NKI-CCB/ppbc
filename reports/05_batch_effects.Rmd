@@ -373,16 +373,22 @@ print(paste("These are:", paste(sort(PC_pam$PC), collapse = ", ")))
 ```{r}
 tp <- list()
 for (pc in paste0('PC', 1:100)) {
-    tp[[pc]] <- kruskal.test(pca.df[[pc]], as.factor(pca.df$tumor_purity))
+    #tp[[pc]] <-kruskal.test(pca.df[[pc]], pca.df$tumor_purity) #Gives the same p value everywhere??
+  tp[[pc]] <- wilcox.test(pca.df[[pc]], pca.df$tumor_purity)
 } 
 
-PC_tp = lapply(tp, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
+PC_tp = 
+lapply(tp, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
   mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
   filter(fdr < 0.05) %>% arrange(fdr)
 
 print(paste("There are", nrow(PC_tp), "principal components significantly associated with tumor purity."))
 
 print(paste("These are:", paste(sort(PC_tp$PC), collapse = ", ")))
+```
+
+```{r}
+pca.df %>% select(tumor_purity, everything()) %>% head()
 ```
 
 
@@ -481,13 +487,15 @@ as.matrix(table(sd$batch, sd$study_group)) %>%
 
 The overall amount of variance associated with the principal components is relatively low (~9% for PC1). However, around 15K/60K genes are significant in a kruskal-wallis test of gene expression vs batch. 16 out of the first 100 principal components are significantly associated with batch. This suggests that include batch in the design formula for differential expression analysis is prudent.
 
-More problematically, only 2 PCs are associated with study group. Even worse is that a chisquare analysis indicates a strong association between batch and study group. It is unclear what, if anything, can be done about this
+More problematically, only 2 PCs are associated with study group. Even worse is that a chisquare analysis indicates a strong association between batch and study group. It is unclear what, if anything, can be done about this.
+
+As predicted, PAM50 is strongly associated with most of the first 10 principal components. However, tumor purity is not associated with any of the first 100 PCs. This suggests that it will yield little additional benefit if included in the design formula, and may in fact over-complicate the design.
 
 ```{r}
 stopifnot(identical(sd$sample_name, dds$sample_name))
 dds$batch = sd$batch
 
-design(dds) <- formula(~ batch + PAM50 + tumor_purity + study_group)
+design(dds) <- formula(~ batch + PAM50 + study_group)
 ```
 
 # Write data
@@ -496,10 +504,10 @@ design(dds) <- formula(~ batch + PAM50 + tumor_purity + study_group)
 write.csv(as.data.frame(colData(dds)),
           file=here("data","metadata", "05_sample_annot_filtered.csv"), row.names = F)
 
-saveRDS(dds, file=here("data","Rds","05_dds_PAM50_tumorpurity_batch.Rds"))
+saveRDS(dds, file=here("data","Rds","05_dds_PAM50_batch.Rds"))
 ```
 
 ```{r}
-save.image(here("reports/05_batch_effects.Rdata"))
+save.image(here("reports/05_batch_effects.RData"))
 ```
 

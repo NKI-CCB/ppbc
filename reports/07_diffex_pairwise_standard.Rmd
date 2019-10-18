@@ -7,27 +7,36 @@ output:
 ---
 
 ```{r, include=F}
+rm(list = ls())
+```
+
+
+```{r, include=F}
+
+
 #library(devtools)
 #install_github("jokergoo/ComplexHeatmap")
 #install_github("mikelove/DESeq2")
 #install_github("azhu513/apeglm")
-
+library(org.Hs.eg.db)
 library(DESeq2)
 library(apeglm)
 library(here)
 library(ggrepel)
-library(ComplexHeatmap)
 library(openxlsx)
 library(scrime)
+library(msigdbr)
 library(RColorBrewer)
+library(clusterProfiler)
 library(circlize)
+library(ComplexHeatmap)
 library(tidyverse)
 ```
 
 # Load and pre-process data
 
 ```{r}
-dds <- readRDS(file = here("data/Rds/05_dds_PAM50_tumorpurity_batch.Rds"))
+dds <- readRDS(file = here("data/Rds/05_dds_PAM50_batch.Rds"))
 
 gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
@@ -44,9 +53,6 @@ Minimum threshold is a nonzero count in at least a 3rd of all samples
 keep <- rowSums(counts(dds)!=0) >= ceiling(ncol(dds)/3)
 table(keep)
 
-#Hang on to what we discard for later analysis
-dds.discarded <-dds[!keep,]
-
 #Keep the rest
 dds <- dds[keep,]
 
@@ -59,9 +65,9 @@ For downstream analyses, we'd like to know which of the differentially expressed
 
 An immune gene is defined as follows:
 
-Either immune/immuno/interleukin is part of the gene name and description OR the gene is part of the the ImmPort database. See https://www.innatedb.com/redirect.do?go=resourcesGeneLists
+Either immune/immuno/interleukin is part of the gene name and description OR the gene is part of the the [ImmPort database](https://www.innatedb.com/redirect.do?go=resourcesGeneLists)
 
-The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The principal investigator of the BISC project is Dr. Richard Scheuermann at University of Texas Southwestern Medical Center. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
+The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
 
 ```{r}
 immune_gene_list <- read_csv(here("data", "external","gene-sets","InnateDB_genes.csv"))
@@ -74,6 +80,16 @@ head(immune_gene_list)
 source(here("src", "deseq_report_functions.R"))
 ```
 
+## Heatmap colors
+
+Created in notebook 6
+
+```{r}
+all_colors = readRDS(here("data","Rds", "06_heatmap_colors.Rds"))
+study_colors = all_colors$study_colors
+pam_colors = all_colors$pam_colors
+gene_colors = all_colors$gene_colors
+```
 
 
 
@@ -113,16 +129,7 @@ end-start
 saveRDS(dds,here("data/Rds/07_dds_apeglm_nonprbcref_standard.Rds"))
 ```
 
->estimating size factors
-using 'avgTxLength' from assays(dds), correcting for library size
-estimating dispersions
-gene-wise dispersion estimates
-Warning in doTryCatch(return(expr), name, parentenv, handler) :
-  restarting interrupted promise evaluation
-mean-dispersion relationship
-final dispersion estimates
-fitting model and testing
-Time difference of 1.71209 hours
+
 
 ```{r}
 dds = readRDS(here("data/Rds/07_dds_apeglm_nonprbcref_standard.Rds"))
@@ -146,14 +153,27 @@ cdf
 ## Extract results
 
 
-```{r}
+```{r, eval=T}
 ape_inv_nonprbc = shrinkRes(dds,  contrast=c("study_group", "ppbc_inv", "non_prbc"))
+saveRDS(ape_inv_nonprbc, here("data","Rds", "07_ape_inv_nonprbc.Rds"))
 ```
+
+```{r}
+ape_inv_nonprbc = readRDS(here("data","Rds", "07_ape_inv_nonprbc.Rds"))
+```
+
+
+```{r}
+design(dds)
+levels(dds$study_group)
+```
+
 
 ## Summary report
 
 ```{r}
-rep_inv_nonprbc = deseq_report(ape_inv_nonprbc, dds=dds, absl2fc = 0.5, groups = c("ppbc_inv", "non_prbc"))
+rep_inv_nonprbc = deseq_report(ape_inv_nonprbc, dds=dds, absl2fc = 0.5, groups = c("ppbc_inv", "non_prbc"),
+                               title = "Involution vs nulliparous")
 ```
 
 ## Top genes
@@ -171,8 +191,8 @@ rep_inv_nonprbc$volcano_plot
 ## Heatmap
 
 
-```{r}
-draw(rep_inv_nonprbc$heatmap, column_title = "Involution vs non-prbc")
+```{r, fig.height=6, fig.width=10}
+rep_inv_nonprbc$heatmap
 ```
 
 
@@ -191,14 +211,21 @@ rep_inv_nonprbc$beehive_plots
 
 ## Extract results
 
-```{r}
+```{r, eval=T}
 ape_prbc_nonprbc = shrinkRes(dds,  contrast=c("study_group", "prbc", "non_prbc"))
+saveRDS(ape_prbc_nonprbc, here("data", "Rds", "07_ape_prbc_nonprbc.Rds"))
 ```
+
+```{r}
+ape_prbc_nonprbc = readRDS(here("data", "Rds", "07_ape_prbc_nonprbc.Rds"))
+```
+
 
 ## Summary report
 
 ```{r}
-rep_prbc_nonprbc = deseq_report(ape_prbc_nonprbc, dds=dds, absl2fc = 0.5, groups = c("prbc", "non_prbc"))
+rep_prbc_nonprbc = deseq_report(ape_prbc_nonprbc, dds=dds, absl2fc = 0.5, groups = c("prbc", "non_prbc"),
+                                title = "Pregnant vs nulliparous")
 ```
 
 ## Top genes
@@ -215,8 +242,8 @@ rep_prbc_nonprbc$volcano_plot
 
 ## Heatmap
 
-```{r}
-draw(rep_prbc_nonprbc$heatmap, column_title = "Prbc vs non-prbc")
+```{r, fig.height=6, fig.width=10}
+rep_prbc_nonprbc$heatmap
 ```
 
 
@@ -233,14 +260,21 @@ rep_prbc_nonprbc$beehive_plots
 
 ## Extract results
 
-```{r}
+```{r, eval=T}
 ape_lac_nonprbc = shrinkRes(dds,  contrast=c("study_group", "ppbc_lac", "non_prbc"))
+saveRDS(ape_lac_nonprbc, here("data", "Rds", "07_ape_lac_nonprbc.Rds"))
 ```
+
+```{r}
+ape_lac_nonprbc = readRDS(here("data", "Rds", "07_ape_lac_nonprbc.Rds"))
+```
+
 
 ## Summary report
 
 ```{r}
-rep_lac_nonprbc = deseq_report(ape_lac_nonprbc, dds=dds, absl2fc = 0.5, groups = c("ppbc_lac", "non_prbc"))
+rep_lac_nonprbc = deseq_report(ape_lac_nonprbc, dds=dds, absl2fc = 0.5, groups = c("ppbc_lac", "non_prbc"),
+                               title = "lac vs nonprbc")
 ```
 
 
@@ -259,8 +293,8 @@ rep_lac_nonprbc$volcano_plot
 
 ## Heatmap
 
-```{r}
-draw(rep_lac_nonprbc$heatmap, column_title = "Lac vs non-prbc")
+```{r, fig.height=6, fig.width=10}
+rep_lac_nonprbc$heatmap
 ```
 
 
@@ -292,13 +326,7 @@ end - start
 saveRDS(dds,here("data/Rds/07_dds_apeglm_prbcref_standard.Rds"))
 ```
 
->found results columns, replacing these
-Warning in eval(formal.args[[as.character(substitute(arg))]]) :
-  restarting interrupted promise evaluation
-Warning in doTryCatch(return(expr), name, parentenv, handler) :
-  restarting interrupted promise evaluation
-2 rows did not converge in beta, labelled in mcols(object)$betaConv. Use larger maxit argument with nbinomWaldTest
-Time difference of 35.17508 mins
+
 
 ```{r}
 dds = readRDS(here("data/Rds/07_dds_apeglm_prbcref_standard.Rds"))
@@ -315,14 +343,22 @@ resultsNames(dds)
 
 ## Extract results
 
-```{r}
+```{r, eval=T}
 ape_inv_prbc = shrinkRes(dds,  contrast=c("study_group", "ppbc_inv", "prbc"))
+
+saveRDS(ape_inv_prbc, here("data", "Rds", "07_ape_inv_prbc.Rds"))
 ```
+
+```{r}
+ape_inv_prbc = readRDS(here("data", "Rds", "07_ape_inv_prbc.Rds"))
+```
+
 
 ## Summary report
 
 ```{r}
-rep_inv_prbc = deseq_report(ape_inv_prbc, dds=dds, absl2fc = 0.5, groups = c("ppbc_inv", "prbc"))
+rep_inv_prbc = deseq_report(ape_inv_prbc, dds=dds, absl2fc = 0.5, groups = c("ppbc_inv", "prbc"),
+                             title = "Involution vs pregnant")
 ```
 
 ## Top genes
@@ -339,8 +375,8 @@ rep_inv_prbc$volcano_plot
 
 ## Heatmap
 
-```{r}
-draw(rep_inv_prbc$heatmap, column_title = "Involution vs prbc")
+```{r, fig.height=6, fig.width=10}
+rep_inv_prbc$heatmap
 ```
 
 ## Beehive plots
@@ -356,14 +392,21 @@ rep_inv_prbc$beehive_plots
 
 ## Extract results
 
-```{r}
+```{r, eval=T}
 ape_lac_prbc = shrinkRes(dds,  contrast=c("study_group", "ppbc_lac", "prbc"))
+saveRDS(ape_lac_prbc, here("data", "Rds", "07_ape_lac_prbc.Rds"))
 ```
+
+```{r}
+ape_lac_prbc = readRDS(here("data", "Rds", "07_ape_lac_prbc.Rds"))
+```
+
 
 ## Summary report
 
 ```{r}
-rep_lac_prbc = deseq_report(ape_lac_prbc, dds=dds, absl2fc = 0.5, groups = c("ppbc_lac", "prbc"))
+rep_lac_prbc = deseq_report(ape_lac_prbc, dds=dds, absl2fc = 0.5, groups = c("ppbc_lac", "prbc"),
+                            title = "Lactation vs pregnant")
 ```
 
 ## Top genes
@@ -380,8 +423,8 @@ rep_lac_prbc$volcano_plot
 
 ## Heatmap
 
-```{r}
-draw(rep_lac_prbc$heatmap, column_title = "Lactation vs prbc")
+```{r, fig.height=6, fig.width=10}
+rep_lac_prbc$heatmap
 ```
 
 ## Beehive plots
@@ -428,14 +471,21 @@ resultsNames(dds)
 
 ## Extract results
 
-```{r}
+```{r, eval=T}
 ape_inv_lac = shrinkRes(dds, contrast=c("study_group", "ppbc_inv", "ppbc_lac"))
+saveRDS(ape_inv_lac, here("data", "Rds", "07_ape_inv_lac.Rds"))
 ```
+
+```{r}
+ape_inv_lac = readRDS(here("data", "Rds", "07_ape_inv_lac.Rds"))
+```
+
 
 ## Summary report
 
 ```{r}
-rep_inv_lac = deseq_report(ape_inv_lac, dds=dds, absl2fc = 0.5, groups = c("ppbc_inv", "ppbc_lac"))
+rep_inv_lac = deseq_report(ape_inv_lac, dds=dds, absl2fc = 0.5, groups = c("ppbc_inv", "ppbc_lac"),
+                           title = "Involutoin vs lactation")
 ```
 
 ## Top genes
@@ -452,8 +502,8 @@ rep_inv_lac$volcano_plot
 
 ## Heatmap
 
-```{r}
-draw(rep_inv_lac$heatmap, column_title = "Involution vs lactation")
+```{r, fig.height=6, fig.width=10}
+rep_inv_lac$heatmap
 ```
 
 ## Beehive plots
@@ -551,14 +601,272 @@ dev.off()
 nsig_hm
 ```
 
+# Individual gene checks
+
+Check on lactalbumin in pregnant vs nulliparous.
+
+This gene was previously significant when using tumor_purity in the design formula and now is no longer significant. Why is that?
+
+LABLA ENSG00000167531
+
+```{r}
+dds = readRDS(here("data/Rds/07_dds_apeglm_nonprbcref_standard.Rds"))
+plot_gene_beehive(dds, result_df = rep_prbc_nonprbc$annotated_results[rep_prbc_nonprbc$annotated_results$ensembl_gene_id == "ENSG00000167531",],
+                  groups_to_plot = c("prbc", "non_prbc"))
+```
+
+Although the log fold change is substantial, it would appear that padj has been set to NA. There are several reasons why this can happen, according to the [DESeq2 manual](https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#pvaluesNA):
+
+>Note on p-values set to NA: some values in the results table can be set to NA for one of the following reasons:
+* If within a row, all samples have zero counts, the baseMean column will be zero, and the log2 fold change estimates, p value and adjusted p value will all be set to NA.
+* If a row contains a sample with an extreme count outlier then the p value and adjusted p value will be set to NA. These outlier counts are detected by Cook’s distance. Customization of this outlier filtering and description of functionality for replacement of outlier counts and refitting is described [below](https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#outlier)
+* If a row is filtered by automatic independent filtering, for having a low mean normalized count, then only the adjusted p value will be set to NA. Description and customization of independent filtering is described [below](https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#indfilt)
+
+It is clearly not the first reason. Let's look at the results for this gene in more detail.
+
+```{r}
+rep_prbc_nonprbc$annotated_results[rep_prbc_nonprbc$annotated_results$gene_name=="LALBA",]
+```
+
+Both p value and padj have been set to NA here, which means that Cook's distance is the reason this gene was filtered out.
+
+# Experiments with filtering
+
+Let's look at the overall distribution of Cook's distance in the prbc vs nonprbc dataset and compare where LALBA falls. 
+
+```{r}
+#General distribution of Cook's distances
+mcols(dds)$maxCooks %>% enframe() %>% pull(value) %>% quantile(probs=c(0,0.25,0.5,0.75,0.9,0.95,0.99)) #Anything above 1 is very high
+
+#Cutoff for this comparison
+m <- nrow(attr(dds, "dispModelMatrix"))
+p <- ncol(attr(dds, "dispModelMatrix"))
+defaultCutoff <- qf(0.99, p, m - p)
+print(paste("Cooks cutoff: ", defaultCutoff))
+
+#Plot cooks for this comparison
+mcols(dds)$maxCooks %>% enframe() %>%
+  filter(name == "ENSG00000167531") %>% 
+  pull(value)
+
+rm(list=c("m", "p"))
+```
+
+
+```{r}
+
+mcols(dds)$maxCooks %>% enframe() %>%
+  mutate(color = if_else(name == "ENSG00000167531", "LALBA", "other")) %>%
+  ggplot(aes(x = "", y = value)) + #geom_boxplot() + 
+  geom_jitter(aes(color = color)) +
+  ggtitle("Cooks distance pregnant vs nulliparous") +
+  geom_hline(yintercept = defaultCutoff)
+```
+
+>When there are 7 or more replicates for a given sample, the DESeq function will automatically replace counts with large Cook’s distance with the trimmed mean over all samples, scaled up by the size factor or normalization factor for that sample.
+
+Details of Cook's distance replacement are not documented in as much detail as desired, but [this thread](http://seqanswers.com/forums/showthread.php?t=45533) is helpful.
+
+>If an outlier is replaced by DESeq(), there is a column: mcols(dds)$replace which notes these.
+
+Note that these genes will NOT get a padj of NA because outlier values have already been replaced.
+
+```{r}
+outliers_replaced_prbc_nonprbc = mcols(dds)$replace %>% enframe("ensembl_gene_id", "outlier_replaced") %>% filter(outlier_replaced==T) %>%
+  left_join(.,select(gx_annot, "ensembl_gene_id", "gene_name", "gene_type"), by = "ensembl_gene_id")
+
+print(paste("Genes with outliers replaced by the trimmed mean: ", nrow(outliers_replaced_prbc_nonprbc)))
+```
+
+Showing which samples were ignored because they exceeded the Cook's distance even after outliers were replaced requires manually adding a few extra columns. We can do the same for independent filtering below a minimum threshold.
+
+```{r}
+#Show the independent filtering for this comparison
+print("Min count threshold for independent filtering:")
+metadata(ape_prbc_nonprbc)$filterThreshold
+
+#Add columns to show genes that fall below either Cook's or independent filtering thresholds
+exres_prbc_nonprbc = rep_prbc_nonprbc$annotated_results %>%
+  mutate(cooks_outlier = if_else(baseMean > 0 & is.na(pvalue), T, F)) %>%
+  mutate(indepfilt = if_else(!is.na(pvalue) & is.na(padj), T, F))
+
+print(paste("Number of genes that exceed max Cook's distance: ",
+            nrow(filter(exres_prbc_nonprbc, cooks_outlier == T))))
+
+print(paste("Number of genes that below independent filtering threshold: ",
+            nrow(filter(exres_prbc_nonprbc, indepfilt == T))))
+         
+```
+
+## Independent filtering
+
+For independent filtering, genes below this threshold are very lowly expressed anyway and probably do not drive major biological differences.
+
+```{r}
+temp = exres_prbc_nonprbc %>% filter(indepfilt == T) %>% pull(ensembl_gene_id)
+temp.counts = counts(dds)[rownames(counts(dds)) %in% temp,]
+
+Heatmap(temp.counts, show_row_names = F, show_column_names = F,
+        column_title = "Genes below the independent filtering threshold (raw counts)")
+rm(list = c("temp", "temp.counts"))
+```
+
+## Cook's distance
+
+Genes above the Cook's threshold include:
+
+```{r}
+cooks_rejects = exres_prbc_nonprbc %>% filter(cooks_outlier == T)
+
+ego <- enrichGO(gene  = cooks_rejects$ensembl_gene_id, 
+                universe      = rep_prbc_nonprbc$annotated_results$ensembl_gene_id, #All genes
+                OrgDb         = org.Hs.eg.db,
+                keytype = "ENSEMBL",
+                ont           = "BP",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.01,
+                qvalueCutoff  = 0.05,
+        readable      = TRUE)
+
+print("GO BPs for genes lost due to Cook's: ")
+ego@result$Description
+```
+
+Have a look at some Wikipathways too:
+
+```{r}
+wp2gene <- read.gmt(here("data", "external", "gmt", "wikipathways-20191010-gmt-Homo_sapiens.gmt"))
+wp2gene <- wp2gene %>% tidyr::separate(ont, c("name","version","wpid","org"), "%")
+wpid2gene <- wp2gene %>% dplyr::select(wpid, gene) #TERM2GENE
+wpid2name <- wp2gene %>% dplyr::select(wpid, name) #TERM2NAME
+
+#gene.df <- bitr(cooks_rejects$ensembl_gene_id, fromType = "ENSEMBL",
+#        toType = c("SYMBOL","ENTREZID"),
+#        OrgDb = org.Hs.eg.db, drop = F)
+#gene.df %>% filter(rowSums(is.na(gene.df)) > 0) %>%
+#  left_join(.,gx_annot, by =c("ENSEMBL" = "ensembl_gene_id")) #NAs are largely not protein coding genes
+
+gene.df <- bitr(cooks_rejects$ensembl_gene_id, fromType = "ENSEMBL",
+        toType = c("SYMBOL","ENTREZID"),
+        OrgDb = org.Hs.eg.db, drop = T)
+
+
+ewp <- enricher(gene.df$ENTREZID, TERM2GENE = wpid2gene, TERM2NAME = wpid2name)
+ewp@result
+```
+
+Heatmap of these genes
+
+```{r}
+#deseq_heatmap(mat = assay(vsd), sampledata = as.data.frame(colData(vsd)),
+#              sig_results = cooks_rejects,  title = "Cook's rejects: Prbc vs non-prbc",
+#              row_scale = F) #Glitchy with this input
+
+#Heatmap annotation
+ann_top = as.data.frame(colData(vsd))[,"study_group", drop=F]
+
+#Top column annotation
+colTop <- HeatmapAnnotation(df=ann_top, which="col",
+                              col = list(study_group=study_colors))
+
+#Bottom column annotation
+ann_bottom = as.data.frame(colData(vsd))[,"PAM50", drop=F]
+colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = list(PAM50 = pam_colors))
+
+#Raw counts
+counts(dds)[rownames(counts(dds)) %in% cooks_rejects$ensembl_gene_id, ] %>%
+  Heatmap(., show_column_names = F, show_row_names=F,
+          column_title = "Cooks rejects, raw counts",
+          top_annotation = colTop,
+          bottom_annotation = colBottom)
+
+temp = log2(counts(dds)[rownames(counts(dds)) %in% cooks_rejects$ensembl_gene_id, ]+1)
+temp %>%
+  Heatmap(., show_column_names = F, show_row_names=F,
+          column_title = "Cooks rejects, log2 transformed",
+          top_annotation = colTop,
+          bottom_annotation = colBottom)
+#Which of these genes are decently highly expressed
+#tempgene = temp[names(sort(rowSums(temp), decreasing = T)),] %>% head(10) %>%
+#  rownames() 
+#filter(exres_prbc_nonprbc, ensembl_gene_id %in% tempgene)
+  
+rm(temp)
+#rm(tempgene)
+
+assay(vsd)[rownames(assay(vsd)) %in% cooks_rejects$ensembl_gene_id, ] %>%
+  scrime::rowScales() %>%
+  Heatmap(., show_column_names = F, show_row_names=F,
+          column_title = "Cooks rejects, rowscaled",
+          top_annotation = colTop,
+          bottom_annotation = colBottom,)
+ 	
+#cooks_rejects %>% dplyr::select(gene_name, Type) %>% distinct() %>% filter(!duplicated(gene_name)) %>% column_to_rownames("gene_name")             
+```
+
+```{r}
+m <- nrow(attr(dds, "dispModelMatrix"))
+p <- ncol(attr(dds, "dispModelMatrix"))
+alt_cutoff <- qf(0.99999999999, p, m - p)
+print(paste("Alternate Cooks cutoff: ", alt_cutoff))
+
+
+#cooks_rejects %>% 
+exres_prbc_nonprbc %>%
+  left_join(.,enframe(mcols(dds)$maxCooks, "ensembl_gene_id", "max_cooks"), by = "ensembl_gene_id") %>%
+  mutate(label = if_else(max_cooks > 25, gene_name, NULL) ) %>%
+  ggplot(aes(x=log2FoldChange, y = max_cooks, color = -log10(padj),
+             shape=cooks_outlier, size=log2(baseMean), label=label)) +
+  geom_point() + ggrepel::geom_label_repel() +
+  ggtitle("Cooks rejects by expression, fold change and padj") +
+  geom_hline(yintercept = defaultCutoff, color = "black", linetype="dashed") +
+  geom_hline(yintercept = alt_cutoff, color = "red", linetype="dashed")
+  
+```
+
+```{r}
+
+```
+
+
+
+```{r, eval=F, include=F}
+#Code for retrieving Cook's cutoff by default and identifying genes above it, from DESeq2 source.
+
+m <- nrow(attr(dds, "dispModelMatrix"))
+p <- ncol(attr(object, "dispModelMatrix"))
+defaultCutoff <- qf(0.99, p, m - p)
+
+performCooksCutoff <- (is.numeric(cooksCutoff) | cooksCutoff)
+  if (performCooksCutoff) {
+    cooksOutlier <- mcols(object)$maxCooks > cooksCutoff
+    if (any(cooksOutlier, na.rm = TRUE) & is(design(object), 
+                                             "formula")) {
+      designVars <- all.vars(design(object))
+      if (length(designVars) == 1) {
+        var <- colData(object)[[designVars]]
+        if (is(var, "factor") && nlevels(var) == 2) {
+          dontFilter <- logical(sum(cooksOutlier, na.rm = TRUE))
+          for (i in seq_along(dontFilter)) {
+            ii <- which(cooksOutlier)[i]
+            outCount <- counts(object)[ii, which.max(assays(object)[["cooks"]][ii, 
+                                                                               ])]
+            if (sum(counts(object)[ii, ] > outCount) >= 
+                3) {
+              dontFilter[i] <- TRUE
+            }
+          }
+          cooksOutlier[which(cooksOutlier)][dontFilter] <- FALSE
+        }
+      }
+    }
+    res$pvalue[which(cooksOutlier)] <- NA
+  }
+```
+
 
 # Save data
 
-Save the primary comparison separately.
-
-```{r}
-saveRDS(rep_inv_nonprbc, here("data", "Rds", "07_report_inv_nonprbc.Rds"))
-```
 
 Save the individual results lists, without the figures.
 
@@ -591,11 +899,11 @@ names(hmlist) = names(hmlist) %>% str_replace_all("rep", "hm")
 
 for (i in 1:length(hmlist)){
   pdf(here("results", "diffex", "figs", "07_pairwise", "heatmaps", paste0(names(hmlist)[i],".pdf")), width = 10, height = 8)
-  draw(hmlist[[i]], column_title = str_replace(str_remove(names(hmlist)[i], "hm_"), "_", " vs "))
+  print(hmlist[[i]])
   dev.off()
 }
 
-rm(hm_list)
+rm(hmlist)
 ```
 
 ```{r}
@@ -609,6 +917,7 @@ lapply(names(volclist),
                           height = 6, width = 8))
 rm(volclist)
 ```
+
 ```{r}
 rm(reslist)
 ```

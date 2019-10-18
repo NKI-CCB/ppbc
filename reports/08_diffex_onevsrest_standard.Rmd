@@ -7,6 +7,11 @@ output:
 ---
 
 ```{r, include=F}
+rm(list = ls())
+```
+
+
+```{r, include=F}
 #library(devtools)
 #install_github("jokergoo/ComplexHeatmap")
 #install_github("mikelove/DESeq2") 
@@ -26,7 +31,7 @@ library(RColorBrewer)
 # Load and pre-process data
 
 ```{r}
-dds <- readRDS(file = here("data/Rds/05_dds_PAM50_tumorpurity_batch.Rds"))
+dds <- readRDS(file = here("data/Rds/05_dds_PAM50_batch.Rds"))
 
 gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
@@ -35,7 +40,6 @@ gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, 
 
 ## Filtering
 
-
 Minimum threshold is a nonzero count in at least a 3rd of all samples
 
 ```{r}
@@ -43,10 +47,6 @@ Minimum threshold is a nonzero count in at least a 3rd of all samples
 keep <- rowSums(counts(dds)!=0) >= ceiling(ncol(dds)/3)
 table(keep)
 
-#Hang on to what we discard for later analysis
-dds.discarded <-dds[!keep,]
-
-#Keep the rest
 dds <- dds[keep,]
 
 ```
@@ -73,18 +73,26 @@ head(immune_gene_list)
 source(here("src", "deseq_report_functions.R"))
 ```
 
+
 Slight tweak to report function to show all groups in the beehive plots and heat maps. 
 
 ```{r}
 deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, immune_list=immune_gene_list,
-                        pthresh = 0.05, absl2fc = 1, variance_stabilized_dds = vsd,
-                        intgroup="study_group", colorby="PAM50", shape_volc_col = "immune_gene",
+                        pthresh = 0.05, absl2fc = 0.5, variance_stabilized_dds = vsd,
+                        title=NULL,
+                        intgroup="study_group", colorby="PAM50",
                         groups=levels(colData(dds)[,intgroup]),
-                        n_beehive_plots=5, verbose=F, ...){
+                        n_beehive_plots=5, verbose=T, ...){
   require(DESeq2)
   require(tidyverse)
 
   mega = list()
+
+  if(is.null(title==T)){
+    title = if_else(identical(sort(groups),
+                              sort(levels(colData(dds)[,"study_group"]))), "All groups - Interpret with caution",
+                    paste(groups, collapse=" vs "))
+  }
 
   #Merge deseq results object with gene name and type annotation
   if(verbose==T){
@@ -111,10 +119,7 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
     print("Creating volcano plot...")
   }
 
-  title = if_else(identical(sort(groups), sort(levels(colData(dds)[,"study_group"]))), "All groups - Interpret with caution",
-                  paste(groups, collapse=" vs "))
-
-  vp = volcano_plot(annotated_results = df, title=title, pthresh = pthresh, absl2fc = absl2fc, shape_col = shape_volc_col)
+  vp = volcano_plot(annotated_results = df, title=title, pthresh = pthresh, absl2fc = absl2fc)
 
   mega$volcano_plot = vp
 
@@ -123,11 +128,16 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
     print("Creating heatmap...")
   }
 
-  rn = nrow(sig) <= 50
+  #Prepare deduplication
+  geneEx = rownames_to_column(as.data.frame(assay(variance_stabilized_dds)), "ensembl_gene_id")
+  geneEx = right_join(select(anno_df, gene_name, ensembl_gene_id), geneEx, by = "ensembl_gene_id") %>%
+    select(-ensembl_gene_id)
 
-  #Tweak to show original study group in top bar of heat map
-  hm = complex_heatmap(vsd = variance_stabilized_dds, annotated_results = sig, groups_to_plot=groups, row_scale = T,
-                       show_column_names=F, show_row_names=rn, title = title)
+  dedup_geneEx = summarize_expression_duplicate_ids(geneEx, id_column = "gene_name")
+
+  hm = deseq_heatmap(mat = dedup_geneEx, sampledata = as.data.frame(colData(variance_stabilized_dds)),
+                     sig_results = sig, title = title)
+
 
   mega$heatmap = hm
 
@@ -135,24 +145,41 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
   if(verbose==T){
     print(paste("Creating beehive plots from top", n_beehive_plots, "genes..."))
   }
-  beelist = plot_many_beehives(dds = dds, result_df = head(sig, n_beehive_plots), groups_to_plot = levels(dds$study_group)) #Tweak to show all groups instead of those in comparison
+  beelist = plot_many_beehives(dds = dds, result_df = head(sig, n_beehive_plots), groups_to_plot =levels(dds$study_group))#Tweak to show all groups instead of those in comparison
 
   mega$beehive_plots = beelist
 
   return(mega)
 
 }
+
+
 ```
 
+
+
+
+## Heatmap colors
+
+Created in notebook 6
+
+```{r}
+all_colors = readRDS(here("data","Rds", "06_heatmap_colors.Rds"))
+study_colors = all_colors$study_colors
+pam_colors = all_colors$pam_colors
+gene_colors = all_colors$gene_colors
+```
 
 ## Variance stabilizing transformation
 
 We want a transformation that is fully blind to the experimental design, but still uses the faster sampling method in the vst wrapper for varianceStabilizingTransformation.
 
 This homoskedastic dataset will be used later on for heatmap visualization.
+Previously performed in notebook 6.
+
 
 ```{r}
-vsd = blind_vst(dds)
+vsd = readRDS(here("data","Rds","06_vsd_standardfilter.Rds"))
 ```
 
 # One vs rest formula levels
@@ -209,12 +236,12 @@ levels(dds$group)
 ```
 
 ```{r}
-design(dds) = ~batch + PAM50 + tumor_purity + group
+design(dds) = ~batch + PAM50 + group
 ```
 
 Perform differential expression analysis.
 
-```{r, eval=F}
+```{r, eval=T}
 start = Sys.time()
 dds <- DESeq(dds)
 end = Sys.time()
@@ -230,10 +257,21 @@ gene-wise dispersion estimates
 mean-dispersion relationship
 final dispersion estimates
 fitting model and testing
-Time difference of 24.81494 mins
+-- replacing outliers and refitting for 165 genes
+-- DESeq argument 'minReplicatesForReplace' = 7 
+-- original counts are preserved in counts(dds)
+estimating dispersions
+fitting model and testing
+Time difference of 14.03538 hours
 
 ```{r}
 dds = readRDS(here("data/Rds/08_dds_inv_vs_rest_standard.Rds"))
+```
+
+Double check the design
+
+```{r}
+design(dds)
 ```
 
 
@@ -250,9 +288,15 @@ cdf
 
 ## Extract results
 
-```{r}
+```{r, eval=T}
 ape_inv_rest = shrinkRes(dds,  contrast=c("group", "ppbc_inv", "rest"))
+saveRDS(ape_inv_rest, here("data","Rds", "08_ape_inv_rest.Rds"))
 ```
+
+```{r}
+ape_inv_rest = readRDS(here("data","Rds", "08_ape_inv_rest.Rds"))
+```
+
 
 ## Summary report
 
@@ -266,7 +310,8 @@ vsd$study_group = vsd$inv_vs_rest
 A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 
 ```{r}
-rep_inv_rest = deseq_report(ape_inv_rest, dds=dds, absl2fc = 0.5, groups = c("ppbc_inv", "rest"))
+rep_inv_rest = deseq_report(ape_inv_rest, dds=dds, absl2fc = 0.5, groups = c("ppbc_inv", "rest"),
+                            title = "Involution vs rest")
 ```
 
 ## Top genes
@@ -284,8 +329,8 @@ rep_inv_rest$volcano_plot
 
 ## Heatmap
 
-```{r, fig.width=10}
-draw(rep_inv_rest$heatmap, column_title = "Involution vs rest")
+```{r, fig.height=6, fig.width=10}
+rep_inv_rest$heatmap
 ```
 
 
@@ -297,6 +342,27 @@ Beehive plot of top 5 most significantly expressed genes.
 rep_inv_rest$beehive_plots
 ```
 
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+m <- nrow(attr(dds, "dispModelMatrix"))
+p <- ncol(attr(dds, "dispModelMatrix"))
+defaultCutoff <- qf(0.99, p, m - p)
+
+rep_inv_rest$annotated_results %>%
+  mutate(cooks_outlier = if_else(baseMean > 0 & is.na(pvalue), T, F)) %>%
+  mutate(indepfilt = if_else(!is.na(pvalue) & is.na(padj), T, F)) %>%
+  left_join(.,enframe(mcols(dds)$maxCooks, "ensembl_gene_id", "max_cooks"), by = "ensembl_gene_id") %>%
+  mutate(label = if_else(max_cooks > 25 | (cooks_outlier == T & abs(log2FoldChange) > 0.5),
+                         gene_name, NULL)) %>%
+  ggplot(aes(x=log2FoldChange, y = max_cooks, color = -log10(padj),
+             shape=cooks_outlier, size=log10(baseMean), label=label)) +
+  geom_point() + ggrepel::geom_label_repel(show.legend = F) +
+  ggtitle("Cooks rejects: Inv vs rest") +
+  geom_hline(yintercept = defaultCutoff, color = "black", linetype="dashed")
+```
 
 
 
@@ -314,7 +380,7 @@ From the manual:
 
 Although apeglm cannot be used with contrast, we note that many designs can be easily rearranged such that what was a contrast becomes its own coefficient. In this case, the dispersion does not have to be estimated again, as the designs are equivalent, up to the meaning of the coefficients. Instead, one need only run nbinomWaldTest to re-estimate MLE coefficients – these are necessary for apeglm – and then run lfcShrink specifying the coefficient of interest in resultsNames(dds). We give some examples below of producing equivalent designs for use with coef. We show how the coefficients change with model.matrix, but the user would, for example, either change the levels of dds$condition or replace the design using design(dds)<-, then run nbinomWaldTest followed by lfcShrink.
 
-```{r, eval=F}
+```{r, eval=T}
 start = Sys.time()
 dds <- nbinomWaldTest(dds)
 end = Sys.time()
@@ -324,7 +390,7 @@ saveRDS(dds,here("data/Rds/08_dds_prbc_vs_rest_standard.Rds"))
 ```
 
 >found results columns, replacing these
-Time difference of 15.20961 mins
+Time difference of 49.49288 mins
 
 ```{r}
 dds = readRDS(here("data/Rds/08_dds_prbc_vs_rest_standard.Rds"))
@@ -333,17 +399,24 @@ dds = readRDS(here("data/Rds/08_dds_prbc_vs_rest_standard.Rds"))
 
 ## Extract results
 
-```{r}
+```{r, eval=T}
 ape_prbc_rest = shrinkRes(dds,  contrast=c("group", "prbc", "rest"))
+
+saveRDS(ape_prbc_rest, here("data","Rds", "08_ape_prbc_rest.Rds"))
 ```
 
-## Summary report
+```{r}
+ape_prbc_rest = readRDS(here("data","Rds","08_ape_prbc_rest.Rds"))
+```
 
+
+## Summary report
 
 A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 
 ```{r}
-rep_prbc_rest = deseq_report(ape_prbc_rest, dds=dds, absl2fc = 0.5, groups = c("prbc", "rest"))
+rep_prbc_rest = deseq_report(ape_prbc_rest, dds=dds, absl2fc = 0.5, groups = c("prbc", "rest"),
+                             title="Pregnancy vs rest")
 ```
 
 ## Top genes
@@ -362,8 +435,8 @@ rep_prbc_rest$volcano_plot
 
 ## Heatmap
 
-```{r, fig.width=10}
-draw(rep_prbc_rest$heatmap, column_title = "Pregnancy vs rest")
+```{r, fig.height=6, fig.width=10}
+rep_prbc_rest$heatmap
 ```
 
 
@@ -389,7 +462,7 @@ From the manual:
 
 Although apeglm cannot be used with contrast, we note that many designs can be easily rearranged such that what was a contrast becomes its own coefficient. In this case, the dispersion does not have to be estimated again, as the designs are equivalent, up to the meaning of the coefficients. Instead, one need only run nbinomWaldTest to re-estimate MLE coefficients – these are necessary for apeglm – and then run lfcShrink specifying the coefficient of interest in resultsNames(dds). We give some examples below of producing equivalent designs for use with coef. We show how the coefficients change with model.matrix, but the user would, for example, either change the levels of dds$condition or replace the design using design(dds)<-, then run nbinomWaldTest followed by lfcShrink.
 
-```{r, eval=F}
+```{r, eval=T}
 start = Sys.time()
 dds <- nbinomWaldTest(dds)
 end = Sys.time()
@@ -409,16 +482,23 @@ dds = readRDS(here("data/Rds/08_dds_lac_vs_rest_standard.Rds"))
 
 ## Extract results
 
-```{r}
+```{r, eval=T}
 ape_lac_rest = shrinkRes(dds,  contrast=c("group", "ppbc_lac", "rest"))
+saveRDS(ape_lac_rest, here("data", "Rds", "08_ape_lac_rest.Rds"))
 ```
+
+```{r}
+ape_lac_rest = readRDS(here("data", "Rds", "08_ape_lac_rest.Rds"))
+```
+
 
 ## Summary report
 
 A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 
 ```{r}
-rep_lac_rest = deseq_report(ape_lac_rest, dds=dds, absl2fc = 0.5, groups = c("ppbc_lac", "rest"))
+rep_lac_rest = deseq_report(ape_lac_rest, dds=dds, absl2fc = 0.5, groups = c("ppbc_lac", "rest"),
+                            title="Lactation vs rest")
 ```
 
 ## Top genes
@@ -436,8 +516,8 @@ rep_lac_rest$volcano_plot
 
 ## Heatmap
 
-```{r, fig.width=10}
-draw(rep_lac_rest$heatmap, column_title = "Lactation vs rest")
+```{r, fig.height=6, fig.width=10}
+rep_lac_rest$heatmap
 ```
 
 
@@ -463,7 +543,7 @@ From the manual:
 
 Although apeglm cannot be used with contrast, we note that many designs can be easily rearranged such that what was a contrast becomes its own coefficient. In this case, the dispersion does not have to be estimated again, as the designs are equivalent, up to the meaning of the coefficients. Instead, one need only run nbinomWaldTest to re-estimate MLE coefficients – these are necessary for apeglm – and then run lfcShrink specifying the coefficient of interest in resultsNames(dds). We give some examples below of producing equivalent designs for use with coef. We show how the coefficients change with model.matrix, but the user would, for example, either change the levels of dds$condition or replace the design using design(dds)<-, then run nbinomWaldTest followed by lfcShrink.
 
-```{r, eval=F}
+```{r, eval=T}
 start = Sys.time()
 dds <- nbinomWaldTest(dds)
 end = Sys.time()
@@ -483,17 +563,27 @@ dds = readRDS(here("data/Rds/08_dds_nonprbc_vs_rest_standard.Rds"))
 
 ## Extract results
 
-```{r}
+```{r, eval=T}
 ape_nonprbc_rest = shrinkRes(dds,  contrast=c("group", "non_prbc", "rest"))
+
+saveRDS(ape_nonprbc_rest, here("data", "Rds", "08_ape_nonprbc_rest.Rds"))
 ```
+
+```{r}
+ape_nonprbc_rest = readRDS(here("data", "Rds", "08_ape_nonprbc_rest.Rds"))
+```
+
 
 ## Summary report
 
 A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 
 ```{r}
-rep_nonprbc_rest = deseq_report(ape_nonprbc_rest, dds=dds, absl2fc = 0.5, groups = c("non_prbc", "rest"))
+rep_nonprbc_rest = deseq_report(ape_nonprbc_rest, dds=dds, absl2fc = 0.5, groups = c("non_prbc", "rest"),
+                                title = "Nulliparous vs rest")
 ```
+
+
 
 ## Top genes
 
@@ -510,7 +600,7 @@ rep_nonprbc_rest$volcano_plot
 ## Heatmap
 
 ```{r, fig.width=10}
-draw(rep_nonprbc_rest$heatmap, column_title = "Nulliparous vs rest")
+rep_nonprbc_rest$heatmap
 ```
 
 ## Beehive plots
@@ -531,24 +621,128 @@ names(res_list)
 
 ## Notable differentially expressed genes
 
-### AL590867.2
+### [LABLA](https://www.genecards.org/cgi-bin/carddisp.pl?gene=LALBA&keywords=lalba)
 
-An example of how a few extreme outliers within a group can be statistically significant without being representative of expression within the group.
-
-https://www.genecards.org/cgi-bin/carddisp.pl?gene=RPL27AP6
-
+Common milk protein, upregulated in pregnancy. Sometimes subject to Cook's distance filtering due to extreme outliers.
 
 ```{r}
-gene_results(res_list, "ENSG00000218426")
+gene_results(res_list, "ENSG00000167531")
 ```
 
 ```{r}
-plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000218426",])
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000167531",])
 ```
 
-### JChain
+### [POTEC](https://www.genecards.org/cgi-bin/carddisp.pl?gene=POTEC&keywords=potec)
 
-Frequently reoccuring significant hit JChain
+Inv vs rest significant hit. Part of the the cancer/testis (CT) antigen family.
+
+Cancer/testis (CT) genes represent a unique class of genes, which are expressed by germ cells, normally silenced in somatic cells, but activated in various cancers. We have previously reported that CTs are relatively commonly expressed in estrogen receptor (ER) negative, high risk carcinomas. In this study, we examined the expression of selected CT genes in ductal carcinoma in situ (DCIS), lobular carcinoma in situ (LCIS) and benign proliferative lesions of the breast. ER negative DCIS were found to be associated with significant CT gene expression together with HER2 positivity and a marked stromal immune response. See also [this article](https://www.ncbi.nlm.nih.gov/pubmed/19719775/).
+
+```{r}
+gene_results(res_list, "ENSG00000183206")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000183206",])
+```
+
+Is POTEC more expressed in ER- breast cancers?
+ESR1 = ENSG00000091831
+ESR2 = ENSG00000140009
+
+```{r}
+dds = readRDS(here("data/Rds/08_dds_inv_vs_rest_standard.Rds"))
+```
+
+Here the opposite appears to be true : POTEC is more highly expressed in ESR postiive tumors.
+
+```{r}
+rbind(
+  plotCounts(dds, gene="ENSG00000091831", intgroup=c("study_group","PAM50"), normalize=T, returnData=TRUE) %>%
+    rownames_to_column("sample_name") %>% mutate(ensembl_gene_id = "ENSG00000091831", gene_name = "ESR1"),
+  #Expression of ESR2 is quite low
+  #plotCounts(dds, gene="ENSG00000140009", intgroup=c("study_group","PAM50"), normalize=T, returnData=TRUE) %>%
+   # rownames_to_column("sample_name") %>% mutate(ensembl_gene_id = "ENSG00000183206", gene_name = "ESR2"),
+  plotCounts(dds, gene="ENSG00000183206", intgroup=c("study_group","PAM50"), normalize=T, returnData=TRUE) %>%
+    rownames_to_column("sample_name") %>% mutate(ensembl_gene_id = "ENSG00000183206", gene_name = "POTEC")
+  ) %>% select(-ensembl_gene_id) %>%
+  spread(key = gene_name, value=count) %>%
+  ggplot(aes(x = ESR1, y= POTEC, color=study_group, shape=PAM50)) + geom_jitter(height=0) +
+  scale_y_log10() + scale_x_log10() +
+  ggtitle("Relationship between POTEC and ESR1, study group")
+
+rbind(
+  plotCounts(dds, gene="ENSG00000091831", intgroup=c("study_group","PAM50"), normalize=T, returnData=TRUE) %>%
+    rownames_to_column("sample_name") %>% mutate(ensembl_gene_id = "ENSG00000091831", gene_name = "ESR1"),
+  plotCounts(dds, gene="ENSG00000183206", intgroup=c("study_group","PAM50"), normalize=T, returnData=TRUE) %>%
+    rownames_to_column("sample_name") %>% mutate(ensembl_gene_id = "ENSG00000183206", gene_name = "POTEC")
+  ) %>% select(-ensembl_gene_id) %>%
+  spread(key = gene_name, value=count) %>%
+  ggplot(aes(x = ESR1, y= POTEC, color=PAM50, shape=study_group)) + geom_jitter(height=0) +
+  scale_y_log10() + scale_x_log10() +
+  ggtitle("Relationship between POTEC and ESR1, PAM50")
+```
+
+### [POTED](https://www.genecards.org/cgi-bin/carddisp.pl?gene=POTED&keywords=poted)
+
+As POTEC above.
+
+```{r}
+gene_results(res_list, "ENSG00000166351")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000166351",])
+```
+
+```{r}
+rbind(
+  plotCounts(dds, gene="ENSG00000091831", intgroup=c("study_group","PAM50"), normalize=T, returnData=TRUE) %>%
+    rownames_to_column("sample_name") %>% mutate(ensembl_gene_id = "ENSG00000091831", gene_name = "ESR1"),
+  #Expression of ESR2 is quite low
+  #plotCounts(dds, gene="ENSG00000140009", intgroup=c("study_group","PAM50"), normalize=T, returnData=TRUE) %>%
+   # rownames_to_column("sample_name") %>% mutate(ensembl_gene_id = "ENSG00000183206", gene_name = "ESR2"),
+  plotCounts(dds, gene="ENSG00000166351", intgroup=c("study_group","PAM50"), normalize=T, returnData=TRUE) %>%
+    rownames_to_column("sample_name") %>% mutate(ensembl_gene_id = "ENSG00000166351", gene_name = "POTED")
+  ) %>% select(-ensembl_gene_id) %>%
+  spread(key = gene_name, value=count) %>%
+  ggplot(aes(x = ESR1, y= POTED, color=study_group, shape=PAM50)) + geom_jitter(height=0) +
+  scale_y_log10() + scale_x_log10() +
+  ggtitle("Relationship between POTED and ESR1, study group")
+
+rbind(
+  plotCounts(dds, gene="ENSG00000091831", intgroup=c("study_group","PAM50"), normalize=T, returnData=TRUE) %>%
+    rownames_to_column("sample_name") %>% mutate(ensembl_gene_id = "ENSG00000091831", gene_name = "ESR1"),
+  plotCounts(dds, gene="ENSG00000166351", intgroup=c("study_group","PAM50"), normalize=T, returnData=TRUE) %>%
+    rownames_to_column("sample_name") %>% mutate(ensembl_gene_id = "ENSG00000166351", gene_name = "POTED")
+  ) %>% select(-ensembl_gene_id) %>%
+  spread(key = gene_name, value=count) %>%
+  ggplot(aes(x = ESR1, y= POTED, color=PAM50, shape=study_group)) + geom_jitter(height=0) +
+  scale_y_log10() + scale_x_log10() +
+  ggtitle("Relationship between POTED and ESR1, PAM50")
+```
+
+### [CXADRP3](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CXADRP3)
+
+Inv vs rest significant hit. One of many genes typically expressed in the prostate or testis that is surprisingly found to be differentially expressed in ppbc.
+
+Coxsackie Virus And Adenovirus Receptor Pseudogene 3 
+
+```{r}
+gene_results(res_list, "ENSG00000265766")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000265766",])
+```
+
+
+
+
+### [JChain](https://www.genecards.org/cgi-bin/carddisp.pl?gene=JCHAIN&keywords=jchain)
+
+Frequently reoccuring significant hit (inv vs rest)
 
 ```{r}
 gene_results(res_list,"ENSG00000132465")
@@ -560,37 +754,9 @@ plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_res
 
 ## B cells markers 
 
-### IL10
-
-B-reg marker IL10: ENSG00000136634
-
-```{r}
-gene_results(res_list,"ENSG00000136634")
-```
-
-```{r}
-plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000136634",])
-```
-
-### SIRPA
-
-Immune gene SIRPA ENSG00000198053
-http://www.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=ENSG00000198053;r=20:1894167-1940592
-
-Significant in prbc vs inv, but below l2fc cutoff in prbc vs rest
-
-```{r}
-gene_results(res_list,"ENSG00000198053")
-```
-
-```{r}
-plot_gene_beehive(dds, rep_prbc_rest$annotated_results[rep_prbc_rest$annotated_results$ensembl_gene_id=="ENSG00000198053",])
-```
-
-### CD20
+### [CD20](https://www.genecards.org/cgi-bin/carddisp.pl?gene=MS4A1&keywords=CD20)
 
 Official name of CD20 is MS4A1 ENSG00000156738
-http://www.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=ENSG00000156738;r=11:60455752-60470760
 
 ```{r}
 gene_results(res_list,"ENSG00000156738")
@@ -602,13 +768,37 @@ Appears as though there might be a difference in inv/nonprbc vs prbc? Basals in 
 plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000156738",])
 ```
 
+### [IL10](https://www.genecards.org/cgi-bin/carddisp.pl?gene=IL10&keywords=IL-10)
+
+B-reg marker IL10: ENSG00000136634
+
+```{r}
+gene_results(res_list,"ENSG00000136634")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000136634",])
+```
+
+### [SIRPA](https://www.genecards.org/cgi-bin/carddisp.pl?gene=SIRPA&keywords=SIRPA)
+
+Previously significant in pregnancy vs rest, above threshold after removing tumor purity from design formula.
+
+```{r}
+gene_results(res_list,"ENSG00000198053")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_prbc_rest$annotated_results[rep_prbc_rest$annotated_results$ensembl_gene_id=="ENSG00000198053",])
+```
+
 Other plasma cells markers: CD138, CD98, TACI, BCMA
 https://www.ncbi.nlm.nih.gov/pubmed/28787106
 
-### CD138
+### [CD138](https://www.genecards.org/cgi-bin/carddisp.pl?gene=SDC1&keywords=CD138)
 
-CD138 = SDC1 syndecan 1  ENSG00000115884
-http://www.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=ENSG00000115884;r=2:20200797-20225433
+CD138 = SDC1 syndecan 1
+[Plasma cell marker](https://www.ncbi.nlm.nih.gov/pubmed/28787106)
 
 ```{r}
 gene_results(res_list,"ENSG00000115884")
@@ -618,10 +808,12 @@ gene_results(res_list,"ENSG00000115884")
 plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000115884",])
 ```
 
-### CD98
+### [CD98](https://www.genecards.org/cgi-bin/carddisp.pl?gene=SLC3A2&keywords=SLC3A2)
 
 Official name SLC3A2 ENSG00000168003
-http://www.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=ENSG00000168003;r=11:62856102-62888875
+
+>CD98 is an important amino acid transporter, also termed LAT1, which consists of heavy (SLC3A2) and light (SLC7A5) subunits. The increased expression of CD98 is most likely a reflection of the high metabolic requirements of ASCs (Antibody secreting cells).
+
 
 ```{r}
 gene_results(res_list,"ENSG00000168003")
@@ -631,7 +823,7 @@ gene_results(res_list,"ENSG00000168003")
 plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000168003",])
 ```
 
-### TACI
+### [TACI](https://www.genecards.org/cgi-bin/carddisp.pl?gene=TNFRSF13B&keywords=taci)
 
 Official name TNFRSF13B ENSG00000240505
 
@@ -643,9 +835,11 @@ gene_results(res_list,"ENSG00000240505")
 plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000240505",])
 ```
 
-### BCMA
+### [BCMA](https://www.genecards.org/cgi-bin/carddisp.pl?gene=TNFRSF17&keywords=BCMA)
 
 Official name TNFRSF17 ENSG00000048462
+
+A good example of a gene which "looks" significant but is reported with a lower log2fc and higher p value than the graph would indicate.
 
 ```{r}
 gene_results(res_list,"ENSG00000048462")
@@ -655,15 +849,46 @@ gene_results(res_list,"ENSG00000048462")
 plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000048462",])
 ```
 
+## Other genes of interest
+
+### [ESR2](https://www.genecards.org/cgi-bin/carddisp.pl?gene=ESR2&keywords=ESR2)
+
+Estrogen receptor 2. Lowly expressed, but significant in inv vs rest.
+
+Oddly, shows a similar expression pattern as BCMA, but is reported as much more significant. Possibly due to the presence of an outlier in the involution group?
+
+```{r}
+gene_results(res_list,"ENSG00000140009")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000140009",])
+```
+
+## [FOXP3](https://www.genecards.org/cgi-bin/carddisp.pl?gene=FOXP3&keywords=foxp3)
+
+```{r}
+gene_results(res_list,"ENSG00000049768")
+```
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000049768",])
+```
+
+## [Androgren receptor AR](https://www.genecards.org/cgi-bin/carddisp.pl?gene=AR&keywords=AR)
+
+
+```{r}
+gene_results(res_list,"ENSG00000049768")
+```
+
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000169083",])
+```
 
 
 # Save data
-
-Save the individual reports. Main comparison separately.
-
-```{r}
-saveRDS(rep_inv_rest, here("data", "Rds", "08_report_inv_vs_rest.Rds"))
-```
 
 Save the significant genes and results from each comparison. Future reference: do this instead `mget(ls(pattern="rep_"))`
 
@@ -695,7 +920,7 @@ names(hmlist) = names(hmlist) %>% str_replace_all("rep", "hm")
 dir.create(here("results","diffex", "figs", "08_onevsrest" ,"heatmaps"), showWarnings = F, recursive = T)
 for (i in 1:length(hmlist)){
   pdf(here("results", "diffex", "figs", "08_onevsrest", "heatmaps", paste0(names(hmlist)[i],".pdf")), width = 10, height = 8)
-  draw(hmlist[[i]], column_title = str_replace(str_remove(names(hmlist)[i], "hm_"), "_", " vs "))
+  print(hmlist[[i]])
   dev.off()
 }
 
