@@ -4,6 +4,7 @@ output:
   html_notebook:
     toc: yes
     toc_float: yes
+    toc_depth: 4
 ---
 
 ```{r, include=F}
@@ -77,7 +78,10 @@ names(res_list) = str_replace(names(res_list), "_", "_vs_")
 names(res_list)
 ```
 
+## "Quirky" genes
 
+Genes marked with * downstream are highlighted for appearing to be more/less differentially expressed than they are reported. These include:
+TACI, BCMA, NFKB1
 
 # Differentially expressed genes
 
@@ -110,6 +114,8 @@ gene_report(res_list, "ENSG00000183206")
 ```{r}
 plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000183206",])
 ```
+
+#### POTEC and ER relationship
 
 Is POTEC more expressed in ER- breast cancers?
 ESR1 = ENSG00000091831
@@ -159,6 +165,8 @@ gene_report(res_list, "ENSG00000166351")
 ```{r}
 plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000166351",])
 ```
+
+#### POTED and ER relationship
 
 ```{r}
 rbind(

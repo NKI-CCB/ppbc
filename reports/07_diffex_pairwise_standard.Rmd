@@ -485,7 +485,7 @@ ape_inv_lac = readRDS(here("data", "Rds", "07_ape_inv_lac.Rds"))
 
 ```{r}
 rep_inv_lac = deseq_report(ape_inv_lac, dds=dds, absl2fc = 0.5, groups = c("ppbc_inv", "ppbc_lac"),
-                           title = "Involutoin vs lactation")
+                           title = "Involution vs lactation")
 ```
 
 ## Top genes
