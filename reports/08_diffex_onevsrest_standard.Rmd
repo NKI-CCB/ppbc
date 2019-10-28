@@ -16,25 +16,40 @@ rm(list = ls())
 #install_github("jokergoo/ComplexHeatmap")
 #install_github("mikelove/DESeq2") 
 #install_github("azhu513/apeglm")
-
-library(DESeq2)
-library(apeglm)
-library(here)
-library(tidyverse)
+library(flexgsea) #For read_gmt()
 library(ggrepel)
 library(ComplexHeatmap)
 library(openxlsx)
 library(scrime)
 library(RColorBrewer)
+library(here)
+library(DESeq2)
+library(apeglm)
+library(tidyverse)
 ```
 
 # Load and pre-process data
+
+## Gene data
 
 ```{r}
 dds <- readRDS(file = here("data/Rds/05_dds_PAM50_batch.Rds"))
 
 gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
-gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
+#head(gx_annot)
+gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, hgnc_symbol,
+                               gene_type, description = gene_description) %>% distinct()
+```
+
+## Gene signatures
+
+```{r}
+gene_sets = list(
+  go_bp = flexgsea::read_gmt(here("data","external","gmt","c5.bp.v7.0.symbols.gmt")),
+  hallmark = flexgsea::read_gmt(here("data","external","gmt","h.all.v7.0.symbols.gmt")),
+  c2_canon = flexgsea::read_gmt(here("data","external","gmt","c2.cp.v7.0.symbols.gmt")),
+  c2_cgp = flexgsea::read_gmt(here("data","external","gmt","c2.cgp.v7.0.symbols.gmt"))
+)
 ```
 
 
@@ -43,12 +58,10 @@ gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, 
 Minimum threshold is a nonzero count in at least a 3rd of all samples
 
 ```{r}
-
 keep <- rowSums(counts(dds)!=0) >= ceiling(ncol(dds)/3)
 table(keep)
 
 dds <- dds[keep,]
-
 ```
 
 
@@ -67,6 +80,8 @@ immune_gene_list <- read_csv(here("data", "external","gene-sets","InnateDB_genes
 head(immune_gene_list)
 ```
 
+
+
 ## Helper functions
 
 ```{r}
@@ -75,88 +90,6 @@ source(here("src", "deseq_report_functions.R"))
 
 
 Slight tweak to report function to show all groups in the beehive plots and heat maps. 
-
-```{r}
-deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, immune_list=immune_gene_list,
-                        pthresh = 0.05, absl2fc = 0.5, variance_stabilized_dds = vsd,
-                        title=NULL,
-                        intgroup="study_group", colorby="PAM50",
-                        groups=levels(colData(dds)[,intgroup]),
-                        n_beehive_plots=5, verbose=T, ...){
-  require(DESeq2)
-  require(tidyverse)
-
-  mega = list()
-
-  if(is.null(title==T)){
-    title = if_else(identical(sort(groups),
-                              sort(levels(colData(dds)[,"study_group"]))), "All groups - Interpret with caution",
-                    paste(groups, collapse=" vs "))
-  }
-
-  #Merge deseq results object with gene name and type annotation
-  if(verbose==T){
-    print("Annotating results...")
-  }
-
-  df = annotate_results(results_object, mark_immune = mark_immune, immune_list = immune_list)
-
-  mega$annotated_results = df
-
-  #Set significance threshold and save significant hits
-  print(paste("Significance threshold is padj:", pthresh, "and abs(log2foldchange):", absl2fc))
-
-  mega$sig_threshold = list(padj = pthresh, absl2fc = absl2fc)
-
-  sig = significance(df, pthresh = pthresh, absl2fc = absl2fc)
-
-  print(paste("Number of unique significant genes:", length(unique(sig$gene_name))))
-
-  mega$significant_genes = sig
-
-  #Draw volcano plot
-  if(verbose==T){
-    print("Creating volcano plot...")
-  }
-
-  vp = volcano_plot(annotated_results = df, title=title, pthresh = pthresh, absl2fc = absl2fc)
-
-  mega$volcano_plot = vp
-
-  #Draw heatmap
-  if(verbose==T){
-    print("Creating heatmap...")
-  }
-
-  #Prepare deduplication
-  geneEx = rownames_to_column(as.data.frame(assay(variance_stabilized_dds)), "ensembl_gene_id")
-  geneEx = right_join(select(anno_df, gene_name, ensembl_gene_id), geneEx, by = "ensembl_gene_id") %>%
-    select(-ensembl_gene_id)
-
-  dedup_geneEx = summarize_expression_duplicate_ids(geneEx, id_column = "gene_name")
-
-  hm = deseq_heatmap(mat = dedup_geneEx, sampledata = as.data.frame(colData(variance_stabilized_dds)),
-                     sig_results = sig, title = title)
-
-
-  mega$heatmap = hm
-
-  #Draw a selection of beehive plots from top hits
-  if(verbose==T){
-    print(paste("Creating beehive plots from top", n_beehive_plots, "genes..."))
-  }
-  beelist = plot_many_beehives(dds = dds, result_df = head(sig, n_beehive_plots), groups_to_plot =levels(dds$study_group))#Tweak to show all groups instead of those in comparison
-
-  mega$beehive_plots = beelist
-
-  return(mega)
-
-}
-
-
-```
-
-
 
 
 ## Heatmap colors
@@ -242,7 +175,7 @@ design(dds) = ~batch + PAM50 + group
 
 Perform differential expression analysis.
 
-```{r, eval=T}
+```{r, eval=F}
 start = Sys.time()
 dds <- DESeq(dds)
 end = Sys.time()
@@ -289,7 +222,7 @@ cdf
 
 ## Extract results
 
-```{r, eval=T}
+```{r, eval=F}
 ape_inv_rest = shrinkRes(dds,  contrast=c("group", "ppbc_inv", "rest"))
 saveRDS(ape_inv_rest, here("data","Rds", "08_ape_inv_rest.Rds"))
 ```
@@ -312,8 +245,9 @@ A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 
 ```{r}
 rep_inv_rest = deseq_report(ape_inv_rest, dds=dds, absl2fc = 0.5, groups = c("ppbc_inv", "rest"),
-                            title = "Involution vs rest")
+                            beehive_groups = "all", title = "Involution vs rest")
 ```
+
 
 ## Top genes
 
@@ -334,6 +268,20 @@ rep_inv_rest$volcano_plot
 rep_inv_rest$heatmap
 ```
 
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+ rep_inv_rest$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_inv_rest$pathway_plots
+```
+
 
 ## Beehive plots
 
@@ -348,24 +296,32 @@ rep_inv_rest$beehive_plots
 Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
 
 ```{r}
-m <- nrow(attr(dds, "dispModelMatrix"))
-p <- ncol(attr(dds, "dispModelMatrix"))
-defaultCutoff <- qf(0.99, p, m - p)
-
-rep_inv_rest$annotated_results %>%
-  mutate(cooks_outlier = if_else(baseMean > 0 & is.na(pvalue), T, F)) %>%
-  mutate(indepfilt = if_else(!is.na(pvalue) & is.na(padj), T, F)) %>%
-  left_join(.,enframe(mcols(dds)$maxCooks, "ensembl_gene_id", "max_cooks"), by = "ensembl_gene_id") %>%
-  mutate(label = if_else(max_cooks > 25 | (cooks_outlier == T & abs(log2FoldChange) > 0.5),
-                         gene_name, NULL)) %>%
-  ggplot(aes(x=log2FoldChange, y = max_cooks, color = -log10(padj),
-             shape=cooks_outlier, size=log10(baseMean), label=label)) +
-  geom_point() + ggrepel::geom_label_repel(show.legend = F) +
-  ggtitle("Cooks rejects: Inv vs rest") +
-  geom_hline(yintercept = defaultCutoff, color = "black", linetype="dashed")
+rep_inv_rest$volc_outliers
 ```
 
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold. Sorted by descending l2fc, top 10:
 
+```{r}
+rep_inv_rest$outlier_bees
+```
+
+Other outliers with known cancer functions but without a high fold change:
+
+[IRS4](https://www.nature.com/articles/ncomms13567) is of potential interest here : "IRS4 induces mammary tumorigenesis and confers resistance to HER2-targeted therapy through constitutive PI3K/AKT-pathway hyperactivation".
+
+However, it appears that it has been correctly labelled as an outlier.
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000133124",])
+```
+
+[MAEL](https://www.spandidos-publications.com/or/31/1/342) may interact with stress granules in breast cancer.
+
+Its plausibilty in inv vs rest is more substantial.
+
+```{r}
+plot_gene_beehive(dds, rep_inv_rest$annotated_results[rep_inv_rest$annotated_results$ensembl_gene_id=="ENSG00000143194",])
+```
 
 # Diffex: Pregnancy vs rest
 
@@ -381,7 +337,7 @@ From the manual:
 
 Although apeglm cannot be used with contrast, we note that many designs can be easily rearranged such that what was a contrast becomes its own coefficient. In this case, the dispersion does not have to be estimated again, as the designs are equivalent, up to the meaning of the coefficients. Instead, one need only run nbinomWaldTest to re-estimate MLE coefficients – these are necessary for apeglm – and then run lfcShrink specifying the coefficient of interest in resultsNames(dds). We give some examples below of producing equivalent designs for use with coef. We show how the coefficients change with model.matrix, but the user would, for example, either change the levels of dds$condition or replace the design using design(dds)<-, then run nbinomWaldTest followed by lfcShrink.
 
-```{r, eval=T}
+```{r, eval=F}
 start = Sys.time()
 dds <- nbinomWaldTest(dds)
 end = Sys.time()
@@ -400,7 +356,7 @@ dds = readRDS(here("data/Rds/08_dds_prbc_vs_rest_standard.Rds"))
 
 ## Extract results
 
-```{r, eval=T}
+```{r, eval=F}
 ape_prbc_rest = shrinkRes(dds,  contrast=c("group", "prbc", "rest"))
 
 saveRDS(ape_prbc_rest, here("data","Rds", "08_ape_prbc_rest.Rds"))
@@ -417,7 +373,7 @@ A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 
 ```{r}
 rep_prbc_rest = deseq_report(ape_prbc_rest, dds=dds, absl2fc = 0.5, groups = c("prbc", "rest"),
-                             title="Pregnancy vs rest")
+                             title="Pregnancy vs rest", beehive_groups = "all")
 ```
 
 ## Top genes
@@ -440,6 +396,19 @@ rep_prbc_rest$volcano_plot
 rep_prbc_rest$heatmap
 ```
 
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+ rep_prbc_rest$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05)%>% select(pathway,everything())%>% arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_prbc_rest$pathway_plots
+```
 
 ## Beehive plots
 
@@ -447,6 +416,20 @@ Beehive plot of top 5 most significantly expressed genes.
 
 ```{r}
 rep_prbc_rest$beehive_plots
+```
+
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_prbc_rest$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold:
+
+```{r}
+rep_prbc_rest$outlier_bees
 ```
 
 # Diffex: Lac vs rest
@@ -463,7 +446,7 @@ From the manual:
 
 Although apeglm cannot be used with contrast, we note that many designs can be easily rearranged such that what was a contrast becomes its own coefficient. In this case, the dispersion does not have to be estimated again, as the designs are equivalent, up to the meaning of the coefficients. Instead, one need only run nbinomWaldTest to re-estimate MLE coefficients – these are necessary for apeglm – and then run lfcShrink specifying the coefficient of interest in resultsNames(dds). We give some examples below of producing equivalent designs for use with coef. We show how the coefficients change with model.matrix, but the user would, for example, either change the levels of dds$condition or replace the design using design(dds)<-, then run nbinomWaldTest followed by lfcShrink.
 
-```{r, eval=T}
+```{r, eval=F}
 start = Sys.time()
 dds <- nbinomWaldTest(dds)
 end = Sys.time()
@@ -483,7 +466,7 @@ dds = readRDS(here("data/Rds/08_dds_lac_vs_rest_standard.Rds"))
 
 ## Extract results
 
-```{r, eval=T}
+```{r, eval=F}
 ape_lac_rest = shrinkRes(dds,  contrast=c("group", "ppbc_lac", "rest"))
 saveRDS(ape_lac_rest, here("data", "Rds", "08_ape_lac_rest.Rds"))
 ```
@@ -499,7 +482,7 @@ A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 
 ```{r}
 rep_lac_rest = deseq_report(ape_lac_rest, dds=dds, absl2fc = 0.5, groups = c("ppbc_lac", "rest"),
-                            title="Lactation vs rest")
+                            title="Lactation vs rest", beehive_groups = "all")
 ```
 
 ## Top genes
@@ -509,7 +492,6 @@ rep_lac_rest$significant_genes %>% head(30)
 ```
 
 ## Volcano plot
-
 
 ```{r}
 rep_lac_rest$volcano_plot
@@ -521,7 +503,20 @@ rep_lac_rest$volcano_plot
 rep_lac_rest$heatmap
 ```
 
+## Preliminary pathway
 
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+ rep_lac_rest$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05)%>% select(pathway,everything())%>%
+  arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_lac_rest$pathway_plots
+```
 ## Beehive plots
 
 Beehive plot of top 5 most significantly expressed genes.
@@ -529,6 +524,20 @@ Beehive plot of top 5 most significantly expressed genes.
 ```{r}
 rep_lac_rest$beehive_plots
 ```
+## Cook's outliers
+
+Have a look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_lac_rest$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold:
+
+```{r}
+rep_lac_rest$outlier_bees
+```
+
 
 # Diffex: Non-prbc vs rest
 
@@ -544,7 +553,7 @@ From the manual:
 
 Although apeglm cannot be used with contrast, we note that many designs can be easily rearranged such that what was a contrast becomes its own coefficient. In this case, the dispersion does not have to be estimated again, as the designs are equivalent, up to the meaning of the coefficients. Instead, one need only run nbinomWaldTest to re-estimate MLE coefficients – these are necessary for apeglm – and then run lfcShrink specifying the coefficient of interest in resultsNames(dds). We give some examples below of producing equivalent designs for use with coef. We show how the coefficients change with model.matrix, but the user would, for example, either change the levels of dds$condition or replace the design using design(dds)<-, then run nbinomWaldTest followed by lfcShrink.
 
-```{r, eval=T}
+```{r, eval=F}
 start = Sys.time()
 dds <- nbinomWaldTest(dds)
 end = Sys.time()
@@ -564,7 +573,7 @@ dds = readRDS(here("data/Rds/08_dds_nonprbc_vs_rest_standard.Rds"))
 
 ## Extract results
 
-```{r, eval=T}
+```{r, eval=F}
 ape_nonprbc_rest = shrinkRes(dds,  contrast=c("group", "non_prbc", "rest"))
 
 saveRDS(ape_nonprbc_rest, here("data", "Rds", "08_ape_nonprbc_rest.Rds"))
@@ -581,7 +590,7 @@ A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 
 ```{r}
 rep_nonprbc_rest = deseq_report(ape_nonprbc_rest, dds=dds, absl2fc = 0.5, groups = c("non_prbc", "rest"),
-                                title = "Nulliparous vs rest")
+                                title = "Nulliparous vs rest", beehive_groups = "all")
 ```
 
 
@@ -604,6 +613,20 @@ rep_nonprbc_rest$volcano_plot
 rep_nonprbc_rest$heatmap
 ```
 
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+ rep_prbc_rest$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_nonprbc_rest$pathway_plots
+```
+
 ## Beehive plots
 
 Beehive plot of top 5 most significantly expressed genes.
@@ -612,6 +635,19 @@ Beehive plot of top 5 most significantly expressed genes.
 rep_nonprbc_rest$beehive_plots
 ```
 
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_nonprbc_rest$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold:
+
+```{r}
+rep_nonprbc_rest$outlier_bees
+```
 
 # Save data
 
@@ -620,10 +656,13 @@ res_list = mget(ls(pattern="rep_"))
 names(res_list)
 ```
 
+## Significance of genes
+
 Save the significant genes and results from each comparison.
 
 ```{r}
 #Save the results for all genes in an Excel file with multiple tabs
+
 #The tab names will be the list names
 resdf = lapply(res_list, function(x) x$annotated_results)
 names(resdf) = paste(names(resdf),"all", sep="_")
@@ -633,15 +672,56 @@ openxlsx::write.xlsx(resdf, file = here("results", "diffex", "08_one_vs_rest_all
 resdf = lapply(res_list, function(x) x$significant_genes)
 names(resdf) = paste("sig",names(resdf), sep="_")
 #Also keep the thresholds used for significance
-resdf[[length(resdf)+1]] = enframe(unlist(lapply(res_list, function(x) x$sig_threshold)), "name", "value") %>%
-                 separate(name, into = c("comparison", "threshold"), sep="\\.")
+resdf[[length(resdf)+1]] = enframe(unlist(lapply(res_list, function(x) x$sig_threshold)), "name", "value") %>% #signficance and l2fc
+                 separate(name, into = c("comparison", "threshold"), sep="\\.") %>%
+  bind_rows(.,enframe(unlist(lapply(res_list, function(x) x$cooks_threshold)), #Cooks
+                      "comparison", "value") %>% mutate(threshold = "cooks"))
 names(resdf)[length(resdf)] = "thresholds"
 write.xlsx(resdf, file = here("results", "diffex", "08_one_vs_rest_sig_genes.xlsx"))
+rm(resdf)
+```
+
+## Pathway results
+
+Fisher's exact pathway analyses
+
+```{r}
+
+resdf = lapply(res_list, function(x) x$pathways)
+
+#Is there a way to extract a dynamic column name with bind rows for two levels of a nested df list?
+#
+#resdf %>% map(1) %>% bind_rows( .id = "comp") #will work but loses the gene signature name
+
+#Returns one giant dataframe:
+#pathlist = resdf %>% map(1) %>% bind_rows( .id = "comp")
+#for (i in 2:length(resdf)){
+#  path = resdf %>% map(i) %>% bind_rows( .id = "comp")
+#  pathlist = bind_rows(pathlist, path)
+#}
+
+#do.call(Map, c(f = bind_rows, resdf)) #Not quite. Binds at second layer.
+
+#Returns a list of aggregated path results per comparison
+pathlist = list()
+pathlist[[names(resdf)[1]]] = resdf %>% map(1, .depth=1) %>% bind_rows( .id = "comp")
+for (i in 2:length(resdf[[1]])){
+  path = resdf %>% map(i, .depth=1) %>% bind_rows( .id = "comp")
+  pathlist[[names(resdf)[i]]] = path
+}
+
+#Fix names
+names(pathlist) = lapply(pathlist, function(x) unique(x$collection)) %>% unlist(use.names = F)
+pathlist = lapply(pathlist, function(x) x[order(x$fdr),])
+
+openxlsx::write.xlsx(pathlist, file = here("results", "diffex", "08_one_vs_rest_pathways.xlsx"))
 
 rm(resdf)
 ```
 
-Save the figures
+
+
+## Heatmaps
 
 ```{r}
 hmlist = lapply(res_list, function(x) x$heatmap)
@@ -657,6 +737,8 @@ for (i in 1:length(hmlist)){
 rm(hm_list)
 ```
 
+## Volcano plot sig hits
+
 ```{r}
 volclist = lapply(res_list, function(x) x$volcano_plot)
 names(volclist) = names(volclist) %>% str_replace("rep", "volc")
@@ -669,11 +751,48 @@ lapply(names(volclist),
 rm(volclist)
 ```
 
-
-
-Save the notebook data.
+## Volcano plot outliers
 
 ```{r}
+outvplist = lapply(res_list, function(x) x$volc_outliers)
+names(outvplist) = names(outvplist) %>% str_replace("rep", "volc")
+
+dir.create(here("results","diffex", "figs", "08_onevsrest" ,"volcano_plots"), showWarnings = F)
+lapply(names(outvplist), 
+       function(x) ggsave(filename=here("results","diffex", "figs", "08_onevsrest","volcano_plots",
+                                        paste(x,".outliers.jpeg",sep="")), plot=outvplist[[x]],
+                          height = 6, width = 8))
+rm(outvplist)
+```
+
+## Pathway dotplots 
+
+```{r}
+dir.create(here("results","diffex", "figs", "08_onevsrest" ,"fisher_pathway"), showWarnings = F)
+pathwaylist = lapply(res_list, function(x) x$pathway_plots)
+for(i in 1:length(pathwaylist)){
+  thiscomp = pathwaylist[[i]]
+  compname = str_replace(str_remove(names(pathwaylist[i]), "rep_"),"_","_vs_")
+  for (j in 1:length(thiscomp)){
+    thissig = thiscomp[[j]]
+    file=paste0(paste(compname, names(thiscomp[j]), sep="-"),".jpeg")
+    #print(file)
+    ggsave(filename=here("results","diffex", "figs",
+                         "08_onevsrest","fisher_pathway",file),
+           plot=thissig, height = 6, width = 8)
+  }
+}
+
+
+rm(pathwaylist)
+```
+
+## Notebook data.
+
+```{r}
+#These objects are huge
+rm(res_list)
+rm(gene_sets)
 save.image(here("reports/08_diffex_onevsrest_standard.RData"))
 ```
 

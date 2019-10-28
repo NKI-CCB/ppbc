@@ -35,6 +35,8 @@ library(tidyverse)
 
 # Load and pre-process data
 
+## Gene and sample data
+
 ```{r}
 dds <- readRDS(file = here("data/Rds/05_dds_PAM50_batch.Rds"))
 
@@ -42,9 +44,19 @@ gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
 ```
 
+## Gene signatures
+
+```{r}
+gene_sets = list(
+  go_bp = flexgsea::read_gmt(here("data","external","gmt","c5.bp.v7.0.symbols.gmt")),
+  hallmark = flexgsea::read_gmt(here("data","external","gmt","h.all.v7.0.symbols.gmt")),
+  c2_canon = flexgsea::read_gmt(here("data","external","gmt","c2.cp.v7.0.symbols.gmt")),
+  c2_cgp = flexgsea::read_gmt(here("data","external","gmt","c2.cgp.v7.0.symbols.gmt"))
+)
+```
+
 
 ## Filtering
-
 
 Minimum threshold is a nonzero count in at least a 3rd of all samples
 
@@ -153,7 +165,7 @@ cdf
 ## Extract results
 
 
-```{r, eval=T}
+```{r, eval=F}
 ape_inv_nonprbc = shrinkRes(dds,  contrast=c("study_group", "ppbc_inv", "non_prbc"))
 saveRDS(ape_inv_nonprbc, here("data","Rds", "07_ape_inv_nonprbc.Rds"))
 ```
@@ -204,14 +216,39 @@ Beehive plot of top 5 most significantly expressed genes.
 rep_inv_nonprbc$beehive_plots
 ```
 
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+ rep_inv_nonprbc$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
 
 
+```{r, fig.height=6, fig.width=8}
+rep_inv_nonprbc$pathway_plots
+```
+
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_inv_nonprbc$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold. Sorted by descending l2fc, top 10:
+
+```{r}
+rep_inv_nonprbc$outlier_bees
+```
 
 # Pregnancy vs non-pregnancy
 
 ## Extract results
 
-```{r, eval=T}
+```{r, eval=F}
 ape_prbc_nonprbc = shrinkRes(dds,  contrast=c("study_group", "prbc", "non_prbc"))
 saveRDS(ape_prbc_nonprbc, here("data", "Rds", "07_ape_prbc_nonprbc.Rds"))
 ```
@@ -255,12 +292,38 @@ Beehive plot of top 5 most significantly expressed genes.
 rep_prbc_nonprbc$beehive_plots
 ```
 
+## Preliminary pathway
 
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+ rep_prbc_nonprbc$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_prbc_nonprbc$pathway_plots
+```
+
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_prbc_nonprbc$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold. Sorted by descending l2fc, top 10:
+
+```{r}
+rep_prbc_nonprbc$outlier_bees
+```
 # Lac vs non-prbc
 
 ## Extract results
 
-```{r, eval=T}
+```{r, eval=F}
 ape_lac_nonprbc = shrinkRes(dds,  contrast=c("study_group", "ppbc_lac", "non_prbc"))
 saveRDS(ape_lac_nonprbc, here("data", "Rds", "07_ape_lac_nonprbc.Rds"))
 ```
@@ -305,6 +368,33 @@ Beehive plot of top 5 most significantly expressed genes.
 ```{r}
 rep_lac_nonprbc$beehive_plots
 ```
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+ rep_lac_nonprbc$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_lac_nonprbc$pathway_plots
+```
+
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_lac_nonprbc$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold. Sorted by descending l2fc, top 10:
+
+```{r}
+rep_lac_nonprbc$outlier_bees
+```
 
 # Diffex: prbc as reference level
 
@@ -343,7 +433,7 @@ resultsNames(dds)
 
 ## Extract results
 
-```{r, eval=T}
+```{r, eval=F}
 ape_inv_prbc = shrinkRes(dds,  contrast=c("study_group", "ppbc_inv", "prbc"))
 
 saveRDS(ape_inv_prbc, here("data", "Rds", "07_ape_inv_prbc.Rds"))
@@ -387,12 +477,40 @@ Beehive plot of top 5 most significantly expressed genes.
 rep_inv_prbc$beehive_plots
 ```
 
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+ rep_inv_prbc$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_inv_prbc$pathway_plots
+```
+
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_inv_prbc$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold. Sorted by descending l2fc, top 10:
+
+```{r}
+rep_inv_prbc$outlier_bees
+```
+
 
 # Lac vs prbc
 
 ## Extract results
 
-```{r, eval=T}
+```{r, eval=F}
 ape_lac_prbc = shrinkRes(dds,  contrast=c("study_group", "ppbc_lac", "prbc"))
 saveRDS(ape_lac_prbc, here("data", "Rds", "07_ape_lac_prbc.Rds"))
 ```
@@ -434,6 +552,33 @@ Beehive plot of top 5 most significantly expressed genes.
 ```{r}
 rep_lac_prbc$beehive_plots
 ```
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+ rep_lac_prbc$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_lac_prbc$pathway_plots
+```
+
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_lac_prbc$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold. Sorted by descending l2fc, top 10:
+
+```{r}
+rep_lac_prbc$outlier_bees
+```
 
 # Diffex: Lac as reference level
 
@@ -471,7 +616,7 @@ resultsNames(dds)
 
 ## Extract results
 
-```{r, eval=T}
+```{r, eval=F}
 ape_inv_lac = shrinkRes(dds, contrast=c("study_group", "ppbc_inv", "ppbc_lac"))
 saveRDS(ape_inv_lac, here("data", "Rds", "07_ape_inv_lac.Rds"))
 ```
@@ -504,6 +649,34 @@ rep_inv_lac$volcano_plot
 
 ```{r, fig.height=6, fig.width=10}
 rep_inv_lac$heatmap
+```
+
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+ rep_inv_lac$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_inv_lac$pathway_plots
+```
+
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_inv_lac$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold. Sorted by descending l2fc, top 10:
+
+```{r}
+rep_inv_lac$outlier_bees
 ```
 
 ## Beehive plots
@@ -804,69 +977,11 @@ assay(vsd)[rownames(assay(vsd)) %in% cooks_rejects$ensembl_gene_id, ] %>%
 #cooks_rejects %>% dplyr::select(gene_name, Type) %>% distinct() %>% filter(!duplicated(gene_name)) %>% column_to_rownames("gene_name")             
 ```
 
-```{r}
-m <- nrow(attr(dds, "dispModelMatrix"))
-p <- ncol(attr(dds, "dispModelMatrix"))
-alt_cutoff <- qf(0.99999999999, p, m - p)
-print(paste("Alternate Cooks cutoff: ", alt_cutoff))
-
-
-#cooks_rejects %>% 
-exres_prbc_nonprbc %>%
-  left_join(.,enframe(mcols(dds)$maxCooks, "ensembl_gene_id", "max_cooks"), by = "ensembl_gene_id") %>%
-  mutate(label = if_else(max_cooks > 25, gene_name, NULL) ) %>%
-  ggplot(aes(x=log2FoldChange, y = max_cooks, color = -log10(padj),
-             shape=cooks_outlier, size=log2(baseMean), label=label)) +
-  geom_point() + ggrepel::geom_label_repel() +
-  ggtitle("Cooks rejects by expression, fold change and padj") +
-  geom_hline(yintercept = defaultCutoff, color = "black", linetype="dashed") +
-  geom_hline(yintercept = alt_cutoff, color = "red", linetype="dashed")
-  
-```
-
-```{r}
-
-```
-
-
-
-```{r, eval=F, include=F}
-#Code for retrieving Cook's cutoff by default and identifying genes above it, from DESeq2 source.
-
-m <- nrow(attr(dds, "dispModelMatrix"))
-p <- ncol(attr(object, "dispModelMatrix"))
-defaultCutoff <- qf(0.99, p, m - p)
-
-performCooksCutoff <- (is.numeric(cooksCutoff) | cooksCutoff)
-  if (performCooksCutoff) {
-    cooksOutlier <- mcols(object)$maxCooks > cooksCutoff
-    if (any(cooksOutlier, na.rm = TRUE) & is(design(object), 
-                                             "formula")) {
-      designVars <- all.vars(design(object))
-      if (length(designVars) == 1) {
-        var <- colData(object)[[designVars]]
-        if (is(var, "factor") && nlevels(var) == 2) {
-          dontFilter <- logical(sum(cooksOutlier, na.rm = TRUE))
-          for (i in seq_along(dontFilter)) {
-            ii <- which(cooksOutlier)[i]
-            outCount <- counts(object)[ii, which.max(assays(object)[["cooks"]][ii, 
-                                                                               ])]
-            if (sum(counts(object)[ii, ] > outCount) >= 
-                3) {
-              dontFilter[i] <- TRUE
-            }
-          }
-          cooksOutlier[which(cooksOutlier)][dontFilter] <- FALSE
-        }
-      }
-    }
-    res$pvalue[which(cooksOutlier)] <- NA
-  }
-```
-
 
 # Save data
 
+
+## Significance of genes
 
 Save the individual results lists, without the figures.
 
@@ -891,7 +1006,32 @@ openxlsx::write.xlsx(resdf, file = here("results", "diffex", "07_pairwise_compar
 rm(resdf)
 ```
 
-Save the figures
+## Pathway results
+
+Fisher's exact pathway analyses
+
+```{r}
+resdf = lapply(reslist, function(x) x$pathways)
+
+#Returns a list of aggregated path results per comparison
+pathlist = list()
+pathlist[[names(resdf)[1]]] = resdf %>% map(1, .depth=1) %>% bind_rows( .id = "comp")
+for (i in 2:length(resdf[[1]])){
+  path = resdf %>% map(i, .depth=1) %>% bind_rows( .id = "comp")
+  pathlist[[names(resdf)[i]]] = path
+}
+
+#Fix names
+names(pathlist) = lapply(pathlist, function(x) unique(x$collection)) %>% unlist(use.names = F)
+pathlist = lapply(pathlist, function(x) x[order(x$fdr),])
+
+openxlsx::write.xlsx(pathlist, file = here("results", "diffex", "07_pairwise_comparisons_pathways.xlsx"))
+
+rm(resdf)
+```
+
+
+## Heatmaps
 
 ```{r}
 hmlist = lapply(reslist, function(x) x$heatmap)
@@ -906,6 +1046,8 @@ for (i in 1:length(hmlist)){
 rm(hmlist)
 ```
 
+## Volcano plots sig hits
+
 ```{r}
 volclist = lapply(reslist, function(x) x$volcano_plot)
 names(volclist) = names(volclist) %>% str_replace("rep", "volc")
@@ -918,12 +1060,51 @@ lapply(names(volclist),
 rm(volclist)
 ```
 
+## Volcano plot outliers
+
 ```{r}
-rm(reslist)
+outvplist = lapply(reslist, function(x) x$volc_outliers)
+names(outvplist) = names(outvplist) %>% str_replace("rep", "volc")
+
+dir.create(here("results","diffex", "figs", "07_pairwise" ,"volcano_plots"), showWarnings = F)
+lapply(names(outvplist), 
+       function(x) ggsave(filename=here("results","diffex", "figs", "07_pairwise","volcano_plots",
+                                        paste(x,".outliers.jpeg",sep="")), plot=outvplist[[x]],
+                          height = 6, width = 8))
+rm(outvplist)
 ```
 
 
-Save the notebook data.
+## Pathway dotplots 
+
+```{r}
+dir.create(here("results","diffex", "figs", "07_pairwise" ,"fisher_pathway"), showWarnings = F)
+pathwaylist = lapply(reslist, function(x) x$pathway_plots)
+for(i in 1:length(pathwaylist)){
+  thiscomp = pathwaylist[[i]]
+  compname = str_replace(str_remove(names(pathwaylist[i]), "rep_"),"_","_vs_")
+  for (j in 1:length(thiscomp)){
+    if (length(thiscomp) < 1){next}
+    thissig = thiscomp[[j]]
+    file=paste0(paste(compname, names(thiscomp[j]), sep="-"),".jpeg")
+    #print(file)
+    ggsave(filename=here("results","diffex", "figs",
+                         "07_pairwise","fisher_pathway",file),
+           plot=thissig, height = 6, width = 8)
+  }
+}
+
+
+rm(pathwaylist)
+```
+
+## Notebook data.
+
+```{r}
+rm(reslist) #Because it's huge
+rm(ego)
+rm(gene_sets)
+```
 
 ```{r}
 save.image(here("reports/07_diffex_pairwise_standard.RData"))

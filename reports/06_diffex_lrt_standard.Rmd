@@ -6,10 +6,12 @@ output:
     toc_float: yes
 ---
 
-
-
 ```{r, include=F}
 rm(list = ls())
+```
+
+```{r, include=F}
+
 #library(devtools)
 #install_github("jokergoo/ComplexHeatmap")
 #install_github("mikelove/DESeq2")
@@ -30,6 +32,8 @@ In this notebook, we enact differential expression as a fourway comparison betwe
 
 # Load and pre-process data
 
+## Gene and sample data
+
 ```{r}
 dds <- readRDS(file = here("data/Rds/05_dds_PAM50_batch.Rds"))
 
@@ -37,6 +41,16 @@ gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
 ```
 
+## Gene signatures
+
+```{r}
+gene_sets = list(
+  go_bp = flexgsea::read_gmt(here("data","external","gmt","c5.bp.v7.0.symbols.gmt")),
+  hallmark = flexgsea::read_gmt(here("data","external","gmt","h.all.v7.0.symbols.gmt")),
+  c2_canon = flexgsea::read_gmt(here("data","external","gmt","c2.cp.v7.0.symbols.gmt")),
+  c2_cgp = flexgsea::read_gmt(here("data","external","gmt","c2.cgp.v7.0.symbols.gmt"))
+)
+```
 
 ## Filtering
 
@@ -62,11 +76,9 @@ Either immune/immuno/interleukin is part of the gene name and description OR the
 The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
 
 ```{r}
-
 immune_gene_list <- read_csv(here("data", "external","gene-sets","InnateDB_genes.csv"))
 head(immune_gene_list)
 ```
-
 
 
 ## Helper functions
@@ -208,15 +220,28 @@ Plot the top 5 most significant.
 repLRT$beehive_plots
 ```
 
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+ repLRT$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+repLRT$pathway_plots
+```
+
 
 # Save data
 
+## Significance of genes
 
 Save the individual results lists, without the figures.
 
 ```{r}
-library(openxlsx)
-
 resdf = list(parameters = enframe(unlist(repLRT$sig_threshold)),
              sig_genes = repLRT$significant_genes,
              all_genes = repLRT$annotated_results)
@@ -227,7 +252,20 @@ openxlsx::write.xlsx(resdf, file = here("results", "diffex", "06_LRT.xlsx"))
 rm(resdf)
 ```
 
-Save the figures
+## Pathway results
+
+Fisher's exact pathway analyses
+
+```{r}
+#Returns a list of aggregated path results per comparison
+pathlist = list()
+#pathlist[[names(repLRT)[1]]] = 
+pathlist = repLRT$pathways %>% bind_rows() %>% mutate(comp = "LRT")
+
+openxlsx::write.xlsx(pathlist, file = here("results", "diffex", "06_LRT_pathways.xlsx"))
+```
+
+## Heatmaps
 
 ```{r}
 dir.create(here("results","diffex", "figs", "06_LRT"), showWarnings = F)
@@ -236,11 +274,46 @@ pdf(here("results", "diffex", "figs", "06_LRT", "06_LRT_hm.pdf"), width = 10, he
 repLRT$heatmap
 dev.off()
 
+```
+
+## Volcano plot sig genes
+
+Use caution when interpreting volcano plots for more than 2 groups.
+
+```{r}
 ggsave(filename=here("results","diffex", "figs", "06_LRT", "O6_LRT_vp.jpeg"),
        plot = repLRT$volcano_plot, height = 6, width = 8)
+```
+
+
+
+## Volcano plot outliers
+
+Volcano plots of significant genes are hard to interpret in an LRT with multiple levels. Use outliers only for diagnostics.
+
+```{r}
+ggsave(filename=here("results","diffex", "figs", "06_LRT",
+                     "LRT.outliers.jpeg"), plot=repLRT$volc_outliers,height = 6, width = 8)
 
 ```
 
+## Pathway dotplots 
+
+```{r}
+
+for(i in 1:length(repLRT$pathway_plots)){
+  thisplot = repLRT$pathway_plots[[i]]
+  thisplotname = names(repLRT$pathway_plots)[i]
+  
+  file=paste0(paste("LRT", thisplotname, sep="-"),".jpeg")
+  ggsave(filename=here("results","diffex", "figs",
+                       "06_LRT",file),
+           plot=thisplot, height = 6, width = 8)
+  }
+
+
+
+```
 
 
 ```{r}

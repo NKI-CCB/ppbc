@@ -8,6 +8,10 @@ output:
 ---
 
 ```{r, include=F}
+rm(list = ls())
+```
+
+```{r, include=F}
 library(DESeq2)
 library(tidyverse)
 library(here)

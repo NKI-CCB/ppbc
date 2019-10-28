@@ -26,3 +26,6 @@ reports/includes_tumorpurity_design
 #Only the scripts within src
 src/dec2018_samples
 .Rproj.user
+src/testme.R
+src/lambda_score_example.R
+

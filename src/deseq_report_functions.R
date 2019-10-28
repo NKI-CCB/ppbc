@@ -1,7 +1,12 @@
+#### Enrichment analysis functions
+#Hypergeom tests by Evert Bosdriesz
+source(here("src", "enrichment-analysis-functions.R"))
+
 
 #### Standard report functions ####
 
-annotate_results <- function(results_object, anno_df = gx_annot, mark_immune = T, immune_list = immune_gene_list){
+annotate_results <- function(results_object, anno_df = gx_annot, immune_list = immune_gene_list,
+                             mark_immune = T, mark_outliers = T){
 
   #Takes a res object from deseq, merges it with a gene annotation file, and an optional immune list to create a data frame sorted by adjusted p value
   #Type is an aggregate of immunoglobulin genes from gene type and genes with a known immune function from ImmPort
@@ -10,19 +15,10 @@ annotate_results <- function(results_object, anno_df = gx_annot, mark_immune = T
   anno_res <- results_object %>% as.data.frame() %>% rownames_to_column("ensembl_gene_id") %>%
     right_join(anno_df,., by = "ensembl_gene_id") %>% arrange(padj)
 
-  if (mark_immune==T){
+  if (mark_immune==T){ #Shows genes that defined as immune based on external list
     anno_res = anno_res %>% mutate(ImmPort_gene = if_else(
       ensembl_gene_id %in% immune_list$ensembl, T, F
     ))
-    #Redundant:
-    #anno_res = anno_res %>% mutate(immune_gene = if_else(
-      #ensembl_gene_id %in% immune_list$ensembl |
-        #str_detect(string = description, "immuno") |
-        #str_detect(string = description, "immune") |
-        #str_detect(string = description, "interleukin"),
-      #TRUE, FALSE
-    #)) %>% #When description is NA, immune_gene is also NA
-      #mutate(immune_gene = replace_na(immune_gene, FALSE))
 
     anno_res = anno_res %>%
       mutate(Type=case_when( #Order is hierarchical
@@ -35,6 +31,19 @@ annotate_results <- function(results_object, anno_df = gx_annot, mark_immune = T
     anno_res = anno_res %>% select(gene_name,gene_type,Type, everything())
   }
 
+  #DESeq sets both the pval and padj to NA for genes above a Cooks distance threshold
+  #Cook’s distance is a measure of how much a single sample is influencing the fitted coefficients for a gene,
+  #and a large value of Cook’s distance is intended to indicate an outlier count.
+  #If a row is filtered by automatic independent filtering, for having a low mean normalized count, then only the adjusted p value will be set to NA.
+  #Keep track of both possibilities
+
+  if (mark_outliers == T){
+    anno_res = anno_res %>%
+      mutate(cooks_outlier = if_else(baseMean > 0 & is.na(pvalue), T, F)) %>%
+      mutate(indepfilt = if_else(!is.na(pvalue) & is.na(padj), T, F))
+  }
+
+
   return(anno_res)
 }
 
@@ -45,7 +54,37 @@ significance <- function(annotated_results, pthresh = 0.05, absl2fc = 0.5){
   return(sig)
 }
 
-summarize_expression_duplicate_ids <- function(mat, id_column=NULL, f=colMeans){
+cooks_cutoff <- function(dds){
+  #This is how DESeq2 decides the Cooks cutoff by default
+  m <- nrow(attr(dds, "dispModelMatrix"))
+  p <- ncol(attr(dds, "dispModelMatrix"))
+  defaultCutoff <- qf(0.99, p, m - p)
+  return(defaultCutoff)
+}
+
+vp_cooks_outliers <- function(annotated_results, dds, cook_threshold=25, fc_threshold=0.5, title=""){
+  #Visualize a volcano plot of genes which have been set to NA due to Cook's distance
+  left_join(annotated_results,enframe(mcols(dds)$maxCooks, "ensembl_gene_id", "max_cooks"), by = "ensembl_gene_id") %>%
+    mutate(label = if_else(max_cooks > !!cook_threshold | (cooks_outlier == T & abs(log2FoldChange) > !!fc_threshold),
+                           gene_name, NULL)) %>%
+    ggplot(aes(x=log2FoldChange, y = max_cooks, color = -log10(padj),
+               shape=cooks_outlier, size=log10(baseMean), label=label)) +
+    geom_point() + ggrepel::geom_label_repel(show.legend = F) +
+    ggtitle(paste("Cooks rejects:", title)) +
+    geom_hline(yintercept = cook_threshold, color = "black", linetype="dashed")
+}
+
+cooks_replacement <- function(dds){
+  #When there are 7 or more replicates for a given sample, the DESeq function will automatically replace counts
+  #that have Cooks distance greater than the default threshold
+  #with the trimmed mean over all samples, scaled up by the size factor or normalization factor for that sample.
+  #The original counts are preserved in counts(dds)
+  cooks_replaced = mcols(dds)$replace %>% enframe("ensembl_gene_id", "outlier_replaced") %>% filter(outlier_replaced==T) %>%
+    left_join(.,select(gx_annot, "ensembl_gene_id", "gene_name", "gene_type"), by = "ensembl_gene_id")
+  return(cooks_replaced)
+}
+
+summarize_expression_duplicate_ids <- function(mat, id_column=NULL, f=colMeans, verbose=F){
   require(dplyr)
 
   #Easiest way to write functions with dplyr is to standardize the column name
@@ -67,7 +106,9 @@ summarize_expression_duplicate_ids <- function(mat, id_column=NULL, f=colMeans){
     return(input)
   }
 
-  print(paste("Starting with gene expression matrix containing", nrow(mat), "rows."))
+  if(verbose==T){
+    print(paste("Starting with gene expression matrix containing", nrow(mat), "rows."))
+    }
 
   #Make frequency table
   id_table <- as.data.frame(table(mat$symbol))
@@ -75,7 +116,9 @@ summarize_expression_duplicate_ids <- function(mat, id_column=NULL, f=colMeans){
   #Identify duplicate genes
   dups <- id_table$Var1[id_table$Freq > 1]
   stopifnot(length(dups) == length(unique(dups)))
-  print(paste("Number of genes with duplicate names:", length(dups)))
+  if(verbose == T){
+    print(paste("Number of genes with duplicate names:", length(dups)))
+    }
 
   #Set aside rows with unique gene names
   nodup_df <- mat[!mat$symbol %in% dups,]
@@ -87,7 +130,10 @@ summarize_expression_duplicate_ids <- function(mat, id_column=NULL, f=colMeans){
   #Sort by recurring id
   dup_df <- dup_df[order(dup_df$symbol),]
 
-  print(paste("Number of rows with duplicate gene ids:", nrow(dup_df)))
+
+  if(verbose==T){
+    print(paste("Number of rows with duplicate gene ids:", nrow(dup_df)))
+  }
 
   #Mean expression fpkm of genes with the same symbol
   mean_exps <- matrix(ncol = ncol(dup_df)-1, nrow=0) #Empty matrix, -1 gene symbol column
@@ -111,7 +157,10 @@ summarize_expression_duplicate_ids <- function(mat, id_column=NULL, f=colMeans){
               length(dups) == #...which condense down into this many unique genes...
               nrow(dedupped_df)) #...should equal the number of rows in the final matrix
 
-  print(paste("Number of genes after applying", substitute(f),  "to duplicate ids:", nrow(dedupped_df)))
+  if (verbose == T){
+    print(paste("Number of genes after applying", substitute(f),  "to duplicate ids:", nrow(dedupped_df)))
+  }
+
 
   rownames(dedupped_df) = NULL #Required for column_to_rownames
   dedupped_df = column_to_rownames(dedupped_df, "symbol")
@@ -373,12 +422,15 @@ plot_many_beehives = function(dds, result_df, ...){
 
 deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, immune_list=immune_gene_list,
                         pthresh = 0.05, absl2fc = 0.5, variance_stabilized_dds = vsd,
-                        title=NULL,
+                        title=NULL, list_gene_sets = gene_sets, plot_pathway = T,
                         intgroup="study_group", colorby="PAM50",
                         groups=levels(colData(dds)[,intgroup]),
+                        beehive_groups = "comparison",
                         n_beehive_plots=5, verbose=T, ...){
   require(DESeq2)
   require(tidyverse)
+
+  stopifnot(beehive_groups %in% c("all", "comparison"))
 
   mega = list()
 
@@ -417,17 +469,22 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
 
   mega$volcano_plot = vp
 
-  #Draw heatmap
-  if(verbose==T){
-    print("Creating heatmap...")
-  }
 
   #Prepare deduplication
+  if(verbose==T){
+    print("Converting IDs to symbols and deduplicating repeated symbols...")
+  }
+
   geneEx = rownames_to_column(as.data.frame(assay(variance_stabilized_dds)), "ensembl_gene_id")
   geneEx = right_join(select(anno_df, gene_name, ensembl_gene_id), geneEx, by = "ensembl_gene_id") %>%
     select(-ensembl_gene_id)
 
   dedup_geneEx = summarize_expression_duplicate_ids(geneEx, id_column = "gene_name")
+
+  #Draw heatmap
+  if(verbose==T){
+    print("Creating heatmap...")
+  }
 
   hm = deseq_heatmap(mat = dedup_geneEx, sampledata = as.data.frame(colData(variance_stabilized_dds)),
                      sig_results = sig, title = title, groups_to_plot = groups)
@@ -439,13 +496,83 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
   if(verbose==T){
     print(paste("Creating beehive plots from top", n_beehive_plots, "genes..."))
   }
-  beelist = plot_many_beehives(dds = dds, result_df = head(sig, n_beehive_plots), groups_to_plot = groups)
+
+  if(beehive_groups == "all"){
+    beehive_groups = levels(dds$study_group) #Plot all study groups in beehive
+  } else {
+    beehive_groups = groups #Plot only the ones involved in calculating significance
+  }
+
+  beelist = plot_many_beehives(dds = dds, result_df = head(sig, n_beehive_plots), groups_to_plot = beehive_groups)
 
   mega$beehive_plots = beelist
+
+  #Fisher's exact test for gene signatures
+  #sig_genes, background_genes, list_signatures, fdr_cutoff= Inf, verbose=T, collapse_rows=F
+  if(!is.null(list_gene_sets)){
+    if(verbose==T){print("Fisher's exact test for pathway analysis...")}
+    pathways = fisher_pathways(
+      sig_genes = sig$gene_name,
+      background_genes = df$gene_name,
+      list_signatures = gene_sets,
+      fdr_cutoff = Inf,
+      verbose = verbose,
+      collapse_rows=F)
+    mega$pathways = pathways
+  }
+
+  #Dotplot of pathways
+  if(plot_pathway==T & !is.null(list_gene_sets)){
+    print("Pathway plots")
+    pathway_plots = list()
+    for(i in 1:length(pathways)){
+      thispath = pathways[[i]]
+      if(nrow(thispath[thispath$fdr < 0.05, ]) == 0 ){
+        next
+      }
+      path_plot = plot_enrichment(
+        enrich_res = thispath,
+        fdr = 0.05,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = paste(title, names(pathways)[[i]])
+      )
+      pathway_plots[[names(pathways)[i]]] <- path_plot
+    }
+    mega$pathway_plots <- pathway_plots
+  }
+
+  #Outlier reporting
+  #Keep track of genes with padj set to NA due to Cooks and independent filtering
+  cooks_threshold = cooks_cutoff(dds)
+  mega$cooks_threshold = cooks_threshold
+
+  #print(paste("Cook's distance threshold", round(cooks_threshold, 2)))
+  print(paste("Genes with padj set to 0 due to exceeding Cooks threshold:", nrow(df[df$cooks_outlier==T,])))
+  print(paste("Genes discarded by automatic independent filtering for having a low mean normalized count:",
+              nrow(df[df$indepfilt==T,])))
+
+  #Volcano plot of extreme outliers
+  mega$volc_outliers <- vp_cooks_outliers(df, dds,
+                                          cook_threshold = 25, #Show names for all above default threshold usually overwhelms the plot
+                                          fc_threshold = absl2fc,
+                                          title=title
+                                          )
+  #Beehive plots of those which both exceend Cook's threshold AND the l2fc threshold (first 10)
+  notable_outliers = df %>% filter(cooks_outlier==T & log2FoldChange > !!absl2fc) %>% pull(ensembl_gene_id)
+
+  outlier_df = df[df$ensembl_gene_id %in% notable_outliers,]
+  outlier_df = outlier_df %>% arrange(desc(abs(log2FoldChange)))
+
+  outlier_bees = plot_many_beehives(dds = dds,
+                                    result_df = head(outlier_df, 10),
+                                    groups_to_plot = beehive_groups)
+  mega$outlier_bees = outlier_bees
 
   return(mega)
 
 }
+
 
 shrinkRes <- function(dds, contrast, type="apeglm"){
   require(DESeq2)

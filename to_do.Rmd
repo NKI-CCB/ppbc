@@ -22,6 +22,58 @@ output: html_notebook
 * Clustering involution low med high b cell signature with short vs long term breastfeeding
 * Edit shrinkRes function to disable Cook's distance filtering in calls to results(), add additional column to track these genes
 
+Recreate code for mountain plots with flexgsea
+Steal some ideas from ClusterProlifer?
+Or use UpSet plots instead?
+```{r}
+library(clusterProfiler)
+
+d <- rep_inv_rest$annotated_results[,c("ensembl_gene_id", "log2FoldChange")]
+
+d <- d %>% 
+  left_join(select(gx_annot, ensembl_gene_id),
+               ., by = "ensembl_gene_id") %>%
+  filter(!is.na(log2FoldChange))
+dim(d)
+#Sort by decreasing l2fc
+d <- d %>% arrange(desc(log2FoldChange))
+
+## feature 1: numeric vector
+geneList <- d$log2FoldChange
+
+## feature 2: named vector
+names(geneList) <- as.character(d$ensembl_gene_id)
+
+test = gseGO(geneList=geneList, ont="BP", keyType = "ENSEMBL", OrgDb=org.Hs.eg.db, verbose=T, nPerm = 5, pvalueCutoff = 1)
+
+head(test)
+gseaplot(test, geneSetID="GO:0000724")
+gseaplot
+```
+
+
+```{r}
+inv_res_c2cp = readRDS(here("results", "flexgsea", "deseq", "results", "inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"))
+
+#names(inv_res_c2cp$flexgsea_results)
+inv_res_c2cp[["flexgsea_results"]][["table"]] %>%
+  as.data.frame() %>% arrange(inv_vs_rest_ppbc_inv_vs_rest.fdr)
+
+
+```
+```{r}
+names(inv_res_c2cp$flexgsea_results)
+inv_res_c2cp[["flexgsea_results"]][["table"]] %>%
+  as.data.frame() %>% filter(inv_vs_rest_ppbc_inv_vs_rest.GeneSet %in% testpath)
+```
+
+
+
+```{r}
+testpath =  rep_inv_rest$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05 & collection=="c2_canon") %>% pull(pathway)
+```
+
 
 ALTERNATE THRESHOLD possibility:
 
@@ -37,6 +89,10 @@ as.data.frame(colData(dds)[,c("study_group", "TIL_percent")]) %>%
   ggplot(aes(x = study_group, y = TIL_percent)) +
   geom_boxplot() +
   ggtitle("TIL percent")
+```
+
+```{r}
+print("Fix")
 ```
 
 
