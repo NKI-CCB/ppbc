@@ -276,12 +276,13 @@ deseq_heatmap = function(mat, sampledata, sig_results,
                          row_colors = gene_colors,
                          row_scale = T,
                          maxn_rownames = 50,
-                         row_size = 8, col_size = 8, ...){
+                         row_size = 8, col_size = 8,
+                         show_col_names = F, ...){
   require(scrime)
   require(ComplexHeatmap)
   require(tidyverse)
 
-  stopifnot(groups_to_plot %in% levels(sampledata$study_group))
+  #stopifnot(groups_to_plot %in% levels(sampledata$study_group)) #Now accepts other columns
   stopifnot(identical(colnames(mat), sampledata$sample_name)) #Ensure that a column containing all sample names exists
 
 
@@ -351,7 +352,7 @@ deseq_heatmap = function(mat, sampledata, sig_results,
           left_annotation = rowAnno,
           heatmap_legend_param = hlp,
           show_row_names = show_row_names,
-          show_column_names = F,
+          show_column_names = show_col_names,
           cluster_rows = T,
           row_names_gp = gpar(fontsize = row_size),
           column_names_gp = gpar(fontsize = col_size),

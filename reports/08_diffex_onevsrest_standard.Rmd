@@ -156,6 +156,8 @@ vsd$lac_vs_rest  = colData(vsd) %>% as.data.frame() %>% mutate(lac_vs_rest = if_
 
 vsd$nonprbc_vs_rest  = colData(vsd) %>% as.data.frame() %>% mutate(nonprbc_vs_rest = if_else(study_group == "non_prbc", "non_prbc", "rest")) %>%
   pull(nonprbc_vs_rest) %>% factor(levels=c("rest", "non_prbc"))
+
+saveRDS(vsd, here("data", "Rds", "09_vsd_standard_vsrest.Rds"))
 ```
 
 

@@ -54,10 +54,10 @@ gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, 
 #Load gene signatures
 
 gene_signatures = list(
+  go_c5 = read_gmt(file = here("data","external","gmt","c5.all.v7.0.symbols.gmt")),# Gene ontology BP
   hallmark = read_gmt(file = here("data","external","gmt","h.all.v7.0.symbols.gmt")), # 50 gene overview
   canonpath_c2 = read_gmt(file = here("data","external","gmt","c2.cp.v7.0.symbols.gmt")), #Canonical pathways
-  cgp_c2 = read_gmt(file = here("data", "external", "gmt", "c2.cgp.v7.0.symbols.gmt")), #Chemical and genetic perturbations
-  go_c5 = read_gmt(file = here("data","external","gmt","c5.all.v7.0.symbols.gmt")) #, # Gene ontology BP
+  cgp_c2 = read_gmt(file = here("data", "external", "gmt", "c2.cgp.v7.0.symbols.gmt")) #Chemical and genetic perturbations
   #oncogene_c6 = read_gmt(file = here("data","external","gmt","c6.all.v6.2.symbols.gmt")), #Oncogenic gene signatures
   #immune_c7 = read_gmt(file = here("data","external","gmt","c7.all.v6.2.symbols.gmt")), #Immunological signatures
   #motif_tf_mir_c3 = read_gmt(file = here("data","external", "gmt","c3.all.v6.2.symbols.gmt")), #Targets of TFs and miRs
@@ -226,6 +226,7 @@ saveRDS(geneEx, file.path(input_DIR, "x.Rds"))
 #mode(test.x) <- "integer"
 #saveRDS(test.x, file.path(input_DIR, "test.x.Rds"))
 
+
 for (i in 1:length(comparisons)){
   comp = comparisons[i]
 
@@ -304,9 +305,8 @@ for (i in 1:length(comparisons)){
 
 
     saveRDS(list(parameters = parameters, flexgsea_results = flexres),
-            file=file.path(results_DIR, result_file
-                      #paste(comp, sig_name, "results_flexdeseq.Rds", sep="_")
-                      ))
+            file=result_file)
+
 
     #Testing
     #saveRDS(list(parameters = parameters, flexgsea_results = test.flexres),

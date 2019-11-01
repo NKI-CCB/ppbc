@@ -22,7 +22,7 @@ library(here)
 Count matrix from LRT. Counts will be the same between all comparisons.
 
 ```{r}
-dds = readRDS(here("data", "Rds","06_ddsLRT_standard.Rds"))
+dds = readRDS(here("data/Rds/08_dds_inv_vs_rest_standard.Rds"))
 ```
 
 Gene annotation
@@ -36,6 +36,49 @@ gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, 
 ```{r}
 source(here("src", "deseq_report_functions.R"))
 ```
+
+
+## Variance stabilizing transformation
+
+Renders the data homoskedastic, useful for visualization purposes.
+
+Ensure that we can set "study group" to be one vs rest columns when desired.
+
+```{r}
+vsd = readRDS(here("data","Rds","09_vsd_standard_vsrest.Rds"))
+```
+
+## Sample annotation data
+
+```{r}
+sd = as.data.frame(colData(dds)) %>% select(sample_name, study_group, contains("rest"), PAM50,everything())
+head(sd)
+```
+
+
+## Symbol conversion and de-deuplication
+
+```{r}
+geneEx = rownames_to_column(as.data.frame(assay(vsd)), "ensembl_gene_id")
+geneEx = right_join(select(gx_annot, gene_name, ensembl_gene_id), geneEx, by = "ensembl_gene_id") %>%
+    select(-ensembl_gene_id)
+geneEx = summarize_expression_duplicate_ids(geneEx, id_column = "gene_name", verbose = T)
+
+```
+
+## Heatmap colors
+
+Created in notebook 6
+
+```{r}
+all_colors = readRDS(here("data","Rds", "06_heatmap_colors.Rds"))
+study_colors = all_colors$study_colors
+pam_colors = all_colors$pam_colors
+gene_colors = all_colors$gene_colors
+```
+
+
+## Diffex results
 
 Likelihood ratio tests, pairwise comparisons, and one vs rest.
 
@@ -238,7 +281,7 @@ gene_report(res_list, "ENSG00000167531")
 ```
 
 ```{r}
-plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000167531",])
+plot_gene_beehive(dds, res_list$LRT[res_list$LRT$ensembl_gene_id=="ENSG00000167531",])
 ```
 ### [GRN](https://www.genecards.org/cgi-bin/carddisp.pl?gene=GRN&keywords=GRN) 
 
@@ -512,6 +555,89 @@ gene_report(res_list, "ENSG00000228284")
 ```{r}
 plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000228284",])
 ```
+
+### [IRS4](https://www.genecards.org/cgi-bin/carddisp.pl?gene=IRS4)
+
+>Acts as an interface between multiple growth factor receptors possessing tyrosine kinase activity, such as insulin receptor, IGF1R and FGFR1, and a complex network of intracellular signaling molecules containing SH2 domains. Involved in the IGF1R mitogenic signaling pathway. Promotes the AKT1 signaling pathway and BAD phosphorylation during insulin stimulation without activation of RPS6KB1 or the inhibition of apoptosis. Interaction with GRB2 enhances insulin-stimulated mitogen-activated protein kinase activity.
+
+Major Cooks outlier.
+
+```{r}
+gene_report(res_list, "ENSG00000133124")
+```
+
+
+```{r}
+plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000133124",])
+```
+
+# Milk proteins vs IG genes
+
+Ensure that we're not just looking at IG genes in breast milk.
+
+```{r}
+milk_genes <- c("CSN1S1", "CSN1S2AP", "CSN3", "LALBA")
+IG_genes <- res_list$inv_vs_rest %>% filter(Type == "immunoglobulin") %>%
+  filter(padj < 0.05 & abs(log2FoldChange) > 0.5) %>% pull(gene_name)
+
+milk_IG_mat <- geneEx[rownames(geneEx) %in% c(milk_genes, IG_genes),]
+
+head(milk_IG_mat)
+```
+
+## Heatmap
+
+```{r, fig.height = 7, fig.width=10}
+deseq_heatmap(mat = milk_IG_mat, sampledata = sd,sig_results = res_list$inv_vs_rest,
+              title="Milk genes vs IG genes")
+```
+
+```{r, fig.height = 7, fig.width=10}
+deseq_heatmap(mat = milk_IG_mat, sampledata = sd,sig_results = res_list$inv_vs_rest,
+              title="Milk genes vs IG genes", row_scale = F)
+```
+
+
+```{r}
+pdf(here("results", "diffex", "figs", "milk_vs_IG_genes_rowscaled.pdf"), width = 10, height = 7)
+
+deseq_heatmap(mat = milk_IG_mat, sampledata = sd,sig_results = res_list$inv_vs_rest,
+              title="Milk genes vs IG genes")
+
+dev.off()
+```
+
+```{r}
+pdf(here("results", "diffex", "figs", "milk_vs_IG_genes.pdf"), width = 10, height = 7)
+
+deseq_heatmap(mat = milk_IG_mat, sampledata = sd,sig_results = res_list$inv_vs_rest,
+              title="Milk genes vs IG genes", row_scale = F)
+
+dev.off()
+```
+
+
+## Beehives
+
+```{r}
+ensembl_milk = res_list$LRT[res_list$LRT$gene_name %in% milk_genes,]
+plot_many_beehives(dds, ensembl_milk)
+
+```
+
+# Quirky genes and batch effects
+
+Can this explain why these two genes have very similar expression patterns but very different p values?
+
+```{r}
+plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000140009",], colorby = "batch")
+plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000048462",], colorby = "batch")
+```
+
+
+To do: Check more milk proteins from [this paper](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3586783/)
+
+>The proteins of human milk are divided into the whey and casein fractions or complexes, with each comprised by a remarkable array of specific proteins and peptides.14,15 The most abundant proteins are casein, α-lactalbumin, lactoferrin, secretory immunoglobulin IgA, lysozyme, and serum albumin.16,17 
 
 ```{r}
 save.image(here("reports", "09_genewise_diffex_reports.RData"))

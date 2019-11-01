@@ -8,6 +8,11 @@ output:
 
 ---
 
+```{r, include=F}
+rm(list = ls())
+```
+
+
 Based off the notebook imagene-batch-effects.Rmd by Tycho Bismeijer. Adapted for the post-partum breast cancer project (ppbc).
 
 ```{r, include=F}
@@ -96,6 +101,11 @@ normcounts <- blind_vst(dds)
 normcounts[1:4,1:4]
 ```
 
+```{r}
+logSF <- log2(counts(dds, normalized=T) + 0.5)
+```
+
+
 
 # Calculate PCA
 
@@ -141,6 +151,11 @@ stopifnot(nrow(pca.df) == nrow(t(normcounts)))
 ```
 
 ## PCA library prep and country
+
+```{r}
+table(sd$country, sd$batch)
+```
+
 
 ```{r}
 ncolors <- length(unique(pca.df$batch))
@@ -390,6 +405,12 @@ print(paste("These are:", paste(sort(PC_tp$PC), collapse = ", ")))
 ```{r}
 pca.df %>% select(tumor_purity, everything()) %>% head()
 ```
+```{r}
+ggplot(pca.df, aes(x=PC76, y=PC92, color=tumor_purity, shape=study_group)) +
+  geom_point()  + 
+  scale_color_gradient(low = "blue", high = "red") +
+  ggtitle("PCs significantly associated with tumor purity")
+```
 
 
 # Overview PC significance
@@ -477,6 +498,12 @@ for (i in 1:nrow(corvars_cat)){
 ```{r}
 library(pheatmap)
 as.matrix(table(sd$batch, sd$study_group)) %>%
+  pheatmap(cluster_rows = F, cluster_cols = F, display_numbers = T,
+           number_format = "%i", fontsize_number = 12)
+```
+
+```{r}
+as.matrix(table(sd$PAM50, sd$study_group)) %>%
   pheatmap(cluster_rows = F, cluster_cols = F, display_numbers = T,
            number_format = "%i", fontsize_number = 12)
 ```
