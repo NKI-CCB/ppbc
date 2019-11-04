@@ -1,0 +1,875 @@
+---
+title: "Identification of involution subtypes"
+output: 
+  html_notebook:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: tango
+---
+
+```{r}
+rm(list = ls())
+```
+
+
+```{r, include=F}
+library(DESeq2)
+library(apeglm)
+library(ggrepel)
+library(ComplexHeatmap)
+library(openxlsx)
+library(scrime)
+#library(sva)
+library(survival)
+library(survminer)
+library(RColorBrewer)
+library(here)
+library(tidyverse)
+```
+
+
+# Setup and pre-processing
+
+
+This data has been filtered on the basis of having a gene-wise non-zero count in at least a third of the samples. 
+
+>keep <- rowSums(counts(dds)!=0) >= ceiling(ncol(dds)/3)
+table(keep)
+dds <- dds[keep,]
+
+```{r}
+dds = readRDS(here("data/Rds/08_dds_inv_vs_rest_standard.Rds"))
+```
+
+We will be changing study_group to match the groups plotted, so save the original in its own column.
+
+```{r}
+table(dds$study_group)
+dds$study_group_orig <- dds$study_group
+```
+
+
+```{r}
+source(here("src", "deseq_report_functions.R"))
+```
+
+
+
+Subset for just the involution samples.
+
+```{r}
+inv.dds = dds[,colnames(dds)[dds$study_group == "ppbc_inv"]]
+inv.dds$study_group = droplevels(inv.dds$study_group)
+table(inv.dds$study_group)
+```
+
+## Gene metadata
+
+```{r}
+gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
+```
+
+## Variance stabilizing transformation
+
+Renders the data homoskedastic, useful for visualization purposes.
+
+Ensure that we can set "study group" to be one vs rest columns when desired.
+
+```{r}
+vsd = readRDS(here("data","Rds","09_vsd_standard_vsrest.Rds"))
+```
+
+## Sample annotation data
+
+```{r}
+sd = as.data.frame(colData(dds)) %>% select(sample_name, study_group, contains("rest"), PAM50, study_group_orig, everything())
+head(sd)
+```
+
+
+## Symbol conversion and de-deuplication
+
+```{r}
+geneEx = rownames_to_column(as.data.frame(assay(vsd)), "ensembl_gene_id")
+geneEx = right_join(select(gx_annot, gene_name, ensembl_gene_id), geneEx, by = "ensembl_gene_id") %>%
+    select(-ensembl_gene_id)
+geneEx = summarize_expression_duplicate_ids(geneEx, id_column = "gene_name", verbose = T)
+
+```
+
+## Heatmap colors
+
+Created in notebook 6
+
+```{r}
+all_colors = readRDS(here("data","Rds", "06_heatmap_colors.Rds"))
+study_colors = all_colors$study_colors
+pam_colors = all_colors$pam_colors
+gene_colors = all_colors$gene_colors
+```
+
+## Diffex results
+
+Read in significant results from comparison involution vs non-prbc, and inv vs rest
+
+```{r}
+#openxlsx::getSheetNames(here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx"))
+res_invp = openxlsx::read.xlsx(here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx"), sheet="rep_inv_nonprbc_all")
+#head(res_invp)
+
+#openxlsx::getSheetNames(here("results", "diffex", "07_pairwise_comparisons_sig_genes.xlsx"))
+sig.invp = openxlsx::read.xlsx(here("results", "diffex", "07_pairwise_comparisons_sig_genes.xlsx"), sheet="sig_rep_inv_nonprbc")
+#head(sig.invp)
+
+#openxlsx::getSheetNames(here("results", "diffex", "08_one_vs_rest_allgenes.xlsx"))
+res_invr = openxlsx::read.xlsx(here("results", "diffex", "08_one_vs_rest_allgenes.xlsx"), sheet="rep_inv_rest_all")
+#head(res_invr)
+
+#openxlsx::getSheetNames(here("results", "diffex", "08_one_vs_rest_sig_genes.xlsx"))
+sig.invr = openxlsx::read.xlsx(here("results", "diffex", "08_one_vs_rest_sig_genes.xlsx"), sheet="sig_rep_inv_rest")
+#head(sig.invp)
+```
+
+
+
+# Diffex genes
+
+Thresholds applied:
+
+```{r}
+openxlsx::read.xlsx(here("results", "diffex", "07_pairwise_comparisons_sig_genes.xlsx"), sheet="thresholds") %>%
+  filter(comparison == "rep_inv_nonprbc")
+
+openxlsx::read.xlsx(here("results", "diffex", "08_one_vs_rest_sig_genes.xlsx"), sheet="thresholds") %>%
+  filter(comparison == "rep_inv_rest")
+```
+
+
+
+```{r, collapse=T}
+print(paste("There are", nrow(sig.invp), "significant genes in the comparison involution vs non-prbc"))
+print(paste("There are", nrow(sig.invr), "significant genes in the comparison involution vs rest"))
+```
+
+Top genes
+
+vs nulliparous
+
+```{r}
+sig.invr %>% head(30)
+```
+
+vs rest
+
+
+```{r}
+sig.invp %>% head(30)
+```
+
+
+
+  #Draw heatmap
+  if(verbose==T){
+    print("Creating heatmap...")
+  }
+
+  hm = deseq_heatmap(mat = dedup_geneEx, sampledata = as.data.frame(colData(variance_stabilized_dds)),
+                     sig_results = sig, title = title, groups_to_plot = groups)
+
+
+
+# Two-way Heatmap
+
+Depicted are genes significant in the comparison involution vs non-prbc using counts normalized via the variance stabilizing transformation.
+
+## Dendrogram split
+
+Inv vs np
+
+```{r, fig.height=6, fig.width=10}
+deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = study_group_orig), 
+              top_colors = study_colors, bottom_colors = pam_colors,
+              sig_results = sig.invp, title = "Involution vs nonprbc, Cutree split",
+              groups_to_plot =c("ppbc_inv", "non_prbc"), maxn_rownames = Inf,
+              column_split=3, row_split = 3)
+
+```
+```{r, fig.height=6, fig.width=10}
+deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = inv_vs_rest),
+              sig_results = sig.invr, title = "Involution vs rest, Cutree split",
+              groups_to_plot =c("ppbc_inv", "rest"),
+              column_split=3, row_split = 3)
+```
+
+
+
+## K-means
+
+```{r, fig.height=6, fig.width=10}
+set.seed(1)
+
+deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = study_group_orig),
+              sig_results = sig.invp, title = "Involution vs nonprbc, K-means",
+              groups_to_plot =c("ppbc_inv", "non_prbc"), maxn_rownames = Inf,
+              column_km=3, row_km = 3)
+
+```
+
+```{r, fig.height=6, fig.width=10}
+set.seed(1)
+
+inv.hm = 
+deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = inv_vs_rest),
+              sig_results = sig.invr, title = "Involution vs rest, K-means",
+              groups_to_plot =c("ppbc_inv", "rest"),
+              column_km=3, row_km = 3)
+
+inv.hm
+```
+
+
+
+
+All groups. Same as previous heatmap, but with all classes shown.
+
+Depicted are genes significant in the comparison involution vs non-prbc using counts normalized via the variance stabilizing transformation.
+
+
+```{r, fig.width=10}
+set.seed(1)
+
+inv.hm.all = 
+deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = study_group_orig),
+              sig_results = sig.invr, title = "Significant genes involution vs rest, K-means",
+              groups_to_plot = unique(sd$study_group_orig),
+              column_km=3, row_km = 3)
+inv.hm.all
+
+```
+
+```{r}
+resDir = here("results", "clustering")
+dir.create(resDir, showWarnings = F)
+pdf(file.path(resDir, "11_kmeans_hm_invvsrest_sig.pdf"),width = 10, height = 7)
+print(inv.hm)
+dev.off()
+
+pdf(file.path(resDir, "11_kmeans_hm_invvsrest_sig_showallgroups.pdf"),width = 10, height = 7)
+print(inv.hm.all)
+dev.off()
+```
+
+
+
+to do: collapse cluster 2 into single metagene by averaging experession, then test assocation between metagene and survival/subgroups
+
+### Summary column clusters
+
+The column clusters can be split into a low (1), medium(2) and high(3) Ig-expressing groups
+
+We can retrieve the gene/sample names either with row/column_order functions, which return indices:
+
+```{r, eval=F}
+#row_order(inv.hm)
+column_order(inv.hm) #Shows that `3` is high, `2` is medium and `1` is low
+
+colnames(geneEx)[82] #Index of first sample in "high" group
+stopifnot(colnames(geneEx)[82] %in% as.hclust(coldend.hm$`3`)$labels) #Should be in the high group
+#as.hclust(coldend.hm[[1]])$labels %>% unlist(use.names = F)
+```
+
+...or by using the row/column_dend followed by as.hclust, after which the sample and gene names are accessible via the label operator.
+
+```{r}
+coldend.hm = column_dend(inv.hm)
+col_clust =
+bind_rows(
+  tibble(sample_name = as.hclust(coldend.hm$`1`)$labels,IG_col_cluster = "low", col_cluster=1),
+  tibble(sample_name = as.hclust(coldend.hm$`2`)$labels,IG_col_cluster = "medium", col_cluster=2),
+  tibble(sample_name = as.hclust(coldend.hm$`3`)$labels,IG_col_cluster = "high", col_cluster=3)
+) %>% left_join(.,select(as.data.frame(colData(dds)), sample_name, study_group, PAM50), by="sample_name") %>%
+  mutate(IG_col_cluster = factor(IG_col_cluster, levels = c("low", "medium", "high")))
+
+table(col_clust$study_group, col_clust$IG_col_cluster)
+
+```
+
+Define colors for IG clusters
+
+```{r}
+IG_expression_colors = brewer.pal(3, "YlGnBu")
+names(IG_expression_colors) = c("low", "medium", "high")
+color_grid(IG_expression_colors)
+
+saveRDS(IG_expression_colors, here("data", "Rds", "11_IG_cluster_colors.Rds"))
+```
+
+### Bar plot IG clusters
+
+```{r, fig.width=8}
+
+study_ig = col_clust %>% ggplot(aes(x = IG_col_cluster, fill=study_group)) + geom_bar(position = "fill") +
+  scale_fill_manual(values=study_colors) +
+  ggtitle("Study group by IG expression cluster")
+
+
+clust_ig = col_clust %>% ggplot(aes(fill = factor(IG_col_cluster, levels=c("high", "medium","low")), x=study_group)) +
+  geom_bar(position = "fill") +
+  #scale_fill_brewer(type="div", palette = 9, direction = 1) +
+  scale_fill_manual(values = IG_expression_colors) +
+  ggtitle("Division of IG expression clusters by study group") +
+  labs(fill="IG_col_cluster")
+
+
+study_ig
+clust_ig
+
+```
+
+
+```{r}
+ggsave(file.path(resDir, "11_barplot_IGclust_A.pdf" ), height = 6, width = 8, plot = study_ig)
+ggsave(file.path(resDir, "11_barplot_IGclust_B.pdf" ), height = 6, width = 8, plot = clust_ig)
+```
+
+
+### Summary row clusters
+
+Extract and store the row clusters:
+
+```{r}
+rowdend.hm = row_dend(inv.hm)
+
+row_clust = 
+bind_rows(
+  tibble(gene_name = as.hclust(rowdend.hm$`1`)$labels,row_cluster = 1),
+  tibble(gene_name = as.hclust(rowdend.hm$`2`)$labels,row_cluster = 2),
+  tibble(gene_name = as.hclust(rowdend.hm$`3`)$labels,row_cluster = 3)
+) %>%
+  right_join(sig.invr,
+             ., by = "gene_name") #%>% select(gene_name, immune_gene, row_cluster, description, everything())
+```
+
+```{r}
+row_clust[row_clust$row_cluster==1,] %>% head()
+row_clust[row_clust$row_cluster==2,] %>% head()
+row_clust[row_clust$row_cluster==3,] %>% head()
+```
+```{r}
+write.xlsx(list(row_clusters = row_clust, col_clusters = col_clust), file = here("results", "clustering","11_inv_clusters.xlsx"))
+```
+
+
+# Clustering involution samples
+
+We will attempt clustering both before and after removal of molecular subtype as a confounding factor. See if the samples also cluster based on immune high-medium-low categories.
+
+```{r}
+inv.dds$IG_cluster = col_clust[match(colData(inv.dds)$sample_name,col_clust$sample_name), "IG_col_cluster"][[1]]
+
+sd$IG_cluster = col_clust[match(sd$sample_name,col_clust$sample_name), "IG_col_cluster"][[1]]
+
+table(inv.dds$IG_cluster, inv.dds$study_group)
+```
+
+
+## Inv heatmaps
+
+Subset down to inv and define heat map annotations
+
+```{r}
+#Subst to inv
+sd.inv = as.data.frame(colData(inv.dds))
+geneEx.inv = geneEx[,colnames(geneEx) %in% sd.inv$sample_name]
+#head(select(sd.inv, sample_name, IG_cluster))
+
+
+#Top column annotation
+ann_top = sd.inv[,"IG_cluster", drop=F]
+#Ensure that the order matches
+ann_top = ann_top[match(colnames(geneEx.inv),rownames(ann_top)), ,drop=F]
+colTop <- HeatmapAnnotation(df=ann_top, which="col",
+                              col = list(IG_cluster=IG_expression_colors))
+
+#Bottom column annotation
+ann_bottom = sd.inv[,"PAM50", drop=F]
+colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = list(PAM50 = pam_colors))
+
+# Row annotation
+anno_rows = res_invr %>%
+    select(gene_name, Type) %>%
+    distinct() %>%
+    filter(!duplicated(gene_name)) %>%
+    column_to_rownames("gene_name")
+
+anno_rows = anno_rows[match(rownames(geneEx.inv),rownames(anno_rows)), ,drop=F]
+anno_rows = anno_rows[rownames(anno_rows) %in% sig.invr$gene_name,,drop=F]
+
+#Essential that the order be the same!
+rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=list(Type = gene_colors))
+
+```
+
+
+
+### Significant genes in involution vs rest
+
+```{r, fig.height=7, fig.width=10}
+set.seed(1)
+
+invclust =  Heatmap(as.matrix(geneEx.inv[rownames(geneEx.inv) %in% sig.invr$gene_name,]),
+          top_annotation = colTop,
+          bottom_annotation = colBottom,
+          left_annotation = rowAnno,
+          heatmap_legend_param = list(title="vst counts"),
+          show_row_names = T,
+          show_column_names = F,
+          cluster_rows = T,
+          row_names_gp = gpar(fontsize = 8),
+          column_names_gp = gpar(fontsize = 8),
+          column_title = "Clustering involution samples, sig genes",
+          column_km = 3, column_km_repeats=50, row_km = 3, row_km_repeats = 50)
+
+invclust.row =  Heatmap(scrime::rowScales(geneEx.inv[rownames(geneEx.inv) %in% sig.invr$gene_name,]) %>% as.matrix,
+          top_annotation = colTop,
+          bottom_annotation = colBottom,
+          left_annotation = rowAnno,
+          heatmap_legend_param = list(title="rowscaled vst"),
+          show_row_names = T,
+          show_column_names = F,
+          cluster_rows = T,
+          row_names_gp = gpar(fontsize = 8),
+          column_names_gp = gpar(fontsize = 8),
+          column_title = "Clustering involution samples, sig genes",
+          column_km = 3, column_km_repeats=50, row_km = 3, row_km_repeats = 50)
+
+invclust
+invclust.row
+
+```
+
+
+
+### Top 500 genes with most variance
+
+Involution only
+
+```{r}
+rv = rowVars(as.matrix(geneEx.inv))
+select = order(rv, decreasing = TRUE)[seq_len(min(500, 
+            length(rv)))]
+varEx.vst = geneEx.inv[select,]
+vargenes = rownames(varEx.vst)
+dim(varEx.vst)
+```
+
+#### Involution: Top variant genes
+
+```{r, fig.width=10}
+set.seed(1)
+
+# Row annotation
+anno_rows = res_invr %>%
+    select(gene_name, Type) %>%
+    distinct() %>%
+    filter(!duplicated(gene_name)) %>%
+    column_to_rownames("gene_name")
+
+anno_rows = anno_rows[match(rownames(varEx.vst),rownames(anno_rows)), ,drop=F]
+#anno_rows = anno_rows[rownames(anno_rows) %in% sig.invr$gene_name,,drop=F]
+
+#Essential that the order be the same!
+rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=list(Type = gene_colors))
+inv.var =  
+Heatmap(as.matrix(varEx.vst),
+          top_annotation = colTop,
+          bottom_annotation = colBottom,
+          left_annotation = rowAnno,
+          heatmap_legend_param = list(title="vst counts"),
+          show_row_names = F,
+          show_column_names = F,
+          cluster_rows = T,
+          row_names_gp = gpar(fontsize = 8),
+          column_names_gp = gpar(fontsize = 8),
+          column_title = "Clustering involution samples, top 500 most variant genes vst",
+          column_km = 3, column_km_repeats=50, row_km = 3, row_km_repeats = 50)
+
+inv.var.row =  
+Heatmap(as.matrix(scrime::rowScales(varEx.vst)),
+          top_annotation = colTop,
+          bottom_annotation = colBottom,
+          left_annotation = rowAnno,
+          heatmap_legend_param = list(title="vst counts"),
+          show_row_names = F,
+          show_column_names = F,
+          cluster_rows = T,
+          row_names_gp = gpar(fontsize = 8),
+          column_names_gp = gpar(fontsize = 8),
+          column_title = "Clustering involution samples, top 500 most variant genes vst rowscaled",
+          column_km = 3, column_km_repeats=50, row_km = 3, row_km_repeats = 50)
+
+inv.var
+inv.var.row
+```
+
+```{r}
+pdf(file.path(resDir, "11_hm_inv_clustering_sig.pdf"),width = 10, height = 7)
+print(invclust)
+dev.off()
+
+pdf(file.path(resDir, "11_hm_inv_clustering_sig_rowscaled.pdf"),width = 10, height = 7)
+print(invclust.row)
+dev.off()
+
+pdf(file.path(resDir, "11_hm_inv_clustering_top500vstvar.pdf"),width = 10, height = 7)
+print(inv.var)
+dev.off()
+
+pdf(file.path(resDir, "11_hm_inv_clustering_top500vstvar_rowscaled.pdf"),width = 10, height = 7)
+print(inv.var.row)
+dev.off()
+```
+
+All samples
+
+```{r}
+rv = rowVars(as.matrix(geneEx))
+select = order(rv, decreasing = TRUE)[seq_len(min(500, 
+            length(rv)))]
+varEx.vst = geneEx[select,]
+vargenes = rownames(varEx.vst)
+dim(varEx.vst)
+```
+
+#### All samples - Top variant genes
+
+```{r, fig.width=10}
+set.seed(1)
+
+#Show both study group and IG cluster in top annotation
+ann_top = sd[,c("IG_cluster", "study_group"), drop=F]
+#Ensure that the order matches
+ann_top = ann_top[match(colnames(geneEx),rownames(ann_top)), ,drop=F]
+colTop <- HeatmapAnnotation(df=ann_top, which="col",
+                              col = list(IG_cluster=IG_expression_colors,
+                                         study_group = study_colors))
+#Bottom column annotation
+ann_bottom = sd[,"PAM50", drop=F]
+colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = list(PAM50 = pam_colors))
+
+# Row annotation
+anno_rows = res_invr %>%
+    select(gene_name, Type) %>%
+    distinct() %>%
+    filter(!duplicated(gene_name)) %>%
+    column_to_rownames("gene_name")
+
+anno_rows = anno_rows[match(rownames(varEx.vst),rownames(anno_rows)), ,drop=F]
+#anno_rows = anno_rows[rownames(anno_rows) %in% sig.invr$gene_name,,drop=F]
+
+#Essential that the order be the same!
+rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=list(Type = gene_colors))
+all.var =  
+Heatmap(as.matrix(varEx.vst),
+          top_annotation = colTop,
+          bottom_annotation = colBottom,
+          left_annotation = rowAnno,
+          heatmap_legend_param = list(title="vst counts"),
+          show_row_names = F,
+          show_column_names = F,
+          cluster_rows = T,
+          row_names_gp = gpar(fontsize = 8),
+          column_names_gp = gpar(fontsize = 8),
+          column_title = "Clustering top 500 most variant genes vst",
+          column_km = 3, column_km_repeats=50, row_km = 3, row_km_repeats = 50)
+
+var.row =  
+Heatmap(as.matrix(scrime::rowScales(varEx.vst)),
+          top_annotation = colTop,
+          bottom_annotation = colBottom,
+          left_annotation = rowAnno,
+          heatmap_legend_param = list(title="vst counts"),
+          show_row_names = F,
+          show_column_names = F,
+          cluster_rows = T,
+          row_names_gp = gpar(fontsize = 8),
+          column_names_gp = gpar(fontsize = 8),
+          column_title = "Clustering top 500 most variant genes vst rowscaled",
+          column_km = 3, column_km_repeats=50, row_km = 3, row_km_repeats = 50)
+
+all.var
+var.row
+```
+
+
+
+
+# PCA involution
+
+### Mol subtype
+
+No manipulation necessary for molecular subtype to emerge as prominent.
+
+```{r}
+get_PCA(inv.dds, shape.group = "PAM50", color.group="IG_cluster") +
+  ggtitle("PCA involution patients, top 500 variant genes")
+```
+
+### Post-ComBat
+
+```{r}
+get_PCA_from_matrix(as.matrix(geneEx.inv), sd.inv, shape.group = "PAM50", color.group="IG_cluster") +
+  ggtitle("PCA involution by IG cluster")
+```
+
+
+# Survival analysis IG clusters
+
+```{r}
+table(sd$PAM50, sd$IG_cluster)
+```
+
+
+
+```{r}
+table(sd$death)
+
+sd %>% filter(is.na(death))
+```
+
+Exclude samples for which there has been less than 20 months of follow up, unless the reason for the lack of follow up is that the patient passed away due to disease (and not an accident or suicide).
+
+follow_up > 20 | death == 1
+
+```{r}
+
+surv = sd %>% filter(!is.na(death)) %>%
+  filter(death != "other cause") %>%
+  filter(years_overall_survival != 999) %>%
+  filter(months_of_followup > 20 | death == "due to disease")
+
+sd %>%
+  mutate(keep = months_of_followup > 20 | death == "due to disease") %>%
+  ggplot(aes(x = study_group, y = months_of_followup, shape = death, color = keep)) +
+  geom_jitter(width = 0.1, height = 0) +
+  geom_hline(yintercept = 20) +
+  ggtitle("Discard samples with < 20 mo follow up, unless due to death")
+```
+
+
+
+## Overall survival
+
+```{r}
+surv = surv %>% mutate(death = if_else(death == "due to disease", T, F))
+```
+
+Baseline: Study group
+
+```{r}
+survdiff(survival::Surv(time =months_overall_survival, event = death) ~ study_group, data=surv)
+```
+
+
+```{r}
+ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=death) ~ study_group, data = surv), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "All study groups",
+    pval = T)
+```
+
+
+
+
+```{r}
+ggsurvplot(
+    fit = survfit(Surv(time = years_overall_survival, event=death) ~ IG_cluster, data = surv), 
+    xlab = "Years", 
+    ylab = "Overall survival probability",
+    title = "All study groups",
+    pval = T)
+```
+
+```{r, fig.width=10}
+
+  ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=death) ~ PAM50 +IG_cluster, data = surv), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "All study groups",
+    pval = T, facet.by = "PAM50")
+
+
+```
+
+### All samples
+
+Univariate
+
+```{r}
+#surv$death
+survdiff(survival::Surv(time =months_overall_survival, event = death) ~ IG_cluster, data=surv)
+
+```
+
+Multivariate (other covariates?)
+
+```{r}
+coxph(survival::Surv(time =months_overall_survival, event = death) ~ PAM50 + IG_cluster, data=surv) #%>%
+  #summary()
+```
+```{r}
+ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=death) ~ IG_cluster, data = surv), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "All study groups",
+    pval = T)
+
+```
+
+
+
+
+
+### Involution samples
+
+Univariate
+
+```{r}
+surv.inv = surv %>% filter(study_group == "ppbc_inv")
+
+survdiff(survival::Surv(time =months_overall_survival, event = death) ~ IG_cluster, data=surv.inv)
+```
+
+```{r}
+surv.inv = surv %>% filter(study_group == "ppbc_inv")
+
+survdiff(survival::Surv(time =months_overall_survival, event = death) ~ IG_cluster, data=surv.inv)
+```
+
+```{r}
+ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=death) ~ IG_cluster, data = surv.inv), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title= "Involution patients",
+    pval = T)
+```
+
+```{r, fig.width=10}
+
+  ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=death) ~ PAM50 +IG_cluster, data = surv.inv), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "All study groups",
+    pval = T, facet.by = "PAM50")
+
+
+```
+
+
+## Distant recurrence free survival
+
+
+### All samples
+
+Univariate
+
+```{r}
+
+survdiff(survival::Surv(time =months_to_drs, event = dist_recurrence_free_survival) ~ IG_cluster, data=surv)
+
+```
+
+```{r}
+ggsurvplot(
+    fit = survfit(Surv(time=months_to_drs, event=dist_recurrence_free_survival) ~ IG_cluster, data = surv), 
+    xlab = "Months", 
+    ylab = "DRS",
+    title= "All patients",
+    pval = T)
+```
+
+### Involution
+
+Univariate
+
+```{r}
+
+survdiff(survival::Surv(time =months_to_drs, event = dist_recurrence_free_survival) ~ IG_cluster, data=surv.inv)
+
+```
+
+```{r}
+ggsurvplot(
+    fit = survfit(Surv(time=months_to_drs, event=dist_recurrence_free_survival) ~ IG_cluster, data = surv.inv), 
+    xlab = "Months", 
+    ylab = "DRS",
+    title= "All patients",
+    pval = T)
+```
+
+## LRS
+
+
+### All samples
+
+Univariate
+
+```{r}
+survdiff(survival::Surv(time = months_to_lrs, event = local_recurrence_free_survival) ~ IG_cluster, data=surv)
+
+```
+
+```{r}
+ggsurvplot(
+    fit = survfit(Surv(time=months_to_lrs, event=local_recurrence_free_survival) ~ IG_cluster, data = surv), 
+    xlab = "Months", 
+    ylab = "LRS",
+    title= "All patients",
+    pval = T)
+```
+
+### Involution
+
+Univariate
+
+```{r}
+
+survdiff(survival::Surv(time =months_to_lrs, event = local_recurrence_free_survival) ~ IG_cluster, data=surv.inv)
+
+```
+
+```{r}
+ggsurvplot(
+    fit = survfit(Surv(time=months_to_lrs, event=local_recurrence_free_survival) ~ IG_cluster, data = surv.inv), 
+    xlab = "Months", 
+    ylab = "LRS",
+    title= "Involution only",
+    pval = T)
+```
+
+
+
+
+# Save data
+
+
+```{r, eval=F}
+library(rmarkdown)
+#Puts a copy in the doc folder
+render(here("reports", "11_clustering_involution.Rmd"),
+       output_dir = here("doc"))
+```
+
+
+```{r}
+save.image(here("reports", "11_clustering_involution.RData"))
+```
+
