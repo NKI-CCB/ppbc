@@ -3,24 +3,16 @@ title: "To do"
 output: html_notebook
 ---
 
-
-* in notebook 10, redo breastfeeding over time with immune analysis, use pregnancy as timepoint 
-* also look at t-sne in clustering
-* To do: Add two column annotations for the heatmap, showing both group vs rest and all groups separately in notebook 8.
 * Cox regression to identify genes associated with survival
 ** First make Kaplan meijer without covariates, then compare with covariates
 ** Covariates: grade, stage, molecular subtype, age at diagnosis and year of diagnosis (Also possibly therapy type)
 * Clustering with other comparisons (not just inv vs nonprbc)
 * GSEA with "interesting gene list"
-* Formally test for correlation between batch and study group
-* CHeck batch effect for androgen receptor
-* Make correlation matrix between batch and study group
-* Variable influence factor (VIF)
-* Set standardized colors for study group etc in heatmaps across the entire dataset
-* Debug the row annotation colors in deduplicated heatmaps
+* Variable influence factor (VIF) - Maybe
 * Redo diffex looking at just Leuven data
-* Clustering involution low med high b cell signature with short vs long term breastfeeding
-* Edit shrinkRes function to disable Cook's distance filtering in calls to results(), add additional column to track these genes
+* LRT on batch
+* Multivariate cox regression for predicting survival (use glmnet)
+* Diffex within PAM50 groups
 
 Recreate code for mountain plots with flexgsea
 Steal some ideas from ClusterProlifer?
@@ -73,6 +65,17 @@ inv_res_c2cp[["flexgsea_results"]][["table"]] %>%
 testpath =  rep_inv_rest$pathways %>% bind_rows() %>%
   filter(fdr < 0.05 & collection=="c2_canon") %>% pull(pathway)
 ```
+
+```{r}
+inv_res_c2cp = readRDS(here("results", "flexgsea", "deseq", "results", "inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"))
+
+#names(inv_res_c2cp$flexgsea_results)
+inv_res_c2cp[["flexgsea_results"]][["table"]] %>%
+  as.data.frame() %>% arrange(inv_vs_rest_ppbc_inv_vs_rest.fdr)
+
+
+```
+
 
 
 ALTERNATE THRESHOLD possibility:
