@@ -1,0 +1,627 @@
+---
+title: "12_survival"
+author: "Kat Moore"
+date: "11/7/2019"
+output: html_document
+---
+
+```{r}
+rm(list = ls())
+```
+
+```{r, include=F}
+#devtools::install_github('kevinblighe/RegParallel')
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("GEOquery")
+#library(GEOquery) #Example only
+#library(Biobase) #Example only
+#library(RegParallel) #Example only
+library(DESeq2)
+library(survival)
+library(survminer)
+library(pheatmap)
+library(RColorBrewer)
+library(glmnet)
+library(tidyverse)
+library(here)
+library(ggpubr)
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Pre-process data data
+
+```{r}
+dds = readRDS(here("data/Rds/08_dds_inv_vs_rest_standard.Rds"))
+gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
+```
+
+Create data matrix with covariates from the sample data in the first few columns, then genes. Samples are rows.
+
+## Prepare metadata
+
+Covariates: grade, stage, molecular subtype, age at diagnosis and year of diagnosis (Also possibly therapy type)
+
+```{r}
+sd = as.data.frame(colData(dds)) %>%
+  select(sample_name, death,
+         years_overall_survival,
+         months_of_followup,
+         study_group, PAM50,
+         grade, stage,
+         inv_vs_rest, prbc_vs_rest,
+         lac_vs_rest, nonprbc_vs_rest,
+         year_of_diagnosis, age_at_diagnosis,
+         overall_survival, months_overall_survival,
+         distant_recurrence, months_to_drs,
+         local_recurrence_free_survival, months_to_lrs)
+
+#Unnecessary
+#sd = sd %>% mutate(
+#  grade = as.factor(grade),
+#  stage = as.factor(stage),
+#  overall_survival = as.factor(overall_survival),
+#  distant_recurrence = as.factor(distant_recurrence),
+#  local_recurrence_free_survival = as.factor(local_recurrence_free_survival))
+
+head(sd)
+```
+Exclude samples for which there has been less than 20 months of follow up, unless the reason for the lack of follow up is that the patient passed away due to disease (and not an accident or suicide).
+
+follow_up > 20 | death == 1
+
+
+```{r, collapse=T}
+print(paste("Started with", nrow(sd), "samples"))
+
+print("Samples lost due to lack of survival information:")
+nrow(sd %>% filter(is.na(death)))
+excluded = sd %>% filter(is.na(death)) %>%
+  mutate(reason = "no_survival_data")
+
+print("Samples excluded due to patient death unrelated to disease")
+print(nrow(sd %>% filter(! death %in% c(NA, "due to disease", "no"))))
+excluded = bind_rows(excluded,
+                     mutate(filter(sd, !death %in% c(NA, "due to disease", "no")),
+                            reason = "unrelated_death")
+                     )
+print("Samples due to insufficient follow up")
+nrow(sd %>% filter(months_of_followup < 20 & death != "due to disease"))
+
+excluded = bind_rows(excluded,
+                     mutate(filter(sd, months_of_followup < 20 & !death == "due to disease"),
+                            reason = "insufficient_followup"))
+
+print("Samples with 999 (unknown) years of overall survival")
+nrow(sd %>% filter(years_overall_survival == 999))
+
+excluded = bind_rows(excluded,
+                     mutate(filter(sd, years_overall_survival == 999),
+                            reason = "unknown_survival_years"))
+
+metadata = sd %>% filter(!is.na(death)) %>%
+  filter(death != "other cause") %>%
+  filter(years_overall_survival != 999) %>%
+  filter(months_of_followup >= 20 | death == "due to disease")
+
+print(paste(nrow(metadata), "samples remaining post filtering"))
+
+stopifnot(nrow(filter(metadata,rowSums(is.na(metadata)) > 0)) == 0)
+```
+
+## Prepare gene data
+
+The author of the RegParallel packages [argues](https://www.biostars.org/p/344233/#360782) for using VSD, Rlog, or log(cpm) transformations prior to fitting the Cox model.
+
+Intuitively it seems that VSD may overestimate the important of some lowly expressed genes. Try with the log cpm approach first.
+
+```{r}
+#fpm (fragments per million) is equivalent to cpm from edgeR
+mat = t(log2(fpm(dds, robust=T) + 0.5))
+
+#Exclude those samples which were also excluded from the metadata prep
+mat = mat[rownames(mat) %in% metadata$sample_name,]
+stopifnot(identical(rownames(mat), metadata$sample_name))
+```
+
+Combine into single dataframe for Cox
+
+```{r}
+coxdata = cbind(metadata, mat)
+
+head(coxdata)
+```
+
+# Basic survival curves
+
+## PPBC
+
+Lactation shows the worst prognosis, followed by involution.
+
+```{r, fig.width = 8}
+km_ppbc = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ study_group, data = coxdata) %>% 
+ggsurvplot(fit = ., 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "All samples with adequate data (n = 177)",
+    #linetype = "strata",
+    pval = T,
+    risk.table = F,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F)
+
+km_ppbc$plot #Avoids printing a blank plot
+```
+
+```{r, echo=F, include=F}
+resDir = here("results", "survival")
+dir.create(resDir, showWarnings = F)
+
+pdf(file.path(resDir, "12_km_ppbc.pdf"), width = 8, height = 6)
+print(km_ppbc$plot, newpage=F)
+dev.off()
+```
+
+Survdiff implements the log-rank test, which compares one or more curves vs the null hypothesis that there is no difference in survival between the curves. The log-rank statistic is chi-square distributed.
+
+A comparison between all groups is near but not quite significant.
+
+```{r}
+survdiff(Surv(time=months_overall_survival, event=overall_survival) ~ study_group, data = coxdata)
+```
+
+Pairwise log-rank tests show that none of the individual pairings are significant, although ppbc_lac vs non-prbc and prbc comes close.
+
+```{r}
+pairwise_survdiff(Surv(time=months_overall_survival, event=overall_survival) ~ study_group, data = coxdata)
+```
+
+## PAM50
+
+PAM50 shows no significant variance by molecular subtype.
+
+```{r}
+km_pam50 = 
+survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PAM50, data = coxdata) %>%
+ggsurvplot(fit = ., 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "All samples with adequate data (n = 177)",
+    pval = T,
+    risk.table = F,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F)
+
+km_pam50$plot
+```
+
+```{r, echo=F, include=F}
+pdf(file.path(resDir, "12_km_pam50.pdf"), width = 8, height=6)
+print(km_pam50$plot)
+dev.off()
+```
+
+
+Log-rank test for PAM50. Basal generally has a worse than expected outcome, consistent with the literature. The others are almost exactly matched with expected.
+
+```{r}
+survdiff(Surv(time=months_overall_survival, event=overall_survival) ~ PAM50, data = coxdata)
+```
+
+Pairwise log-rank tests demonstrate that no pairing is remotely significant.
+
+```{r}
+pairwise_survdiff(Surv(time=months_overall_survival, event=overall_survival) ~ PAM50, data = coxdata)
+```
+
+# Univariate Cox
+
+## Study gorup
+
+Non-prbc (nulliparous) is the reference group. A positive coefficient indicates an increased risk vs the reference, whereas a negative coefficient indicates a comparatively better prognosis vs the reference. The exponentiated coefficient exp(coef) is equivalent to the hazard ratio.
+
+    HR = 1: No effect
+    HR < 1: Reduction in the hazard
+    HR > 1: Increase in Hazard
+
+Lac and inv both have higher risk than non-prbc, but only lac is significant. Prbc has a lower risk than non-prbc.
+
+```{r}
+cox.ppbc <- coxph(Surv(time=months_overall_survival, event=overall_survival) ~ study_group, data = coxdata)
+summary(cox.ppbc)
+```
+
+## PAM50
+
+Congruent with the Kaplan-Meijer, no PAM50 group is significantly better or worse than the rest.
+
+```{r}
+cox.pam <- coxph(Surv(time=months_overall_survival, event=overall_survival) ~ PAM50, data = coxdata)
+summary(cox.pam)
+```
+
+## Sequential univariate analysis of other covariate
+
+Of the remaining covariates, only stage is significant.
+
+```{r}
+covariates <- c("age_at_diagnosis", "year_of_diagnosis","stage","grade")
+univ_formulas <- sapply(covariates,
+                        function(x) as.formula(paste('Surv(time=months_overall_survival, event=overall_survival)~', x)))
+                        
+univ_models <- lapply(univ_formulas, function(x){coxph(x, data = coxdata)})
+
+# Extract data 
+univ_results <- lapply(univ_models,
+                       function(x){ 
+                          x <- summary(x)
+                          p.value<-signif(x$wald["pvalue"], digits=2)
+                          wald.test<-signif(x$wald["test"], digits=2)
+                          beta<-signif(x$coef[1], digits=2);#coeficient beta
+                          HR <-signif(x$coef[2], digits=2);#exp(beta)
+                          HR.confint.lower <- signif(x$conf.int[,"lower .95"], 2)
+                          HR.confint.upper <- signif(x$conf.int[,"upper .95"],2)
+                          HR <- paste0(HR, " (", 
+                                       HR.confint.lower, "-", HR.confint.upper, ")")
+                          res<-c(beta, HR, wald.test, p.value)
+                          names(res)<-c("beta", "HR (95% CI for HR)", "wald.test", 
+                                        "p.value")
+                          return(res)
+                          #return(exp(cbind(coef(x),confint(x))))
+                         })
+#univ_results
+res <- t(as.data.frame(univ_results, check.names = FALSE))
+as.data.frame(res)
+```
+
+Distribution of stage over the study groups. Note that lactation has no patients in stage 1, which may contribute to the poorer prognosis in that group.
+
+```{r}
+table(coxdata$stage, coxdata$study_group)
+```
+
+## Heatmap cancer stage
+
+```{r}
+#par(mfrow=c(1,2))
+pheatmap(as.matrix(table(coxdata$stage, coxdata$study_group)),
+         scale="none", 
+         display_numbers = T,
+         number_format = "%.0f",
+         cluster_rows = F, cluster_cols = F,
+         main = "Study group by stage")
+
+pheatmap(as.matrix(table(coxdata$stage, coxdata$study_group)),
+         scale="column", 
+         display_numbers = T,
+         number_format = "%.2f",
+         cluster_rows = F, cluster_cols = F,
+         main = "Study group by stage, scaled by group")
+```
+
+
+```{r}
+chisq.test(table(coxdata$stage, coxdata$study_group))
+```
+
+
+
+# Multivariate Cox
+
+## All covariates
+
+Including all clinical covariates, 11 total levels.
+
+The LRT, Wald and logrank tests are all below 0.05. These tests evaluate the null hypothesis that the beta for every covariate is 0. The result indicates that the model overall is significant.
+
+For increased risk, stage is significant at p < 0.001 and HR 2.6, while both involution and lactation are near significance with p < 0.1 and HR 2.4 and 3.2, respectively.
+
+Her2 and LumB show significantly decreased risk at p < 0.05 and HRs 0.2 and 0.41, resepctively.
+
+```{r}
+clin.cov.cox <- coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + PAM50 + study_group,
+  data = coxdata)
+summary(clin.cov.cox)
+```
+
+## Significant covariates
+
+If limited to only those covariates which were significant in the univariate analysis, the results are similar. Most of the PAM50 comparisons are positively prognostic compared to basal at p < 0.1. Involution remains significant at p < 0.1, but lactation drifts out of the significant range.
+
+```{r}
+select.clin.cov.cox <- coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~  stage + PAM50 + study_group,
+  data = coxdata)
+summary(select.clin.cov.cox)
+```
+
+## Multivariate plot for study group
+
+Estimate the impact of study group in the multivariate model. Requires constructing a new data frame with one row for each value of the covariate of interest; the other covariates are fixed to their average values (if they are continuous variables) or to their lowest level (if they are discrete variables).
+
+There are comparatively few normal subtypes, so we will ignore it for this purpose.
+
+```{r}
+table(coxdata$PAM50, coxdata$study_group)
+```
+
+```{r}
+study_df = coxdata %>%
+  group_by(study_group) %>%
+  summarize(age_at_diagnosis = mean(age_at_diagnosis),
+            year_of_diagnosis = mean(year_of_diagnosis),
+            grade = mean(grade),
+            stage = mean(stage))
+
+#Order: non_prbc, inv, lac, prbc
+study_df$PAM50 = c("Her2", "Basal", "LumA", "LumB")
+```
+
+This data frame is passed to survfit() via the newdata argument:
+
+```{r, fig.width=9, fig.height=6}
+#survfit(clin.cov.cox, newdata = study_df)
+plot.clin.cov.cox <- ggsurvplot(survfit(clin.cov.cox, newdata = study_df), conf.int = TRUE,
+           legend.labs=c("non_prbc", "ppbc_inv", "ppbc_lac", "prbc"),
+           ggtheme = theme_minimal(), data=coxdata,
+           title = "Survival ~ age_at_diagnosis + year_of_diagnosis + grade + stage + PAM50 + study_group")
+plot.clin.cov.cox$plot
+```
+
+```{r, echo=F, include=F}
+pdf(file.path(resDir, "12_curve_multivariate_ppbc.pdf"),width = 9, height = 6)
+print(plot.clin.cov.cox$plot)
+dev.off()
+```
+
+
+# Independent genewise Cox regression
+
+## Significant genes involution vs rest
+
+```{r}
+#excel_sheets(here("results","diffex", "08_one_vs_rest_sig_genes.xlsx"))
+sig_inv_rest = read_excel(here("results","diffex", "08_one_vs_rest_sig_genes.xlsx"),sheet="sig_rep_inv_rest" )
+#head(sig_inv_rest)
+
+stopifnot(sum(duplicated(sig_inv_rest$ensembl_gene_id))==0)
+```
+
+### Univariate Cox by gene
+
+```{r}
+start <- Sys.time()
+univ_gene_formulas <- sapply(sig_inv_rest$ensembl_gene_id,
+                             function(x) as.formula(paste('Surv(time=months_overall_survival, event=overall_survival)~', x)))
+                        
+univ_gene_models <- lapply(univ_gene_formulas, function(x){coxph(x, data = coxdata)})
+end <- Sys.time()
+end-start
+```
+
+```{r}
+univ_gene_results <- lapply(univ_gene_models,
+                       function(x){ 
+                          x <- summary(x)
+                          p.value<-signif(x$wald["pvalue"], digits=2)
+                          wald.test<-signif(x$wald["test"], digits=2)
+                          beta<-signif(x$coef[1], digits=2);#coeficient beta
+                          HR <-signif(x$coef[2], digits=2);#exp(beta)
+                          HR.confint.lower <- signif(x$conf.int[,"lower .95"], 2)
+                          HR.confint.upper <- signif(x$conf.int[,"upper .95"],2)
+                          HR <- paste0(HR, " (", 
+                                       HR.confint.lower, "-", HR.confint.upper, ")")
+                          res<-c(beta, HR, wald.test, p.value)
+                          names(res)<-c("beta", "HR (95% CI for HR)", "wald.test", 
+                                        "p.value")
+                          return(res)
+                          #return(exp(cbind(coef(x),confint(x))))
+                         })
+#univ_gene_results
+
+res_sig_inv_univ <- t(as.data.frame(univ_gene_results, check.names = FALSE))
+res_sig_inv_univ = as.data.frame(res_sig_inv_univ) %>%
+  rownames_to_column("ensembl_gene_id") %>%
+  left_join(., gx_annot,by="ensembl_gene_id") %>%
+  arrange(p.value) %>%
+  mutate(p.value = as.numeric(as.character(p.value)), beta = as.numeric(as.character(beta))) %>%
+  select(gene_name, p.value, everything())
+
+res_sig_inv_univ
+```
+
+Genes significantly associated with a negative outcome:
+
+(None)
+
+```{r}
+res_sig_inv_univ %>% filter(p.value < 0.1 & beta > 0)
+```
+
+Genes significantly associated with a positive outcome:
+
+```{r}
+res_sig_inv_univ %>% filter(p.value < 0.1 & beta < 0)
+```
+
+### Multivariate Cox by gene
+
+Using all clinical covariates (except study group)
+
+```{r}
+start <- Sys.time()
+multivar_gene_formulas <- sapply(
+  sig_inv_rest$ensembl_gene_id,
+  function(x) as.formula(
+    paste(
+      'Surv(time=months_overall_survival, event=overall_survival)~age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+',
+      x)))
+                        
+multivar_gene_models <- lapply(multivar_gene_formulas, function(x){coxph(x, data = coxdata)})
+end <- Sys.time()
+end-start
+```
+
+```{r}
+multivar_gene_results <- lapply(multivar_gene_models,
+                       function(x){ 
+                          x <- summary(x)
+                          #Drop the other formula elements
+                          coefs <- as.data.frame(x$coefficients)
+                          coefs <- rownames_to_column(coefs, "ensembl_gene_id")
+                          gene = tail(coefs$ensembl_gene_id,1)
+                          coefs <- coefs[coefs$ensembl_gene_id==gene, , drop=F]
+                          colnames(coefs) <- c("ensembl_gene_id", "beta", "HR", "se(beta)", "z", "p.value")
+                          
+                          #Extract p val and stats for gene of interest
+                          p.value<-signif(coefs$p.value, digits = 2)
+                          beta<-signif(coefs$beta, digits=2);#coeficient beta
+                          HR <-signif(coefs$HR, digits=2);#exp(beta)
+                          
+                          #Do the same for conf intervals
+                          conf.int = rownames_to_column(as.data.frame(x$conf.int), "ensembl_gene_id")
+                          conf.int = conf.int[conf.int$ensembl_gene_id==gene, , drop=F]
+                          HR.confint.lower <- signif(conf.int[,"lower .95"], 2)
+                          HR.confint.upper <- signif(conf.int[,"upper .95"],2)
+                          HR <- paste0(HR, " (", 
+                                       HR.confint.lower, "-", HR.confint.upper, ")")
+                          res<-c(beta, HR, p.value)
+                          names(res)<-c("beta", "HR (95% CI for HR)", 
+                                        "p.value")
+                          return(res)
+                          #return(exp(cbind(coef(x),confint(x))))
+                         })
+#multivar_gene_results
+
+res_sig_inv_multivar <- t(as.data.frame(multivar_gene_results, check.names = FALSE))
+res_sig_inv_multivar = as.data.frame(res_sig_inv_multivar) %>%
+  rownames_to_column("ensembl_gene_id") %>%
+  left_join(., gx_annot,by="ensembl_gene_id") %>%
+  arrange(p.value) %>%
+  mutate(p.value = as.numeric(as.character(p.value)), beta = as.numeric(as.character(beta))) %>%
+  select(gene_name, p.value, everything())
+
+res_sig_inv_multivar
+```
+
+Genes significantly associated with a negative outcome:
+
+(None)
+
+```{r}
+res_sig_inv_multivar %>% filter(p.value < 0.1 & beta > 0)
+```
+
+Genes significantly associated with a positive outcome:
+
+```{r}
+res_sig_inv_multivar %>% filter(p.value < 0.1 & beta < 0)
+```
+
+Overlap between the univariate and multivariate models:
+
+```{r}
+intersect(pull(filter(res_sig_inv_univ, p.value < 0.1),gene_name),
+          pull(filter(res_sig_inv_multivar, p.value < 0.1),gene_name))
+```
+
+## All genes
+
+Within coxdata, gene names start at position 21
+
+```{r}
+colnames(coxdata)[20:23]
+```
+
+Run in script 12, results loaded here.
+
+```{r, eval=F}
+start <- Sys.time()
+multivar_gene_formulas <- sapply(
+  colnames(coxdata)[21:ncol(coxdata)],
+  function(x) as.formula(
+    paste(
+      'Surv(time=months_overall_survival, event=overall_survival)~age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+',
+      x)))
+                        
+multivar_gene_models <- lapply(multivar_gene_formulas, function(x){coxph(x, data = coxdata)})
+end <- Sys.time()
+end-start
+```
+
+```{r}
+multivar_gene_results <- lapply(multivar_gene_models,
+                       function(x){ 
+                          x <- summary(x)
+                          #Drop the other formula elements
+                          coefs <- as.data.frame(x$coefficients)
+                          coefs <- rownames_to_column(coefs, "ensembl_gene_id")
+                          gene = tail(coefs$ensembl_gene_id,1)
+                          coefs <- coefs[coefs$ensembl_gene_id==gene, , drop=F]
+                          colnames(coefs) <- c("ensembl_gene_id", "beta", "HR", "se(beta)", "z", "p.value")
+                          
+                          #Extract p val and stats for gene of interest
+                          p.value<-signif(coefs$p.value, digits = 2)
+                          beta<-signif(coefs$beta, digits=2);#coeficient beta
+                          HR <-signif(coefs$HR, digits=2);#exp(beta)
+                          
+                          #Do the same for conf intervals
+                          conf.int = rownames_to_column(as.data.frame(x$conf.int), "ensembl_gene_id")
+                          conf.int = conf.int[conf.int$ensembl_gene_id==gene, , drop=F]
+                          HR.confint.lower <- signif(conf.int[,"lower .95"], 2)
+                          HR.confint.upper <- signif(conf.int[,"upper .95"],2)
+                          HR <- paste0(HR, " (", 
+                                       HR.confint.lower, "-", HR.confint.upper, ")")
+                          res<-c(beta, HR, p.value)
+                          names(res)<-c("beta", "HR (95% CI for HR)", 
+                                        "p.value")
+                          return(res)
+                          #return(exp(cbind(coef(x),confint(x))))
+                         })
+
+res_allgenes_multivar <- t(as.data.frame(multivar_gene_results, check.names = FALSE))
+res_allgenes_multivar = as.data.frame(res_allgenes_multivar) %>%
+  rownames_to_column("ensembl_gene_id") %>%
+  left_join(., gx_annot,by="ensembl_gene_id") %>%
+  arrange(p.value) %>%
+  mutate(p.value = as.numeric(as.character(p.value)), beta = as.numeric(as.character(beta))) %>%
+  select(gene_name, p.value, everything())
+
+res_allgenes_multivar
+```
+
+# WIP
+
+```{r, eval=F}
+#Doesn't work due to "undefined columns selected"
+start <- Sys.time()
+
+res <- RegParallel(
+    data = sig_invrest_coxdata,
+    formula = 'Surv(months_overall_survival, overall_survival) ~ [*]',
+    FUN = function(formula, data)
+      coxph(formula = formula,
+        data = data,
+        ties = 'breslow',
+        singular.ok = TRUE),
+    FUNtype = 'coxph',
+    variables = colnames(sig_invrest_coxdata)[21:ncol(sig_invrest_coxdata)],
+    blocksize = 1,
+    cores = 16,
+    nestedParallel = FALSE,
+    conflevel = 95)
+  res <- res[!is.na(res$P),]
+  res
+
+end <- Sys.time()
+saveRDS(res, here("data", "Rds", "12_cox_genewise.Rds"))
+end-start
+```
+
