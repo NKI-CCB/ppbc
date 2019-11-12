@@ -15,6 +15,8 @@ cd ~/mnt/postpartumbc/results/diffex
 for EXCEL in `ls *.xlsx`; do echo $EXCEL; rclone sync -P $EXCEL remote:ppbc/results/diffex/excel; done
 rclone sync -P figs remote:ppbc/results/diffex/figs
 
+#Results directories
 cd ~/mnt/postpartumbc/results/
 rclone sync -P cibersortX remote:ppbc/results/cibersortX
 rclone sync -P clustering remote:ppbc/results/clustering
+rclone sync -P survival remote:ppbc/results/survival

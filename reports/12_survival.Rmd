@@ -2,7 +2,12 @@
 title: "12_survival"
 author: "Kat Moore"
 date: "11/7/2019"
-output: html_document
+output: 
+  html_notebook:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: tango
 ---
 
 ```{r}
@@ -22,6 +27,7 @@ library(survminer)
 library(pheatmap)
 library(RColorBrewer)
 library(glmnet)
+library(openxlsx)
 library(tidyverse)
 library(here)
 library(ggpubr)
@@ -33,6 +39,11 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Pre-process data data
+
+```{r}
+source(here("src", "deseq_report_functions.R"))
+```
+
 
 ```{r}
 dds = readRDS(here("data/Rds/08_dds_inv_vs_rest_standard.Rds"))
@@ -250,13 +261,10 @@ Of the remaining covariates, only stage is significant.
 
 ```{r}
 covariates <- c("age_at_diagnosis", "year_of_diagnosis","stage","grade")
-univ_formulas <- sapply(covariates,
-                        function(x) as.formula(paste('Surv(time=months_overall_survival, event=overall_survival)~', x)))
-                        
-univ_models <- lapply(univ_formulas, function(x){coxph(x, data = coxdata)})
-
-# Extract data 
-univ_results <- lapply(univ_models,
+res.simple.univ <- sapply(
+  covariates,function(x) as.formula(paste('Surv(time=months_overall_survival, event=overall_survival)~', x))) %>%
+  lapply(., function(x){coxph(x, data = coxdata)}) %>%
+  lapply(.,
                        function(x){ 
                           x <- summary(x)
                           p.value<-signif(x$wald["pvalue"], digits=2)
@@ -273,9 +281,8 @@ univ_results <- lapply(univ_models,
                           return(res)
                           #return(exp(cbind(coef(x),confint(x))))
                          })
-#univ_results
-res <- t(as.data.frame(univ_results, check.names = FALSE))
-as.data.frame(res)
+res.simple.univ <- t(as.data.frame(res.simple.univ, check.names = FALSE))
+as.data.frame(res.simple.univ)
 ```
 
 Distribution of stage over the study groups. Note that lactation has no patients in stage 1, which may contribute to the poorer prognosis in that group.
@@ -384,57 +391,135 @@ dev.off()
 
 # Independent genewise Cox regression
 
-## Significant genes involution vs rest
+```{r}
+extract_genewise_cox_results <- function(cox_models, type){
+  
+  #Cox models generated as follows:
+  #gene_formulas <- sapply(gene_vector,function(x) as.formula(paste('Surv(time, event)~', x)))
+  #cox_models <- lapply(gene_formulas, function(x){coxph(x, data = coxdata)})
+  
+  stopifnot(type %in% c("univariate", "multivariate"))
+  
+  if(type == "univariate"){
+    univ_gene_results <- lapply(cox_models,
+                                function(x){ 
+                                  x <- summary(x)
+                                  p.value<-signif(x$wald["pvalue"], digits=2)
+                                  #wald.test<-signif(x$wald["test"], digits=2) #Unnecessary
+                                  beta<-signif(x$coef[1], digits=2);#coeficient beta
+                                  HR <-signif(x$coef[2], digits=2);#exp(beta)
+                                  HR.confint.lower <- signif(x$conf.int[,"lower .95"], 2)
+                                  HR.confint.upper <- signif(x$conf.int[,"upper .95"],2)
+                                  HR <- paste0(HR, " (", 
+                                               HR.confint.lower, "-", HR.confint.upper, ")")
+                                  res<-c(beta, HR,
+                                         #wald.test,
+                                         p.value)
+                                  names(res)<-c("beta", "HR (95% CI for HR)", #"wald.test", 
+                                                "p.value")
+                                  return(res)
+                                  #return(exp(cbind(coef(x),confint(x))))
+                                })
+    
+    res_df <- t(as.data.frame(univ_gene_results, check.names = FALSE))
+  }
+  
+  if(type == "multivariate"){
+    multivar_gene_results <- lapply(cox_models,
+                                    function(x){
+                                      x <- summary(x)
+                                      #Drop the other formula elements
+                                      coefs <- as.data.frame(x$coefficients)
+                                      coefs <- rownames_to_column(coefs, "ensembl_gene_id")
+                                      gene = tail(coefs$ensembl_gene_id,1)
+                                      coefs <- coefs[coefs$ensembl_gene_id==gene, , drop=F]
+                                      colnames(coefs) <- c("ensembl_gene_id", "beta", "HR", "se(beta)", "z", "p.value")
+                          
+                                      #Extract p val and stats for gene of interest
+                                      p.value<-signif(coefs$p.value, digits = 2)
+                                      beta<-signif(coefs$beta, digits=2);#coeficient beta
+                                      HR <-signif(coefs$HR, digits=2);#exp(beta)
+                          
+                                      #Do the same for conf intervals
+                                      conf.int = rownames_to_column(as.data.frame(x$conf.int), "ensembl_gene_id")
+                                      conf.int = conf.int[conf.int$ensembl_gene_id==gene, , drop=F]
+                                      HR.confint.lower <- signif(conf.int[,"lower .95"], 2)
+                                      HR.confint.upper <- signif(conf.int[,"upper .95"],2)
+                                      HR <- paste0(HR, " (", 
+                                                   HR.confint.lower, "-", HR.confint.upper, ")")
+                                      res<-c(beta, HR, p.value)
+                                      names(res)<-c("beta", "HR (95% CI for HR)","p.value")
+                                      return(res)
+                                      })
+    
+    res_df <- t(as.data.frame(multivar_gene_results, check.names = FALSE))
+  }
+  
+  df = as.data.frame(res_df) %>%
+      rownames_to_column("ensembl_gene_id") %>%
+      left_join(., gx_annot,by="ensembl_gene_id") %>%
+      mutate(p.value = as.numeric(as.character(p.value)),
+             beta = as.numeric(as.character(beta))) %>%
+      select(gene_name, p.value, everything()) %>%
+      arrange(p.value)
+  
+  return(df)
+}
+
+```
+
+```{r}
+genewise_cox <- function(gene_list, time, event, data = coxdata, type, show_runtime=T){
+  stopifnot(type %in% c("univariate", "multivariate"))
+  stopifnot(time %in% colnames(data))
+  stopifnot(event %in% colnames(data))
+  
+  start <- Sys.time()
+  
+  formula = paste0('Surv(time=',time,', event=',event,')~')
+  
+  if(type == "multivariate"){
+    formula = paste0(formula,'age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+')
+    formula = 'Surv(time=months_overall_survival, event=overall_survival)~age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+'
+  }
+  
+  gene_formulas <- sapply(gene_list, function(x) as.formula(paste(formula, x)))
+  gene_models <- lapply(gene_formulas, function(x){coxph(x, data = data)})
+  res <- extract_genewise_cox_results(gene_models, type=type)
+  end <- Sys.time()
+  
+  if(show_runtime){print(end-start)}
+  return(res)
+}
+
+```
+
+# Overall survival: involution vs rest
+
+Significant genes in the Wald test involution vs all other groups, as described in notebook 8.
 
 ```{r}
 #excel_sheets(here("results","diffex", "08_one_vs_rest_sig_genes.xlsx"))
-sig_inv_rest = read_excel(here("results","diffex", "08_one_vs_rest_sig_genes.xlsx"),sheet="sig_rep_inv_rest" )
+sig_inv_rest = readxl::read_excel(here("results","diffex", "08_one_vs_rest_sig_genes.xlsx"),sheet="sig_rep_inv_rest" )
 #head(sig_inv_rest)
 
 stopifnot(sum(duplicated(sig_inv_rest$ensembl_gene_id))==0)
 ```
 
-### Univariate Cox by gene
+## Univariate Cox by gene
+
 
 ```{r}
-start <- Sys.time()
-univ_gene_formulas <- sapply(sig_inv_rest$ensembl_gene_id,
-                             function(x) as.formula(paste('Surv(time=months_overall_survival, event=overall_survival)~', x)))
-                        
-univ_gene_models <- lapply(univ_gene_formulas, function(x){coxph(x, data = coxdata)})
-end <- Sys.time()
-end-start
+res_inv_univ_surv <- genewise_cox(sig_inv_rest$ensembl_gene_id, coxdata,
+                                  time="months_overall_survival",
+                                  event="overall_survival",
+                                  type="univariate")
 ```
 
+With only 51 genes significant for involution vs rest, we can page through all of them.
+
 ```{r}
-univ_gene_results <- lapply(univ_gene_models,
-                       function(x){ 
-                          x <- summary(x)
-                          p.value<-signif(x$wald["pvalue"], digits=2)
-                          wald.test<-signif(x$wald["test"], digits=2)
-                          beta<-signif(x$coef[1], digits=2);#coeficient beta
-                          HR <-signif(x$coef[2], digits=2);#exp(beta)
-                          HR.confint.lower <- signif(x$conf.int[,"lower .95"], 2)
-                          HR.confint.upper <- signif(x$conf.int[,"upper .95"],2)
-                          HR <- paste0(HR, " (", 
-                                       HR.confint.lower, "-", HR.confint.upper, ")")
-                          res<-c(beta, HR, wald.test, p.value)
-                          names(res)<-c("beta", "HR (95% CI for HR)", "wald.test", 
-                                        "p.value")
-                          return(res)
-                          #return(exp(cbind(coef(x),confint(x))))
-                         })
-#univ_gene_results
-
-res_sig_inv_univ <- t(as.data.frame(univ_gene_results, check.names = FALSE))
-res_sig_inv_univ = as.data.frame(res_sig_inv_univ) %>%
-  rownames_to_column("ensembl_gene_id") %>%
-  left_join(., gx_annot,by="ensembl_gene_id") %>%
-  arrange(p.value) %>%
-  mutate(p.value = as.numeric(as.character(p.value)), beta = as.numeric(as.character(beta))) %>%
-  select(gene_name, p.value, everything())
-
-res_sig_inv_univ
+res_inv_univ_surv
 ```
 
 Genes significantly associated with a negative outcome:
@@ -442,105 +527,167 @@ Genes significantly associated with a negative outcome:
 (None)
 
 ```{r}
-res_sig_inv_univ %>% filter(p.value < 0.1 & beta > 0)
+res_inv_univ_surv %>% filter(p.value < 0.1 & beta > 0)
 ```
 
 Genes significantly associated with a positive outcome:
 
 ```{r}
-res_sig_inv_univ %>% filter(p.value < 0.1 & beta < 0)
+res_inv_univ_surv %>% filter(p.value < 0.1 & beta < 0)
 ```
 
-### Multivariate Cox by gene
+## Multivariate Cox by gene
 
 Using all clinical covariates (except study group)
 
 ```{r}
-start <- Sys.time()
-multivar_gene_formulas <- sapply(
-  sig_inv_rest$ensembl_gene_id,
-  function(x) as.formula(
-    paste(
-      'Surv(time=months_overall_survival, event=overall_survival)~age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+',
-      x)))
-                        
-multivar_gene_models <- lapply(multivar_gene_formulas, function(x){coxph(x, data = coxdata)})
-end <- Sys.time()
-end-start
+res_inv_multivar_surv = genewise_cox(sig_inv_rest$ensembl_gene_id, coxdata,
+                                  time="months_overall_survival",
+                                  event="overall_survival",
+                                  type="multivariate")
 ```
 
 ```{r}
-multivar_gene_results <- lapply(multivar_gene_models,
-                       function(x){ 
-                          x <- summary(x)
-                          #Drop the other formula elements
-                          coefs <- as.data.frame(x$coefficients)
-                          coefs <- rownames_to_column(coefs, "ensembl_gene_id")
-                          gene = tail(coefs$ensembl_gene_id,1)
-                          coefs <- coefs[coefs$ensembl_gene_id==gene, , drop=F]
-                          colnames(coefs) <- c("ensembl_gene_id", "beta", "HR", "se(beta)", "z", "p.value")
-                          
-                          #Extract p val and stats for gene of interest
-                          p.value<-signif(coefs$p.value, digits = 2)
-                          beta<-signif(coefs$beta, digits=2);#coeficient beta
-                          HR <-signif(coefs$HR, digits=2);#exp(beta)
-                          
-                          #Do the same for conf intervals
-                          conf.int = rownames_to_column(as.data.frame(x$conf.int), "ensembl_gene_id")
-                          conf.int = conf.int[conf.int$ensembl_gene_id==gene, , drop=F]
-                          HR.confint.lower <- signif(conf.int[,"lower .95"], 2)
-                          HR.confint.upper <- signif(conf.int[,"upper .95"],2)
-                          HR <- paste0(HR, " (", 
-                                       HR.confint.lower, "-", HR.confint.upper, ")")
-                          res<-c(beta, HR, p.value)
-                          names(res)<-c("beta", "HR (95% CI for HR)", 
-                                        "p.value")
-                          return(res)
-                          #return(exp(cbind(coef(x),confint(x))))
-                         })
-#multivar_gene_results
-
-res_sig_inv_multivar <- t(as.data.frame(multivar_gene_results, check.names = FALSE))
-res_sig_inv_multivar = as.data.frame(res_sig_inv_multivar) %>%
-  rownames_to_column("ensembl_gene_id") %>%
-  left_join(., gx_annot,by="ensembl_gene_id") %>%
-  arrange(p.value) %>%
-  mutate(p.value = as.numeric(as.character(p.value)), beta = as.numeric(as.character(beta))) %>%
-  select(gene_name, p.value, everything())
-
-res_sig_inv_multivar
+res_inv_multivar_surv %>% arrange(p.value)
 ```
+
 
 Genes significantly associated with a negative outcome:
 
 (None)
 
 ```{r}
-res_sig_inv_multivar %>% filter(p.value < 0.1 & beta > 0)
+res_inv_multivar_surv %>% filter(p.value < 0.1 & beta > 0)
 ```
 
 Genes significantly associated with a positive outcome:
 
 ```{r}
-res_sig_inv_multivar %>% filter(p.value < 0.1 & beta < 0)
+res_inv_multivar_surv %>% filter(p.value < 0.1 & beta < 0)
 ```
 
 Overlap between the univariate and multivariate models:
 
 ```{r}
-intersect(pull(filter(res_sig_inv_univ, p.value < 0.1),gene_name),
-          pull(filter(res_sig_inv_multivar, p.value < 0.1),gene_name))
+intersect(pull(filter(res_inv_univ_surv, p.value < 0.1),gene_name),
+          pull(filter(res_inv_multivar_surv, p.value < 0.1),gene_name))
 ```
 
-## All genes
+
+
+# Metastasis/DR: involution vs rest
+
+distant_recurrence = metastasis, including those which were metastatic at diagnosis
+
+## Univariate Cox by gene
+
+```{r}
+res_inv_univ_dr = genewise_cox(sig_inv_rest$ensembl_gene_id, coxdata,
+                                  time="months_to_drs",
+                                  event="distant_recurrence",
+                                  type="univariate")
+```
+
+Page through results
+
+```{r}
+res_inv_univ_dr
+```
+
+Genes significantly associated with a negative outcome:
+
+(Still none)
+
+```{r}
+res_inv_univ_dr %>% filter(p.value < 0.1 & beta > 0)
+```
+
+Genes significantly associated with a positive outcome:
+
+```{r}
+res_inv_univ_dr %>% filter(p.value < 0.1 & beta < 0)
+```
+
+## Multivariate Cox by gene
+
+Using all clinical covariates (except study group) for metastasis/distant recurrence.
+
+```{r}
+res_inv_multivar_dr = genewise_cox(sig_inv_rest$ensembl_gene_id, coxdata,
+                                  time="months_to_drs",
+                                  event="distant_recurrence",
+                                  type="multivariate")
+```
+
+
+Genes significantly associated with a negative outcome:
+
+(None)
+
+```{r}
+res_inv_multivar_dr %>% filter(p.value < 0.1 & beta > 0)
+```
+
+Genes significantly associated with a positive outcome:
+
+```{r}
+res_inv_multivar_dr %>% filter(p.value < 0.1 & beta < 0)
+```
+
+Overlap between the univariate and multivariate models:
+
+```{r}
+intersect(pull(filter(res_inv_univ_dr, p.value < 0.1),gene_name),
+          pull(filter(res_inv_multivar_dr, p.value < 0.1),gene_name))
+```
+
+
+## Write results: inv vs rest
+
+```{r, warning=F}
+meta_sig_inv <- tibble(
+  Name = c("input_diffex",
+           "univ_cox_surv",
+           "univ_cox_dr",
+           "multi_cox_surv",
+           "multi_cox_dr",
+           "metadata"),
+  Type = c("Significant genes from comparison involution vs rest",
+            rep("Univariate",2),
+            rep("Multivariate",2),
+           "sample metadata"),
+  Formula = c("~batch+PAM50+inv_vs_rest",
+              "Surv(time=months_overall_survival,event=overall_survival)~gene",
+              "Surv(time=months_to_drs,event=distant_recurrence)~gene",
+              "Surv(time=months_overall_survival,event=overall_survival)~age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+gene",
+              "Surv(time=months_to_drs,event=distant_recurrence)~age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+gene",
+              NA),
+  Package = c("DESeq2", rep("survival/survminer",4), NA),
+  Test = c("Diffex/Wald", "Cox survival", "Cox metatasis", "Cox survival", "Cox metatasis", NA))
+
+#head(meta_sig_inv)
+openxlsx::write.xlsx(list(description = meta_sig_inv,
+                          univ_cox_surv = res_inv_univ_surv,
+                          univ_cox_dr = res_inv_univ_dr,
+                          multi_cox_surv = res_inv_multivar_surv,
+                          multi_cox_dr = res_inv_multivar_dr,
+                          input_diffex = sig_inv_rest,
+                          metadata = as.data.frame(colData(dds))),
+                     file = here("results", "survival", "12_cox_inv_vs_rest_genes.xlsx"))
+```
+
+
+# All genes: overall survival
 
 Within coxdata, gene names start at position 21
 
-```{r}
+```{r, include=F}
 colnames(coxdata)[20:23]
 ```
 
-Run in script 12, results loaded here.
+## Multivariate survival
+
+Run in script 12, results loaded here. Approx ~30 min runtime.
 
 ```{r, eval=F}
 start <- Sys.time()
@@ -554,74 +701,534 @@ multivar_gene_formulas <- sapply(
 multivar_gene_models <- lapply(multivar_gene_formulas, function(x){coxph(x, data = coxdata)})
 end <- Sys.time()
 end-start
+saveRDS(multivar_gene_models, file=file.path(resDir, "12_allgenes_multivar_surv.Rds"))
 ```
+
+>Time difference of 30.01901 mins
 
 ```{r}
-multivar_gene_results <- lapply(multivar_gene_models,
-                       function(x){ 
-                          x <- summary(x)
-                          #Drop the other formula elements
-                          coefs <- as.data.frame(x$coefficients)
-                          coefs <- rownames_to_column(coefs, "ensembl_gene_id")
-                          gene = tail(coefs$ensembl_gene_id,1)
-                          coefs <- coefs[coefs$ensembl_gene_id==gene, , drop=F]
-                          colnames(coefs) <- c("ensembl_gene_id", "beta", "HR", "se(beta)", "z", "p.value")
-                          
-                          #Extract p val and stats for gene of interest
-                          p.value<-signif(coefs$p.value, digits = 2)
-                          beta<-signif(coefs$beta, digits=2);#coeficient beta
-                          HR <-signif(coefs$HR, digits=2);#exp(beta)
-                          
-                          #Do the same for conf intervals
-                          conf.int = rownames_to_column(as.data.frame(x$conf.int), "ensembl_gene_id")
-                          conf.int = conf.int[conf.int$ensembl_gene_id==gene, , drop=F]
-                          HR.confint.lower <- signif(conf.int[,"lower .95"], 2)
-                          HR.confint.upper <- signif(conf.int[,"upper .95"],2)
-                          HR <- paste0(HR, " (", 
-                                       HR.confint.lower, "-", HR.confint.upper, ")")
-                          res<-c(beta, HR, p.value)
-                          names(res)<-c("beta", "HR (95% CI for HR)", 
-                                        "p.value")
-                          return(res)
-                          #return(exp(cbind(coef(x),confint(x))))
-                         })
-
-res_allgenes_multivar <- t(as.data.frame(multivar_gene_results, check.names = FALSE))
-res_allgenes_multivar = as.data.frame(res_allgenes_multivar) %>%
-  rownames_to_column("ensembl_gene_id") %>%
-  left_join(., gx_annot,by="ensembl_gene_id") %>%
-  arrange(p.value) %>%
-  mutate(p.value = as.numeric(as.character(p.value)), beta = as.numeric(as.character(beta))) %>%
-  select(gene_name, p.value, everything())
-
-res_allgenes_multivar
+multivar_gene_surv <- readRDS(file=here("data","Rds", "12_allgenes_multivar_surv.Rds"))
 ```
 
-# WIP
+With ~30K genes, we'll need to apply multiple testing correction.
 
-```{r, eval=F}
-#Doesn't work due to "undefined columns selected"
+```{r}
 start <- Sys.time()
-
-res <- RegParallel(
-    data = sig_invrest_coxdata,
-    formula = 'Surv(months_overall_survival, overall_survival) ~ [*]',
-    FUN = function(formula, data)
-      coxph(formula = formula,
-        data = data,
-        ties = 'breslow',
-        singular.ok = TRUE),
-    FUNtype = 'coxph',
-    variables = colnames(sig_invrest_coxdata)[21:ncol(sig_invrest_coxdata)],
-    blocksize = 1,
-    cores = 16,
-    nestedParallel = FALSE,
-    conflevel = 95)
-  res <- res[!is.na(res$P),]
-  res
+res_allgenes_multivar_surv <- extract_genewise_cox_results(cox_models = multivar_gene_surv,
+                                                      type = "multivariate") %>%
+  mutate(fdr = p.adjust(p.value, method = "fdr")) %>%
+  select(gene_name, fdr, beta, `HR (95% CI for HR)`, everything())
 
 end <- Sys.time()
-saveRDS(res, here("data", "Rds", "12_cox_genewise.Rds"))
-end-start
+
+print(end-start)
+```
+
+Top 30 most significant results.
+
+```{r}
+head(res_allgenes_multivar_surv, 30)
+```
+
+
+### Negative correlations
+
+Using a generous fdr threshold of 0.2:
+
+```{r}
+print(paste("Number of genes negatively associated with survival, fdr < 0.2:",
+      nrow(res_allgenes_multivar_surv %>% filter(beta > 0 & fdr < 0.2))))
+
+res_allgenes_multivar_surv %>% filter(beta > 0 & fdr < 0.2) %>%
+  select(description, gene_name, everything())
+```
+
+Without multiple testing correction (just for thoroughness):
+
+```{r}
+print(paste("Number of genes negatively associated with survival, pval < 0.01:",
+      nrow(res_allgenes_multivar_surv %>% filter(beta > 0 & p.value < 0.01))))
+res_allgenes_multivar_surv %>% filter(beta > 0 & p.value < 0.01) %>%
+  select(description, gene_name, everything()) %>% head(20)
+```
+
+### Positive correlations
+
+Generous fdr cutoff of 0.2:
+
+```{r}
+print(paste("Number of genes positively associated with survival, fdr < 0.2:",
+      nrow(res_allgenes_multivar_surv %>% filter(beta < 0 & fdr < 0.2))))
+res_allgenes_multivar_surv %>% filter(beta < 0 & fdr < 0.2) %>%
+  select(description, gene_name, everything())
+```
+
+For thorougness, based on p val alone:
+
+```{r}
+print(paste("Number of genes positively associated with survival, pval < 0.01:",
+      nrow(res_allgenes_multivar_surv %>% filter(beta < 0 & p.value < 0.01))))
+res_allgenes_multivar_surv %>% filter(beta > 0 & p.value < 0.01) %>%
+  select(description, gene_name, everything()) %>% head(20)
+```
+
+## Univariate survival
+
+```{r, eval=F}
+start <- Sys.time()
+univ_gene_formulas <- sapply(
+  colnames(coxdata)[21:ncol(coxdata)],
+  function(x) as.formula(
+    paste(
+      'Surv(time=months_overall_survival, event=overall_survival)~',
+      x)))
+
+univ_gene_models <- lapply(univ_gene_formulas, function(x){coxph(x, data = coxdata)})
+end <- Sys.time()
+print(end-start)
+```
+
+>Warning messages:
+1: In fitter(X, Y, strats, offset, init, control, weights = weights,  :
+  Loglik converged before variable  1 ; coefficient may be infinite. 
+2: In fitter(X, Y, strats, offset, init, control, weights = weights,  :
+  Loglik converged before variable  1 ; coefficient may be infinite. 
+3: In fitter(X, Y, strats, offset, init, control, weights = weights,  :
+  Loglik converged before variable  1 ; coefficient may be infinite. 
+Time difference of 29.6996 mins
+
+```{r}
+univ_gene_surv <- readRDS(here("data", "Rds", "12_allgenes_univ_surv.Rds"))
+```
+
+With ~30K genes, we'll need to apply multiple testing correction.
+
+```{r}
+start <- Sys.time()
+res_allgenes_univ_surv <- extract_genewise_cox_results(cox_models = univ_gene_surv,
+                                                      type = "univariate") %>%
+  mutate(fdr = p.adjust(p.value, method = "fdr")) %>%
+  select(gene_name, fdr, beta, `HR (95% CI for HR)`, everything())
+
+end <- Sys.time()
+
+print(end-start)
+```
+
+Top 30 most significant results.
+
+```{r}
+head(res_allgenes_univ_surv, 30)
+```
+
+
+### Negative correlations
+
+Using a generous fdr threshold of 0.2:
+
+```{r}
+print(paste("Number of genes negatively associated with survival, fdr < 0.2:",
+      nrow(res_allgenes_univ_surv %>% filter(beta > 0 & fdr < 0.2))))
+
+res_allgenes_univ_surv %>% filter(beta > 0 & fdr < 0.2) %>%
+  select(description, gene_name, everything())
+```
+
+Without multiple testing correction (just for thoroughness):
+
+```{r}
+print(paste("Number of genes negatively associated with survival, pval < 0.01:",
+      nrow(res_allgenes_univ_surv %>% filter(beta > 0 & p.value < 0.01))))
+res_allgenes_univ_surv %>% filter(beta > 0 & p.value < 0.01) %>%
+  select(description, gene_name, everything()) %>% head(20)
+```
+
+### Positive correlations
+
+At FDR < 0.2, there is nothing. For exploration purposes, an even more generous fdr of 0.3
+
+```{r}
+print(paste("Number of genes positively associated with survival, fdr < 0.3:",
+      nrow(res_allgenes_univ_surv %>% filter(beta < 0 & fdr < 0.3))))
+res_allgenes_univ_surv %>% filter(beta < 0 & fdr < 0.3) %>%
+  select(description, gene_name, everything())
+```
+
+For thorougness, based on p val alone:
+
+```{r}
+print(paste("Number of genes positively associated with survival, pval < 0.01:",
+      nrow(res_allgenes_univ_surv %>% filter(beta < 0 & p.value < 0.01))))
+res_allgenes_univ_surv %>% filter(beta > 0 & p.value < 0.01) %>%
+  select(description, gene_name, everything()) %>% head(20)
+```
+
+
+# All genes: Metastasis/DR
+
+distant_recurrence = metastasis, including those which were metastatic at diagnosis
+
+```{r}
+print("Distant_recurrence x metastasis at diagnosis:")
+print(table(colData(dds)$distant_recurrence, colData(dds)$metastasis_at_diagnosis))
+```
+
+## Multivariate DR
+
+Run in script 12, with results loaded ex post facto.
+
+```{r, eval=F}
+if(file.exists(file.path(resDir, "12_allgenes_multivar_dr.Rds")) == F | overwrite == T){
+  print("Starting multivariate analysis for distant recurrence")
+  start <- Sys.time()
+  multivar_gene_formulas <- sapply(
+    colnames(coxdata)[21:ncol(coxdata)],
+    function(x) as.formula(
+      paste(
+        'Surv(time=months_to_drs, event=distant_recurrence)~age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+',
+        x)))
+
+  multivar_gene_models <- lapply(multivar_gene_formulas, function(x){coxph(x, data = coxdata)})
+  end <- Sys.time()
+  print(end-start)
+
+  saveRDS(multivar_gene_models, file=file.path(resDir, "12_allgenes_multivar_dr.Rds"))
+}
+```
+
+>Time difference of 31.40221 mins
+Warning messages:
+1: In fitter(X, Y, strats, offset, init, control, weights = weights,  :
+  Loglik converged before variable  4 ; coefficient may be infinite. 
+2: In fitter(X, Y, strats, offset, init, control, weights = weights,  :
+  Loglik converged before variable  4 ; coefficient may be infinite. 
+
+```{r}
+multivar_gene_dr = readRDS(file.path(resDir, "12_allgenes_multivar_dr.Rds"))
+```
+
+With ~30K genes, we'll need to apply multiple testing correction.
+
+```{r}
+start <- Sys.time()
+res_allgenes_multivar_dr <- extract_genewise_cox_results(cox_models = multivar_gene_dr,
+                                                      type = "multivariate") %>%
+  mutate(fdr = p.adjust(p.value, method = "fdr")) %>%
+  select(gene_name, fdr, beta, `HR (95% CI for HR)`, everything())
+
+end <- Sys.time()
+
+print(end-start)
+```
+
+Top 30 most significant results.
+
+```{r}
+head(res_allgenes_multivar_dr, 30)
+```
+
+
+### Negative correlations
+
+Using a generous fdr threshold of 0.2.
+
+Now we find a few things!
+
+```{r}
+print(paste("Number of genes negatively associated with metastasis, fdr < 0.2:",
+      nrow(res_allgenes_multivar_dr %>% filter(beta > 0 & fdr < 0.2))))
+
+res_allgenes_multivar_dr %>% filter(beta > 0 & fdr < 0.2) %>%
+  select(description, gene_name, everything())
+```
+
+Without multiple testing correction (just for thoroughness):
+
+```{r}
+print(paste("Number of genes negatively associated with metastasis, pval < 0.01:",
+      nrow(res_allgenes_multivar_dr %>% filter(beta > 0 & p.value < 0.01))))
+#res_allgenes_multivar_dr %>% filter(beta > 0 & p.value < 0.01) %>%
+#  select(description, gene_name, everything()) %>% head(20)
+```
+
+### Positive correlations
+
+Generous fdr cutoff of 0.2:
+
+Foxp3 and Stat5a are there!
+
+```{r}
+print(paste("Number of genes positively associated with metastasis, fdr < 0.2:",
+      nrow(res_allgenes_multivar_dr %>% filter(beta < 0 & fdr < 0.2))))
+res_allgenes_multivar_dr %>% filter(beta < 0 & fdr < 0.2) %>%
+  select(description, gene_name, everything())
+```
+
+For thorougness, based on p val alone:
+
+```{r}
+print(paste("Number of genes positively associated with metastasis, pval < 0.01:",
+      nrow(res_allgenes_multivar_dr %>% filter(beta < 0 & p.value < 0.01))))
+#res_allgenes_multivar_dr %>% filter(beta > 0 & p.value < 0.01) %>%
+#  select(description, gene_name, everything()) %>% head(20)
+```
+
+## Univariate DR
+
+Run in script 12, with results loaded ex post facto.
+
+```{r, eval=F}
+if(file.exists(file.path(resDir, "12_allgenes_univ_dr.Rds")) == F | overwrite == T){
+  print("Starting univariate analysis for distant recurrence")
+  start <- Sys.time()
+  univ_gene_formulas <- sapply(
+    colnames(coxdata)[21:ncol(coxdata)],
+    function(x) as.formula(
+      paste(
+        'Surv(time=months_to_drs, event=distant_recurrence)~',
+        x)))
+
+  univ_gene_models <- lapply(univ_gene_formulas, function(x){coxph(x, data = coxdata)})
+  end <- Sys.time()
+  print(end-start)
+
+  saveRDS(univ_gene_models, file=file.path(resDir, "12_allgenes_univ_dr.Rds"))
+}
+```
+
+>Time difference of 30.5964 mins
+Warning messages:
+1: In fitter(X, Y, strats, offset, init, control, weights = weights,  :
+  Loglik converged before variable  1 ; coefficient may be infinite. 
+2: In fitter(X, Y, strats, offset, init, control, weights = weights,  :
+  Loglik converged before variable  1 ; coefficient may be infinite. 
+
+```{r}
+univ_gene_dr = readRDS(file=file.path(resDir, "12_allgenes_univ_dr.Rds"))
+```
+
+With ~30K genes, we'll need to apply multiple testing correction.
+
+```{r}
+start <- Sys.time()
+res_allgenes_univ_dr <- extract_genewise_cox_results(cox_models = univ_gene_dr,
+                                                      type = "univariate") %>%
+  mutate(fdr = p.adjust(p.value, method = "fdr")) %>%
+  select(gene_name, fdr, beta, `HR (95% CI for HR)`, everything())
+
+end <- Sys.time()
+
+print(end-start)
+```
+
+Top 30 most significant results.
+
+```{r}
+head(res_allgenes_univ_surv, 30)
+```
+
+
+### Negative correlations
+
+Here there are far, far more genes significant when using an fdr threshold of 0.2 than with the multivariate distant recurrence model.
+
+```{r}
+print(paste("Number of genes negatively associated with metastasis, fdr < 0.2:",
+      nrow(res_allgenes_univ_dr %>% filter(beta > 0 & fdr < 0.2))))
+
+#res_allgenes_univ_dr %>% filter(beta > 0 & fdr < 0.2) %>%
+#  select(description, gene_name, everything())
+```
+
+Looking at those genes with an fdr < 0.05:
+
+```{r}
+print(paste("Number of genes negatively associated with distant recurrence, fdr < 0.05:",
+      nrow(res_allgenes_univ_dr %>% filter(beta > 0 & fdr < 0.05))))
+
+res_allgenes_univ_dr %>% filter(beta > 0 & fdr < 0.05) %>%
+  select(description, gene_name, everything())
+```
+
+
+### Positive correlations
+
+Also here there are far more fdr significant genes than in the multivariate model.
+
+```{r}
+print(paste("Number of genes positively associated with metastasis, fdr < 0.05:",
+      nrow(res_allgenes_univ_dr %>% filter(beta < 0 & fdr < 0.05))))
+res_allgenes_univ_dr %>% filter(beta < 0 & fdr < 0.05) %>%
+  select(description, gene_name, everything())
+```
+
+## Write results: all genes
+
+Combine overall survival and metastasis Cox models for all genes.
+
+```{r, warning=F}
+meta_allgenes <- tibble(
+  Name = c("univ_cox_surv",
+           "univ_cox_dr",
+           "multi_cox_surv",
+           "multi_cox_dr",
+           "metadata",
+           "input_diffex"),
+  Type = c(rep("Univariate",2),
+            rep("Multivariate",2),
+           "sample metadata",
+           "log2 cpm normalized gene expression matrix"),
+  Formula = c("Surv(time=months_overall_survival,event=overall_survival)~gene",
+              "Surv(time=months_to_drs,event=distant_recurrence)~gene",
+              "Surv(time=months_overall_survival,event=overall_survival)~age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+gene",
+              "Surv(time=months_to_drs,event=distant_recurrence)~age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+gene",
+              NA, NA),
+  Package = c(rep("survival/survminer",4), NA, NA),
+  Test = c("Cox survival", "Cox metastasis", "Cox survival", "Cox metastasis", NA, "Log2/Cpm"))
+
+
+openxlsx::write.xlsx(list(description = meta_allgenes,
+                          univ_cox_surv = res_allgenes_univ_surv,
+                          univ_cox_dr = res_allgenes_univ_dr,
+                          multi_cox_surv = res_allgenes_multivar_surv,
+                          multi_cox_dr = res_allgenes_multivar_dr,
+                          metadata = as.data.frame(colData(dds)),
+                          input_norm_geneEx = rownames_to_column(as.data.frame(t(mat)), "ensembl_gene_id")),
+                     file = here("results", "survival", "12_cox_allgenes.xlsx"))
+```
+
+
+# Select genes of interest
+
+Load the LRT results for plotting.
+
+```{r}
+#excel_sheets(here("results", "diffex", "06_LRT.xlsx"))
+
+lrt = readxl::read_excel(here("results", "diffex", "06_LRT.xlsx"), sheet="all_genes")
+head(lrt)
+```
+
+Modify beehive function for Cox results
+
+```{r}
+plot_cox_beehive <- function(dds, res_df, cox_df){
+  p <- plot_gene_beehive(dds, res_df)
+  p <- p + ggtitle()
+  #TODO Finish me
+}
+```
+
+
+## [ALOX12B](https://www.genecards.org/cgi-bin/carddisp.pl?gene=ALOX12B)
+
+>Non-heme iron-containing dioxygenase that catalyzes the stereo-specific peroxidation of free and esterified polyunsaturated fatty acids generating a spectrum of bioactive lipid mediators. Mainly converts arachidonic acid to (12R)-hydroperoxyeicosatetraenoic acid/(12R)-HPETE and minor stereoisomers. In the skin, acts upstream of ALOXE3 on the lineolate moiety of esterified omega-hydroxyacyl-sphingosine (EOS) ceramides to produce an epoxy-ketone derivative, a crucial step in the conjugation of omega-hydroxyceramide to membrane proteins. Therefore plays a crucial role in the synthesis of corneocytes lipid envelope and the establishment of the skin barrier to water loss. May also play a role in the regulation of the expression of airway mucins.
+
+Fix to plot p value from cox instead of diffex (TODO)
+
+```{r}
+plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id=="ENSG00000179477",])
+```
+
+## Unsorted beehives
+
+TODO: Sort me (and fix titles)
+
+### Multivar Survival
+
+#### Negative
+
+```{r}
+for (i in res_allgenes_multivar_surv %>% filter(beta > 0 & fdr < 0.2) %>% pull(ensembl_gene_id)){
+  print(plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id==i,]))
+}
+  
+```
+
+#### Positive
+
+```{r}
+for (i in res_allgenes_multivar_surv %>% filter(beta < 0 & fdr < 0.2) %>% pull(ensembl_gene_id)){
+  print(plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id==i,]))
+}
+  
+```
+
+### Multivar metastasis
+
+#### Negative
+
+Too many to easily plot. Top 10 only.
+
+```{r, eval=F}
+temp = res_allgenes_multivar_dr %>% filter(beta > 0 & fdr < 0.2) %>% pull(ensembl_gene_id)
+for (i in 1:10){
+  print(plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id==temp[i],]))
+}
+```
+
+#### Positive
+
+Top 10 only
+
+```{r}
+temp = res_allgenes_multivar_dr %>% filter(beta < 0 & fdr < 0.2) %>% pull(ensembl_gene_id)
+for (i in 1:10){
+  #print(temp[i])
+  print(plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id==temp[i],]))
+}
+```
+
+
+### Univar metastasis
+
+#### Negative correlations
+
+Here there are far, far more genes significant when using an fdr threshold of 0.2 than with the multivariate distant recurrence model.
+
+
+Looking at those genes with an fdr < 0.05:
+
+```{r}
+print(paste("Number of genes negatively associated with distant recurrence, fdr < 0.05:",
+      nrow(res_allgenes_univ_dr %>% filter(beta > 0 & fdr < 0.05))))
+
+for (i in res_allgenes_univ_dr %>% filter(beta < 0 & fdr < 0.05) %>% pull(ensembl_gene_id)){
+  print(plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id==i,]))
+}
+```
+
+
+#### Positive correlations
+
+Also here there are far more fdr significant genes than in the multivariate model.
+
+```{r}
+print(paste("Number of genes positively associated with metastasis, fdr < 0.05:",
+      nrow(res_allgenes_univ_dr %>% filter(beta < 0 & fdr < 0.05))))
+temp = res_allgenes_univ_dr %>% filter(beta < 0 & fdr < 0.05) %>% pull(ensembl_gene_id)
+for (i in 1:10){
+  print(plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id==temp[i],]))
+}
+``` 
+
+## Save data
+
+Remove extremely large objects first (over 1GB memory)
+
+```{r}
+ls(pattern = "multivar_gene")
+rm("multivar_gene_dr")
+rm("multivar_gene_surv")
+
+ls(pattern = "univ_gene")
+rm("univ_gene_dr")
+rm("univ_gene_models")
+rm("univ_gene_surv")
+```
+
+
+```{r}
+save.image(here("reports", "12_survival.RData"))
 ```
 
