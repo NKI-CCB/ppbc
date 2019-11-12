@@ -775,6 +775,129 @@ gene_report = function(list_reports, ensembl_id, pthresh = 0.05, abslogfcthresh 
   return(comp)
 }
 
+plot_gene_simple = function(dds, ensembl_gene_id, gene_name, intgroup="study_group", colorby="PAM50", path_save_fig = NULL){
+  require(DESeq2)
+  require(tidyverse)
+
+  #Normalizes by size factors and log transform the data with a pseudocount of 0.5
+  d <- plotCounts(dds, gene=ensembl_gene_id, intgroup=c(intgroup,colorby), normalize=T, transform=T, returnData=TRUE)
+
+  dplot = ggplot(d, aes(x=get(intgroup), y=count, color=get(colorby))) +
+    geom_point(position=position_jitter(w=0.1,h=0)) +
+    scale_y_log10() + xlab(intgroup) + labs(color=colorby) +
+    ggtitle(paste(gene_name,ensembl_gene_id, sep=":"))
+
+  if (is.null(path_save_fig)!=T){
+    suppressMessages(ggsave(filename=path_save_fig, plot = volcplot))
+  }
+
+  return(dplot)
+}
+
+#### Currently unused ####
+
+plot_cooks <- function(dds, colorby="study_group", method="box", outlier.shape=NA, groupwise_threshold=F, returnOutliers=F,...){
+  require(tidyverse)
+  require(ggrepel)
+  require(RColorBrewer)
+
+  stopifnot(method %in% c("box", "upperquartile"))
+  if (groupwise_threshold == T & method != "upperquartile"){
+    stop("Use groupwise threshold with method = upperquartile.")
+  }
+  if (returnOutliers == T & groupwise_threshold == F){
+    stop("Return outliers only works when groupwise_threshold is TRUE.")
+  }
+
+  sampledata <- data.frame(sample = rownames(as.data.frame(colData(dds))),
+                           group = as.data.frame(colData(dds))[,colorby],
+                           stringsAsFactors = F)
+
+  #Get the Cooks distances
+  cooks <- log10(assays(dds)[["cooks"]])
+
+  #Melt into tidy data frame
+  cooks_df <- cooks %>% as.data.frame() %>% rownames_to_column("gene_id") %>% gather(key=sample,-gene_id,value="cooks")
+
+  #Add study group info
+  cooks_df <- cooks_df %>% left_join(., sampledata, by="sample")
+
+  #Sort by the color variable so all the colors are plotted together
+  cooks_df <- cooks_df %>% arrange(group)
+
+
+  #Create a box plot of all cooks distances by samples, including or excluding the outliers depending on outlier.shape
+  if (method=="box"){
+    graph = cooks_df %>%
+      ggplot(aes(x=factor(sample, levels=unique(sample)), y=cooks, color=group)) +
+      geom_boxplot(outlier.shape = outlier.shape) +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+      labs(color=colorby) + xlab("sample") +
+      scale_colour_brewer(type = "qual", palette = "Set1")
+  }
+
+
+  #Plot just the upper quartile of the cooks distances as a single point
+  #Allows more readable labels
+  if (method=="upperquartile"){
+    cooksQuartile = cooks_df %>% group_by(sample) %>% summarise(upper_cook = quantile(cooks)[4]) #Get the upper quartile
+    cooksQuartile = cooksQuartile %>% left_join(.,sampledata, by="sample")
+
+    #Sort by group to have colors plotted together
+    cooksQuartile = cooksQuartile %>% arrange(group)
+
+    if (groupwise_threshold==T){
+
+      #Set a threshold of two standard deviations above the mean upper quartile for Cook's distance
+      cooksThreshold = cooksQuartile %>% group_by(group) %>%
+        summarise(meanUC=mean(upper_cook), stdevUC=sd(upper_cook, na.rm=T)) %>% mutate(threshold=meanUC+2*stdevUC)
+
+      cooksThreshold = left_join(cooksQuartile,cooksThreshold, by="group")  %>%
+        mutate(label = if_else(upper_cook > threshold, sample, NULL)) #Label those samples above the threshold
+
+      #First plot the UQ cooks distance by color group
+      graph = cooksThreshold %>% ggplot(aes(x=factor(sample, level=unique(sample)), y = upper_cook, color=group, label=label)) +
+        geom_point() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        labs(color=colorby, title="Labelled samples exceed groupwise Cooks threshold of 2sd + mean(UQ)") + xlab("sample") +
+        scale_colour_brewer(type = "qual", palette = "Set1")
+
+      #Add labels for samples above the threshold
+      graph = graph + ggrepel::geom_label_repel(size=4, show.legend = F)
+
+      #store the outliers as a vector
+      outliers = cooksThreshold %>% filter(!is.na(label)) %>% select(sample, group)
+
+    } else {
+
+      #Produce a graph of upper quartiles cooks distance with no samples labeled
+      graph = cooksQuartile %>% ggplot(aes(x=factor(sample, level=unique(sample)), y = upper_cook,color=group)) +
+        geom_point() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        labs(color=colorby) + xlab("sample") +
+        scale_colour_brewer(type = "qual", palette = "Set1")
+    }
+  }
+  if (returnOutliers == T){
+    return(outliers)
+  } else {
+    return(graph)
+  }
+}
+
+voom_from_deseq <- function(dds){
+
+  require(DESeq2)
+  require(edgeR)
+  require(limma)
+
+  rawcount = counts(dds, normalized=F)
+  dge <- edgeR::DGEList(rawcount)
+  dge <- edgeR::calcNormFactors(dge, method='TMM')
+  voom <- limma::voom(dge, plot=F)
+  vt <- t(voom$E) #Must be transposed for genefu compatibility
+  return(vt)
+}
+
+
 #### WIP ####
 
 #This swiss army function attempts to aggregate the heat map by duplicate gene names as well as plotting the heatmap
