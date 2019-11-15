@@ -25,9 +25,12 @@ library(DESeq2)
 library(survival)
 library(survminer)
 library(pheatmap)
+library(ComplexHeatmap)
 library(RColorBrewer)
 library(glmnet)
 library(openxlsx)
+library(ROCR)
+library(caret)
 library(tidyverse)
 library(here)
 library(ggpubr)
@@ -38,7 +41,7 @@ library(ggpubr)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Pre-process data data
+# Pre-process and load data
 
 ```{r}
 source(here("src", "deseq_report_functions.R"))
@@ -49,6 +52,17 @@ source(here("src", "deseq_report_functions.R"))
 dds = readRDS(here("data/Rds/08_dds_inv_vs_rest_standard.Rds"))
 gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
+```
+
+## Heatmap colors
+
+Created in notebook 6
+
+```{r}
+all_colors = readRDS(here("data","Rds", "06_heatmap_colors.Rds"))
+study_colors = all_colors$study_colors
+pam_colors = all_colors$pam_colors
+gene_colors = all_colors$gene_colors
 ```
 
 Create data matrix with covariates from the sample data in the first few columns, then genes. Samples are rows.
@@ -158,7 +172,7 @@ km_ppbc = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ s
 ggsurvplot(fit = ., 
     xlab = "Months", 
     ylab = "Overall survival probability",
-    title = "All samples with adequate data (n = 177)",
+    title = "OS: All samples with adequate data (n = 177)",
     #linetype = "strata",
     pval = T,
     risk.table = F,
@@ -167,6 +181,11 @@ ggsurvplot(fit = .,
 
 km_ppbc$plot #Avoids printing a blank plot
 ```
+
+```{r}
+table(coxdata$death, coxdata$study_group)
+```
+
 
 ```{r, echo=F, include=F}
 resDir = here("results", "survival")
@@ -201,7 +220,7 @@ survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PAM50, data
 ggsurvplot(fit = ., 
     xlab = "Months", 
     ylab = "Overall survival probability",
-    title = "All samples with adequate data (n = 177)",
+    title = "OS: All samples with adequate data (n = 177)",
     pval = T,
     risk.table = F,
     cumevents = F, cumcensor = F,
@@ -216,6 +235,11 @@ print(km_pam50$plot)
 dev.off()
 ```
 
+```{r}
+table(coxdata$death, coxdata$PAM50)
+```
+
+
 
 Log-rank test for PAM50. Basal generally has a worse than expected outcome, consistent with the literature. The others are almost exactly matched with expected.
 
@@ -227,6 +251,94 @@ Pairwise log-rank tests demonstrate that no pairing is remotely significant.
 
 ```{r}
 pairwise_survdiff(Surv(time=months_overall_survival, event=overall_survival) ~ PAM50, data = coxdata)
+```
+
+# Basic DRS curves
+
+## PPBC
+
+Just like OS, lactation shows the worst prognosis, followed by involution. But non-prbc is closer behind.
+
+```{r, fig.width = 8}
+drs_ppbc = survfit(Surv(time=months_to_drs, event=distant_recurrence) ~ study_group, data = coxdata) %>% 
+ggsurvplot(fit = ., 
+    xlab = "Months", 
+    ylab = "DRS probability",
+    title = "DRS: All samples with adequate data (n = 177)",
+    #linetype = "strata",
+    pval = T,
+    risk.table = F,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F)
+
+drs_ppbc$plot #Avoids printing a blank plot
+```
+
+```{r}
+table(coxdata$distant_recurrence, coxdata$study_group)
+```
+
+
+```{r, echo=F, include=F}
+resDir = here("results", "survival")
+dir.create(resDir, showWarnings = F)
+
+pdf(file.path(resDir, "12_drs_ppbc.pdf"), width = 8, height = 6)
+print(drs_ppbc$plot, newpage=F)
+dev.off()
+```
+
+A comparison between all groups is not significant.
+
+```{r}
+survdiff(Surv(time=months_to_drs, event=distant_recurrence) ~ study_group, data = coxdata)
+```
+
+Pairwise log-rank tests show that none of the individual pairings are at or near significance.
+
+```{r}
+pairwise_survdiff(Surv(time=months_to_drs, event=distant_recurrence) ~ study_group, data = coxdata)
+```
+
+## PAM50
+
+PAM50 shows no significant variance by molecular subtype.
+
+```{r}
+drs_pam50 = 
+survfit(Surv(time=months_to_drs, event=distant_recurrence) ~ PAM50, data = coxdata) %>%
+ggsurvplot(fit = ., 
+    xlab = "Months", 
+    ylab = "DRS probability",
+    title = "DRS: All samples with adequate data (n = 177)",
+    pval = T,
+    risk.table = F,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F)
+
+drs_pam50$plot
+```
+
+```{r, echo=F, include=F}
+pdf(file.path(resDir, "12_drs_pam50.pdf"), width = 8, height=6)
+print(drs_pam50$plot)
+dev.off()
+```
+
+```{r}
+table(coxdata$distant_recurrence, coxdata$PAM50)
+```
+
+Log-rank test for PAM50 is similar to OS. Basal generally has a worse than expected outcome,the others match approximately with expected.
+
+```{r}
+survdiff(Surv(time=months_to_drs, event=distant_recurrence) ~ PAM50, data = coxdata)
+```
+
+Pairwise log-rank tests demonstrate that no pairing is remotely significant.
+
+```{r}
+pairwise_survdiff(Surv(time=months_to_drs, event=distant_recurrence) ~ PAM50, data = coxdata)
 ```
 
 # Univariate Cox
@@ -577,7 +689,19 @@ intersect(pull(filter(res_inv_univ_surv, p.value < 0.1),gene_name),
 
 # Metastasis/DR: involution vs rest
 
-distant_recurrence = metastasis, including those which were metastatic at diagnosis
+distant_recurrence = metastasis, including those which were metastatic at diagnosis. These are those that were metastatic at diagnosis.
+
+Some samples have months_to_drs = 0
+
+```{r}
+colData(dds) %>% as.data.frame() %>%
+  filter(months_to_drs == 0) %>% select(sample_name, months_to_drs, metastasis_at_diagnosis)
+
+met_at_diag = colData(dds) %>% as.data.frame() %>%
+  filter(months_to_drs == 0) %>% select(sample_name, months_to_drs, metastasis_at_diagnosis) %>%
+  pull(sample_name)
+```
+
 
 ## Univariate Cox by gene
 
@@ -679,6 +803,11 @@ openxlsx::write.xlsx(list(description = meta_sig_inv,
 
 # All genes: overall survival
 
+```{r}
+resDir = here("data", "Rds")
+```
+
+
 Within coxdata, gene names start at position 21
 
 ```{r, include=F}
@@ -731,7 +860,9 @@ head(res_allgenes_multivar_surv, 30)
 ```
 
 
-### Negative correlations
+### Correlation poor prognosis
+
+Higher gene expression = worse prognosis
 
 Using a generous fdr threshold of 0.2:
 
@@ -752,7 +883,9 @@ res_allgenes_multivar_surv %>% filter(beta > 0 & p.value < 0.01) %>%
   select(description, gene_name, everything()) %>% head(20)
 ```
 
-### Positive correlations
+### Correlation good prognosis
+
+Higher gene expression = better prognosis
 
 Generous fdr cutoff of 0.2:
 
@@ -822,7 +955,9 @@ head(res_allgenes_univ_surv, 30)
 ```
 
 
-### Negative correlations
+### Poor prognosis
+
+Higher gene expression = worse prognosis
 
 Using a generous fdr threshold of 0.2:
 
@@ -843,7 +978,9 @@ res_allgenes_univ_surv %>% filter(beta > 0 & p.value < 0.01) %>%
   select(description, gene_name, everything()) %>% head(20)
 ```
 
-### Positive correlations
+### Good prognosis
+
+Higher gene expression = better prognosis
 
 At FDR < 0.2, there is nothing. For exploration purposes, an even more generous fdr of 0.3
 
@@ -928,7 +1065,9 @@ head(res_allgenes_multivar_dr, 30)
 ```
 
 
-### Negative correlations
+### Poor prognosis
+
+Higher gene expression = worse prognosis
 
 Using a generous fdr threshold of 0.2.
 
@@ -951,7 +1090,9 @@ print(paste("Number of genes negatively associated with metastasis, pval < 0.01:
 #  select(description, gene_name, everything()) %>% head(20)
 ```
 
-### Positive correlations
+### Good prognosis
+
+Higher gene expression = better prognosis
 
 Generous fdr cutoff of 0.2:
 
@@ -1028,7 +1169,9 @@ head(res_allgenes_univ_surv, 30)
 ```
 
 
-### Negative correlations
+### Poor prognosis
+
+Higher gene expression = worse prognosis
 
 Here there are far, far more genes significant when using an fdr threshold of 0.2 than with the multivariate distant recurrence model.
 
@@ -1051,7 +1194,9 @@ res_allgenes_univ_dr %>% filter(beta > 0 & fdr < 0.05) %>%
 ```
 
 
-### Positive correlations
+### Good prognosis
+
+Higher gene expression = better prognosis
 
 Also here there are far more fdr significant genes than in the multivariate model.
 
@@ -1061,6 +1206,8 @@ print(paste("Number of genes positively associated with metastasis, fdr < 0.05:"
 res_allgenes_univ_dr %>% filter(beta < 0 & fdr < 0.05) %>%
   select(description, gene_name, everything())
 ```
+
+
 
 ## Write results: all genes
 
@@ -1096,6 +1243,447 @@ openxlsx::write.xlsx(list(description = meta_allgenes,
                           input_norm_geneEx = rownames_to_column(as.data.frame(t(mat)), "ensembl_gene_id")),
                      file = here("results", "survival", "12_cox_allgenes.xlsx"))
 ```
+
+# Covariate selection with Cox Elastic Net
+
+A pentalized cox model to determine which groups of covariates are most predictive of survival.
+
+We'll want two versions: One matrix with just the gene expression, and one with gene expression plus clinical covariates.
+
+```{r}
+enet.gene <- coxdata[,21:ncol(coxdata)] #Gene names start at position 21
+rownames(enet.gene) <- coxdata$sample_name
+enet.gene <- as.matrix(enet.gene)
+
+
+enet.clin <- coxdata[,c(which(colnames(coxdata) %in% covariates), 21:ncol(coxdata))]
+rownames(enet.clin) <- coxdata$sample_name
+enet.clin <- as.matrix(enet.clin)
+```
+
+
+For family="cox", y should be a two-column matrix with columns named 'time' and 'status'. The latter is a binary variable, with '1' indicating death, and '0' indicating right censored.  
+
+Overall survival
+
+```{r}
+os = data.frame(time = coxdata$months_overall_survival, event = coxdata$overall_survival)
+rownames(os) = coxdata$sample_name
+
+#os = as.matrix(os)
+os = Surv(os$time, os$event)
+head(os)
+```
+
+Metastasis
+When looking at drs, time point 0 (metastatic at diagnosis) is not allowed
+
+```{r}
+drs = data.frame(time = coxdata$months_to_drs, event = coxdata$distant_recurrence)
+rownames(drs) = coxdata$sample_name
+drs = drs[!rownames(drs) %in% met_at_diag,]
+#Some samples have months_to_drs = 0
+
+drs = drs[drs$time!=0,]
+#drs = as.matrix(drs)
+drs = Surv(drs$time, drs$event)
+head(drs)
+
+enet.gene.drs = enet.gene[!(rownames(enet.gene) %in% met_at_diag),]
+enet.clin.drs = enet.clin[!(rownames(enet.clin) %in% met_at_diag),]
+```
+
+```{r}
+nested.cox <- function(x,y,nfolds=10,nfolds_inner=10,
+                       s="lambda.min",
+                       alpha=0.5){
+  #Based on nested.cv from the TANDEM package
+
+  n = length(y)
+  foldid = ceiling(sample(1:n)/n * nfolds)
+  
+  fitted_relative_risk = rep(NA, length(y))
+  #y_hat = rep(NA, length(y))
+  
+  features = list()
+  fitplots = list()
+  results = list()
+  
+  for (i in 1:nfolds) {
+      ind = foldid == i
+      x_train = x[!ind, ]
+      y_train = y[!ind]
+      x_test = x[ind, ]
+      n_i = length(y_train)
+      foldid_i = ceiling(sample(1:n_i)/n_i * nfolds_inner)
+      fit = glmnet::cv.glmnet(x_train, y_train, family = "cox", alpha = alpha,
+                              foldid = foldid_i)
+      fitplots[[length(fitplots) + 1]] = fit
+      features[[length(features) + 1]] = coef(fit, s=s)[,1] %>% enframe() %>% filter(value!=0 & name != "(Intercept)")
+      fitted_relative_risk[ind] = as.vector(glmnet::predict.cv.glmnet(fit, 
+              newx = x_test, s = s, alpha=alpha, type="response"))
+        
+      print(i) 
+      }
+
+  results$features <- features
+  results$fitplots <- fitplots
+  
+  return(results)
+}
+```
+
+
+## Overall survival
+
+Run in script 12, results loaded here.
+
+### OS genes as features
+
+```{r, eval=F}
+set.seed(123)
+start <- Sys.time()
+glm.os <- nested.cox(x = enet.gene, y = os, s = "lambda.min", alpha = 0.5)
+end <- Sys.time()
+print(end-start)
+saveRDS(glm.os, file.path(resDir,"12_glm_os_gene.Rds"))
+```
+
+```{r}
+glm.os <- readRDS(file.path(resDir,"12_glm_os_gene.Rds"))
+```
+
+
+#### Model plots
+
+Plots of 10 cross-validation runs. Performance is fairly consitent below 100 transcripts, with little performance gained from 1 to ~60 features selected.
+
+```{r, fig.width=8, fig.height=10}
+par(mar=c(4,4,2,2))
+par(mfrow=c(5,2))
+lapply(glm.os$fitplots, plot)
+```
+
+Zoom in on a sample plot with less than 100 features selected. Requires rerunning glmnet, so we'll do it only once.
+
+```{r}
+glm.os.zoom = cv.glmnet(x = enet.gene, y = os, family = "cox", alpha = 0.5,df=100)
+plot(glm.os.zoom)
+```
+
+#### Features
+
+Number of features selected over 10 xval loops
+
+```{r}
+sapply(glm.os$features, nrow) %>% sort()
+```
+
+Recurring features in 10 xval loops
+
+```{r}
+recurring_features <- function(glm_results, anno_df = gx_annot){
+  #Takes a list of fit objects where the coefficients are ensembl gene ids
+  #Anno_df should be an annotation data frame that contains an ensembl_gene_id column
+  
+  feat = bind_rows(glm_results$features) %>%
+    group_by(name) %>%
+    summarise(n=n(), mean_beta = mean(value), sd_beta = sd(value)) %>%
+    arrange(desc(n)) %>%
+    left_join(.,gx_annot, by=c("name"="ensembl_gene_id")) 
+  return(feat)
+}
+```
+
+
+```{r}
+glm.os.features = recurring_features(glm.os)
+glm.os.features %>% head(30)
+```
+
+### OS genes, including clinical covariates
+
+```{r, eval=F}
+if(file.exists(file.path(resDir, "12_glm_os_clin.Rds")) == F | overwrite == T){
+  print("Elastic Cox for overall survival, including clinical covariates...")
+  start <- Sys.time()
+  glm.os.clin <- nested.cox(x = enet.clin, y = os, s = "lambda.min", alpha = 0.5)
+  end <- Sys.time()
+  print(end-start)
+  saveRDS(glm.os.clin, file.path(resDir,"12_glm_os_clin.Rds"))
+}
+```
+
+```{r}
+glm.os.clin <- readRDS(file.path(resDir,"12_glm_os_clin.Rds"))
+```
+
+
+#### Model plots
+
+Plots of 10 cross-validation runs. Result is (unsurprisingly) similar to the gene-only overall survival model.
+
+```{r, fig.width=8, fig.height=10}
+par(mar=c(4,4,2,2))
+par(mfrow=c(5,2))
+lapply(glm.os.clin$fitplots, plot)
+```
+
+#### Features
+
+Number of features selected over 10 xval loops
+
+```{r}
+sapply(glm.os.clin$features, nrow) %>% sort()
+```
+
+Recurring features in 10 xval loops
+
+```{r}
+glm.os.clin.features = recurring_features(glm.os.clin)
+
+glm.os.clin.features %>% head(30)
+```
+
+Very similar to the model without clinical features. Surprising however is that stage is only selected as a feature in 2 out of 10 models, and the beta is relatively weak.
+
+```{r}
+glm.os.clin.features %>% 
+  filter(!str_detect(name, "ENSG"))
+```
+
+## DRS/metastasis
+
+Run in script 12, results loaded here.
+
+### DRS genes as features
+
+```{r, eval=F}
+if(file.exists(file.path(resDir, "12_glm_drs_gene.Rds")) == F | overwrite == T){
+  print("Elastic Cox for distant recurrence (metastasis), genes only...")
+  start <- Sys.time()
+  glm.drs <- nested.cox(x = enet.gene.drs, y = drs, s = "lambda.min", alpha = 0.5)
+  end <- Sys.time()
+  print(end-start)
+  saveRDS(glm.drs, file.path(resDir,"12_glm_drs_gene.Rds"))
+}
+```
+
+```{r}
+glm.drs <- readRDS(file.path(resDir,"12_glm_drs_gene.Rds"))
+```
+
+
+#### Model plots
+
+Plots of 10 cross-validation runs. Performance is fairly consitent below 100 transcripts, with little performance gained from 1 to ~60 features selected.
+
+```{r, fig.width=8, fig.height=10}
+par(mar=c(4,4,2,2))
+par(mfrow=c(5,2))
+lapply(glm.drs$fitplots, plot)
+```
+
+
+#### Features
+
+Number of features selected over 10 xval loops
+
+```{r}
+sapply(glm.drs$features, nrow) %>% sort()
+```
+
+Recurring features in 10 xval loops. Is a bit more consistent than OS.
+
+```{r}
+glm.drs.features = recurring_features(glm.drs)
+glm.drs.features %>% head(30)
+```
+
+### DRS genes, including clinical covariates
+
+```{r, eval=F}
+if(file.exists(file.path(resDir, "12_glm_drs_clin.Rds")) == F | overwrite == T){
+  print("Elastic Cox for distant recurrence, including clinical covariates...")
+  start <- Sys.time()
+  glm.os.clin <- nested.cox(x = enet.clin, y = os, s = "lambda.min", alpha = 0.5)
+  end <- Sys.time()
+  print(end-start)
+  saveRDS(glm.drs.clin, file.path(resDir,"12_glm_drs_clin.Rds"))
+}
+```
+
+```{r}
+glm.drs.clin <- readRDS(file.path(resDir,"12_glm_drs_clin.Rds"))
+```
+
+
+#### Model plots
+
+Plots of 10 cross-validation runs. Result is (unsurprisingly) similar to the gene-only overall survival model.
+
+```{r, fig.width=8, fig.height=10}
+par(mar=c(4,4,2,2))
+par(mfrow=c(5,2))
+lapply(glm.os.clin$fitplots, plot)
+```
+
+#### Features
+
+Number of features selected over 10 xval loops
+
+```{r}
+sapply(glm.drs.clin$features, nrow) %>% sort()
+```
+
+Recurring features in 10 xval loops
+
+```{r}
+glm.drs.clin.features = recurring_features(glm.drs.clin)
+
+glm.drs.clin.features %>% head(30)
+```
+
+Very similar to the model without clinical features. Unlike overall survival, stage is much more important.
+
+```{r}
+glm.os.clin.features %>% 
+  filter(!str_detect(name, "ENSG"))
+```
+
+# To be discussed: Predictions
+
+Paraphrased from [this post](https://stats.stackexchange.com/questions/388770/cox-model-with-lasso-using-one-dataset-and-predicting-in-a-different-dataset) and confirmed by Misha:
+
+With cox models, type = "link" gives the linear predictor. (Recap: The linear predictor is a linear sum of the effects of one or more explanatory variables). The right-hand side of the equation is called the linear structure. Type = response is essentially the exponential of the linear predictor, giving a relative risk of survival outcome. It's relative between samples, so if you want to get survival probability, a baseline measure must be calculated (comparable to intercept).
+
+However, the Cox model itself cannot give you the S0, you need another method to estimate the S0, for example, fitting your covariate with beta into a coxph model with initial covariates and then estimate baseline with basehaz. See also: [Frailtypack](https://cran.r-project.org/web/packages/frailtypack/index.html) (R package)
+
+```{r}
+relrisk.df = sapply(glm.os$fitplots, function(x) glmnet::predict.cv.glmnet(x, 
+                newx = enet.gene, s = "lambda.min", alpha=0.5, type="response")) %>%
+  set_colnames(., paste("fitted.rel.risk",1:10, sep="_")) %>% as.data.frame() %>%
+  set_rownames(rownames(enet.gene))
+
+head(relrisk.df)
+```
+
+In intercept-only (zero feature) models, the relative risk is reported as 1 across all samples
+
+```{r}
+relrisk.df[,which(sapply(glm.os$features, nrow)==0)] %>% head()
+
+relrisk.df <- relrisk.df[,-c(which(sapply(glm.os$features, nrow)==0))]
+```
+
+```{r, eval=F}
+#Heatmap contains too many outliers to be informative
+pheatmap(relrisk.df, annotation_row = sd[,"study_group", drop=F], show_rownames = F, scale="column")
+```
+
+Because the risk is relative between samples, we take the Z score centered on column
+
+```{r}
+z.relrisk = as.data.frame(scale(relrisk.df))
+
+z.relrisk = rownames_to_column(z.relrisk, "sample_name") %>%
+  gather(key = model, value="rel.risk", -sample_name)
+
+head(z.relrisk)
+```
+
+
+## Plotting rel risk by survival
+
+```{r}
+relplot.df = coxdata %>% select(months_overall_survival, overall_survival, study_group) %>%
+  rownames_to_column("sample_name") %>%
+  mutate(death = if_else(overall_survival==1, T, F)) %>%
+  left_join(., z.relrisk, by = "sample_name")
+
+relplot.df %>% head(10)
+```
+
+To do: Split the training and test samples properly
+
+```{r, fig.width=10}
+relplot.df %>%
+  ggerrorplot(.,x = "months_overall_survival", y = "rel.risk", color="death", shape="study_group") +
+  ggtitle("Relationship between relative risk and survival") +
+  rotate_x_text(90)
+
+#ggpar(erplot,xticks.by = 20) #DOesn't work
+
+#gpar(erplot, font.x = 4) #Also doesn't work
+```
+
+```{r}
+?ggpar
+```
+
+
+```{r}
+relplot.df %>%
+  ggplot(aes(x = months_overall_survival, y = rel.risk, color=death, shape=study_group)) +
+  geom_point() +
+  ggtitle("Relationship between relative risk and survival")
+```
+
+
+
+```{r, eval=F}
+
+#Coloring by study group is less informative
+relplot.df %>%
+  ggplot(aes(x = months_overall_survival, y = rel.risk, shape=death, color=study_group)) +
+  geom_point() +
+  ggtitle("Relationship between relative risk and survival")
+```
+
+
+
+
+
+```{r}
+set.seed(123)
+
+glm.os.clin = cv.glmnet(x = enet.clin, y = os, family = "cox", alpha = 0.5)
+plot(glm.os.clin)
+```
+
+
+
+TODO
+We rank the features according to an importance metric, which we define as the coefficient scaled by variance(yhat).
+
+```{r}
+coef(glm.os.clin, s="lambda.min")[,1] %>% enframe() %>%
+  filter(value != 0 & name != "(Intercept)")
+```
+
+
+
+```{r}
+#enet.gene[1:10,1:10]
+glm.drs = cv.glmnet(x = enet.gene.drs, y = drs, family = "cox", alpha = 0.5)
+glm.drs.clin = cv.glmnet(x = enet.clin.drs, y = drs, family = "cox", alpha = 0.5)
+```
+
+```{r}
+plot(glm.drs)
+```
+
+```{r}
+plot(glm.drs.clin)
+```
+
+```{r}
+coef(glm.drs.clin, s="lambda.min")[,1] %>% enframe() %>%
+  filter(value != 0 & name != "(Intercept)")
+```
+
+
+
 
 
 # Select genes of interest
@@ -1182,7 +1770,7 @@ for (i in 1:10){
 
 ### Univar metastasis
 
-#### Negative correlations
+#### Negative
 
 Here there are far, far more genes significant when using an fdr threshold of 0.2 than with the multivariate distant recurrence model.
 
@@ -1199,7 +1787,7 @@ for (i in res_allgenes_univ_dr %>% filter(beta < 0 & fdr < 0.05) %>% pull(ensemb
 ```
 
 
-#### Positive correlations
+#### Positive
 
 Also here there are far more fdr significant genes than in the multivariate model.
 
