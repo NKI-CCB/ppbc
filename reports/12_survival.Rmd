@@ -54,6 +54,7 @@ gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
 ```
 
+
 Variance stabilized transformed dds, for visualizations. Converted to gene names and deduplicated.
 
 ```{r}
@@ -716,7 +717,6 @@ met_at_diag = colData(dds) %>% as.data.frame() %>%
 ```
 
 
-
 ## Univariate Cox by gene
 
 ```{r}
@@ -1005,7 +1005,7 @@ res_allgenes_univ_surv %>% filter(beta < 0 & fdr < 0.3) %>%
   select(description, gene_name, everything())
 ```
 
-For thorougness, based on p val alone:
+For thoroughness, based on p val alone:
 
 ```{r}
 print(paste("Number of genes positively associated with survival, pval < 0.01:",
@@ -1231,6 +1231,7 @@ res_allgenes_univ_dr %>% filter(beta < 0 & fdr < 0.05) %>%
   select(description, gene_name, everything())
 ```
 
+
 ## Comparing multivariate and univariate
 
 ```{r}
@@ -1240,6 +1241,8 @@ tibble(fdr_uni = res_allgenes_univ_dr$fdr,
   geom_smooth() +
   ggtitle("Comparison genewise fdr uni/multivariate Cox models: DRS")
 ```
+
+
 
 ## Write results: all genes
 
@@ -1396,6 +1399,7 @@ par(mfrow=c(5,2))
 lapply(glm.os$fitplots, plot)
 ```
 
+
 ```{r, include=F}
 pdf(here("results", "survival", "models_os_gene.pdf"))
 par(mar=c(4,4,2,2))
@@ -1409,6 +1413,7 @@ Zoom in on a sample plot with less than 100 features selected. Requires rerunnin
 
 ```{r}
 set.seed(123)
+
 glm.os.zoom = cv.glmnet(x = enet.gene, y = os, family = "cox", alpha = 0.5,df=100)
 plot(glm.os.zoom)
 ```
@@ -1419,7 +1424,6 @@ pdf(here("results", "survival", "model_os_gene_zoom.pdf"))
 plot(glm.os.zoom)
 dev.off()
 ```
-
 
 #### Features
 
@@ -1479,6 +1483,7 @@ par(mfrow=c(5,2))
 lapply(glm.os.clin$fitplots, plot)
 ```
 
+
 ```{r, include=F}
 pdf(here("results", "survival", "model_os_clin.pdf"), height = 10, width = 8)
 par(mar=c(4,4,2,2))
@@ -1486,7 +1491,6 @@ par(mfrow=c(5,2))
 lapply(glm.os.clin$fitplots, plot)
 dev.off()
 ```
-
 
 #### Features
 
@@ -1550,6 +1554,7 @@ par(mfrow=c(5,2))
 lapply(glm.drs$fitplots, plot)
 dev.off()
 ```
+
 #### Features
 
 Number of features selected over 10 xval loops
@@ -1599,6 +1604,8 @@ par(mar=c(4,4,2,2))
 par(mfrow=c(5,2))
 lapply(glm.drs.clin$fitplots, plot)
 dev.off()
+
+lapply(glm.os.clin$fitplots, plot)
 ```
 
 #### Features
@@ -1623,6 +1630,7 @@ Very similar to the model without clinical features. Unlike overall survival, st
 glm.os.clin.features %>% 
   filter(!str_detect(name, "ENSG"))
 ```
+
 
 Which genes are in common with all 4 models?
 
@@ -1825,8 +1833,6 @@ pheatmap(vsd[rownames(vsd) %in% filter(glm.drs.clin.features, n > 3)$gene_name,]
          main = "Genes associated with metastasis", filename = here("results", "survival", "12_hm_drs_genes.pdf")) 
 ```
 
-
-
 # To be discussed: Predictions
 
 Paraphrased from [this post](https://stats.stackexchange.com/questions/388770/cox-model-with-lasso-using-one-dataset-and-predicting-in-a-different-dataset) and confirmed by Misha:
@@ -1960,27 +1966,35 @@ erplot.df %>%
 
 
 
-
-
-
 # Select genes of interest
 
 Load the LRT results for plotting.
 
 ```{r}
-#excel_sheets(here("results", "diffex", "06_LRT.xlsx"))
+#readxl::excel_sheets(here("results", "diffex", "06_LRT_allgenes.xlsx"))
 
-lrt = readxl::read_excel(here("results", "diffex", "06_LRT.xlsx"), sheet="all_genes")
+lrt = readxl::read_excel(here("results", "diffex", "06_LRT_allgenes.xlsx"), sheet="repLRT_all")
 head(lrt)
 ```
 
-Modify beehive function for Cox results
+Modify beehive function for Cox results. Use fdr from univariate metastasis, since that's the analysis with more than just one gene below fdr < 0.05.
+
+```{r, include=F}
+filter(res_allgenes_univ_dr, fdr<0.05)
+```
+
 
 ```{r}
-plot_cox_beehive <- function(dds, res_df, cox_df){
-  p <- plot_gene_beehive(dds, res_df)
-  p <- p + ggtitle()
-  #TODO Finish me
+plot_cox_beehive <- function(dds, description, ensembl_id, res_df, cox_df){
+  p <- plot_gene_beehive(dds, res_df[res_df$ensembl_gene_id == ensembl_id,,drop=F])
+  lrt_padj <- res_df[res_df$ensembl_gene_id == ensembl_id,]$padj
+  cox <- cox_df[cox_df$ensembl_gene_id == ensembl_id, , drop=F]
+  cox_padj = cox$fdr
+  beta <- cox$beta
+  gene <- cox$gene_name
+  p <- p + ggtitle(paste0(gene, ", ", description, ", Cox fdr: ", round(cox_padj, 2),
+                          ", beta: ", round(beta, 2), ", LRT padj: ", round(lrt_padj, 2)))
+  return(p)
 }
 ```
 
@@ -1989,93 +2003,57 @@ plot_cox_beehive <- function(dds, res_df, cox_df){
 
 >Non-heme iron-containing dioxygenase that catalyzes the stereo-specific peroxidation of free and esterified polyunsaturated fatty acids generating a spectrum of bioactive lipid mediators. Mainly converts arachidonic acid to (12R)-hydroperoxyeicosatetraenoic acid/(12R)-HPETE and minor stereoisomers. In the skin, acts upstream of ALOXE3 on the lineolate moiety of esterified omega-hydroxyacyl-sphingosine (EOS) ceramides to produce an epoxy-ketone derivative, a crucial step in the conjugation of omega-hydroxyceramide to membrane proteins. Therefore plays a crucial role in the synthesis of corneocytes lipid envelope and the establishment of the skin barrier to water loss. May also play a role in the regulation of the expression of airway mucins.
 
-Fix to plot p value from cox instead of diffex (TODO)
+Associated with both overall survival and DRS.
 
 ```{r}
-plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id=="ENSG00000179477",])
+plot_cox_beehive(dds, description = "Multi OS", ensembl_id = "ENSG00000179477", res_df = lrt, cox_df =  res_allgenes_multivar_surv)
+plot_cox_beehive(dds, description = "Multi DRS", ensembl_id = "ENSG00000179477", res_df = lrt, cox_df =  res_allgenes_multivar_dr)
 ```
 
-## Unsorted beehives
-
-TODO: Sort me (and fix titles)
-
-### Multivar Survival
-
-#### Negative
+More genes of interest: Both significant in the drs univariate model and have an fdr of under 0.2 in the lrt:
 
 ```{r}
-for (i in res_allgenes_multivar_surv %>% filter(beta > 0 & fdr < 0.2) %>% pull(ensembl_gene_id)){
-  print(plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id==i,]))
-}
-  
+goi = filter(res_allgenes_univ_dr, fdr<0.05) %>%
+  #filter(gene_type == "protein_coding" & gene_name != "ALOX12B") %>%
+  filter(gene_name != "ALOX12B") %>%
+  pull(ensembl_gene_id)
+filter(lrt, ensembl_gene_id %in% goi & padj < 0.2)
 ```
 
-#### Positive
+## [P2RY14](https://www.genecards.org/cgi-bin/carddisp.pl?gene=P2RY14)
+
+>The product of this gene belongs to the family of G-protein coupled receptors, which contains several receptor subtypes with different pharmacological selectivity for various adenosine and uridine nucleotides. This receptor is a P2Y purinergic receptor for UDP-glucose and other UDP-sugars coupled to G-proteins. It has been implicated in extending the known immune system functions of P2Y receptors by participating in the regulation of the stem cell compartment, and it may also play a role in neuroimmune function.
 
 ```{r}
-for (i in res_allgenes_multivar_surv %>% filter(beta < 0 & fdr < 0.2) %>% pull(ensembl_gene_id)){
-  print(plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id==i,]))
-}
-  
+plot_cox_beehive(dds, description = "Uni DRS", ensembl_id = "ENSG00000174944", res_df = lrt, cox_df =  res_allgenes_univ_dr)
 ```
 
-### Multivar metastasis
+## [MPP5](https://www.genecards.org/cgi-bin/carddisp.pl?gene=MPP5&keywords=ENSG00000072415)
 
-#### Negative
-
-Too many to easily plot. Top 10 only.
-
-```{r, eval=F}
-temp = res_allgenes_multivar_dr %>% filter(beta > 0 & fdr < 0.2) %>% pull(ensembl_gene_id)
-for (i in 1:10){
-  print(plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id==temp[i],]))
-}
-```
-
-#### Positive
-
-Top 10 only
+>Plays a role in tight junction biogenesis and in the establishment of cell polarity in epithelial cells (PubMed:16678097, PubMed:25385611). Also involved in adherens junction biogenesis by ensuring correct localization of the exocyst complex protein EXOC4/SEC8 which allows trafficking of adherens junction structural component CDH1 to the cell surface (By similarity). Plays a role through its interaction with CDH5 in vascular lumen formation and endothelial membrane polarity (PubMed:27466317). Required during embryonic and postnatal retinal development (By similarity). Required for the maintenance of cerebellar progenitor cells in an undifferentiated proliferative state, preventing premature differentiation, and is required for cerebellar histogenesis, fissure formation and cerebellar layer organization (By similarity). Plays a role in the radial and longitudinal extension of the myelin sheath in Schwann cells (By similarity). May modulate SC6A1/GAT1-mediated GABA uptake by stabilizing the transporter (By similarity). Plays a role in the T-cell receptor-mediated activation of NF-kappa-B (PubMed:21479189). Required for localization of EZR to the apical membrane of parietal cells and may play a role in the dynamic remodeling of the apical cytoskeleton (By similarity). Required for the normal polarized localization of the vesicular marker STX4 (By similarity). Required for the correct trafficking of the myelin proteins PMP22 and MAG (By similarity).
 
 ```{r}
-temp = res_allgenes_multivar_dr %>% filter(beta < 0 & fdr < 0.2) %>% pull(ensembl_gene_id)
-for (i in 1:10){
-  #print(temp[i])
-  print(plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id==temp[i],]))
-}
+plot_cox_beehive(dds, description = "Uni DRS", ensembl_id = "ENSG00000072415", res_df = lrt, cox_df =  res_allgenes_univ_dr)
+```
+
+## [ZSCAN4](https://www.genecards.org/cgi-bin/carddisp.pl?gene=ZSCAN4&keywords=ZSCAN4)	
+
+>Embryonic stem (ES) cell-specific transcription factor required to regulate ES cell pluripotency. Binds telomeres and plays a key role in genomic stability in ES cells by regulating telomere elongation. Acts as an activator of spontaneous telomere sister chromatid exchange (T-SCE) and telomere elongation in undifferentiated ES cells
+
+
+```{r}
+plot_cox_beehive(dds, description = "Uni DRS", ensembl_id = "ENSG00000180532", res_df = lrt, cox_df =  res_allgenes_univ_dr)
 ```
 
 
-### Univar metastasis
+## [FANCM](https://www.genecards.org/cgi-bin/carddisp.pl?gene=FANCM&keywords=FANCM)	
 
-#### Negative
-
-Here there are far, far more genes significant when using an fdr threshold of 0.2 than with the multivariate distant recurrence model.
-
-
-Looking at those genes with an fdr < 0.05:
+>DNA-dependent ATPase component of the Fanconi anemia (FA) core complex (PubMed:16116422). Required for the normal activation of the FA pathway, leading to monoubiquitination of the FANCI-FANCD2 complex in response to DNA damage, cellular resistance to DNA cross-linking drugs, and prevention of chromosomal breakage (PubMed:16116422, PubMed:19423727, PubMed:20347428, PubMed:20347429, PubMed:29231814). In complex with CENPS and CENPX, binds double-stranded DNA (dsDNA), fork-structured DNA (fsDNA) and Holliday junction substrates (PubMed:20347428, PubMed:20347429). Its ATP-dependent DNA branch migration activity can process branched DNA structures such as a movable replication fork. This activity is strongly stimulated in the presence of CENPS and CENPX (PubMed:20347429). In complex with FAAP24, efficiently binds to single-strand DNA (ssDNA), splayed-arm DNA, and 3'-flap substrates (PubMed:17289582). In vitro, on its own, strongly binds ssDNA oligomers and weakly fsDNA, but does not bind to dsDNA (PubMed:16116434).
 
 ```{r}
-print(paste("Number of genes negatively associated with distant recurrence, fdr < 0.05:",
-      nrow(res_allgenes_univ_dr %>% filter(beta > 0 & fdr < 0.05))))
-
-for (i in res_allgenes_univ_dr %>% filter(beta < 0 & fdr < 0.05) %>% pull(ensembl_gene_id)){
-  print(plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id==i,]))
-}
+plot_cox_beehive(dds, description = "Uni DRS", ensembl_id = "ENSG00000187790", res_df = lrt, cox_df =  res_allgenes_univ_dr)
 ```
 
-
-#### Positive
-
-Also here there are far more fdr significant genes than in the multivariate model.
-
-```{r}
-print(paste("Number of genes positively associated with metastasis, fdr < 0.05:",
-      nrow(res_allgenes_univ_dr %>% filter(beta < 0 & fdr < 0.05))))
-temp = res_allgenes_univ_dr %>% filter(beta < 0 & fdr < 0.05) %>% pull(ensembl_gene_id)
-for (i in 1:10){
-  print(plot_gene_beehive(dds, lrt[lrt$ensembl_gene_id==temp[i],]))
-}
-``` 
 
 ## Save data
 
@@ -2088,7 +2066,6 @@ rm("multivar_gene_surv")
 
 ls(pattern = "univ_gene")
 rm("univ_gene_dr")
-rm("univ_gene_models")
 rm("univ_gene_surv")
 ```
 
