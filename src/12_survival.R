@@ -22,90 +22,109 @@ overwrite <- FALSE
 
 set.seed(123)
 
-#### Set up data ####
-
-# Pre-process data data
-dds = readRDS(here("data/Rds/08_dds_inv_vs_rest_standard.Rds"))
+#Created in notebook 12_survival.Rmd
+coxdata <- readRDS(here("data", "Rds", "12_coxdata.Rds"))
+#Gene annotation
 gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
+dds = readRDS(here("data/Rds/08_dds_inv_vs_rest_standard.Rds"))
 
 
-#Create data matrix with covariates from the sample data in the first few columns, then genes. Samples are rows.
+extract_genewise_cox_results <- function(cox_models, type){
 
-## Prepare metadata
+  #Cox models generated as follows:
+  #gene_formulas <- sapply(gene_vector,function(x) as.formula(paste('Surv(time, event)~', x)))
+  #cox_models <- lapply(gene_formulas, function(x){coxph(x, data = coxdata)})
 
-#Covariates: grade, stage, molecular subtype, age at diagnosis and year of diagnosis (Also possibly therapy type)
-sd = as.data.frame(colData(dds)) %>%
-  select(sample_name, death,
-         years_overall_survival,
-         months_of_followup,
-         study_group, PAM50,
-         grade, stage,
-         inv_vs_rest, prbc_vs_rest,
-         lac_vs_rest, nonprbc_vs_rest,
-         year_of_diagnosis, age_at_diagnosis,
-         overall_survival, months_overall_survival,
-         distant_recurrence, months_to_drs,
-         local_recurrence_free_survival, months_to_lrs)
+  stopifnot(type %in% c("univariate", "multivariate"))
 
-#### Filter ####
+  if(type == "univariate"){
+    univ_gene_results <- lapply(cox_models,
+                                function(x){
+                                  x <- summary(x)
+                                  p.value<-signif(x$wald["pvalue"], digits=2)
+                                  #wald.test<-signif(x$wald["test"], digits=2) #Unnecessary
+                                  beta<-signif(x$coef[1], digits=2);#coeficient beta
+                                  HR <-signif(x$coef[2], digits=2);#exp(beta)
+                                  HR.confint.lower <- signif(x$conf.int[,"lower .95"], 2)
+                                  HR.confint.upper <- signif(x$conf.int[,"upper .95"],2)
+                                  HR <- paste0(HR, " (",
+                                               HR.confint.lower, "-", HR.confint.upper, ")")
+                                  res<-c(beta, HR,
+                                         #wald.test,
+                                         p.value)
+                                  names(res)<-c("beta", "HR (95% CI for HR)", #"wald.test",
+                                                "p.value")
+                                  return(res)
+                                  #return(exp(cbind(coef(x),confint(x))))
+                                })
 
-#Exclude samples for which there has been less than 20 months of follow up, unless the reason for the lack of follow up is that the patient passed away due to disease (and not an accident or suicide).
+    res_df <- t(as.data.frame(univ_gene_results, check.names = FALSE))
+  }
 
-#follow_up > 20 | death == 1
+  if(type == "multivariate"){
+    multivar_gene_results <- lapply(cox_models,
+                                    function(x){
+                                      x <- summary(x)
+                                      #Drop the other formula elements
+                                      coefs <- as.data.frame(x$coefficients)
+                                      coefs <- rownames_to_column(coefs, "ensembl_gene_id")
+                                      gene = tail(coefs$ensembl_gene_id,1)
+                                      coefs <- coefs[coefs$ensembl_gene_id==gene, , drop=F]
+                                      colnames(coefs) <- c("ensembl_gene_id", "beta", "HR", "se(beta)", "z", "p.value")
 
-print(paste("Started with", nrow(sd), "samples"))
+                                      #Extract p val and stats for gene of interest
+                                      p.value<-signif(coefs$p.value, digits = 2)
+                                      beta<-signif(coefs$beta, digits=2);#coeficient beta
+                                      HR <-signif(coefs$HR, digits=2);#exp(beta)
 
-print("Samples lost due to lack of survival information:")
-nrow(sd %>% filter(is.na(death)))
-excluded = sd %>% filter(is.na(death)) %>%
-  mutate(reason = "no_survival_data")
+                                      #Do the same for conf intervals
+                                      conf.int = rownames_to_column(as.data.frame(x$conf.int), "ensembl_gene_id")
+                                      conf.int = conf.int[conf.int$ensembl_gene_id==gene, , drop=F]
+                                      HR.confint.lower <- signif(conf.int[,"lower .95"], 2)
+                                      HR.confint.upper <- signif(conf.int[,"upper .95"],2)
+                                      HR <- paste0(HR, " (",
+                                                   HR.confint.lower, "-", HR.confint.upper, ")")
+                                      res<-c(beta, HR, p.value)
+                                      names(res)<-c("beta", "HR (95% CI for HR)","p.value")
+                                      return(res)
+                                    })
 
-print("Samples excluded due to patient death unrelated to disease")
-print(nrow(sd %>% filter(! death %in% c(NA, "due to disease", "no"))))
-excluded = bind_rows(excluded,
-                     mutate(filter(sd, !death %in% c(NA, "due to disease", "no")),
-                            reason = "unrelated_death")
-)
-print("Samples due to insufficient follow up")
-nrow(sd %>% filter(months_of_followup < 20 & death != "due to disease"))
+    res_df <- t(as.data.frame(multivar_gene_results, check.names = FALSE))
+  }
 
-excluded = bind_rows(excluded,
-                     mutate(filter(sd, months_of_followup < 20 & !death == "due to disease"),
-                            reason = "insufficient_followup"))
+  df = as.data.frame(res_df) %>%
+    rownames_to_column("ensembl_gene_id") %>%
+    left_join(., gx_annot,by="ensembl_gene_id") %>%
+    mutate(p.value = as.numeric(as.character(p.value)),
+           beta = as.numeric(as.character(beta))) %>%
+    select(gene_name, p.value, everything()) %>%
+    arrange(p.value)
 
-print("Samples with 999 (unknown) years of overall survival")
-nrow(sd %>% filter(years_overall_survival == 999))
+  return(df)
+}
 
-excluded = bind_rows(excluded,
-                     mutate(filter(sd, years_overall_survival == 999),
-                            reason = "unknown_survival_years"))
+genewise_cox <- function(gene_list, time, event, data = coxdata, type, show_runtime=T){
+  stopifnot(type %in% c("univariate", "multivariate"))
+  stopifnot(time %in% colnames(data))
+  stopifnot(event %in% colnames(data))
 
-metadata = sd %>% filter(!is.na(death)) %>%
-  filter(death != "other cause") %>%
-  filter(years_overall_survival != 999) %>%
-  filter(months_of_followup >= 20 | death == "due to disease")
+  start <- Sys.time()
 
-print(paste(nrow(metadata), "samples remaining post filtering"))
+  formula = paste0('Surv(time=',time,', event=',event,')~')
 
-stopifnot(nrow(filter(metadata,rowSums(is.na(metadata)) > 0)) == 0)
+  if(type == "multivariate"){
+    formula = paste0(formula,'age_at_diagnosis+year_of_diagnosis+stage+grade+surgery+radiotherapy+hormonetherapy+chemotherapy+herceptin+PAM50+')
+  }
 
-#### Transform gene data ####
+  gene_formulas <- sapply(gene_list, function(x) as.formula(paste(formula, x)))
+  gene_models <- lapply(gene_formulas, function(x){coxph(x, data = data)})
+  res <- extract_genewise_cox_results(gene_models, type=type)
+  end <- Sys.time()
 
-## Prepare gene data
-#fpm (fragments per million) is equivalent to cpm from edgeR
-mat = t(log2(fpm(dds, robust=T) + 0.5))
-
-#Exclude those samples which were also excluded from the metadata prep
-mat = mat[rownames(mat) %in% metadata$sample_name,]
-stopifnot(identical(rownames(mat), metadata$sample_name))
-
-coxdata = cbind(metadata, mat)
-#head(coxdata)
-
-met_at_diag = colData(dds) %>% as.data.frame() %>%
-  filter(months_to_drs == 0) %>% select(sample_name, months_to_drs, metastasis_at_diagnosis) %>%
-  pull(sample_name)
+  if(show_runtime){print(end-start)}
+  return(res)
+}
 
 #### Cox regression ####
 
@@ -117,39 +136,52 @@ stopifnot(file.exists(resDir))
 #### Overall survival ####
 
 #Multivariate
-if(file.exists(file.path(resDir, "12_allgenes_multivar_surv.Rds")) == F | overwrite == T){
-  print("Starting multivariate analysis for overall survival")
-  start <- Sys.time()
-  multivar_gene_formulas <- sapply(
-    colnames(coxdata)[21:ncol(coxdata)],
-    function(x) as.formula(
-      paste(
-        'Surv(time=months_overall_survival, event=overall_survival)~age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+',
-        x)))
 
-  multivar_gene_models <- lapply(multivar_gene_formulas, function(x){coxph(x, data = coxdata)})
-  end <- Sys.time()
-  print(end-start)
+#Old version
+#if(file.exists(file.path(resDir, "12_allgenes_multivar_surv.Rds")) == F | overwrite == T){
+#  print("Starting multivariate analysis for overall survival")
+#  start <- Sys.time()
+#  multivar_gene_formulas <- sapply(
+#    colnames(coxdata)[21:ncol(coxdata)],
+#    function(x) as.formula(
+#      paste(
+#        'Surv(time=months_overall_survival, event=overall_survival)~age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+',
+#        x)))
 
-  saveRDS(multivar_gene_models, file=file.path(resDir, "12_allgenes_multivar_surv.Rds"))
+#  multivar_gene_models <- lapply(multivar_gene_formulas, function(x){coxph(x, data = coxdata)})
+#  end <- Sys.time()
+#  print(end-start)
+
+#  saveRDS(multivar_gene_models, file=file.path(resDir, "12_allgenes_multivar_surv.Rds"))
+#}
+
+resPath = file.path(resDir, "12_allgenes_multivar_surv.Rds")
+
+if(file.exists(resPath) == F| overwrite == T){
+  print("Multivariate survival")
+  res <- genewise_cox(
+    gene_list = colnames(coxdata)[21:ncol(coxdata)],
+    data = coxdata,
+    show_runtime = T,
+    time="months_overall_survival",
+    event="overall_survival",
+    type="multivariate")
+  saveRDS(res, resPath)
 }
 
 #Univariate
-if(file.exists(file.path(resDir, "12_allgenes_univ_surv.Rds")) == F | overwrite == T){
-  print("Starting univariate analysis for overall survival")
-  start <- Sys.time()
-  univ_gene_formulas <- sapply(
-    colnames(coxdata)[21:ncol(coxdata)],
-    function(x) as.formula(
-      paste(
-        'Surv(time=months_overall_survival, event=overall_survival)~',
-        x)))
+resPath = file.path(resDir, "12_allgenes_univ_surv.Rds")
 
-  univ_gene_models <- lapply(univ_gene_formulas, function(x){coxph(x, data = coxdata)})
-  end <- Sys.time()
-  print(end-start)
-
-  saveRDS(univ_gene_models, file=file.path(resDir, "12_allgenes_univ_surv.Rds"))
+if(file.exists(resPath) == F| overwrite == T){
+  print("Univariate survival")
+  res <- genewise_cox(
+    gene_list = colnames(coxdata)[21:ncol(coxdata)],
+    data = coxdata,
+    show_runtime = T,
+    time="months_overall_survival",
+    event="overall_survival",
+    type="univariate")
+  saveRDS(res, resPath)
 }
 
 #### Metastasis/DRS ####
@@ -160,157 +192,33 @@ print(table(colData(dds)$distant_recurrence, colData(dds)$metastasis_at_diagnosi
 #months_to_drs
 
 #Multivariate
-if(file.exists(file.path(resDir, "12_allgenes_multivar_dr.Rds")) == F | overwrite == T){
-  print("Starting multivariate analysis for distant recurrence")
-  start <- Sys.time()
-  multivar_gene_formulas <- sapply(
-    colnames(coxdata)[21:ncol(coxdata)],
-    function(x) as.formula(
-      paste(
-        'Surv(time=months_to_drs, event=distant_recurrence)~age_at_diagnosis+year_of_diagnosis+stage+grade+PAM50+',
-        x)))
+resPath = file.path(resDir, "12_allgenes_multivar_dr.Rds")
 
-  multivar_gene_models <- lapply(multivar_gene_formulas, function(x){coxph(x, data = coxdata)})
-  end <- Sys.time()
-  print(end-start)
-
-  saveRDS(multivar_gene_models, file=file.path(resDir, "12_allgenes_multivar_dr.Rds"))
+if(file.exists(resPath) == F| overwrite == T){
+  print("Multivariate metastasis")
+  res <- genewise_cox(
+    gene_list = colnames(coxdata)[21:ncol(coxdata)],
+    data = coxdata,
+    show_runtime = T,
+    time="months_to_drs",
+    event="distant_recurrence",
+    type="multivariate")
+  saveRDS(res, resPath)
 }
 
 #Univariate
-if(file.exists(file.path(resDir, "12_allgenes_univ_dr.Rds")) == F | overwrite == T){
-  print("Starting univariate analysis for distant recurrence")
-  start <- Sys.time()
-  univ_gene_formulas <- sapply(
-    colnames(coxdata)[21:ncol(coxdata)],
-    function(x) as.formula(
-      paste(
-        'Surv(time=months_to_drs, event=distant_recurrence)~',
-        x)))
+resPath = file.path(resDir, "12_allgenes_univ_dr.Rds")
 
-  univ_gene_models <- lapply(univ_gene_formulas, function(x){coxph(x, data = coxdata)})
-  end <- Sys.time()
-  print(end-start)
-
-  saveRDS(univ_gene_models, file=file.path(resDir, "12_allgenes_univ_dr.Rds"))
-}
-
-#### Elastic Cox ####
-
-#A pentalized cox model to determine which groups of covariates are most predictive of survival.
-
-#We'll want two versions: One matrix with just the gene expression, and one with gene expression plus clinical covariates.
-covariates <- c("age_at_diagnosis", "year_of_diagnosis","stage","grade")
-enet.gene <- coxdata[,21:ncol(coxdata)] #Gene names start at position 21
-rownames(enet.gene) <- coxdata$sample_name
-enet.gene <- as.matrix(enet.gene)
-
-
-enet.clin <- coxdata[,c(which(colnames(coxdata) %in% covariates), 21:ncol(coxdata))]
-rownames(enet.clin) <- coxdata$sample_name
-enet.clin <- as.matrix(enet.clin)
-
-#Overall survival/OS
-os = data.frame(time = coxdata$months_overall_survival, event = coxdata$overall_survival)
-rownames(os) = coxdata$sample_name
-
-#os = as.matrix(os)
-os = Surv(os$time, os$event)
-
-#DRS
-#When looking at drs, time point 0 (metastatic at diagnosis) is not allowed
-drs = data.frame(time = coxdata$months_to_drs, event = coxdata$distant_recurrence)
-rownames(drs) = coxdata$sample_name
-drs = drs[!rownames(drs) %in% met_at_diag,]
-#Some samples have months_to_drs = 0
-
-drs = drs[drs$time!=0,]
-#drs = as.matrix(drs)
-drs = Surv(drs$time, drs$event)
-head(drs)
-
-enet.gene.drs = enet.gene[!(rownames(enet.gene) %in% met_at_diag),]
-enet.clin.drs = enet.clin[!(rownames(enet.clin) %in% met_at_diag),]
-
-nested.cox <- function(x,y,nfolds=10,nfolds_inner=10,
-                       s="lambda.min",
-                       alpha=0.5){
-
-  #Based on nested.cv from the TANDEM package
-
-  n = length(y)
-  foldid = ceiling(sample(1:n)/n * nfolds)
-
-  fitted_relative_risk = rep(NA, length(y))
-  #y_hat = rep(NA, length(y))
-
-  features = list()
-  fitplots = list()
-  results = list()
-
-  for (i in 1:nfolds) {
-    ind = foldid == i
-    x_train = x[!ind, ]
-    y_train = y[!ind]
-    x_test = x[ind, ]
-    n_i = length(y_train)
-    foldid_i = ceiling(sample(1:n_i)/n_i * nfolds_inner)
-    fit = glmnet::cv.glmnet(x_train, y_train, family = "cox", alpha = alpha,
-                            foldid = foldid_i)
-    fitplots[[length(fitplots) + 1]] = fit
-    features[[length(features) + 1]] = coef(fit, s=s)[,1] %>% enframe() %>% filter(value!=0 & name != "(Intercept)")
-    fitted_relative_risk[ind] = as.vector(glmnet::predict.cv.glmnet(fit,
-                                                                    newx = x_test, s = s, alpha=alpha, type="response"))
-
-    print(i)
-  }
-
-  results$features <- features
-  results$fitplots <- fitplots
-
-  return(results)
+if(file.exists(resPath) == F| overwrite == T){
+  print("Univariate metastasis")
+  res <- genewise_cox(
+    gene_list = colnames(coxdata)[21:ncol(coxdata)],
+    data = coxdata,
+    show_runtime = T,
+    time="months_to_drs",
+    event="distant_recurrence",
+    type="univariate")
+  saveRDS(res, resPath)
 }
 
 
-#Overall survival, genes only
-
-if(file.exists(file.path(resDir, "12_glm_os_gene.Rds")) == F | overwrite == T){
-  print("Elastic Cox for overall survival, genes only...")
-  start <- Sys.time()
-  glm.os <- nested.cox(x = enet.gene, y = os, s = "lambda.min", alpha = 0.5)
-  end <- Sys.time()
-  print(end-start)
-  saveRDS(glm.os, file.path(resDir,"12_glm_os_gene.Rds"))
-}
-
-#Overall survival, including clinical covariates
-
-if(file.exists(file.path(resDir, "12_glm_os_clin.Rds")) == F | overwrite == T){
-  print("Elastic Cox for overall survival, including clinical covariates...")
-  start <- Sys.time()
-  glm.os.clin <- nested.cox(x = enet.clin, y = os, s = "lambda.min", alpha = 0.5)
-  end <- Sys.time()
-  print(end-start)
-  saveRDS(glm.os.clin, file.path(resDir,"12_glm_os_clin.Rds"))
-}
-
-#DRS, genes only
-
-if(file.exists(file.path(resDir, "12_glm_drs_gene.Rds")) == F | overwrite == T){
-  print("Elastic Cox for distant recurrence (metastasis), genes only...")
-  start <- Sys.time()
-  glm.drs <- nested.cox(x = enet.gene.drs, y = drs, s = "lambda.min", alpha = 0.5)
-  end <- Sys.time()
-  print(end-start)
-  saveRDS(glm.drs, file.path(resDir,"12_glm_drs_gene.Rds"))
-}
-
-#DRS, including clinical covariates
-if(file.exists(file.path(resDir, "12_glm_drs_clin.Rds")) == F | overwrite == T){
-  print("Elastic Cox for distant recurrence, including clinical covariates...")
-  start <- Sys.time()
-  glm.drs.clin <- nested.cox(x = enet.clin.drs, y = drs, s = "lambda.min", alpha = 0.5)
-  end <- Sys.time()
-  print(end-start)
-  saveRDS(glm.drs.clin, file.path(resDir,"12_glm_drs_clin.Rds"))
-}

@@ -706,6 +706,24 @@ ggsurvplot(
 
 ```
 
+```{r, fig.width=10}
+
+sg_ig <-  ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=death) ~ study_group +IG_cluster, data = surv), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "IG cluster by study_group",
+    pval = T, facet.by = "study_group")
+
+sg_ig
+```
+
+
+```{r}
+ggsave(file = here("results", "survival", "11_IG_clusters_by_study_group.pdf"), print(sg_ig), width = 8, height=6)
+```
+
+
 ### All samples
 
 Univariate

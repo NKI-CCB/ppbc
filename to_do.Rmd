@@ -3,15 +3,13 @@ title: "To do"
 output: html_notebook
 ---
 
-* Cox regression to identify genes associated with survival
-** First make Kaplan meijer without covariates, then compare with covariates
-** Covariates: grade, stage, molecular subtype, age at diagnosis and year of diagnosis (Also possibly therapy type)
-* Clustering with other comparisons (not just inv vs nonprbc)
+* Elastic Cox with top 1000 variant genes (TMM) ^
+* Make report from Flexgsea results ^
+* Treatment as a covariate in Cox
+* Clustering with other comparisons (not just inv vs rest)
 * GSEA with "interesting gene list"
 * Variable influence factor (VIF) - Maybe
-* Redo diffex looking at just Leuven data
-* LRT on batch
-* Multivariate cox regression for predicting survival (use glmnet)
+* Redo diffex looking at just Leuven data ^
 * Diffex within PAM50 groups
 
 Recreate code for mountain plots with flexgsea
