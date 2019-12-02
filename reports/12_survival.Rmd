@@ -228,6 +228,13 @@ print(paste(nrow(metadata), "samples remaining post filtering"))
 stopifnot(all(rowSums(is.na(metadata)) == 0))
 ```
 
+Save metadata
+
+```{r}
+openxlsx::write.xlsx(metadata, file = here("data", "metadata", "12_survival_metadata.xlsx"))
+```
+
+
 Overview excluded samples:
 
 ```{r, collapse=T}
@@ -613,9 +620,17 @@ clin.cov.cox <- coxph(
   data = coxdata)
 summary(clin.cov.cox)
 ```
+For DRS
 
+```{r}
+drs.clin.cov.cox <- coxph(
+  Surv(time=months_to_drs,
+       event=distant_recurrence) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + study_group,
+  data = coxdata)
+summary(drs.clin.cov.cox)
+```
 
-## Multivariate plot for study group
+## KM Multivariate: study group
 
 Estimate the impact of study group in the multivariate model. ~~Requires constructing a new data frame with one row for each value of the covariate of interest.~~ The ggadjustedcurves function is the better option here.
 
@@ -631,6 +646,14 @@ ggadjustedcurves(study_strata, data=coxdata, method="conditional", variable="stu
   ggtitle("Adjusted survival curve for clinical covariates: Stratified")
 ggadjustedcurves(clin.cov.cox, variable = "study_group", data = coxdata, method="conditional") +
   ggtitle("Adjusted survival curve for clinical covariates: Balanced")
+```
+
+## KM Multivariate: DRS
+
+```{r}
+ggadjustedcurves(drs.clin.cov.cox, variable = "study_group", data = coxdata, method="conditional") +
+  ggtitle("Adjusted drs curve for clinical covariates: Balanced") +
+  ylab("DRS rate")
 ```
 
 
@@ -772,9 +795,11 @@ genewise_cox <- function(gene_list, time, event, data = coxdata, type, show_runt
 ```
 
 
-# Overall survival: involution vs rest
+# Involution vs rest:  Overall survival
 
 Significant genes in the Wald test involution vs all other groups, as described in notebook 8.
+
+Hereby designated: "OVR" (one vs rest)
 
 ```{r}
 #excel_sheets(here("results","diffex", "08_one_vs_rest_sig_genes.xlsx"))
@@ -784,7 +809,7 @@ sig_inv_rest = readxl::read_excel(here("results","diffex", "08_one_vs_rest_sig_g
 stopifnot(sum(duplicated(sig_inv_rest$ensembl_gene_id))==0)
 ```
 
-## Univariate Cox by gene
+## OVR Univariate Cox by gene
 
 
 ```{r}
@@ -814,7 +839,7 @@ Genes significantly associated with a positive outcome:
 res_inv_univ_surv %>% filter(p.value < 0.1 & beta < 0)
 ```
 
-### Excluding lactation
+### OVR Excluding lactation
 
 Because the lactation group is fairly small and potentially over-contributes, we can loading the involutoin vs rest genes where rest includes only prbc and non_prbc.
 
@@ -841,7 +866,7 @@ res_invnolac_univ_surv$gene_name[!res_invnolac_univ_surv$gene_name %in% res_inv_
 ```
 
 
-## Multivariate Cox by gene
+## OVR Multivariate Cox by gene
 
 Using all clinical covariates (except study group)
 
@@ -880,7 +905,7 @@ intersect(pull(filter(res_inv_univ_surv, p.value < 0.1),gene_name),
 
 
 
-# Metastasis/DR: involution vs rest
+# OVR: Metastasis/DR
 
 distant_recurrence = metastasis, including those which were metastatic at diagnosis. These are those that were metastatic at diagnosis.
 
@@ -898,7 +923,7 @@ met_at_diag
 ```
 
 
-## Univariate Cox by gene
+## OVR Univariate Cox by gene
 
 ```{r}
 res_inv_univ_dr = genewise_cox(sig_inv_rest$ensembl_gene_id, coxdata,
@@ -927,7 +952,7 @@ Genes significantly associated with a positive outcome:
 res_inv_univ_dr %>% filter(p.value < 0.1 & beta < 0)
 ```
 
-## Multivariate Cox by gene
+## OVR Multivariate Cox by gene
 
 Using all clinical covariates (except study group) for metastasis/distant recurrence.
 
@@ -961,7 +986,7 @@ intersect(pull(filter(res_inv_univ_dr, p.value < 0.1),gene_name),
 ```
 
 
-## Write results: inv vs rest
+## OVR Write results: inv vs rest
 ```{r}
 covariates
 ```
@@ -1001,7 +1026,7 @@ openxlsx::write.xlsx(list(description = meta_sig_inv,
 ```
 
 
-# All genes: overall survival
+# Overall survival: All genes
 
 ```{r}
 resDir = here("data", "Rds")
@@ -1014,7 +1039,7 @@ Within coxdata, gene names start at position 21
 colnames(coxdata)[21]
 ```
 
-## Multivariate survival
+## Multivariate OS
 
 Run in script 12, results loaded here. Approx ~30 min runtime.
 
@@ -1124,7 +1149,7 @@ ggsave(here("results", "survival", "12_paths_multivar_os.pdf"), height = 6, widt
 
 
 
-## Univariate survival
+## Univariate OS
 
 ```{r, eval=F}
 resPath = file.path(resDir, "12_allgenes_univ_surv.Rds")
@@ -1194,7 +1219,7 @@ lapply(path_allgenes_univ_surv, nrow)
 (Nothing to plot)
 
 
-## Comparing multivariate and univariate
+## OS: Comparing multivariate and univariate
 
 The relationship is not entirely linear, but it would appear that mostly things are substantially less significant in the univariate model.
 
@@ -1401,7 +1426,7 @@ plot_enrichment(
       )
 ```
 
-## Comparing multivariate and univariate
+## DR: Comparing multivariate and univariate
 
 Mostly genes are just a bit less significant in the multivariate model.
 
@@ -1415,7 +1440,7 @@ tibble(fdr_uni = res_allgenes_univ_dr$fdr,
 
 
 
-## Write results: all genes
+## Write results: all genes OS and DR
 
 Combine overall survival and metastasis Cox models for all genes.
 
@@ -2074,38 +2099,76 @@ ggsave(here("results", "survival", "12_enet.vs.fdr_survival_genes.pdf"), height 
 
 ### Heatmaps
 
-Limit plot to those features that occur in at least 40 out of 50 models.
+Define colors for survival groups
+
+```{r}
+ann_df = sd[,c("study_group", "survival_group"), drop=F]
+os_colors = viridis::viridis(length(unique(sd$survival_group)))
+#unique(sd$survival_group) %>% paste(collapse=", ")
+
+names(os_colors) = c("survived","death_200mo", "death_150mo" , "death_100mo", "death_50mo")
+color_grid(os_colors)
+```
+
+Per request, order samples to be able to turn off column clustering.
+
+```{r}
+#ORder from best to worst
+ann_df$survival_group = factor(ann_df$survival_group,
+                               levels = c("survived","death_200mo", "death_150mo" , "death_100mo", "death_50mo"))
+
+#Sort by survival group
+ann_df = ann_df[order(ann_df$survival_group),]
+
+#Match
+ovsd = vsd[,colnames(vsd)[match(rownames(ann_df), colnames(vsd))]]
+
+```
+
+
+
+Limit plot to those features that occur in at least 30 out of 50 models.
 
 ```{r, fig.width=8}
-ann_df = sd[,c("study_group", "survival_group"), drop=F]
-
-pheatmap(vsd[rownames(vsd) %in% filter(glm.os.features, n > 40)$gene_name,],
-         show_colnames = F, scale="row", annotation_col = ann_df,annotation_colors = list(study_group = study_colors[-5]),
-         main = "Genes associated with survival (min 40/50 models)") 
+pheatmap::pheatmap(ovsd[rownames(ovsd) %in% filter(glm.os.features, n > 30)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         cluster_cols = T,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  survival_group = os_colors),
+         main = "Genes associated with survival (min 30/50 models)") 
 ```
 
 ```{r, include=F}
-pheatmap(vsd[rownames(vsd) %in% filter(glm.os.features, n > 40)$gene_name,],
-         show_colnames = F, scale="row", annotation_col = ann_df,annotation_colors = list(study_group = study_colors[-5]),
-         main = "Genes associated with survival (min 40/50 models)",
+pheatmap(vsd[rownames(vsd) %in% filter(glm.os.features, n > 30)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  survival_group = os_colors),
+         main = "Genes associated with survival (min 30/50 models)", 
          filename = here("results", "survival", "12_hm_enet_surv_genes.pdf")) 
 ```
 
 Limit plots to those genes with an fdr of < 0.05 from the genewise regression. 
 
 ```{r, fig.width=8}
-pheatmap(vsd[rownames(vsd) %in% filter(res_allgenes_multivar_surv, fdr < 0.05)$gene_name,],
-         show_colnames = F, scale="row", annotation_col = ann_df,annotation_colors = list(study_group = study_colors[-5]),
+pheatmap::pheatmap(ovsd[rownames(ovsd) %in% filter(res_allgenes_multivar_surv, fdr < 0.05)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         cluster_cols = T,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  survival_group = os_colors),
          main = "Genes associated with survival: genewise fdr <0.05") 
 ```
 
 
 ```{r, include=F}
-pheatmap(vsd[rownames(vsd) %in% filter(res_allgenes_multivar_surv, fdr < 0.05)$gene_name,],
-         show_colnames = F, scale="row", annotation_col = ann_df,annotation_colors = list(study_group = study_colors[-5]),
-         main = "Genes associated with survival: genewise fdr <0.05", 
+pheatmap::pheatmap(ovsd[rownames(ovsd) %in% filter(res_allgenes_multivar_surv, fdr < 0.05)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         cluster_cols = T,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  survival_group = os_colors),
+         main = "Genes associated with survival: genewise fdr <0.05",
          filename = here("results", "survival", "12_hm_genewisecox_surv_genes.pdf")) 
 ```
+
 
 The comparison seems to show that the genewise model does a better job than the elastic net where overall survival is concerned. That said, the low numbers of features selected and comparatively poor prognosis vs the clinical variable-only model indicates that survival is not strongly associated with any given gene signature.
 
@@ -2159,34 +2222,68 @@ ggsave(here("results", "survival", "12_enet.vs.fdr_metastasis_genes.pdf"), heigh
 
 Limit plot to those features that occur in at least 40 out of 50 models.
 
-```{r, fig.width=8}
-ann_df = sd[,c("study_group", "survival_group"), drop=F]
+```{r}
+ann_df = sd[,c("study_group", "drs_group"), drop=F]
+drs_colors = viridis::viridis(length(unique(sd$drs_group))) 
+#paste(unique(sd$drs_group), collapse=", ")
+#Ordered from best to worst
+names(drs_colors) =  c("no_metastasis","no_data" ,"met_200mo","met_150mo","met_100mo", "met_50mo")
+color_grid(drs_colors)
 
-pheatmap(vsd[rownames(vsd) %in% filter(glm.drs.features, n > 40)$gene_name,],
-         show_colnames = F, scale="row", annotation_col = ann_df,annotation_colors = list(study_group = study_colors[-5]),
+```
+
+Per request, order samples to be able to turn off column clustering.
+
+```{r}
+#Order from best to worst
+ann_df$drs_group = factor(ann_df$drs_group,
+                               levels = c("no_metastasis","no_data" ,"met_200mo","met_150mo","met_100mo", "met_50mo"))
+
+#Sort by survival group
+ann_df = ann_df[order(ann_df$drs_group),]
+
+#Match
+dvsd = vsd[,colnames(vsd)[match(rownames(ann_df), colnames(vsd))]]
+
+```
+
+```{r, fig.width=8}
+
+pheatmap::pheatmap(dvsd[rownames(dvsd) %in% filter(glm.drs.features, n > 40)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  drs_group = drs_colors
+                                  ),
          main = "Genes associated with metastasis (min 40/50 models)") 
 ```
 
 ```{r, include=F}
-ann_df = sd[,c("study_group", "drs_group"), drop=F]
-
-pheatmap(vsd[rownames(vsd) %in% filter(glm.drs.features, n > 40)$gene_name,],
-         show_colnames = F, scale="row", annotation_col = ann_df,annotation_colors = list(study_group = study_colors[-5]),
-         main = "Genes associated with metastasis", filename = here("results", "survival", "12_hm_enet_drs_genes.pdf")) 
+pheatmap::pheatmap(dvsd[rownames(dvsd) %in% filter(glm.drs.features, n > 40)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  drs_group = drs_colors
+                                  ),
+         main = "Genes associated with metastasis (min 40/50 models)",
+         filename = here("results", "survival", "12_hm_enet_drs_genes.pdf")) 
 ```
 
 Limit plots to those genes with an fdr of < 0.1 from the genewise regression. 
 
 ```{r, fig.width=8}
-pheatmap(vsd[rownames(vsd) %in% filter(res_allgenes_multivar_dr, fdr < 0.1)$gene_name,],
-         show_colnames = F, scale="row", annotation_col = ann_df,annotation_colors = list(study_group = study_colors[-5]),
+pheatmap::pheatmap(dvsd[rownames(dvsd) %in% filter(res_allgenes_multivar_dr, fdr < 0.1)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         cluster_cols = T,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  drs_group = drs_colors),
          main = "Genes associated with metastasis: genewise fdr <0.1") 
 ```
 
 ```{r, include=F}
-pheatmap(vsd[rownames(vsd) %in% filter(res_allgenes_multivar_dr, fdr < 0.1)$gene_name,],
-         show_colnames = F, scale="row", annotation_col = ann_df,annotation_colors = list(study_group = study_colors[-5]),
-         main = "Genes associated with metastasis: genewise fdr <0.1",
+pheatmap::pheatmap(dvsd[rownames(dvsd) %in% filter(res_allgenes_multivar_dr, fdr < 0.1)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  drs_group = drs_colors),
+         main = "Genes associated with metastasis: genewise fdr <0.1", 
          filename = here("results", "survival", "12_hm_genewisecox_drs_genes.pdf")) 
 ```
 
@@ -2334,6 +2431,33 @@ goi = filter(res_allgenes_multivar_dr, fdr<0.1) %>%
   #filter(gene_name != "ALOX12B") %>%
   pull(ensembl_gene_id)
 filter(lrt, ensembl_gene_id %in% goi & padj < 0.2)
+```
+
+
+
+```{r}
+print(paste("FDR from multivariate overall survival Cox model",
+            (res_allgenes_multivar_surv %>% filter(gene_name == "CXCL12") %>%
+               pull(fdr) %>% round(3))))
+
+print(paste("FDR from multivariate distant recurrence Cox model",
+            (res_allgenes_multivar_dr %>% filter(gene_name == "CXCL12") %>%
+               pull(fdr) %>% round(3))))
+
+```
+
+
+```{r}
+plot_cox_beehive(dds, description = "Multivariate OS", ensembl_id = "ENSG00000121966",
+                 res_df = lrt, cox_df = res_allgenes_multivar_surv)
+
+```
+
+
+
+```{r}
+plot_cox_beehive(dds, description = "Multivariate DR", ensembl_id = "ENSG00000211898",
+                 res_df = lrt, cox_df = res_allgenes_multivar_dr)
 ```
 
 

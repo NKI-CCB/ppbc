@@ -78,7 +78,7 @@ Renders the data homoskedastic, useful for visualization purposes.
 Ensure that we can set "study group" to be one vs rest columns when desired.
 
 ```{r}
-vsd = readRDS(here("data","Rds","09_vsd_standard_vsrest.Rds"))
+vsd = readRDS(here("data","Rds","08_vsd_standard_vsrest.Rds"))
 ```
 
 ## Sample annotation data
@@ -220,8 +220,7 @@ deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = study_group_or
 ```{r, fig.height=6, fig.width=10}
 set.seed(1)
 
-inv.hm = 
-deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = inv_vs_rest),
+inv.hm = deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = inv_vs_rest),
               sig_results = sig.invr, title = "Involution vs rest, K-means",
               groups_to_plot =c("ppbc_inv", "rest"),
               column_km=3, row_km = 3)
@@ -271,20 +270,34 @@ The column clusters can be split into a low (1), medium(2) and high(3) Ig-expres
 
 We can retrieve the gene/sample names either with row/column_order functions, which return indices:
 
-```{r, eval=F}
+```{r, collapse=T}
 #row_order(inv.hm)
-column_order(inv.hm) #Shows that `3` is high, `2` is medium and `1` is low
+#column_order(inv.hm) #Shows that `3` is high, `2` is medium and `1` is low
+lapply(column_order(inv.hm), length)
+#colnames(geneEx)[82] #Index of first sample in "high" group
+#stopifnot(colnames(geneEx)[82] %in% as.hclust(coldend.hm$`3`)$labels) #Should be in the high group
 
-colnames(geneEx)[82] #Index of first sample in "high" group
-stopifnot(colnames(geneEx)[82] %in% as.hclust(coldend.hm$`3`)$labels) #Should be in the high group
-#as.hclust(coldend.hm[[1]])$labels %>% unlist(use.names = F)
+col_clust = 
+bind_rows(
+  tibble(sample_name = colnames(geneEx)[column_order(inv.hm)$`1`],IG_col_cluster = "low", col_cluster=1),
+  tibble(sample_name = colnames(geneEx)[column_order(inv.hm)$`2`],IG_col_cluster = "medium", col_cluster=2),
+  tibble(sample_name = colnames(geneEx)[column_order(inv.hm)$`3`],IG_col_cluster = "high", col_cluster=3)
+) %>% left_join(.,select(as.data.frame(colData(dds)), sample_name, study_group, PAM50), by="sample_name") %>%
+  mutate(IG_col_cluster = factor(IG_col_cluster, levels = c("low", "medium", "high")))
+
+addmargins(table(col_clust$study_group, col_clust$IG_col_cluster), 1)
+  
 ```
 
 ...or by using the row/column_dend followed by as.hclust, after which the sample and gene names are accessible via the label operator.
 
+Note that for this to work, you MUST create the heatmap by explicitly calling draw. If this this not done, the code will complete without errors, but the sample labels will be wrong!
+
 ```{r}
+stopifnot(class(inv.hm) == "HeatmapList") #Will be "HeatmapList" instead of Heatmap if draw has been called
+
 coldend.hm = column_dend(inv.hm)
-col_clust =
+test_clust =
 bind_rows(
   tibble(sample_name = as.hclust(coldend.hm$`1`)$labels,IG_col_cluster = "low", col_cluster=1),
   tibble(sample_name = as.hclust(coldend.hm$`2`)$labels,IG_col_cluster = "medium", col_cluster=2),
@@ -292,9 +305,13 @@ bind_rows(
 ) %>% left_join(.,select(as.data.frame(colData(dds)), sample_name, study_group, PAM50), by="sample_name") %>%
   mutate(IG_col_cluster = factor(IG_col_cluster, levels = c("low", "medium", "high")))
 
-table(col_clust$study_group, col_clust$IG_col_cluster)
+addmargins(table(test_clust$study_group, test_clust$IG_col_cluster), 1)
 
+stopifnot(identical(arrange(col_clust, sample_name), arrange(test_clust, sample_name)))
 ```
+
+
+
 
 Define colors for IG clusters
 
@@ -672,17 +689,18 @@ Baseline: Study group
 survdiff(survival::Surv(time =months_overall_survival, event = death) ~ study_group, data=surv)
 ```
 
+### KM PPBC
 
 ```{r}
 ggsurvplot(
     fit = survfit(Surv(time=months_overall_survival, event=death) ~ study_group, data = surv), 
     xlab = "Months", 
     ylab = "Overall survival probability",
-    title = "All study groups",
+    title = "KM PPBC",
     pval = T)
 ```
 
-
+### KM IG clusters
 
 
 ```{r}
@@ -690,9 +708,11 @@ ggsurvplot(
     fit = survfit(Surv(time = years_overall_survival, event=death) ~ IG_cluster, data = surv), 
     xlab = "Years", 
     ylab = "Overall survival probability",
-    title = "All study groups",
+    title = "KM IG clusters",
     pval = T)
 ```
+
+### KM IG clusters, facet by PAM50
 
 ```{r, fig.width=10}
 
@@ -700,14 +720,15 @@ ggsurvplot(
     fit = survfit(Surv(time=months_overall_survival, event=death) ~ PAM50 +IG_cluster, data = surv), 
     xlab = "Months", 
     ylab = "Overall survival probability",
-    title = "All study groups",
+    title = "IG clusters faceted by PAM50",
     pval = T, facet.by = "PAM50")
 
 
 ```
 
-```{r, fig.width=10}
+### KM IG clusters, facet by study group
 
+```{r, fig.width=10}
 sg_ig <-  ggsurvplot(
     fit = survfit(Surv(time=months_overall_survival, event=death) ~ study_group +IG_cluster, data = surv), 
     xlab = "Months", 
@@ -723,81 +744,77 @@ sg_ig
 ggsave(file = here("results", "survival", "11_IG_clusters_by_study_group.pdf"), print(sg_ig), width = 8, height=6)
 ```
 
-
-### All samples
-
-Univariate
-
-```{r}
-#surv$death
-survdiff(survival::Surv(time =months_overall_survival, event = death) ~ IG_cluster, data=surv)
-
-```
-
-Multivariate (other covariates?)
-
-```{r}
-coxph(survival::Surv(time =months_overall_survival, event = death) ~ PAM50 + IG_cluster, data=surv) #%>%
-  #summary()
-```
-```{r}
-ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=death) ~ IG_cluster, data = surv), 
-    xlab = "Months", 
-    ylab = "Overall survival probability",
-    title = "All study groups",
-    pval = T)
-
-```
-
-
-
-
-
-### Involution samples
-
-Univariate
-
-```{r}
-surv.inv = surv %>% filter(study_group == "ppbc_inv")
-
-survdiff(survival::Surv(time =months_overall_survival, event = death) ~ IG_cluster, data=surv.inv)
-```
-
-```{r}
-surv.inv = surv %>% filter(study_group == "ppbc_inv")
-
-survdiff(survival::Surv(time =months_overall_survival, event = death) ~ IG_cluster, data=surv.inv)
-```
-
-```{r}
-ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=death) ~ IG_cluster, data = surv.inv), 
-    xlab = "Months", 
-    ylab = "Overall survival probability",
-    title= "Involution patients",
-    pval = T)
-```
+### KM study group, faceted by IG cluster
 
 ```{r, fig.width=10}
-
-  ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=death) ~ PAM50 +IG_cluster, data = surv.inv), 
+ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=death) ~ study_group + IG_cluster, data = surv), 
     xlab = "Months", 
     ylab = "Overall survival probability",
-    title = "All study groups",
-    pval = T, facet.by = "PAM50")
+    title = "Study group by IG cluster",
+    pval = T, facet.by = "IG_cluster")
 
 
 ```
+
+
+```{r}
+addmargins(table(test_clust$study_group, test_clust$IG_col_cluster), 1)
+```
+
+
+
+### Multivariate Cox
+
+We processed the newest iteration of the survival metadata in notebook 12.
+
+```{r}
+metadata = readxl::read_excel(here("data", "metadata", "12_survival_metadata.xlsx"))
+
+metadata = left_join(metadata, select(surv, sample_name, IG_cluster), by="sample_name")
+
+head(metadata)
+```
+
+
+```{r}
+ig_cox = coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + IG_cluster + study_group,
+  data = metadata)
+
+summary(ig_cox)
+```
+
+#### Balanced curves IG clusters
+
+```{r}
+
+ggadjustedcurves(ig_cox, variable = "IG_cluster", data = as.data.frame(metadata), method="conditional") +
+  ggtitle("IG cluster survival curve adjusted for clinical covariates: Balanced")
+
+```
+
+#### Stratified curves IG clusters
+
+```{r}
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + strata(IG_cluster) + study_group,
+  data = metadata) %>%
+  ggadjustedcurves(., variable = "IG_cluster", data = as.data.frame(metadata), method="conditional") +
+  ggtitle("IG cluster survival curve adjusted for clinical covariates: Stratifed")
+
+```
+
+
+
 
 
 ## Distant recurrence free survival
 
 
-### All samples
-
-Univariate
+### Univariate
 
 ```{r}
 
@@ -805,87 +822,139 @@ survdiff(survival::Surv(time =months_to_drs, event = dist_recurrence_free_surviv
 
 ```
 
+### KM DRS: PPBC
+
+```{r}
+ggsurvplot(
+    fit = survfit(Surv(time=months_to_drs, event=dist_recurrence_free_survival) ~ study_group, data = surv), 
+    xlab = "Months", 
+    ylab = "DRS",
+    title= "PPBC: DRS (univariate)",
+    pval = T)
+```
+
+### KM DRS: IG clusters
+
 ```{r}
 ggsurvplot(
     fit = survfit(Surv(time=months_to_drs, event=dist_recurrence_free_survival) ~ IG_cluster, data = surv), 
     xlab = "Months", 
     ylab = "DRS",
-    title= "All patients",
+    title= "IG clusters: DRS (univariate)",
     pval = T)
 ```
 
-### Involution
+### KM DRS IG clusters, facet by study group
 
-Univariate
-
-```{r}
-
-survdiff(survival::Surv(time =months_to_drs, event = dist_recurrence_free_survival) ~ IG_cluster, data=surv.inv)
-
-```
-
-```{r}
+```{r, fig.width=10}
 ggsurvplot(
-    fit = survfit(Surv(time=months_to_drs, event=dist_recurrence_free_survival) ~ IG_cluster, data = surv.inv), 
+    fit = survfit(Surv(months_to_drs, event=dist_recurrence_free_survival) ~ study_group +IG_cluster, data = surv), 
     xlab = "Months", 
-    ylab = "DRS",
-    title= "All patients",
-    pval = T)
+    ylab = "Overall survival probability",
+    title = "IG cluster by study_group",
+    pval = T, facet.by = "study_group")
+
+
+```
+
+
+### KM DRS study group, faceted by IG cluster
+
+```{r, fig.width=10}
+ggsurvplot(
+    fit = survfit(Surv(time=months_to_drs, event=dist_recurrence_free_survival) ~ study_group + IG_cluster, data = surv), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "Study group by IG cluster",
+    pval = T, facet.by = "IG_cluster")
+
+
+```
+
+### Multivariate Cox DRS
+
+We processed the newest iteration of the survival metadata in notebook 12.
+
+
+```{r}
+ig_drs = coxph(
+  Surv(time=months_to_drs,
+       event=distant_recurrence) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + IG_cluster + study_group,
+  data = metadata)
+
+summary(ig_drs)
+```
+
+#### DRS Balanced curves IG clusters
+
+```{r}
+
+ggadjustedcurves(ig_drs, variable = "IG_cluster", data = as.data.frame(metadata), method="conditional") +
+  ggtitle("IG cluster DRS curve adjusted for clinical covariates: Balanced")
+
+```
+
+#### DRS Stratified curves IG clusters
+
+```{r}
+coxph(
+  Surv(time=months_to_drs, event=distant_recurrence) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + strata(IG_cluster) + study_group,
+  data = metadata) %>%
+  ggadjustedcurves(., variable = "IG_cluster", data = as.data.frame(metadata), method="conditional") +
+  ggtitle("IG cluster DRS curve adjusted for clinical covariates: Stratifed")
+
 ```
 
 ## LRS
 
-
-### All samples
-
-Univariate
+### Univariate
 
 ```{r}
 survdiff(survival::Surv(time = months_to_lrs, event = local_recurrence_free_survival) ~ IG_cluster, data=surv)
 
 ```
 
+### KM LRS by IG cluster
+
 ```{r}
 ggsurvplot(
     fit = survfit(Surv(time=months_to_lrs, event=local_recurrence_free_survival) ~ IG_cluster, data = surv), 
     xlab = "Months", 
     ylab = "LRS",
-    title= "All patients",
+    title= "KM LRS",
     pval = T)
 ```
 
-### Involution
+### KM LRS IG clusters, facet by study group
 
-Univariate
-
-```{r}
-
-survdiff(survival::Surv(time =months_to_lrs, event = local_recurrence_free_survival) ~ IG_cluster, data=surv.inv)
-
-```
-
-```{r}
+```{r, fig.width=10}
 ggsurvplot(
-    fit = survfit(Surv(time=months_to_lrs, event=local_recurrence_free_survival) ~ IG_cluster, data = surv.inv), 
+    fit = survfit(Surv(months_to_lrs, event=local_recurrence_free_survival) ~ study_group +IG_cluster, data = surv), 
     xlab = "Months", 
-    ylab = "LRS",
-    title= "Involution only",
-    pval = T)
+    ylab = "Overall survival probability",
+    title = "LRS: IG cluster by study_group",
+    pval = T, facet.by = "study_group")
+
+
 ```
 
+
+### KM DRS study group, faceted by IG cluster
+
+```{r, fig.width=10}
+ggsurvplot(
+    fit = survfit(Surv(time=months_to_lrs, event=local_recurrence_free_survival) ~ study_group + IG_cluster, data = surv), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "LRS: Study group by IG cluster",
+    pval = T, facet.by = "IG_cluster")
+
+
+```
 
 
 
 # Save data
-
-
-```{r, eval=F}
-library(rmarkdown)
-#Puts a copy in the doc folder
-render(here("reports", "11_clustering_involution.Rmd"),
-       output_dir = here("doc"))
-```
-
 
 ```{r}
 save.image(here("reports", "11_clustering_involution.RData"))

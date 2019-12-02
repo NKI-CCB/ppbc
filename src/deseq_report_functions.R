@@ -346,7 +346,7 @@ deseq_heatmap = function(mat, sampledata, sig_results,
 
   rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=list(Type = row_colors))
 
-  Heatmap(mat,
+  draw(Heatmap(mat,
           top_annotation = colTop,
           bottom_annotation = colBottom,
           left_annotation = rowAnno,
@@ -357,7 +357,7 @@ deseq_heatmap = function(mat, sampledata, sig_results,
           row_names_gp = gpar(fontsize = row_size),
           column_names_gp = gpar(fontsize = col_size),
           column_title = title,
-          ...)
+          ...))
 }
 
 

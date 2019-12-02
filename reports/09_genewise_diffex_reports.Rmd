@@ -270,6 +270,11 @@ gene_report(res_list,"ENSG00000140009")
 plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000140009",])
 ```
 
+```{r}
+plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000140009",],
+                  intgroup = "batch", colorby="study_group")
+```
+
 ## LRT
 
 ### [LABLA](https://www.genecards.org/cgi-bin/carddisp.pl?gene=LALBA&keywords=lalba)
@@ -410,6 +415,18 @@ gene_report(res_list,"ENSG00000048462")
 plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000048462",])
 ```
 
+```{r}
+plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000048462",],
+                  intgroup = "batch", colorby = "study_group")
+```
+
+
+```{r}
+plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000048462",],
+                  colorby = "batch")
+```
+
+
 ## T cell markers
 
 See [this overview](https://www.abcam.com/primary-antibodies/effector-t-cell-markers)
@@ -418,7 +435,55 @@ See [this overview](https://www.abcam.com/primary-antibodies/effector-t-cell-mar
 
 >Part of the TCR-CD3 complex present on T-lymphocyte cell surface that plays an essential role in adaptive immune response. When antigen presenting cells (APCs) activate T-cell receptor (TCR), TCR-mediated signals are transmitted across the cell membrane by the CD3 chains CD3D, CD3E, CD3G and CD3Z
 
-ENSG00000160654
+```{r}
+gene_report(res_list, "ENSG00000160654")
+```
+
+```{r}
+plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000160654",])
+```
+
+## [CD4](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CD4)
+
+```{r}
+gene_report(res_list, "ENSG00000010610")
+```
+
+```{r}
+plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000010610",])
+```
+
+## [CD8A](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CD8A&keywords=cd8)
+
+```{r}
+gene_report(res_list, "ENSG00000153563")
+```
+
+```{r}
+plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000153563",])
+```
+
+
+## [CD8B](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CD8B&keywords=cd8)
+
+```{r}
+gene_report(res_list, "ENSG00000172116")
+```
+
+```{r}
+plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000172116",])
+```
+
+
+## [CXCR4](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CXCR4&keywords=cxcr4)
+```{r}
+gene_report(res_list, "ENSG00000121966")
+```
+
+```{r}
+plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000121966",])
+```
+ ENSG00000121966
 
 ### [CD30](https://www.genecards.org/cgi-bin/carddisp.pl?gene=TNFRSF8&keywords=ENSG00000120949)
 

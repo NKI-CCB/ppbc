@@ -230,6 +230,19 @@ A fast method for a general overview. See FlexGSEA for a properly rigorous analy
 rep_inv_nonprbc$pathway_plots
 ```
 
+```{r,fig.height=6, fig.width=8}
+rep_inv_nonprbc$pathways %>%
+  bind_rows() %>%
+  plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Top 20 sig pathways fdr < 0.1: Inv. vs nulliparous"
+      )
+```
+
+
 ## Cook's outliers
 
 Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
@@ -491,6 +504,18 @@ A fast method for a general overview. See FlexGSEA for a properly rigorous analy
 rep_inv_prbc$pathway_plots
 ```
 
+```{r, fig.height=6, fig.width=8}
+rep_inv_prbc$pathways %>%
+  bind_rows() %>%
+  plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Top 20 sig pathways fdr < 0.1: Involution vs pregnant"
+      )
+```
+
 ## Cook's outliers
 
 Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
@@ -663,6 +688,18 @@ A fast method for a general overview. See FlexGSEA for a properly rigorous analy
 
 ```{r, fig.height=6, fig.width=8}
 rep_inv_lac$pathway_plots
+```
+
+```{r, fig.height=6, fig.width=8}
+rep_inv_lac$pathways %>%
+  bind_rows() %>%
+  plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Top 20 sig pathways fdr < 0.1: Involution vs lactation"
+      )
 ```
 
 ## Cook's outliers
@@ -977,9 +1014,176 @@ assay(vsd)[rownames(assay(vsd)) %in% cooks_rejects$ensembl_gene_id, ] %>%
 #cooks_rejects %>% dplyr::select(gene_name, Type) %>% distinct() %>% filter(!duplicated(gene_name)) %>% column_to_rownames("gene_name")             
 ```
 
+# Involution summary
+
+```{r}
+#All genes considered:
+background = sort(rep_inv_nonprbc$annotated_results$ensembl_gene_id)
+
+inv_overview = data.frame(
+  vs_nulliparous = background %in% rep_inv_nonprbc$significant_genes$ensembl_gene_id,
+  vs_pregnant = background %in% rep_inv_prbc$significant_genes$ensembl_gene_id,
+  vs_lactation = background %in% rep_inv_lac$significant_genes$ensembl_gene_id)
+rownames(inv_overview) = background
+
+#Remove genes that weren't significant anwyhere
+#sig_genes = sig_genes[rowSums(sig_genes) > 0,] #Not actually necessary
+#dim(sig_genes)
+
+vp = limma::vennCounts(inv_overview)
+
+limma::vennDiagram(vp,
+  names = colnames(inv_overview), 
+  cex = 1,
+  main = "Overlap significant genes from pairwise involution tests")
+```
+
+
+
+```{r}
+#Binary df for all genes to indicate comparison significance
+
+background = c(names(gene_sets$go_bp), names(gene_sets$hallmark),
+               names(gene_sets$c2_canon), names(gene_sets$c2_cgp))
+
+sig_paths = data.frame(
+  vs_nulliparous = background %in% filter(bind_rows(rep_inv_nonprbc$pathways), fdr < 0.1)$pathway,
+  vs_pregnant = background %in% filter(bind_rows(rep_inv_prbc$pathways), fdr < 0.1)$pathway,
+  vs_lactation = background %in% filter(bind_rows(rep_inv_lac$pathways), fdr < 0.1)$pathway)
+rownames(sig_paths) = background
+
+#Remove genes that weren't significant anwyhere
+#sig_genes = sig_genes[rowSums(sig_genes) > 0,] #Not actually necessary
+#dim(sig_genes)
+
+vp = limma::vennCounts(sig_paths)
+
+limma::vennDiagram(vp,
+  names = colnames(sig_paths), 
+  cex = 1,
+  main = "Overlap significant pathways from pairwise involution tests")
+```
+
+## Common pathways among all 3 comparisons
+
+```{r}
+
+unique_inv_paths = Reduce(intersect, list(filter(bind_rows(rep_inv_nonprbc$pathways), fdr < 0.1)$pathway,
+                                          filter(bind_rows(rep_inv_prbc$pathways), fdr < 0.1)$pathway,
+                                          filter(bind_rows(rep_inv_lac$pathways), fdr < 0.1)$pathway))
+
+bind_rows(rep_inv_nonprbc$pathways) %>% filter(pathway %in% unique_inv_paths) %>% pull(pathway) %>%
+  paste(., collapse=", ") %>% tolower() %>% str_replace_all("_", " ")
+```
+
+## Heatmap common pathways
+
+```{r}
+members_common_paths <- bind_rows(rep_inv_nonprbc$pathways) %>% filter(pathway %in% unique_inv_paths) %>% pull(members_in_sample)
+
+members_common_paths = sapply(members_common_paths, function(x) unlist(strsplit(x, split=";"))) %>% unlist()
+names(members_common_paths) = NULL
+
+members_common_paths = unique(members_common_paths)
+
+members_common_paths
+```
+
+```{r}
+members_common_paths %>% paste(., collapse=", ")
+```
+
+
+
+```{r, fig.height=6, fig.width=9}
+mat <- rownames_to_column(as.data.frame(assay(vsd)), "ensembl_gene_id")
+mat <- right_join(select(gx_annot, ensembl_gene_id, gene_name),
+                               mat, by = "ensembl_gene_id") %>%
+  select(-ensembl_gene_id)
+
+mat <- summarize_expression_duplicate_ids(mat, id_column = "gene_name", verbose = T)
+
+```
+
+```{r}
+mat_common_paths <- mat[rownames(mat) %in% members_common_paths,]
+dim(mat_common_paths)
+stopifnot(nrow(mat_common_paths) == length(members_common_paths))
+```
+
+```{r}
+
+ann_row = 
+select(filter(rep_inv_nonprbc$significant_genes, gene_name %in% members_common_paths),
+       gene_name, Type) %>% distinct() %>%
+  inner_join(., data.frame(gene_name = members_common_paths,
+       vs_nulliparous = members_common_paths %in% rep_inv_nonprbc$significant_genes$gene_name,
+       vs_pregnant = members_common_paths %in% rep_inv_prbc$significant_genes$gene_name,
+       vs_lactation = members_common_paths %in% rep_inv_lac$significant_genes$gene_name),
+       by="gene_name")%>%
+  column_to_rownames("gene_name")
+
+ann_row
+```
+
+
+
+```{r, fig.height=6, fig.width=9}
+mat_common_paths <- as.matrix(mat_common_paths)
+
+quantile_breaks <- function(xs, n = 10) {
+  breaks <- quantile(xs, probs = seq(0, 1, length.out = n))
+  breaks[!duplicated(breaks)]
+}
+
+mat_breaks <- quantile_breaks(scrime::rowScales(mat_common_paths), n = 5)
+
+pheatmap::pheatmap(mat_common_paths,
+                   show_colnames = F,
+                   scale="row",
+                   annotation_col = as.data.frame(colData(vsd))[,c("PAM50", "study_group")],
+                   annotation_colors = list(PAM50 = pam_colors, study_group = study_colors, Type = gene_colors),
+                   annotation_row = ann_row[,"Type", drop=F],
+                   #color = viridis::viridis(length(mat_breaks) - 1), 
+                   #breaks = mat_breaks,
+                   main="Members of pathways common to all pairwise involution tests")
+
+```
+
+```{r, include=F}
+pheatmap::pheatmap(mat_common_paths,
+                   show_colnames = F,
+                   scale="row",
+                   annotation_col = as.data.frame(colData(vsd))[,c("PAM50", "study_group")],
+                   annotation_colors = list(PAM50 = pam_colors, study_group = study_colors, Type = gene_colors),
+                   annotation_row = ann_row,
+                   #color = viridis::viridis(length(mat_breaks) - 1), 
+                   #breaks = mat_breaks,
+                   main="Members of pathways common to all pairwise involution tests",
+                   filename = here("results", "diffex", "figs", "07_pairwise", "heatmaps", "07_commoninvpaths_hm.pdf"))
+```
+
+## PCA common pathways
+
+```{r}
+nc.pca <- prcomp(t(mat_common_paths))
+#pca.df <- as.data.frame(nc.pca$x[, 1:17])
+pca.df <- as.data.frame(nc.pca$x)
+pca.df$sample_name <- rownames(nc.pca$x)
+pca.df <- inner_join(pca.df, as.data.frame(colData(dds)), by='sample_name')
+pca.df = pca.df %>% select(sample_name, study_group, everything())
+head(pca.df)
+```
+
+```{r}
+ggplot(pca.df, aes(x=PC1, y=PC2, color=study_group)) +
+  geom_point()  + 
+  scale_color_manual(values = study_colors) +
+  ggtitle("PCA genes belonging to common pathways")
+```
+
 
 # Save data
-
 
 ## Significance of genes
 
@@ -1098,7 +1302,7 @@ for(i in 1:length(pathwaylist)){
 rm(pathwaylist)
 ```
 
-## Notebook data.
+## Notebook data
 
 ```{r}
 rm(reslist) #Because it's huge

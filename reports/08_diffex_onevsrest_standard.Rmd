@@ -284,6 +284,27 @@ A fast method for a general overview. See FlexGSEA for a properly rigorous analy
 rep_inv_rest$pathway_plots
 ```
 
+```{r}
+rep_inv_rest$pathways %>%
+  bind_rows() %>% 
+  filter(fdr < 0.1) %>%
+  arrange(desc(path_in_sample)) %>%
+  filter(str_detect(pathway, "CYTOSIS"))
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_inv_rest$pathways %>%
+  bind_rows() %>%
+  plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Top 20 sig pathways fdr < 0.1: Involution vs rest"
+      )
+```
+
 
 ## Beehive plots
 

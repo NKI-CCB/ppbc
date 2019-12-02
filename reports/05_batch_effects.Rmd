@@ -116,20 +116,28 @@ table(colSums(normcounts) > nrow(normcounts))
 nc.pca <- prcomp(t(normcounts[,colSums(normcounts) > nrow(normcounts)]))
 ```
 
+
 ## Scree plot
 
 ```{r}
-scree_plot = function(res_prcomp, n_pca=20){
+scree_plot = function(res_prcomp, n_pca=20, returnData = F){
   require(tidyverse)
   percentVar <- res_prcomp$sdev^2/sum(res_prcomp$sdev^2) * 100
   names(percentVar) = paste0("PC", seq(1, length(percentVar)))
   percentVar = enframe(percentVar, "PC", "variance")
   percentVar$PC=factor(percentVar$PC, levels=percentVar$PC)
+  if(returnData){return(percentVar)}
   percentVar %>% slice(1:n_pca) %>% ggplot(aes(x=PC, y=variance)) + geom_bar(stat="identity") +
     ggtitle("Scree plot") + ylab("Percent total variance")
   
 }
 ```
+
+```{r}
+percVar = scree_plot(nc.pca, returnData = T)
+head(percVar)
+```
+
 
 ```{r}
 scree_plot(nc.pca)
@@ -269,7 +277,7 @@ sd %>% ggplot(aes(x=batch, y = lib.size)) + geom_boxplot()  + scale_y_log10()
 
 
 
-# Kruskal-Wallis PC significance by batches
+# KW PC by batch
 
 Testing the first 100 principal components for significance by library prep batch.
 
@@ -293,6 +301,9 @@ print(paste("There are", nrow(PC_batch), "principal components significantly ass
 print(paste("These are:", paste(sort(PC_batch$PC), collapse = ", ")))
 ```
 
+```{r}
+print(paste("Percent variance represented:", round(sum(percVar[percVar$PC %in% PC_batch$PC, "variance"]), 2)))
+```
 
 
 ## Box plots significant PCs by batch
@@ -316,7 +327,7 @@ ggplot(pca.df, aes(x=PC5, y=PC6, color=batch, shape=study_group)) +
   ggtitle("PCs significantly associated with study group")
 ```
 
-# KW PC significance by study group
+# KW PC by study group
 
 ```{r}
 sp <- list()
@@ -333,6 +344,11 @@ print(paste("There are", nrow(PC_studygroup), "principal components significantl
 
 print(paste("These are:", paste(sort(PC_studygroup$PC), collapse = ", ")))
 ```
+
+```{r}
+print(paste("Percent variance represented:", round(sum(percVar[percVar$PC %in% PC_studygroup$PC, "variance"]), 2)))
+```
+
 
 ## Box plots significant PCs by study group
 
@@ -363,7 +379,49 @@ ggplot(pca.df, aes(x=PC10, y=PC13, color=batch, shape=study_group)) +
 #display.brewer.all()
 ```
 
-# Kruskal-Wallis PC significance by PAM50
+## Without the lac group
+
+It appears that the lac group may be over-contributing. Can we still find PCs associated with study group when lac is removed?
+
+```{r}
+#Remove lac samples from dds
+dds.nolac = dds[,colnames(dds)[colData(dds)$study_group != "ppbc_lac"]]
+dds.nolac$study_group = droplevels(dds.nolac$study_group)
+#table(dds.nolac$study_group)
+
+#VST
+normcounts.nolac <- blind_vst(dds.nolac)
+
+#Calculate PCs
+nc.pca.nolac <- prcomp(t(normcounts.nolac[,colSums(normcounts.nolac) > nrow(normcounts.nolac)]))
+pca.df.nl <- as.data.frame(nc.pca.nolac$x[, 1:100])
+pca.df.nl$sample_name <- rownames(nc.pca.nolac$x)
+pca.df.nl <- inner_join(pca.df.nl, sd, by='sample_name')
+pca.df.nl = pca.df.nl %>% select(sample_name, batch, everything())
+head(pca.df.nl)
+```
+
+If we do this, only PC13 remains significant.
+
+```{r}
+nl <- list()
+
+for (pc in paste0('PC', 1:100)) {
+    nl[[pc]] <- kruskal.test(pca.df.nl[[pc]], as.factor(pca.df.nl$study_group))
+} 
+
+
+PC_study_nolac = lapply(nl, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
+  mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
+  filter(fdr < 0.05) %>% arrange(fdr)
+
+print(paste("There are", nrow(PC_study_nolac), "principal components significantly associated with study group."))
+
+print(paste("These are:", paste(sort(PC_study_nolac$PC), collapse = ", ")))
+```
+
+
+# KW PC by PAM50
 
 Should be very strong given the obvious patterns on PC1 and 2.
 
@@ -383,7 +441,12 @@ print(paste("There are", nrow(PC_pam), "principal components significantly assoc
 print(paste("These are:", paste(sort(PC_pam$PC), collapse = ", ")))
 ```
 
-# KW PC significance by tumor purity
+```{r}
+print(paste("Percent variance represented:", round(sum(percVar[percVar$PC %in% PC_pam$PC, "variance"]), 2)))
+```
+
+
+# KW PC by tumor purity
 
 ```{r}
 tp <- list()
@@ -485,13 +548,13 @@ Negative residuals are in red. This implies a repulsion (negative association) b
 
 
 
-```{r}
+```{r,fig.width=7, fig.height=7}
 for (i in 1:nrow(corvars_cat)){
   thisx = corvars_cat[i,1]
   thisy = corvars_cat[i,2]
   tbl = table(sd[,thisx], sd[,thisy])
   chires =chisq.test(sd[,thisx], sd[,thisy], simulate.p.value = T)
-  corrplot(chires$residuals, is.corr=F)
+  corrplot::corrplot(chires$residuals, is.corr=F)
 }
 ```
 

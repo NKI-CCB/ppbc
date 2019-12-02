@@ -250,12 +250,22 @@ A fast method for a general overview. See FlexGSEA for a properly rigorous analy
 
 ```{r}
  repLRT$pathways %>% bind_rows() %>%
-  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+  filter(fdr < 0.1) %>% select(pathway,everything()) %>% arrange(fdr)
 ```
 
 
 ```{r, fig.height=6, fig.width=8}
-repLRT$pathway_plots
+#repLRT$pathway_plots
+
+bind_rows(repLRT$pathways) %>%
+  #filter(fdr < 0.1) %>%
+  plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Sig pathways fdr < 0.1: LRT study group"
+      )
 ```
 
 ## Cook's outliers
@@ -624,6 +634,159 @@ repPam.nolac$pathways %>% bind_rows() %>%
 
 ```{r, fig.height=6, fig.width=8}
 repPam.nolac$pathway_plots
+```
+
+# Overlap LRTs
+
+Generally a sign of colinearity if many genes are significant for multiple terms.
+```{r}
+hsb2 <- read.csv("https://stats.idre.ucla.edu/wp-content/uploads/2016/02/hsb2-3.csv") 
+attach(hsb2)
+hw <- (write >= 60)
+hm <- (math >= 60)
+hr <- (read >= 60)
+c3 <- cbind(hw, hm, hr)
+
+c3 %>% head()
+```
+
+## Venn genes
+
+```{r}
+stopifnot(all(sort(repLRT$annotated_results$ensembl_gene_id) ==
+                sort(repPam$annotated_results$ensembl_gene_id)))
+stopifnot(all(sort(repLRT$annotated_results$ensembl_gene_id) ==
+                sort(repBatch$annotated_results$ensembl_gene_id)))
+
+#Binary df for all genes to indicate comparison significance
+background = sort(repLRT$annotated_results$ensembl_gene_id)
+sig_genes = data.frame(
+  PPBC = background %in% repLRT$significant_genes$ensembl_gene_id,
+  PAM50 = background %in% repPam$significant_genes$ensembl_gene_id,
+  Batch = background %in% repBatch$significant_genes$ensembl_gene_id)
+rownames(sig_genes) = background
+
+#Remove genes that weren't significant anwyhere
+#sig_genes = sig_genes[rowSums(sig_genes) > 0,] #Not actually necessary
+#dim(sig_genes)
+
+vc = limma::vennCounts(sig_genes)
+
+limma::vennDiagram(vc,
+  names = colnames(sig_genes), 
+  cex = 1,
+  main = "Overlap significant genes from likelihood ratio tests")
+```
+
+```{r, include=F}
+pdf(here("results", "diffex", "figs", "06_LRT", "06_venn_lrts.pdf"), height = 6, width=9)
+limma::vennDiagram(vc,
+  names = colnames(sig_genes), 
+  cex = 1,
+  main = "Overlap significant genes from likelihood ratio tests")
+dev.off()
+```
+
+Which genes are unique to study group?
+
+```{r}
+unique_ppbc_genes = repLRT$significant_genes$ensembl_gene_id[
+  !repLRT$significant_genes$ensembl_gene_id %in% repPam$significant_genes$ensembl_gene_id &
+  !repLRT$significant_genes$ensembl_gene_id %in% repBatch$significant_genes$ensembl_gene_id]
+
+repLRT$significant_genes %>% filter(ensembl_gene_id %in% unique_ppbc_genes)
+```
+
+Showing just the gene names from the unique group:
+
+```{r}
+repLRT$significant_genes %>% filter(ensembl_gene_id %in% unique_ppbc_genes) %>% pull(gene_name)
+```
+
+### Heatmap unique genes
+
+```{r, fig.height=6, fig.width=9}
+mat_unique_ppbc <- assay(vsd[rownames(vsd) %in% unique_ppbc_genes,])
+gx_annot$gene_name[match(rownames(mat_unique_ppbc), gx_annot$ensembl_gene_id)]
+
+stopifnot(all(repLRT$significant_genes %>% filter(ensembl_gene_id %in% unique_ppbc_genes) %>% pull(gene_name) %in%
+                gx_annot$gene_name[match(rownames(mat_unique_ppbc), gx_annot$ensembl_gene_id)]))
+
+rownames(mat_unique_ppbc) = gx_annot$gene_name[match(rownames(mat_unique_ppbc), gx_annot$ensembl_gene_id)]
+
+quantile_breaks <- function(xs, n = 10) {
+  breaks <- quantile(xs, probs = seq(0, 1, length.out = n))
+  breaks[!duplicated(breaks)]
+}
+
+mat_breaks <- quantile_breaks(scrime::rowScales(mat_unique_ppbc), n = 10)
+
+pheatmap::pheatmap(mat_unique_ppbc,
+                   show_colnames = F,
+                   scale="row",
+                   annotation_col = as.data.frame(colData(vsd))[,c("PAM50", "study_group")],
+                   annotation_colors = list(PAM50 = pam_colors, study_group = study_colors, Type = gene_colors),
+                   annotation_row = column_to_rownames(select(filter(repLRT$significant_genes, ensembl_gene_id %in% unique_ppbc_genes),
+                                           gene_name, Type),"gene_name"),
+                   color = viridis::viridis(length(mat_breaks) - 1), #God it's hideous
+                   breaks = mat_breaks,
+                   main="Genes uniquely significant in LRT study group (vs batch and PAM50)")
+
+```
+
+```{r, include=F}
+pheatmap::pheatmap(mat_unique_ppbc,
+                   show_colnames = F,
+                   scale="row",
+                   annotation_col = as.data.frame(colData(vsd))[,c("PAM50", "study_group")],
+                   annotation_colors = list(PAM50 = pam_colors, study_group = study_colors, Type = gene_colors),
+                   annotation_row = column_to_rownames(select(filter(repLRT$significant_genes, ensembl_gene_id %in% unique_ppbc_genes),
+                                           gene_name, Type),"gene_name"),
+                   color = viridis::viridis(length(mat_breaks) - 1), #God it's hideous
+                   breaks = mat_breaks,
+                   main="Genes uniquely significant in LRT study group (vs batch and PAM50)",
+                   filename = here("results", "diffex", "figs", "06_LRT", "heatmaps", "06_hm_unique_ppbc_lrt_genes.pdf"),
+                   width= 9, height = 7)
+
+```
+
+
+## Venn pathways
+
+We'll see a similar picture for pathways.
+
+```{r}
+#Binary df for all genes to indicate comparison significance
+
+background = c(names(gene_sets$go_bp), names(gene_sets$hallmark),
+               names(gene_sets$c2_canon), names(gene_sets$c2_cgp))
+
+sig_paths = data.frame(
+  PPBC = background %in% filter(bind_rows(repLRT$pathways), fdr < 0.1)$pathway,
+  PAM50 = background %in% filter(bind_rows(repPam$pathways), fdr < 0.1)$pathway,
+  Batch = background %in% filter(bind_rows(repBatch$pathways), fdr < 0.1)$pathway)
+rownames(sig_paths) = background
+
+#Remove genes that weren't significant anwyhere
+#sig_genes = sig_genes[rowSums(sig_genes) > 0,] #Not actually necessary
+#dim(sig_genes)
+
+vp = limma::vennCounts(sig_paths)
+
+limma::vennDiagram(vp,
+  names = colnames(sig_paths), 
+  cex = 1,
+  main = "Overlap significant pathways from likelihood ratio tests")
+```
+
+Which two pathways from study group are not colinear?
+
+```{r}
+unique_ppbc_paths = filter(bind_rows(repLRT$pathways), fdr < 0.1)$pathway[
+  !filter(bind_rows(repLRT$pathways), fdr < 0.1)$pathway %in% filter(bind_rows(repPam$pathways), fdr < 0.1)$pathway &
+  !filter(bind_rows(repLRT$pathways), fdr < 0.1)$pathway %in% filter(bind_rows(repBatch$pathways), fdr < 0.1)$pathway]
+
+bind_rows(repLRT$pathways) %>% filter(pathway %in% unique_ppbc_paths)
 ```
 
 
