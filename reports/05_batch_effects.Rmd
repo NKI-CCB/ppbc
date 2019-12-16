@@ -554,7 +554,7 @@ for (i in 1:nrow(corvars_cat)){
   thisy = corvars_cat[i,2]
   tbl = table(sd[,thisx], sd[,thisy])
   chires =chisq.test(sd[,thisx], sd[,thisy], simulate.p.value = T)
-  corrplot::corrplot(chires$residuals, is.corr=F)
+  corrplot::corrplot(chires$residuals, is.corr=F, cl.cex = 1.5, cl.align.text = "l")
 }
 ```
 
