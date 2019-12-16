@@ -296,7 +296,7 @@ Note that for this to work, you MUST create the heatmap by explicitly calling dr
 ```{r}
 stopifnot(class(inv.hm) == "HeatmapList") #Will be "HeatmapList" instead of Heatmap if draw has been called
 
-coldend.hm = column_dend(inv.hm)
+coldend.hm = column_dend(draw(inv.hm))
 test_clust =
 bind_rows(
   tibble(sample_name = as.hclust(coldend.hm$`1`)$labels,IG_col_cluster = "low", col_cluster=1),

@@ -1104,7 +1104,7 @@ res_allgenes_multivar_surv %>% filter(beta > 0 & fdr < 0.1) %>%
 
 Beta < 0 : Lower gene expression = Likelier death
 
-Generous fdr cutoff of 0.2:
+Generous fdr cutoff of 0.1:
 
 ```{r}
 print(paste("Overall survival multivariate Beta < 0, fdr < 0.1:",
@@ -2309,8 +2309,9 @@ filter(res_allgenes_multivar_dr, fdr<0.1)
 
 
 ```{r}
-plot_cox_beehive <- function(dds, description, ensembl_id, res_df, cox_df){
-  p <- plot_gene_beehive(dds, res_df[res_df$ensembl_gene_id == ensembl_id,,drop=F])
+plot_cox_beehive <- function(dds, description, ensembl_id, res_df, cox_df,intgroup = "study_group", colorby="PAM50"){
+  p <- plot_gene_beehive(dds, res_df[res_df$ensembl_gene_id == ensembl_id,,drop=F],
+                         intgroup = intgroup, colorby = colorby)
   lrt_padj <- res_df[res_df$ensembl_gene_id == ensembl_id,]$padj
   cox <- cox_df[cox_df$ensembl_gene_id == ensembl_id, , drop=F]
   cox_padj = cox$fdr
@@ -2421,6 +2422,28 @@ plot_cox_beehive(dds, description = "Multivariate OS", ensembl_id = "ENSG0000019
 
 ```
 
+## [IL1R2](https://www.genecards.org/cgi-bin/carddisp.pl?gene=IL1R2)
+
+
+ 
+```{r}
+print(paste("FDR from multivariate overall survival Cox model",
+            (res_allgenes_multivar_surv %>% filter(gene_name == "IL1R2") %>%
+               pull(fdr) %>% round(3))))
+
+print(paste("FDR from multivariate distant recurrence Cox model",
+            (res_allgenes_multivar_dr %>% filter(gene_name == "IL1R2") %>%
+               pull(fdr) %>% round(3))))
+
+```
+
+
+```{r}
+plot_cox_beehive(dds, description = "Multivariate OS", ensembl_id = "ENSG00000115590",
+                 res_df = lrt, cox_df = res_allgenes_multivar_surv)
+
+```
+
 ## More to come
 
 More genes of interest: Both significant in the drs multivariate model and have an fdr of under 0.2 in the lrt:
@@ -2460,12 +2483,328 @@ plot_cox_beehive(dds, description = "Multivariate DR", ensembl_id = "ENSG0000021
                  res_df = lrt, cox_df = res_allgenes_multivar_dr)
 ```
 
+# Post hoc: Involution samples only
+
+Previously, we looked exclusively at the genes which were significant in involution vs rest.
+Now, we'll check to see whether we can identify individual genes which are predictive of survival exclusively in the involution group.
+
+```{r}
+print("Samples with sufficient survival data:")
+ncol(genEx)
+
+#Subset for only those samples with enough survival data
+print("Involution samples:")
+invEx <- genEx[,colnames(genEx)[str_detect(colnames(genEx), "inv")]]
+ncol(invEx)
+
+invmeta <- metadata %>% filter(sample_name %in% colnames(invEx))
+invdge <- DGEList(invEx, samples = invmeta, group = invmeta$study_group)
+invmat <- normTMMlog2(invdge)
+
+stopifnot(identical(rownames(t(invmat)), invmeta$sample_name))
+
+invdata = cbind(invmeta, t(invmat))
+```
+
+## Inv samples: Multivariate OS
+
+Run in script 12.
+
+```{r, eval=F}
+resDir = here("data", "Rds")
+dir.create(resDir, showWarnings = F)
+stopifnot(file.exists(resDir))
+
+resPath = file.path(resDir, "12_inv_multi_os.Rds")
+
+if(file.exists(resPath) == F| overwrite == T){
+  print("Multivariate survival, involution samples")
+  res <- genewise_cox(
+    gene_list = colnames(invdata)[21:ncol(invdata)],
+    data = invdata,
+    show_runtime = T,
+    time="months_overall_survival",
+    event="overall_survival",
+    type="multivariate")
+  saveRDS(res, resPath)
+}
+```
+
+
+```{r}
+res_inv_os <- readRDS(here("data","Rds","12_inv_multi_os.Rds")) %>%
+  mutate(fdr = p.adjust(p.value, method = "fdr")) %>%
+  select(gene_name, fdr, beta, `HR (95% CI for HR)`, everything())
+
+```
+
+Top 30 most significant results.
+
+```{r}
+head(res_inv_os, 30)
+```
+
+
+Beta > 0 : Higher gene expression = Likelier death
+
+```{r, collapse=T}
+print(paste("Overall survival Beta > 0, fdr < 0.1:",
+      nrow(res_inv_os %>% filter(beta > 0 & fdr < 0.1))))
+
+res_inv_os %>% filter(beta > 0 & fdr < 0.1) %>%
+  pull(gene_name)
+```
+
+
+With just 3 genes, we won't be having pathways.
+
+More permissive theresholds:
+
+Beta > 0
+
+```{r, collapse=T}
+print(paste("Overall survival Beta > 0, fdr < 0.2:",
+      nrow(res_inv_os %>% filter(beta > 0 & fdr < 0.2))))
+
+res_inv_os %>% filter(beta > 0 & fdr < 0.2) %>%
+  pull(gene_name)
+```
+
+Beta < 0
+
+```{r}
+print(paste("Overall survival multivariate Beta < 0, fdr < 0.2:",
+      nrow(res_inv_os %>% filter(beta < 0 & fdr < 0.2))))
+res_inv_os %>% filter(beta < 0 & fdr < 0.2) %>%
+  pull(gene_name)
+```
+
+Pathway overview: Fisher's exact
+
+```{r}
+#res_inv_os$gene_name %>% length()
+path_inv_os = fisher_pathways(
+  sig_genes = pull(filter(res_inv_os, fdr < 0.2),gene_name),
+      background_genes = res_inv_os$gene_name,
+      list_signatures = gene_sets,
+      fdr_cutoff = 0.1,
+      verbose = F,
+      collapse_rows=F)
+
+print("Sig pathways fdr < 0.2: ")
+
+lapply(path_inv_os, nrow)
+```
+
+Top of each gene sig:
+
+```{r}
+lapply(path_inv_os, function(x) plot_enrichment(enrich_res = x, fdr = 0.1, max_nchar_path = 40, max_path = 20,title = "Sig pathways fdr < 0.2: Multi OS (Inv only)"))
+```
+
+
+
+Plot the top 20 pathways:
+
+```{r, fig.height=6, fig.width=9}
+bind_rows(path_inv_os, .id = "gene_set")  %>%
+
+plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Sig pathways fdr < 0.2: Multi OS (Inv only)"
+      )
+```
+
+
+## Inv samples: Multivariate DRS
+
+```{r, eval=F}
+resPath = file.path(resDir, "12_inv_multi_dr.Rds")
+
+if(file.exists(resPath) == F| overwrite == T){
+  print("Multivariate metastasis, involution samples")
+  res <- genewise_cox(
+    gene_list = colnames(invdata)[21:ncol(invdata)],
+    data = invdata,
+    show_runtime = T,
+    time="months_to_drs",
+    event="distant_recurrence",
+    type="multivariate")
+  saveRDS(res, resPath)
+}
+```
+
+
+```{r}
+res_inv_drs <- readRDS(here("data","Rds","12_inv_multi_dr.Rds")) %>%
+  mutate(fdr = p.adjust(p.value, method = "fdr")) %>%
+  select(gene_name, fdr, beta, `HR (95% CI for HR)`, everything())
+
+```
+
+Top 30 most significant results.
+
+```{r}
+head(res_inv_drs, 30)
+```
+
+
+Beta > 0 : Higher gene expression = Likelier death
+
+```{r, collapse=T}
+print(paste("Distant recurrence Beta > 0, fdr < 0.1:",
+      nrow(res_inv_drs %>% filter(beta > 0 & fdr < 0.1))))
+
+res_inv_drs %>% filter(beta > 0 & fdr < 0.1) %>%
+  pull(gene_name)
+```
+
+Beta < 0 : Lower gene expression = Likelier death
+
+```{r}
+print(paste("Distant recurrence multivariate Beta < 0, fdr < 0.1:",
+      nrow(res_inv_drs %>% filter(beta < 0 & fdr < 0.1))))
+res_inv_os %>% filter(beta < 0 & fdr < 0.1) %>%
+  pull(gene_name)
+```
+
+Also here we will not have significant pathways which so few genes.
+
+
+More permissive threshold:
+
+Beta > 0 : Higher gene expression = Likelier death
+
+```{r, collapse=T}
+print(paste("Distant recurrence Beta > 0, fdr < 0.15:",
+      nrow(res_inv_drs %>% filter(beta > 0 & fdr < 0.15))))
+
+res_inv_drs %>% filter(beta > 0 & fdr < 0.15) %>%
+  pull(gene_name)
+```
+
+Beta < 0 : Lower gene expression = Likelier death
+
+```{r}
+print(paste("Distant recurrence multivariate Beta < 0, fdr < 0.15:",
+      nrow(res_inv_drs %>% filter(beta < 0 & fdr < 0.15))))
+res_inv_drs %>% filter(beta < 0 & fdr < 0.15) %>%
+  pull(gene_name)
+```
+
+Pathway overview: Fisher's exact
+
+```{r}
+#res_inv_os$gene_name %>% length()
+path_inv_drs = fisher_pathways(
+  sig_genes = pull(filter(res_inv_drs, fdr < 0.15),gene_name),
+      background_genes = res_inv_drs$gene_name,
+      list_signatures = gene_sets,
+      fdr_cutoff = 0.1,
+      verbose = F,
+      collapse_rows=F)
+
+print("Sig pathways fdr < 0.15: ")
+
+lapply(path_inv_drs, nrow)
+```
+
+Top of each gene sig:
+
+```{r}
+lapply(path_inv_drs, function(x) plot_enrichment(enrich_res = x, fdr = 0.1, max_nchar_path = 40, max_path = 20,title = "Sig pathways fdr < 0.15: Multi DRS (Inv only)"))
+```
+
+
+
+Plot the top 20 pathways:
+
+```{r, fig.height=6, fig.width=9}
+bind_rows(path_inv_drs, .id = "gene_set")  %>%
+
+plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Sig pathways fdr < 0.2: Multi DRS (Inv only)"
+      )
+```
+
+## Genes of interest
+
+### [NEBL](https://www.genecards.org/cgi-bin/carddisp.pl?gene=NEBL)
+
+>This gene encodes a nebulin like protein that is abundantly expressed in cardiac muscle. The encoded protein binds actin and interacts with thin filaments and Z-line associated proteins in striated muscle. This protein may be involved in cardiac myofibril assembly. A shorter isoform of this protein termed LIM nebulette is expressed in non-muscle cells and may function as a component of focal adhesion complexes. Alternate splicing results in multiple transcript variants. [provided by RefSeq, Mar 2010]
+
+Positively prognostic with colon cancer
+Negatively prognostic with lung cancer
+
+```{r}
+print(paste("FDR from multivariate overall survival Cox model",
+            (res_allgenes_multivar_surv %>% filter(gene_name == "NEBL") %>%
+               pull(fdr) %>% round(3))))
+print(paste("FDR from involution-only multivariate overall survival Cox model",
+            (res_inv_os %>% filter(gene_name == "NEBL") %>%
+               pull(fdr) %>% round(3))))
+
+print(paste("FDR from multivariate distant recurrence Cox model",
+            (res_allgenes_multivar_dr %>% filter(gene_name == "NEBL") %>%
+               pull(fdr) %>% round(3))))
+print(paste("FDR from multivariate involution-only distant recurrence Cox model",
+            (res_inv_drs %>% filter(gene_name == "NEBL") %>%
+               pull(fdr) %>% round(3))))
+
+```
+
+Expression widely divergent. Possibly driven by outliers?
+
+```{r}
+dds$overall_survival <- factor(dds$overall_survival, levels = c(0,1))
+
+plot_cox_beehive(dds, description = "Multivariate OS, inv only", ensembl_id = "ENSG00000078114",
+                 res_df = lrt, cox_df = res_inv_os, colorby="overall_survival")
+
+```
+
+### [YTHDF3](https://www.genecards.org/cgi-bin/carddisp.pl?gene=YTHDF3&keywords=YTHDF3)
+
+> Specifically recognizes and binds N6-methyladenosine (m6A)-containing RNAs and promotes RNA translation efficiency (PubMed:28106072, PubMed:28106076, PubMed:28281539). M6A is a modification present at internal sites of mRNAs and some non-coding RNAs and plays a role in the efficiency of mRNA splicing, processing and stability (PubMed:22575960, PubMed:24284625, PubMed:28106072, PubMed:28106076, PubMed:28281539). Shares m6A-containing mRNAs targets with YTHDF1 and YTHDF2, and regulates different processes depending on the context (PubMed:28106072, PubMed:28106076). Facilitates the translation of targeted mRNAs in cooperation with YTHDF1 by binding to m6A-containing mRNAs and interacting with 40S and 60S ribosome subunits (PubMed:28106072, PubMed:28106076). Acts as a negative regulator of type I interferon response by down-regulating interferon-stimulated genes (ISGs) expression: acts by binding to FOXO3 mRNAs and promoting their translation. Binds to FOXO3 mRNAs independently of METTL3-mediated m6A modification (By similarity). Can also act as a regulator of mRNA stability in cooperation with YTHDF2 by binding to m6A-containing mRNA and promoting their degradation (PubMed:28106072). Recognizes and binds m6A-containing circular RNAs (circRNAs) and promotes their translation (PubMed:28281539). circRNAs are generated through back-splicing of pre-mRNAs, a non-canonical splicing process promoted by dsRNA structures across circularizing exons (PubMed:28281539).
+
+```{r}
+print(paste("FDR from multivariate overall survival Cox model",
+            (res_allgenes_multivar_surv %>% filter(gene_name == "YTHDF3") %>%
+               pull(fdr) %>% round(3))))
+print(paste("FDR from involution-only multivariate overall survival Cox model",
+            (res_inv_os %>% filter(gene_name == "YTHDF3") %>%
+               pull(fdr) %>% round(3))))
+
+print(paste("FDR from multivariate distant recurrence Cox model",
+            (res_allgenes_multivar_dr %>% filter(gene_name == "YTHDF3") %>%
+               pull(fdr) %>% round(3))))
+print(paste("FDR from multivariate involution-only distant recurrence Cox model",
+            (res_inv_drs %>% filter(gene_name == "YTHDF3") %>%
+               pull(fdr) %>% round(3))))
+
+```
+
+Expression widely divergent. Possibly driven by outliers?
+
+```{r}
+plot_cox_beehive(dds, description = "Multivariate OS, inv only", ensembl_id = "ENSG00000185728",
+                 res_df = lrt, cox_df = res_inv_os, colorby="overall_survival")
+
+```
+
 
 ## Save data
 
 Remove extremely large objects first (over 1GB memory)
 
-```{r}
+```{r, echo=F}
 ls(pattern = "multivar_gene")
 rm("multivar_gene_dr")
 rm("multivar_gene_surv")
