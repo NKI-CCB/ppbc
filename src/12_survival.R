@@ -221,4 +221,104 @@ if(file.exists(resPath) == F| overwrite == T){
   saveRDS(res, resPath)
 }
 
+#### Involution samples only ####
+
+#Subset for only those samples with enough survival data
+print("All samples")
+print(ncol(genEx))
+genEx <- genEx[,colnames(genEx) %in% metadata$sample_name]
+print("Samples with sufficient survival data:")
+ncol(genEx)
+
+print("Involution samples:")
+invEx <- genEx[,colnames(genEx)[str_detect(colnames(genEx), "inv")]]
+ncol(invEx)
+
+invmeta <- metadata %>% filter(sample_name %in% colnames(invEx))
+
+#TMM and log transform
+
+invdge <- DGEList(invEx, samples = invmeta, group = invmeta$study_group)
+
+normTMMlog2 <- function(object){
+  object = calcNormFactors(object, method="TMM")
+  object = cpm(object, log=T, normalized.lib.sizes=T)
+  return(object)
+}
+
+invmat <- normTMMlog2(invdge)
+
+#Combine into single dataframe for Cox
+
+stopifnot(identical(rownames(t(invmat)), invmeta$sample_name))
+
+invdata = cbind(invmeta, t(invmat))
+
+head(invdata[,1:30])
+
+
+#Results directory
+resDir = here("data", "Rds")
+dir.create(resDir, showWarnings = F)
+stopifnot(file.exists(resDir))
+
+resPath = file.path(resDir, "12_inv_multi_os.Rds")
+
+if(file.exists(resPath) == F| overwrite == T){
+  print("Multivariate survival, involution samples")
+  res <- genewise_cox(
+    gene_list = colnames(invdata)[21:ncol(invdata)],
+    data = invdata,
+    show_runtime = T,
+    time="months_overall_survival",
+    event="overall_survival",
+    type="multivariate")
+  saveRDS(res, resPath)
+}
+
+#Univariate
+resPath = file.path(resDir, "12_inv_uni_os.Rds")
+
+if(file.exists(resPath) == F| overwrite == T){
+  print("Univariate survival, involution samples")
+  res <- genewise_cox(
+    gene_list = colnames(invdata)[21:ncol(invdata)],
+    data = invdata,
+    show_runtime = T,
+    time="months_overall_survival",
+    event="overall_survival",
+    type="univariate")
+  saveRDS(res, resPath)
+}
+
+
+#Multivariate
+resPath = file.path(resDir, "12_inv_multi_dr.Rds")
+
+if(file.exists(resPath) == F| overwrite == T){
+  print("Multivariate metastasis, involution samples")
+  res <- genewise_cox(
+    gene_list = colnames(invdata)[21:ncol(invdata)],
+    data = invdata,
+    show_runtime = T,
+    time="months_to_drs",
+    event="distant_recurrence",
+    type="multivariate")
+  saveRDS(res, resPath)
+}
+
+#Univariate
+resPath = file.path(resDir, "12_inv_uni_dr.Rds")
+
+if(file.exists(resPath) == F| overwrite == T){
+  print("Univariate metastasis, involution samples")
+  res <- genewise_cox(
+    gene_list = colnames(invdata)[21:ncol(invdata)],
+    data = invdata,
+    show_runtime = T,
+    time="months_to_drs",
+    event="distant_recurrence",
+    type="univariate")
+  saveRDS(res, resPath)
+}
 
