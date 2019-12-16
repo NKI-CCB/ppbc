@@ -298,7 +298,7 @@ deseq_heatmap = function(mat, sampledata, sig_results,
   mat = mat[rownames(mat) %in% genestoplot, ]
 
   #Reduce genes and sample data to compared groups only
-  sampledata = sampledata %>% filter(study_group %in% groups_to_plot)
+  sampledata = sampledata %>% dplyr::filter(study_group %in% groups_to_plot)
   mat = mat[,colnames(mat) %in% sampledata$sample_name]
   stopifnot(identical(colnames(mat), sampledata$sample_name))
 
@@ -346,7 +346,7 @@ deseq_heatmap = function(mat, sampledata, sig_results,
 
   rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=list(Type = row_colors))
 
-  draw(Heatmap(mat,
+  Heatmap(mat,
           top_annotation = colTop,
           bottom_annotation = colBottom,
           left_annotation = rowAnno,
@@ -357,7 +357,7 @@ deseq_heatmap = function(mat, sampledata, sig_results,
           row_names_gp = gpar(fontsize = row_size),
           column_names_gp = gpar(fontsize = col_size),
           column_title = title,
-          ...))
+          ...)
 }
 
 

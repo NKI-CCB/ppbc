@@ -1,5 +1,5 @@
 #Calc_x functions by Evert Bosdriesz
-#plot_enrichment by KSM
+#plot_enrichment & fisher_pathways wrapper by KSM
 
 #' Calculate enrichment.
 #'
