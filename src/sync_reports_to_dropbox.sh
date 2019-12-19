@@ -4,7 +4,7 @@
 #Do not ssh into harris first
 
 #From local:
-#ssh -f k.moore@rhpc.nki.nl -L 2222:harris:22 -N && sshfs -p 2222 k.moore@localhost:/DATA/share/postpartumbc ~/mnt/postpartumbc/
+ssh -f k.moore@rhpc.nki.nl -L 2222:harris:22 -N && sshfs -p 2222 k.moore@localhost:/DATA/share/postpartumbc ~/mnt/postpartumbc/
 
 #Html reports
 cd ~/mnt/postpartumbc/reports

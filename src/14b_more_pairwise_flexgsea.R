@@ -17,7 +17,7 @@ overwrite=F
 
 dir.create(here("results", "flexgsea", "logs"), showWarnings = F, recursive = T)
 
-logfile <- file(here("results", "flexgsea", "logs", "flexgsea_deseq.txt"),)
+logfile <- file(here("results", "flexgsea", "logs", "more_pairwise_flexgsea_deseq.txt"),)
 sink(logfile ,type = "output")
 #sink(logfile, type = "message") #Doesn't work properly
 
@@ -29,11 +29,11 @@ print(paste("Number of permutations:", nperm))
 
 # Input before running function
 DIR = here("results","flexgsea", "deseq")
-input_DIR = file.path(DIR,"input")
+input_DIR = file.path(DIR,"input_more_pairwise")
 dir.create(input_DIR, showWarnings = F, recursive = T)
 
 #Results dir
-results_DIR = file.path(DIR,"results")
+results_DIR = file.path(DIR,"results_more_pairwise")
 dir.create(results_DIR, showWarnings = F, recursive = T)
 
 #registerDoParallel(cores=32) #doParallel version
@@ -65,11 +65,11 @@ gene_signatures = list(
 )
 
 signature_files = enframe(c(
+  go_c5 = here("data","external","gmt","c5.all.v6.2.symbols.gmt"),
   hallmark = here("data","external","gmt","h.all.v6.2.symbols.gmt"), # 50 gene overview
   canonpath_c2 =  here("data","external","gmt","c2.cp.v6.2.symbols.gmt"), #Canonical pathways
-  cgp_c2 = here("data", "external", "gmt", "c2.cgp.v7.0.symbols.gmt"), #Chemical and genetic perturbations
-  go_c5 = here("data","external","gmt","c5.all.v6.2.symbols.gmt")),
-  "signature_name", "file")
+  cgp_c2 = here("data", "external", "gmt", "c2.cgp.v7.0.symbols.gmt") #Chemical and genetic perturbations
+), "signature_name", "file")
 
 names(gene_signatures) %>% head()
 
@@ -81,21 +81,11 @@ names(gene_signatures) %>% head()
 
 signature_abs = tibble(
   signature = names(gene_signatures),
-  abs = c(F, T, F, T))
+  abs = c(T, F, T, F))
 
 print("Absolute GSEA or not, by signature")
 print(signature_abs)
 
-
-#### Comparison overview ----
-
-print("Pairwise comparisons:")
-print(table(dds$study_group))
-print("One vs rest comparisons")
-print(table(dds$inv_vs_rest, dds$study_group))
-print(table(dds$prbc_vs_rest, dds$study_group))
-print(table(dds$lac_vs_rest, dds$study_group))
-print(table(dds$nonprbc_vs_rest, dds$study_group))
 
 
 ### Convert to gene symbol count matrix ----
@@ -130,21 +120,28 @@ saveRDS(geneEx, file.path(input_DIR, "geneSymbol_countmatrix.Rds"))
 #test.geneEx = summarize_expression_duplicate_ids(mat = geneEx, id_column = "gene_name", f=colMeans) #No dups
 #test.geneEx <- column_to_rownames(test.geneEx, "gene_name")
 
-#### Comparison setup ----
+#### Comparison overview ----
 
-#In order of interest, i.e., which ones we want to have first
+print("Pairwise comparisons:")
+print(table(dds$study_group))
+
+#Nulliparous is the default study group, here we want to look at the others
+
+dds$refprbc <- relevel(dds$study_group, ref = "prbc")
+print("Reference: prbc")
+levels(dds$refprbc)
+
+dds$reflac <- relevel(dds$study_group, ref = "ppbc_lac")
+print("Reference: lac")
+levels(dds$reflac)
+
 sampledata <- as.data.frame(colData(dds))
 
 #testing
 #test.sampledata <- as.data.frame(colData(test.dds))
 
 #In order of interest, i.e., which ones we want to have first
-comparisons = c("inv_vs_rest",  #Most interesting
-                'prbc_vs_rest',
-                "study_group",
-                "lac_vs_rest",
-                "nonprbc_vs_rest"
-                )
+comparisons = c("refprbc", "reflac")
 
 
 print("") #Empty line
@@ -219,7 +216,7 @@ make_score_genes <- function(coef_of_interest="study_group") {
 
 x = t(geneEx)
 mode(x)="integer" #Crashes if numeric
-saveRDS(geneEx, file.path(input_DIR, "x.Rds"))
+saveRDS(x, file.path(input_DIR, "x.Rds"))
 
 #testing
 #test.x <- t(test.geneEx)
@@ -255,38 +252,31 @@ for (i in 1:length(comparisons)){
 
     start = Sys.time()
 
-    #To save time, we design the scoring function to return pairwise comparisons simultaneously
-    #For one vs rest, selects the last column only (which corresponds to one vs rest)
-    if (comp == "study_group"){
-      this.comp = "study_group"
-    } else {
-      this.comp = NULL
-    }
-
-
     #Should this run be absolute?
     this_abs = as.logical(signature_abs[signature_abs$signature == sig_name,"abs"])
 
+    print(paste("Absolute: ", this_abs))
+
     flexres = flexgsea(x = x, y = y,
                        gene.sets = signature,
-                       gene.score.fn = make_score_genes(coef_of_interest=this.comp),
+                       gene.score.fn = make_score_genes(coef_of_interest=comp),
                        es.fn=flexgsea_weighted_ks,
                        sig.fun=flexgsea_calc_sig,
                        nperm=nperm, parallel = T,
                        block.size = 1,
                        abs = this_abs,
                        return_values = c("gene_name","leading_edge",'running_es_pos','running_es_neg')
-                       )
+    )
     #'running_es_at' = Error in res$running_es_at[[i]] <- list() : replacement has length zero
     #test.flexres = flexgsea(x = test.x, y = test.y,
-     #                  gene.sets = signature,
-      #                 gene.score.fn = make_score_genes(coef_of_interest=this.comp),
-       #                es.fn=flexgsea_weighted_ks,
-        #               sig.fun=flexgsea_calc_sig,
-         #              nperm=nperm, parallel = T,
-          #             block.size = 1,
-           #            abs = this_abs,
-            #           return_values = c("gene_name","leading_edge",'running_es_pos','running_es_neg')
+    #                  gene.sets = signature,
+    #                 gene.score.fn = make_score_genes(coef_of_interest=this.comp),
+    #                es.fn=flexgsea_weighted_ks,
+    #               sig.fun=flexgsea_calc_sig,
+    #              nperm=nperm, parallel = T,
+    #             block.size = 1,
+    #            abs = this_abs,
+    #           return_values = c("gene_name","leading_edge",'running_es_pos','running_es_neg')
     #)
 
     end = Sys.time()

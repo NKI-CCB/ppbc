@@ -3,14 +3,16 @@ title: "To do"
 output: html_notebook
 ---
 
-* Elastic Cox with top 1000 variant genes (TMM) ^
 * Make report from Flexgsea results ^
-* Treatment as a covariate in Cox
 * Clustering with other comparisons (not just inv vs rest)
 * GSEA with "interesting gene list"
 * Variable influence factor (VIF) - Maybe
-* Redo diffex looking at just Leuven data ^
-* Diffex within PAM50 groups
+* Diffex and KM short vs long-term inv
+
+Open questions/theories from survival interaction analysis:
+
+Do low B cell patients have a high fibrinogen signature (FGB/FGG/FGFBP1)? Could the fibrinogen be suppressing B cell activity, resulting in increased mortality?
+What about Akt1 signaling (DUSP13 and FLT3) and cancer-testis antigens (MAGE family)?
 
 Recreate code for mountain plots with flexgsea
 Steal some ideas from ClusterProlifer?
