@@ -10,6 +10,9 @@ output:
 
 A series of reports generated to visualize FlexGSEA results from script (14_flexgsea_deseq).
 
+```{r, include=F}
+rm(list = ls())
+```
 
 ```{r, include=F}
 library(flexgsea)
@@ -61,12 +64,19 @@ signature_files
 
 ## Results files
 
+Most of the important comparisons were made in a single batch. A few additional pairwise (group A vs group B) were made later.
+
 ```{r}
 result_files = here("results", "flexgsea", "deseq", "results",
                     list.files(here("results", "flexgsea", "deseq", "results"),
                                pattern = ".Rds"))
 
-result_files
+result_files = c(result_files, 
+                 here("results", "flexgsea", "deseq", "results_more_pairwise",
+                    list.files(here("results", "flexgsea", "deseq", "results_more_pairwise"),
+                               pattern = ".Rds")))
+
+stopifnot(all(file.exists(result_files)))
 ```
 
 
@@ -87,7 +97,7 @@ gene_colors = all_colors$gene_colors
 
 Results file is structure as a nested list with parameters and flexgsea results in the top level. Most results are stored in table, which is a list of each coefficient run (there will be only one for vs rest comparisons). Running es and leading edge can be used to make mountain plots. For leading edge, integers are reported instead of gene names. These correspond to the row number in the input matrix.
 
-```{r}
+```{r, include=F}
 #test <- readRDS(result_files[1])
 test <- readRDS("/DATA/share/postpartumbc/results/flexgsea/deseq/results/study_group_canonpath_c2_results_flexdeseq.Rds") 
 #str(test)
@@ -138,12 +148,20 @@ Split the key into a more readable format.
 gseares = gseares %>% mutate(comparison = case_when(
   str_detect(key, "vs_rest_") ~ str_replace(str_remove(str_remove(key, ".*_rest_"), "ppbc_"), "non_", "non"),
   str_detect(key, "study_group") ~ str_replace(str_remove(str_remove(key, "study_group_"), "ppbc_"), "non_", "non"),
+  str_detect(key, "reflac") ~ str_replace(str_remove_all(str_remove(key, "reflac_"), "ppbc_"), "non_", "non"),
+  str_detect(key, "refprbc") ~ str_replace(str_remove_all(str_remove(key, "refprbc_"), "ppbc_"), "non_", "non"),
   TRUE ~ key
 ))
 
 gseares = gseares %>% select(fdr, p, comparison, GeneSet, everything())
 
 gseares %>% select(key, comparison) %>% distinct()
+```
+
+## Write aggregate table
+
+```{r}
+openxlsx::write.xlsx(gseares, file = here("results", "flexgsea", "deseq", "14_flexgsea_aggregate_results.xlsx"))
 ```
 
 
@@ -159,7 +177,8 @@ gseares %>% mutate(sigfdr = fdr < 0.25) %>% group_by(comparison, sigfdr) %>% sum
   arrange(desc(n)) %>% ungroup %>% filter(sigfdr == T) %>%
   ggplot(aes(x = factor(comparison, level=comparison), y = n)) +
   geom_bar(stat="identity") + #scale_y_log10() +
-  xlab("Comparison") + ylab("Signatures significant at FDR < 0.25 (log10)") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab("Comparison") + ylab("Signatures significant at FDR < 0.25") +
   ggtitle("Number of significant gene signatures across all comparisons")
 
 ```
@@ -171,21 +190,20 @@ no_sig_genesets = gseares %>% mutate(sigfdr = fdr < 0.25) %>% select(comparison,
   filter(sigfdr == T & Freq == 0)
 
 no_sig_genesets
-
-#flexres %>% mutate(comparison_has_atleastone_significant_hit)
 ```
 
 # Significant collections by comparison
 
 ```{r}
-gseares %>% filter(fdr < 0.25) %>% group_by(comparison, gene_signature) %>% summarise(n=n()) %>% arrange(desc(n))
+gseares %>% filter(fdr < 0.25) %>% group_by(comparison, gene_signature) %>%
+  summarise(n=n()) %>% arrange(desc(n))
 ```
 
 ```{r, fig.width=10}
 gseares %>% mutate(sigFDR = fdr < 0.25) %>% #filter(fdr < 0.25) %>%
   ggplot(aes(x = gene_signature, y = -log10(fdr), color = sigFDR)) +
   geom_jitter(width=0.1, height = 0) +
-  facet_wrap(~ comparison, ncol = 3) +
+  facet_wrap(~ comparison, ncol = 4) +
   theme(axis.text.x = element_text(angle=90)) +
   scale_color_manual(values = c("darkgray", "darkred")) +
   geom_hline(yintercept = -log10(0.25), linetype = "dashed") +
@@ -205,12 +223,97 @@ sigflex %>% group_by(comparison) %>% summarise(n=n()) %>% arrange(n)
 for (i in 1:length(unique(sigflex$comparison))){
  temp = sigflex[sigflex$comparison==unique(sigflex$comparison)[i],]
   temp = arrange(temp, fdr, p)
+  temp = temp %>% select(comparison, GeneSet, fdr, nes, max_es_at, everything())
   print(head(temp, 30))
 }
 
 ```
 
+```{r}
+head(sigflex)
+```
+
+```{r}
+for (i in 1:length(unique(sigflex$comparison))){
+ temp = sigflex[sigflex$comparison==unique(sigflex$comparison)[i],]
+  temp = arrange(temp, fdr, p)
+  temp = temp %>% select(comparison, GeneSet, fdr, nes, max_es_at, everything())
+  temp = temp %>% mutate(GeneSet = substr(GeneSet,1,50))
+  p = head(temp, 30) %>%
+    ggplot(aes(x = GeneSet, y = nes)) +
+    geom_bar(stat = "identity") + coord_flip() +
+    ggtitle(paste0("Top 30 ", unique(sigflex$comparison)[i], " (", nrow(filter(temp, fdr < 0.25)), " total hits)"))
+  
+  print(p)
+}
+
+```
+
+# Involution comparisons
+
+Focus on pathways significant in comparisons with involution.
+
+```{r}
+sigflex %>% group_by(comparison) %>% summarise(n=n()) %>% arrange(n) %>%
+  filter(str_detect(comparison, "inv"))
+```
+
+```{r}
+invflex = filter(sigflex, str_detect(comparison, "inv"))
+
+for (i in 1:length(unique(invflex$comparison))){
+ temp = invflex[invflex$comparison==unique(invflex$comparison)[i],]
+  temp = arrange(temp, fdr, p)
+  temp = temp %>% select(comparison, GeneSet, fdr, nes, max_es_at, everything())
+  temp = temp %>% mutate(GeneSet = substr(GeneSet,1,50))
+  p = head(temp, 30) %>%
+    ggplot(aes(x = GeneSet, y = nes)) +
+    geom_bar(stat = "identity") + coord_flip() +
+    ggtitle(paste0("Top 30 ", unique(invflex$comparison)[i], " (", nrow(filter(temp, fdr < 0.25)), " total hits)"))
+  
+  print(p)
+}
+```
+
+Odd that all of the inv vs lac pathways have a positive nes.
+
+```{r}
+invflex %>%
+  ggplot(aes(y = nes, x = fdr, color = gene_signature)) +
+  geom_bar(stat="identity") + 
+  facet_wrap(~ comparison) +
+  ggtitle("Directionality of significant pathways in comparisons including involution")
+```
+
+## Leading edge involution (unfinished)
+
+We need a different part of the datalist to extract this information. Because the items we wish to retrieve are lists instead of data frames, another approach is needed.
+
+```{r}
+datalist = lapply(result_files, readRDS)
 
 
+gene_sig = lapply(datalist, function(x) c(
+    as.character(x$parameters[x$parameters$parameter == "signature_name", "value"]))
+    ) %>% unlist()
 
+le = lapply(datalist, function(x) gsea_results = x$flexgsea_results$leading_edge)
+le_paths = lapply(le, function(x) names(x[1]))
+names(le) = le_paths
+
+enframe(unlist(le$reflac_non_prbc_vs_ppbc_lac$reflac_ppbc_inv_vs_ppbc_lac))
+data.frame(matrix(unlist(le$reflac_non_prbc_vs_ppbc_lac$reflac_ppbc_inv_vs_ppbc_lac),
+                  nrow=length(le$reflac_non_prbc_vs_ppbc_lac$reflac_ppbc_inv_vs_ppbc_lac), byrow=T))
+test = do.call(rbind, le$reflac_non_prbc_vs_ppbc_lac$reflac_ppbc_inv_vs_ppbc_lac)
+
+#Because it's large, remove
+rm(datalist)
+```
+
+```{r, include=F}
+#Test data for UpSeqR
+movies <- read.csv(system.file("extdata", "movies.csv", package = "UpSetR"), 
+    header = T, sep = ";") 
+movies %>% head()
+```
 
