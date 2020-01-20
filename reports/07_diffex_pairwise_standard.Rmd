@@ -30,6 +30,7 @@ library(RColorBrewer)
 library(clusterProfiler)
 library(circlize)
 library(ComplexHeatmap)
+library(UpSetR)
 library(tidyverse)
 ```
 
@@ -1180,6 +1181,46 @@ ggplot(pca.df, aes(x=PC1, y=PC2, color=study_group)) +
   geom_point()  + 
   scale_color_manual(values = study_colors) +
   ggtitle("PCA genes belonging to common pathways")
+```
+
+# UpSet plots
+
+An alternative to Venn diagrams.
+
+Existing combinations:
+
+```{r}
+t(combn(unique(dds$study_group), 2))
+```
+
+Create list of significant genes from these combinations
+
+```{r}
+sig_genes <- list(
+  "inv vs nonprbc" = rep_inv_nonprbc$significant_genes$ensembl_gene_id,
+  "inv vs prbc" = rep_inv_prbc$significant_genes$ensembl_gene_id,
+  "inv vs lac" = rep_inv_lac$significant_genes$ensembl_gene_id,
+  "prbc vs nonprbc" = rep_prbc_nonprbc$significant_genes$ensembl_gene_id,
+  "lac vs nonprbc" = rep_lac_nonprbc$significant_genes$ensembl_gene_id,
+  "lac vs prbc" = rep_lac_prbc$significant_genes$ensembl_gene_id
+)
+```
+
+```{r, fig.width=8}
+upset(fromList(sig_genes), order.by = "freq", #empty.intersections = "on",
+      nsets = 6, set_size.show = TRUE, mainbar.y.label = "Differentially expressed genes",
+      sets.bar.color = "blue", main.bar.color = "black", set_size.scale_max = 600,
+      sets.x.label = "Sig genes pairwise comparisons")
+```
+
+```{r, echo=F}
+pdf(here("results", "diffex", "figs", "07_pairwise", "upset_pairwise.pdf"),
+    onefile = F, width = 10, height = 7)
+upset(fromList(sig_genes), order.by = "freq", #empty.intersections = "on",
+      nsets = 6, set_size.show = TRUE, mainbar.y.label = "Differentially expressed genes",
+      sets.bar.color = "blue", main.bar.color = "black", set_size.scale_max = 600,
+      sets.x.label = "Sig genes pairwise comparisons")
+dev.off()
 ```
 
 

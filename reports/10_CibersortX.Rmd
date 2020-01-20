@@ -807,8 +807,8 @@ The time progression is as follows
 1) nulliparous
 2) pregnant
 3) lactation
-4) involution (less than 1 mo breastfeeding)
-5) involution (1 or more mo breastfeeding)
+4) involution (less than 1 mo since stopping)
+5) involution (1 or more mo since stopping breastfeeding)
 
 involution (unknown breastfeeding duration) consists of only two points and can skew the trend, so it is excluded
 
@@ -1057,6 +1057,19 @@ cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "B cell")$type) %
   geom_point() +
   geom_line() +
   geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.1)) +
+  ggtitle("Time arc B cells PPBC, short vs longterm involution") + xlab("study group")
+```
+
+```{r}
+ciberdf %>% filter(newstudygroup != "unknownBFinv") %>%
+  group_by(type, study_group) %>% summarise(mean = mean(ciberval), sd = sd(ciberval), n = n()) %>%
+  mutate(sem = sd/sqrt(n)) %>%
+  filter(type %in% filter(cellgroups, cellgroup == "B cell")$type) %>%
+  ggplot(aes(x = factor(study_group, levels=c("non_prbc", "prbc","ppbc_lac", "ppbc_inv")),
+             y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.1)) +
   ggtitle("Time arc B cells PPBC") + xlab("study group")
 ```
 
@@ -1071,6 +1084,7 @@ cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "T cell")$type) %
   ggtitle("Time arc T cells PPBC") + xlab("study group")
 ```
 
+
 Exclude Tregs and CD4 memory resting so we can zoom in on the others
 
 ```{r}
@@ -1081,6 +1095,17 @@ cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "T cell")$type) %
   geom_line() +
   geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.15)) +
   ggtitle("Time arc T cells PPBC, excluding Tmemrest and Tregs") + xlab("study group")
+```
+
+```{r}
+cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "T cell")$type) %>%
+  filter(!type %in% c("T cells regulatory (Tregs)")) %>%
+  ggplot(aes(x = newstudygroup, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.0)) +
+  ggtitle("Time arc T cells PPBC") + xlab("study group") +
+  scale_y_log10()
 ```
 
 ## Macrophages

@@ -393,6 +393,7 @@ ape_prbc_rest = readRDS(here("data","Rds","08_ape_prbc_rest.Rds"))
 ## Summary report
 
 A log2 fold change cutoff of 0.5 is equivalent to 1.414.
+402
 
 ```{r}
 rep_prbc_rest = deseq_report(ape_prbc_rest, dds=dds, absl2fc = 0.5, groups = c("prbc", "rest"),
@@ -431,6 +432,18 @@ A fast method for a general overview. See FlexGSEA for a properly rigorous analy
 
 ```{r, fig.height=6, fig.width=8}
 rep_prbc_rest$pathway_plots
+```
+
+```{r, fig.height=6, fig.width=8}
+rep_prbc_rest$pathways %>%
+  bind_rows() %>%
+  plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Top 20 sig pathways fdr < 0.1: Pregnancy vs rest"
+      )
 ```
 
 ## Beehive plots
@@ -650,6 +663,19 @@ A fast method for a general overview. See FlexGSEA for a properly rigorous analy
 rep_nonprbc_rest$pathway_plots
 ```
 
+
+```{r, fig.height=6, fig.width=8}
+rep_nonprbc_rest$pathways %>%
+  bind_rows() %>%
+  plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Top 20 sig pathways fdr < 0.1: Nulliparous vs rest"
+      )
+```
+
 ## Beehive plots
 
 Beehive plot of top 5 most significantly expressed genes.
@@ -671,6 +697,100 @@ Beehive plot of genes that fail Cooks filtering and are above the fold change th
 ```{r}
 rep_nonprbc_rest$outlier_bees
 ```
+
+# Upset Plot
+
+```{r}
+sig_genes <- list(
+  "inv vs rest" = rep_inv_rest$significant_genes$ensembl_gene_id,
+  "prbc vs rest" = rep_prbc_rest$significant_genes$ensembl_gene_id,
+  "lac vs rest" = rep_lac_rest$significant_genes$ensembl_gene_id,
+  "nonprbc vs rest" = rep_nonprbc_rest$significant_genes$ensembl_gene_id
+)
+```
+
+```{r, fig.width=8}
+upset(fromList(sig_genes), order.by = "freq", #empty.intersections = "on",
+      nsets = 4, set_size.show = TRUE, mainbar.y.label = "Differentially expressed genes",
+      sets.bar.color = "blue", main.bar.color = "black", set_size.scale_max = 500,
+      sets.x.label = "Sig genes one vs rest comparisons")
+```
+
+```{r, echo=F}
+pdf(here("results", "diffex", "figs", "08_onevsrest", "upset_onevsrest.pdf"),
+    onefile = F, width = 10, height = 7)
+upset(fromList(sig_genes), order.by = "freq", #empty.intersections = "on",
+      nsets = 4, set_size.show = TRUE, mainbar.y.label = "Differentially expressed genes",
+      sets.bar.color = "blue", main.bar.color = "black", set_size.scale_max = 500,
+      sets.x.label = "Sig genes one vs rest comparisons")
+dev.off()
+```
+
+# Bar plot
+
+```{r}
+tibble(
+  "ensembl_gene_id" = c(rep_inv_rest$significant_genes$ensembl_gene_id,
+                        rep_prbc_rest$significant_genes$ensembl_gene_id,
+                        rep_lac_rest$significant_genes$ensembl_gene_id,
+                        rep_nonprbc_rest$significant_genes$ensembl_gene_id),
+  "comparison" = c(rep("inv vs rest", length(rep_inv_rest$significant_genes$ensembl_gene_id)),
+                   rep("prbc vs rest", length(rep_prbc_rest$significant_genes$ensembl_gene_id)),
+                   rep("lac vs rest", length(rep_lac_rest$significant_genes$ensembl_gene_id)),
+                   rep("nonprbc vs rest", length(rep_nonprbc_rest$significant_genes$ensembl_gene_id)))
+) %>%
+  mutate(comparison = factor(comparison, levels = c("prbc vs rest", "lac vs rest", "inv vs rest", "nonprbc vs rest"))) %>%
+  ggplot(aes(x = comparison, fill = comparison)) +
+  geom_bar() +
+  scale_fill_manual(values = set_names(
+    study_colors, c( "nonprbc vs rest", "inv vs rest","lac vs rest", "prbc vs rest",   "rest"))) +
+  ggthemes::theme_clean() +
+  ylab("Genes") +
+  ggtitle("One vs rest differentially expressed gnes")
+```
+
+# Pathway dot plot
+
+```{r, fig.width=8, fig.height=6}
+po = bind_rows(
+  list("inv vs rest" = bind_rows(rep_inv_rest$pathways),
+  "prbc vs rest" = bind_rows(rep_prbc_rest$pathways),
+  "nonprbc vs rest" = bind_rows(rep_nonprbc_rest$pathways),
+  "lac vs rest" = bind_rows(rep_lac_rest$pathways)),
+  .id = "comparison") %>%
+  mutate(sigFDR = fdr < 0.05) %>%
+  mutate(path = substr(pathway, 1, 20))
+#po
+
+po %>% ggplot(aes(x = collection, y = -log10(fdr), color = sigFDR)) +
+  geom_jitter(width=0.1, height = 0) +
+  facet_wrap(~ comparison, ncol = 2, scales = "fixed") +
+  theme(axis.text.x = element_text(angle=90)) +
+  scale_color_manual(values = c("darkgray", "darkred")) +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  ggtitle("Signficant (Fisher's exact test) pathways at FDR < 0.05") +
+  ggthemes::theme_few()# +
+  #ggrepel::geom_label_repel(data=subset(po, -log10(fdr) > 3.5),
+  #                         aes(label=path), show.legend = F, size = 3)
+```
+
+
+gseares %>% mutate(sigFDR = fdr < 0.25) %>% #filter(fdr < 0.25) %>%
+  ggplot(aes(x = gene_signature, y = -log10(fdr), color = sigFDR)) +
+  geom_jitter(width=0.1, height = 0) +
+  facet_wrap(~ comparison, ncol = 4) +
+  theme(axis.text.x = element_text(angle=90)) +
+  scale_color_manual(values = c("darkgray", "darkred")) +
+  geom_hline(yintercept = -log10(0.25), linetype = "dashed") +
+  ggtitle("Signficant gene collections at FDR < 0.25, all comparisons")
+
+
+```{r, echo=F}
+ggsave(here("results", "diffex", "figs","08_onevsrest", "08_barplot_onevsrest.jpg"),
+         height = 7, width = 10)
+```
+
+
 
 # Save data
 

@@ -248,6 +248,34 @@ inv.hm.all
 
 ```
 
+Separate out short and long term BF to see how that impacts the clustering
+
+```{r,  fig.width=10}
+bf_col = c(viridis::viridis(4))
+names(bf_col) = c("shortBFinv", "longBFinv", "unknownBFinv", "rest")
+#color_grid(bf_col)
+
+set.seed(1)
+
+tsd = sd %>%
+  mutate(study_group = as.character(study_group)) %>%
+  mutate(newstudygroup = case_when(
+    study_group == "ppbc_inv" & is.na(months_involution_breastfeeding) ~ "unknownBFinv", 
+    study_group == "ppbc_inv" & !is.na(months_involution_breastfeeding) & months_involution_breastfeeding <= 1 ~ "shortBFinv",
+    study_group == "ppbc_inv" & !is.na(months_involution_breastfeeding) & months_involution_breastfeeding > 1 ~ "longBFinv",
+    TRUE ~ "rest"
+  )) %>% mutate(newstudygroup = factor(newstudygroup, levels=c("rest","shortBFinv","longBFinv","unknownBFinv"))) %>%
+   mutate(study_group = newstudygroup)
+
+
+deseq_heatmap(mat = geneEx, sampledata = tsd,
+              sig_results = sig.invr, title = "Significant genes involution vs rest, K-means",
+              groups_to_plot = unique(tsd$study_group),
+              column_km=3, row_km = 3, top_colors = bf_col)
+```
+
+
+
 ```{r}
 resDir = here("results", "clustering")
 dir.create(resDir, showWarnings = F)
@@ -262,7 +290,7 @@ dev.off()
 
 
 
-to do: collapse cluster 2 into single metagene by averaging experession, then test assocation between metagene and survival/subgroups
+todo: collapse cluster 2 into single metagene by averaging experession, then test assocation between metagene and survival/subgroups
 
 ### Summary column clusters
 

@@ -911,6 +911,34 @@ cox_dotplot("CD1B", os)
 cox_dotplot("BCAR4", os)
 ```
 
+### [CCL21](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CCL21&keywords=ccl7)
+
+>This antimicrobial gene is one of several CC cytokine genes clustered on the p-arm of chromosome 9. Cytokines are a family of secreted proteins involved in immunoregulatory and inflammatory processes. The CC cytokines are proteins characterized by two adjacent cysteines. Similar to other chemokines the protein encoded by this gene inhibits hemopoiesis and stimulates chemotaxis. This protein is chemotactic in vitro for thymocytes and activated T cells, but not for B cells, macrophages, or neutrophils. The cytokine encoded by this gene may also play a role in mediating homing of lymphocytes to secondary lymphoid organs. It is a high affinity functional ligand for chemokine receptor 7 that is expressed on T and B lymphocytes and a known receptor for another member of the cytokine family (small inducible cytokine A19).
+
+```{r}
+cox_dotplot("CCL21", os)
+```
+
+### [MMP2](https://www.genecards.org/cgi-bin/carddisp.pl?gene=MMP2&keywords=mmp2)
+
+>This gene is a member of the matrix metalloproteinase (MMP) gene family, that are zinc-dependent enzymes capable of cleaving components of the extracellular matrix and molecules involved in signal transduction. The protein encoded by this gene is a gelatinase A, type IV collagenase, that contains three fibronectin type II repeats in its catalytic site that allow binding of denatured type IV and V collagen and elastin. Unlike most MMP family members, activation of this protein can occur on the cell membrane. This enzyme can be activated extracellularly by proteases, or, intracellulary by its S-glutathiolation with no requirement for proteolytical removal of the pro-domain. This protein is thought to be involved in multiple pathways including roles in the nervous system, endometrial menstrual breakdown, regulation of vascularization, and metastasis. Mutations in this gene have been associated with Winchester syndrome and Nodulosis-Arthropathy-Osteolysis (NAO) syndrome. Alternative splicing results in multiple transcript variants encoding different isoforms.
+
+```{r}
+cox_dotplot("MMP2", os)
+```
+
+### [CCL7](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CCL7&keywords=ccl7)
+
+>This gene encodes monocyte chemotactic protein 3, a secreted chemokine which attracts macrophages during inflammation and metastasis. It is a member of the C-C subfamily of chemokines which are characterized by having two adjacent cysteine residues. The protein is an in vivo substrate of matrix metalloproteinase 2, an enzyme which degrades components of the extracellular matrix. This gene is part of a cluster of C-C chemokine family members on chromosome 17q. [provided by RefSeq, Jul 2008]
+
+```{r}
+cox_dotplot("CCL7", os)
+```
+
+## [FLT3](https://www.genecards.org/cgi-bin/carddisp.pl?gene=FLT3&keywords=flt3)
+
+>Tyrosine-protein kinase that acts as cell-surface receptor for the cytokine FLT3LG and regulates differentiation, proliferation and survival of hematopoietic progenitor cells and of dendritic cells. Promotes phosphorylation of SHC1 and AKT1, and activation of the downstream effector MTOR. Promotes activation of RAS signaling and phosphorylation of downstream kinases, including MAPK1/ERK2 and/or MAPK3/ERK1. Promotes phosphorylation of FES, FER, PTPN6/SHP, PTPN11/SHP-2, PLCG1, and STAT5A and/or STAT5B. Activation of wild-type FLT3 causes only marginal activation of STAT5A or STAT5B. Mutations that cause constitutive kinase activity promote cell proliferation and resistance to apoptosis via the activation of multiple signaling pathways
+
 ## Save data
 
 ```{r}
@@ -920,6 +948,12 @@ openxlsx::write.xlsx(x = list("os_inv*gene" = os,
                                 select(pathway,fdr, pval, everything())),
                     file = here("results", "survival", "12b_os_gene:inv_interaction.xlsx"))
 ```
+
+# To do
+
+Do low B cell patients have a high fibrinogen signature (FGB/FGG/FGFBP1)? Could the fibrinogen be suppressing B cell activity, resulting in increased mortality?
+What about Akt1 signaling (DUSP13 and FLT3) and cancer-testis antigens (MAGE family)?
+
 
 
 # DRS

@@ -211,6 +211,24 @@ gseares %>% mutate(sigFDR = fdr < 0.25) %>% #filter(fdr < 0.25) %>%
 
 ```
 
+Just the vs rest comparisons:
+
+```{r, fig.width=8}
+gseares %>% mutate(sigFDR = fdr < 0.25) %>% #filter(fdr < 0.25) %>%
+  filter(str_detect(comparison, "vs_rest")) %>%
+  mutate(comparison = str_replace_all(comparison,"_", " ")) %>%
+  ggplot(aes(x = gene_signature, y = -log10(fdr), color = sigFDR)) +
+  geom_jitter(width=0.1, height = 0) +
+  facet_wrap(~ comparison, ncol = 4) +
+  theme(axis.text.x = element_text(angle=90)) +
+  scale_color_manual(values = c("darkgray", "darkred")) +
+  geom_hline(yintercept = -log10(0.25), linetype = "dashed") +
+  ggtitle("Signficant gene collections at FDR < 0.25, all comparisons") +
+  ggthemes::theme_few() +
+  theme(axis.text.x = element_text(angle = 90))
+
+```
+
 # Exploration of significant pathways
 
 ```{r}
@@ -230,8 +248,22 @@ for (i in 1:length(unique(sigflex$comparison))){
 ```
 
 ```{r}
-head(sigflex)
+sigflex %>% filter(comparison == "nonprbc_vs_rest") %>%
+  arrange(fdr) %>% select(GeneSet, fdr)
 ```
+
+```{r}
+sigflex %>% filter(comparison == "prbc_vs_rest") %>%
+  filter(gene_signature == "canonpath_c2") %>%
+  arrange(fdr) %>% select(GeneSet, fdr)
+```
+
+```{r}
+sigflex %>% filter(comparison == "prbc_vs_rest") %>%
+  filter(gene_signature == "go_c5") %>%
+  arrange(fdr) %>% select(GeneSet, fdr)
+```
+
 
 ```{r}
 for (i in 1:length(unique(sigflex$comparison))){
@@ -316,4 +348,10 @@ movies <- read.csv(system.file("extdata", "movies.csv", package = "UpSetR"),
     header = T, sep = ";") 
 movies %>% head()
 ```
+
+```{r}
+save.image(here::here("reports", "14_flexgsea_results.RData"))
+```
+
+
 

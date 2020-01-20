@@ -642,11 +642,50 @@ Depending on whether we provide the variable as study_group or set study_group t
 study_strata <- coxph(
   Surv(time=months_overall_survival,
        event=overall_survival) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + strata(study_group), data = coxdata)
+
 ggadjustedcurves(study_strata, data=coxdata, method="conditional", variable="study_group") +
   ggtitle("Adjusted survival curve for clinical covariates: Stratified")
 ggadjustedcurves(clin.cov.cox, variable = "study_group", data = coxdata, method="conditional") +
   ggtitle("Adjusted survival curve for clinical covariates: Balanced")
 ```
+
+### Short vs long BF
+
+```{r}
+bf_coxdata <- as.data.frame(colData(dds)) %>% 
+  mutate(study_group = as.character(study_group)) %>%
+  mutate(newstudygroup = case_when(
+    study_group == "ppbc_inv" & is.na(months_involution_breastfeeding) ~ "unknownBFinv", 
+    study_group == "ppbc_inv" & !is.na(months_involution_breastfeeding) & months_involution_breastfeeding <= 1 ~ "shortBFinv",
+    study_group == "ppbc_inv" & !is.na(months_involution_breastfeeding) & months_involution_breastfeeding > 1 ~ "longBFinv",
+    TRUE ~ study_group
+  )) %>% mutate(newstudygroup = factor(newstudygroup, levels=c("non_prbc","prbc","ppbc_lac","shortBFinv","longBFinv","unknownBFinv"))) %>%
+  select(sample_name, newstudygroup) %>%
+  right_join(., coxdata, by = "sample_name")
+
+bf.clin.cov.cox <- coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + newstudygroup,
+  data = bf_coxdata)
+summary(bf.clin.cov.cox)
+
+```
+
+```{r}
+bf_strata <- coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + strata(newstudygroup), data = bf_coxdata)
+
+ggadjustedcurves(bf_strata, data=bf_coxdata, method="conditional", variable="newstudygroup") +
+  ggtitle("Adjusted survival curve for clinical covariates: Stratified")
+
+ggadjustedcurves(bf.clin.cov.cox, variable = "newstudygroup", data = bf_coxdata, method="conditional") +
+  ggtitle("Adjusted survival curve for clinical covariates: Balanced")
+
+
+```
+
+
 
 ## KM Multivariate: DRS
 
@@ -684,7 +723,31 @@ ggadjustedcurves(clin.cov.cox, variable = "study_group", data = coxdata, method=
 dev.off()
 ```
 
+### Short vs long BF
 
+```{r}
+
+bf.drs.clin.cov.cox <- coxph(
+  Surv(time=months_to_drs,
+       event=distant_recurrence) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + newstudygroup,
+  data = bf_coxdata)
+summary(bf.drs.clin.cov.cox)
+
+```
+
+```{r}
+bf_drs_strata <- coxph(
+  Surv(time=months_to_drs,
+       event=distant_recurrence) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + strata(newstudygroup), data = bf_coxdata)
+
+ggadjustedcurves(bf_drs_strata, data=bf_coxdata, method="conditional", variable="newstudygroup") +
+  ggtitle("Adjusted DRS for clinical covariates: Stratified")
+
+ggadjustedcurves(bf.drs.clin.cov.cox, variable = "newstudygroup", data = bf_coxdata, method="conditional") +
+  ggtitle("Adjusted DRS curve for clinical covariates: Balanced")
+
+
+```
 
 # Independent genewise Cox regression
 

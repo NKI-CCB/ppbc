@@ -84,11 +84,11 @@ Likelihood ratio tests, pairwise comparisons, and one vs rest.
 
 For the LRT, significant and all genes are kept in the same Excel output. Pairwise and one vs rest comparisons report significant genes separately. Here, we load all genes so that we can plot expression regardless of significance within a given comparison.
 
-```{r}
-lrt <- here("results", "diffex", "06_LRT.xlsx") %>% 
+```{r, collapse=T}
+lrt <- here("results", "diffex", "06_LRT_allgenes.xlsx") %>% 
   readxl::excel_sheets() %>% 
   set_names() %>% 
-  map(readxl::read_excel, path = here("results", "diffex", "06_LRT.xlsx"))
+  map(readxl::read_excel, path = here("results", "diffex", "06_LRT_allgenes.xlsx"))
 names(lrt)
 
 pw <- here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx") %>% 
@@ -110,7 +110,7 @@ names(ovr)
 Substitute lrt down to all genes and rename it for convenience.
 
 ```{r}
-lrt = lrt["all_genes"]
+lrt = lrt["repLRT_all"]
 
 names(lrt) = "LRT"
 ```
@@ -124,6 +124,29 @@ names(res_list) = str_remove_all(str_remove_all(names(res_list), "rep_"), "_all"
 names(res_list) = str_replace(names(res_list), "_", "_vs_")
 names(res_list)
 ```
+
+## Short vs long term BF
+
+Add weaning duration to sample data
+
+```{r}
+sd = colData(dds) %>% as.data.frame() %>%
+  mutate(study_group = as.character(study_group)) %>%
+  mutate(newstudygroup = case_when(
+    study_group == "ppbc_inv" & is.na(months_involution_breastfeeding) ~ "unknownBFinv", 
+    study_group == "ppbc_inv" & !is.na(months_involution_breastfeeding) & months_involution_breastfeeding <= 1 ~ "shortBFinv",
+    study_group == "ppbc_inv" & !is.na(months_involution_breastfeeding) & months_involution_breastfeeding > 1 ~ "longBFinv",
+    TRUE ~ study_group
+  )) %>% mutate(newstudygroup = factor(newstudygroup, levels=c("non_prbc","prbc","ppbc_lac","shortBFinv","longBFinv","unknownBFinv")))
+
+sd %>% select(sample_name, study_group, newstudygroup) %>% distinct() %>% select(-sample_name)%>% table()
+sd$study_group <- as.factor(sd$study_group)
+
+stopifnot(all(sd$sample_ref == colData(dds)$sample_ref))
+
+dds$newstudygroup <- sd$newstudygroup
+```
+
 
 ## "Quirky" genes
 
@@ -286,7 +309,7 @@ gene_report(res_list, "ENSG00000167531")
 ```
 
 ```{r}
-plot_gene_beehive(dds, res_list$LRT[res_list$LRT$ensembl_gene_id=="ENSG00000167531",])
+plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000167531",])
 ```
 ### [GRN](https://www.genecards.org/cgi-bin/carddisp.pl?gene=GRN&keywords=GRN) 
 
@@ -316,6 +339,7 @@ gene_report(res_list, "ENSG00000115604")
 ```{r}
 plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000115604",])
 ```
+
 # Immune cell markers
 
 ## B cells markers 
@@ -331,8 +355,19 @@ gene_report(res_list,"ENSG00000156738")
 Appears as though there might be a difference in inv/nonprbc vs prbc? Basals in particular seem to have less CD20 in prbc than in inv/nonprbc.
 
 ```{r}
-plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000156738",])
+plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000156738",]) +
+  ggtitle("MS4A1 (CD20): LRT padj 0.003, inv vs rest padj 0.5")
 ```
+
+```{r}
+plot_gene_beehive(dds[,colData(dds)$newstudygroup!="unknownBFinv"], res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000156738",],
+                  intgroup = "newstudygroup")  +
+  ggtitle("MS4A1 (CD20): LRT padj 0.003, inv vs rest padj 0.5")
+
+```
+
+
+
 
 ### [IL10](https://www.genecards.org/cgi-bin/carddisp.pl?gene=IL10&keywords=IL-10)
 
@@ -374,6 +409,13 @@ gene_report(res_list,"ENSG00000115884")
 plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000115884",])
 ```
 
+```{r}
+plot_gene_beehive(dds[,colData(dds)$newstudygroup!="unknownBFinv"], res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000115884",],
+                  intgroup = "newstudygroup")  +
+  ggtitle("SDC1 (CD138): LRT padj 0.9, inv vs rest padj 0.9")
+```
+
+
 ### [CD98](https://www.genecards.org/cgi-bin/carddisp.pl?gene=SLC3A2&keywords=SLC3A2)
 
 Official name SLC3A2 ENSG00000168003
@@ -401,6 +443,8 @@ gene_report(res_list,"ENSG00000240505")
 plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000240505",])
 ```
 
+
+
 ### *[BCMA](https://www.genecards.org/cgi-bin/carddisp.pl?gene=TNFRSF17&keywords=BCMA)
 
 Official name TNFRSF17 ENSG00000048462
@@ -426,6 +470,47 @@ plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id
                   colorby = "batch")
 ```
 
+```{r}
+plot_gene_beehive(dds[,colData(dds)$newstudygroup!="unknownBFinv"], res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000048462",],
+                  intgroup = "newstudygroup")  +
+  ggtitle("TNFRSF17 (BCMA, CD269): LRT padj 0.45, inv vs rest padj 0.55")
+```
+
+### [CD30](https://www.genecards.org/cgi-bin/carddisp.pl?gene=TNFRSF8&keywords=CD30)
+
+[Marker for activation (anti-naive B cell marker)](https://www.abcam.com/primary-antibodies/b-cells-basic-immunophenotyping)
+
+```{r}
+gene_report(res_list,"ENSG00000120949")
+```
+
+```{r}
+plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000120949",])
+```
+
+```{r}
+plot_gene_beehive(dds[,colData(dds)$newstudygroup!="unknownBFinv"], res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000120949",],
+                  intgroup = "newstudygroup")  +
+  ggtitle("TNFRSF8 (CD30): LRT padj 0.47, inv vs rest padj 0.98")
+```
+
+## [CD40](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CD40&keywords=cd40)
+
+Memory B cell marker
+
+```{r}
+gene_report(res_list,"ENSG00000101017")
+```
+
+```{r}
+plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000101017",])
+```
+
+```{r}
+plot_gene_beehive(dds[,colData(dds)$newstudygroup!="unknownBFinv"], res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000101017",],
+                  intgroup = "newstudygroup")  +
+  ggtitle("CD40: LRT padj 0.37, inv vs rest padj 0.89")
+```
 
 ## T cell markers
 
@@ -697,6 +782,13 @@ Can this explain why these two genes have very similar expression patterns but v
 ```{r}
 plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000140009",], colorby = "batch")
 plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000048462",], colorby = "batch")
+```
+
+```{r}
+plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000140009",],
+                  intgroup = "batch", colorby = "study_group")
+plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000048462",],
+                  intgroup = "batch", colorby = "study_group")
 ```
 
 

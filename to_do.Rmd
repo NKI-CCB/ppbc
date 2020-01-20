@@ -3,80 +3,21 @@ title: "To do"
 output: html_notebook
 ---
 
-* Make report from Flexgsea results ^
+* Make report from Flexgsea results (half done)
 * Clustering with other comparisons (not just inv vs rest)
 * GSEA with "interesting gene list"
 * Variable influence factor (VIF) - Maybe
 * Diffex and KM short vs long-term inv
+* KMs instead of dot plots in 12B
+* Check on whether the IGs found in involution are the same class as those typically found in breast milk
+* Recreate code for mountain plots with flexgsea (Steal some ideas from ClusterProlifer? Or use UpSet plots instead?)
 
 Open questions/theories from survival interaction analysis:
 
 Do low B cell patients have a high fibrinogen signature (FGB/FGG/FGFBP1)? Could the fibrinogen be suppressing B cell activity, resulting in increased mortality?
 What about Akt1 signaling (DUSP13 and FLT3) and cancer-testis antigens (MAGE family)?
 
-Recreate code for mountain plots with flexgsea
-Steal some ideas from ClusterProlifer?
-Or use UpSet plots instead?
-```{r}
-library(clusterProfiler)
-
-d <- rep_inv_rest$annotated_results[,c("ensembl_gene_id", "log2FoldChange")]
-
-d <- d %>% 
-  left_join(select(gx_annot, ensembl_gene_id),
-               ., by = "ensembl_gene_id") %>%
-  filter(!is.na(log2FoldChange))
-dim(d)
-#Sort by decreasing l2fc
-d <- d %>% arrange(desc(log2FoldChange))
-
-## feature 1: numeric vector
-geneList <- d$log2FoldChange
-
-## feature 2: named vector
-names(geneList) <- as.character(d$ensembl_gene_id)
-
-test = gseGO(geneList=geneList, ont="BP", keyType = "ENSEMBL", OrgDb=org.Hs.eg.db, verbose=T, nPerm = 5, pvalueCutoff = 1)
-
-head(test)
-gseaplot(test, geneSetID="GO:0000724")
-gseaplot
-```
-
-
-```{r}
-inv_res_c2cp = readRDS(here("results", "flexgsea", "deseq", "results", "inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"))
-
-#names(inv_res_c2cp$flexgsea_results)
-inv_res_c2cp[["flexgsea_results"]][["table"]] %>%
-  as.data.frame() %>% arrange(inv_vs_rest_ppbc_inv_vs_rest.fdr)
-
-
-```
-```{r}
-names(inv_res_c2cp$flexgsea_results)
-inv_res_c2cp[["flexgsea_results"]][["table"]] %>%
-  as.data.frame() %>% filter(inv_vs_rest_ppbc_inv_vs_rest.GeneSet %in% testpath)
-```
-
-
-
-```{r}
-testpath =  rep_inv_rest$pathways %>% bind_rows() %>%
-  filter(fdr < 0.05 & collection=="c2_canon") %>% pull(pathway)
-```
-
-```{r}
-inv_res_c2cp = readRDS(here("results", "flexgsea", "deseq", "results", "inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"))
-
-#names(inv_res_c2cp$flexgsea_results)
-inv_res_c2cp[["flexgsea_results"]][["table"]] %>%
-  as.data.frame() %>% arrange(inv_vs_rest_ppbc_inv_vs_rest.fdr)
-
-
-```
-
-
+## Odds & ends
 
 ALTERNATE THRESHOLD possibility:
 
