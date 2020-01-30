@@ -9,8 +9,10 @@ output: html_notebook
 * Variable influence factor (VIF) - Maybe
 * Diffex and KM short vs long-term inv
 * KMs instead of dot plots in 12B
-* Check on whether the IGs found in involution are the same class as those typically found in breast milk
+* Check on whether the IGs found in involution are the same class as those typically found in breast milk (IgA?)
 * Recreate code for mountain plots with flexgsea (Steal some ideas from ClusterProlifer? Or use UpSet plots instead?)
+* Redo diffex with ER status instead of PAM50 and without batch (assuming batch and ER status are correlated)
+* Apply for that cancer genomics class (not PPBC related but don't forget!)
 
 Open questions/theories from survival interaction analysis:
 

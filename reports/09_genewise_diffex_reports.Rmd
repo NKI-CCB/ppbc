@@ -494,7 +494,7 @@ plot_gene_beehive(dds[,colData(dds)$newstudygroup!="unknownBFinv"], res_list$inv
   ggtitle("TNFRSF8 (CD30): LRT padj 0.47, inv vs rest padj 0.98")
 ```
 
-## [CD40](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CD40&keywords=cd40)
+### [CD40](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CD40&keywords=cd40)
 
 Memory B cell marker
 
@@ -511,6 +511,41 @@ plot_gene_beehive(dds[,colData(dds)$newstudygroup!="unknownBFinv"], res_list$inv
                   intgroup = "newstudygroup")  +
   ggtitle("CD40: LRT padj 0.37, inv vs rest padj 0.89")
 ```
+
+### [MZB1](https://www.genecards.org/cgi-bin/carddisp.pl?gene=MZB1)
+
+>Marginal Zone B And B1 Cell Specific Protein 
+Associates with immunoglobulin M (IgM) heavy and light chains and promotes IgM assembly and secretion. May exert its effect by acting as a molecular chaperone or as an oxidoreductase as it displays a low level of oxidoreductase activity (By similarity). Isoform 2 may be involved in regulation of apoptosis. Helps to diversify peripheral B-cell functions by regulating Ca(2+) stores, antibody secretion and integrin activation.
+
+```{r}
+gene_report(res_list,"ENSG00000170476")
+```
+
+
+```{r}
+plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000170476",],
+                  colorby = "batch")
+plot_gene_beehive(dds, res_list$inv_vs_rest[res_list$inv_vs_rest$ensembl_gene_id=="ENSG00000170476",],
+                  intgroup = "batch", colorby = "study_group")
+
+```
+
+### BTLA[(https://www.genecards.org/cgi-bin/carddisp.pl?gene=BTLA&keywords=btla)]
+
+>B- And T-Lymphocyte-Associated Protein This gene encodes a member of the immunoglobulin superfamily. The encoded protein contains a single immunoglobulin (Ig) domain and is a receptor that relays inhibitory signals to suppress the immune response. Alternative splicing results in multiple transcript variants. Polymorphisms in this gene have been associated with an increased risk of rheumatoid arthritis. 
+
+```{r}
+gene_report(res_list, "ENSG00000186265")
+```
+
+```{r}
+plot_gene_beehive(dds, res_list$LRT[res_list$LRT$ensembl_gene_id=="ENSG00000186265",],
+                  colorby = "batch")
+plot_gene_beehive(dds, res_list$LRT[res_list$LRT$ensembl_gene_id=="ENSG00000186265",],
+                  intgroup = "batch", colorby = "study_group")
+
+```
+ 
 
 ## T cell markers
 
