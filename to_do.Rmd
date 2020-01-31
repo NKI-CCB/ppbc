@@ -13,6 +13,8 @@ output: html_notebook
 * Recreate code for mountain plots with flexgsea (Steal some ideas from ClusterProlifer? Or use UpSet plots instead?)
 * Redo diffex with ER status instead of PAM50 and without batch (assuming batch and ER status are correlated)
 * Apply for that cancer genomics class (not PPBC related but don't forget!)
+* Find out why flexgsea crashes at prbc_vs_rest when running_es_at is added to return_values
+* Look at clonality in combination with mortality [Clonality had a much stronger association with survival: the combination of high immunoglobulin expression (that is, numerous plasma cells at the site) and low clonality, which could be interpreted as absence of a distinct antigen-specific response, resulted in an equally poor prognosis as low immunoglobulin expression, while low immunoglobulin expression and high clonality resulted in an average prognosis.](https://www.nature.com/articles/s41577-019-0257-x#Tab2)
 
 Open questions/theories from survival interaction analysis:
 

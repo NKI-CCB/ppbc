@@ -30,3 +30,4 @@ src/scratch.R
 src/testme.R
 src/lambda_score_example.R
 reports/Iamtest.Rmd
+src/14_flexgsea_deseq_testforTycho.R
