@@ -45,7 +45,7 @@ Renders the data homoskedastic, useful for visualization purposes.
 Ensure that we can set "study group" to be one vs rest columns when desired.
 
 ```{r}
-vsd = readRDS(here("data","Rds","09_vsd_standard_vsrest.Rds"))
+vsd = readRDS(here("data","Rds","08_vsd_standard_vsrest.Rds"))
 ```
 
 ## Sample annotation data

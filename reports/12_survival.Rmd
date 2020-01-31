@@ -66,6 +66,8 @@ vsd = rownames_to_column(as.data.frame(assay(vsd)), "ensembl_gene_id")
 vsd = right_join(select(gx_annot, gene_name, ensembl_gene_id), vsd, by = "ensembl_gene_id") %>%
     select(-ensembl_gene_id)
 vsd = summarize_expression_duplicate_ids(vsd, id_column = "gene_name", verbose = T)
+
+saveRDS(vsd, here("data","Rds","12_vst_mat_gene_symbol.Rds"))
 ```
 
 ## Gene sets
