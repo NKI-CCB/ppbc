@@ -23,15 +23,14 @@ We discovered in notebook 12 that the inclusion of (some) clinical covariates (e
 
 > survival ~ clinical covariates + gene
 
-PPBC cannot meaningfully be coerced to a numerical/ordinal variable. To incorporate a gene:ppbc interaction term, we will need to incorporate separate terms for each level of PPBC. Here, there are two options:
+PPBC cannot meaningfully be coerced to a numerical/ordinal variable. To incorporate a gene:ppbc interaction term, we will need to incorporate separate terms for each level of PPBC. 
 
-> Option 1 - Interaction terms only:
-survival ~ clinical covariates + gene * non_prbc + gene * prbc + gene * ppbc_lac + gene * ppbc_inv
+> survival ~ clinical covariates + study group + gene + study group * gene
 
-> Option 2 - Interactions and separate levels
-survival ~ clinical covariates + non_prbc + prbc + ppbc_lac + ppbc_inv + gene + gene * non_prbc + gene * prbc + gene * ppbc_lac + gene * ppbc_inv
+Or, written out:
 
-Obviously the second of the two options is longer, but with 183 samples we can get away with it. Unfortunately it will be hard to test which is the better fit, since we'd have to do an anova for every one of the 31K genes.
+> survival ~ clinical covariates + non_prbc + prbc + ppbc_lac + ppbc_inv + gene + gene * non_prbc + gene * prbc + gene * ppbc_lac + gene * ppbc_inv
+
 
 # Data prep
 
@@ -216,7 +215,7 @@ tmmnorm <- rownames_to_column(as.data.frame(tmmnorm), "ensembl_gene_id")
 tmmnorm <- as.data.frame(tmmnorm) %>% left_join(.,select(gx_annot, gene_name, ensembl_gene_id), by = "ensembl_gene_id") #%>%
 tmmnorm <- tmmnorm %>%  select(-ensembl_gene_id) %>% select(gene_name, everything())
 tmmnorm <-  summarize_expression_duplicate_ids(tmmnorm, "gene_name", verbose = T)
-
+saveRDS(tmmnorm, here("data", "Rds", "12b_tmmnorm_geneEx_survival.Rds"))
 ```
 
 # Functions for interaction term Cox regressions
@@ -948,12 +947,6 @@ openxlsx::write.xlsx(x = list("os_inv*gene" = os,
                                 select(pathway,fdr, pval, everything())),
                     file = here("results", "survival", "12b_os_gene:inv_interaction.xlsx"))
 ```
-
-# To do
-
-Do low B cell patients have a high fibrinogen signature (FGB/FGG/FGFBP1)? Could the fibrinogen be suppressing B cell activity, resulting in increased mortality?
-What about Akt1 signaling (DUSP13 and FLT3) and cancer-testis antigens (MAGE family)?
-
 
 
 # DRS

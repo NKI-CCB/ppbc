@@ -248,15 +248,9 @@ inv.hm.all
 
 ```
 
-Separate out short and long term BF to see how that impacts the clustering
+### With IG cols
 
-```{r,  fig.width=10}
-bf_col = c(viridis::viridis(4))
-names(bf_col) = c("shortBFinv", "longBFinv", "unknownBFinv", "rest")
-#color_grid(bf_col)
-
-set.seed(1)
-
+```{r}
 tsd = sd %>%
   mutate(study_group = as.character(study_group)) %>%
   mutate(newstudygroup = case_when(
@@ -266,6 +260,17 @@ tsd = sd %>%
     TRUE ~ "rest"
   )) %>% mutate(newstudygroup = factor(newstudygroup, levels=c("rest","shortBFinv","longBFinv","unknownBFinv"))) %>%
    mutate(study_group = newstudygroup)
+```
+
+
+Separate out short and long term BF to see how that impacts the clustering
+
+```{r,  fig.width=10}
+bf_col = c(viridis::viridis(4))
+names(bf_col) = c("shortBFinv", "longBFinv", "unknownBFinv", "rest")
+#color_grid(bf_col)
+
+set.seed(1)
 
 
 deseq_heatmap(mat = geneEx, sampledata = tsd,
@@ -404,6 +409,8 @@ row_clust[row_clust$row_cluster==3,] %>% head()
 ```
 ```{r}
 write.xlsx(list(row_clusters = row_clust, col_clusters = col_clust), file = here("results", "clustering","11_inv_clusters.xlsx"))
+saveRDS(row_clust, here("data", "Rds", "11_ig_row_clusters.Rds"))
+saveRDS(col_clust, here("data", "Rds", "11_ig_column_clusters.Rds"))
 ```
 
 
@@ -649,6 +656,39 @@ var.row
 ```
 
 
+## Fibrinogen and IG clusters
+
+from interaction 12b
+
+Do low B cell patients have a high fibrinogen signature (FGB/FGG/FGFBP1)? Could the fibrinogen be suppressing B cell activity, resulting in increased mortality?
+
+```{r, fig.width = 8}
+fbg_mat <- geneEx[rownames(geneEx) %in% c("FGB", "FGG", "FGFBP1"),]
+ann_df <- col_clust %>% column_to_rownames("sample_name") %>% select(-col_cluster, -PAM50)
+pheatmap::pheatmap(fbg_mat,
+                   show_colnames = F,
+                   annotation_col = ann_df,
+                   annotation_colors = list(study_group = study_colors[names(study_colors) != "rest"],
+                                            #PAM50 = pam_colors,
+                                            IG_col_cluster = IG_expression_colors),
+                   scale = "row")
+#geneEx[rownames(geneEx) %in% c(ig_gene_clust$gene_name, "FGB", "FGG", "FGFBP1"),]
+```
+
+```{r, fig.width=8}
+#The third row cluster is the IG genes
+ig_gene_clust = row_clust[row_clust$row_cluster==3,]
+#ig_gene_clust$Type %>% table()
+fbg_mat <- geneEx[rownames(geneEx) %in% c(ig_gene_clust$gene_name,"FGB", "FGG", "FGFBP1"),]
+ann_df <- col_clust %>% column_to_rownames("sample_name") %>% select(-col_cluster)
+pheatmap::pheatmap(fbg_mat,
+                   show_colnames = F,
+                   annotation_col = ann_df,
+                   annotation_colors = list(study_group = study_colors[names(study_colors) != "rest"],
+                                            PAM50 = pam_colors,
+                                            IG_col_cluster = IG_expression_colors),
+                   scale = "row", cluster_rows = F)
+```
 
 
 # PCA involution
@@ -834,7 +874,6 @@ coxph(
   ggtitle("IG cluster survival curve adjusted for clinical covariates: Stratifed")
 
 ```
-
 
 
 

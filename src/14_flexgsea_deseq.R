@@ -10,19 +10,20 @@ library(here)
 #BEFORE RUNNING, set environment variable to prevent unwanted BLAS behavior
 #export OMP_NUM_THREADS=1 #Run in terminal prior to invoking script, then run script directly from terminal
 
-# Consider: Addiing 'running_es_pos', 'running_es_neg', 'running_es_at' to return_values in flexgsea for producing mountain plots
+# Add 'running_es_pos', 'running_es_neg', 'running_es_at' to return_values in flexgsea for producing mountain plots
+# We're re-running this with the minimum number of permutations because we don't have running_es_at and we need it
 
 #Whether to overwrite existing results file
 overwrite=F
 
 dir.create(here("results", "flexgsea", "logs"), showWarnings = F, recursive = T)
 
-logfile <- file(here("results", "flexgsea", "logs", "flexgsea_deseq.txt"),)
-sink(logfile ,type = "output")
-#sink(logfile, type = "message") #Doesn't work properly
+#Disable when testing
+#logfile <- file(here("results", "flexgsea", "logs", "flexgsea_deseq_noperm.txt"),)
+#sink(logfile, type = "output") #Not when testing
 
 #Set number of permutations for flexgsea
-nperm = 1000 #5 for testing, 1000 for real thing
+nperm = 2 #5 for testing, 1000 for real thing, ideally 0 to add extra things to return_values but as of jan 2020 min is 2
 print(paste("Number of permutations:", nperm))
 
 #Set output dirs
@@ -33,21 +34,23 @@ input_DIR = file.path(DIR,"input")
 dir.create(input_DIR, showWarnings = F, recursive = T)
 
 #Results dir
-results_DIR = file.path(DIR,"results")
+#results_DIR = file.path(DIR,"results_2perm")
+results_DIR = file.path(DIR,"results_test")
 dir.create(results_DIR, showWarnings = F, recursive = T)
 
 #registerDoParallel(cores=32) #doParallel version
 doMC::registerDoMC(32)
 
+#Only for this function: summarize_expression_duplicate_ids()
 source(here("src", "deseq_report_functions.R"))
-#source(here("src", "scoring_function_deseq_flexgsea.R")) We use a lambda function instead
+
 
 ####Load data----
 
 #Pre-filtered, with all necessary column groups
 dds = readRDS(here("data/Rds/08_dds_inv_vs_rest_standard.Rds"))
-#testing
-#test.dds = head(dds,1000)
+#For testing use a smaller dds
+dds = head(dds,1000)
 gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
 
@@ -89,14 +92,38 @@ print(signature_abs)
 
 #### Comparison overview ----
 
-print("Pairwise comparisons:")
-print(table(dds$study_group))
-print("One vs rest comparisons")
-print(table(dds$inv_vs_rest, dds$study_group))
-print(table(dds$prbc_vs_rest, dds$study_group))
-print(table(dds$lac_vs_rest, dds$study_group))
-print(table(dds$nonprbc_vs_rest, dds$study_group))
+#Nulliparous is the default study group, here we want to look at the others
+dds$study_group <- factor(dds$study_group, levels = c("non_prbc", "prbc", "ppbc_lac", "ppbc_inv"))
 
+dds$refprbc <- factor(dds$study_group, levels = c("prbc", "non_prbc", "ppbc_lac", "ppbc_inv"))
+
+
+dds$reflac <- factor(dds$study_group, levels = c("ppbc_lac","prbc", "non_prbc", "ppbc_inv"))
+
+print("Pairwise comparisons:")
+print(levels(dds$study_group))
+print(table(dds$study_group))
+
+print("Reference: lac")
+print(levels(dds$reflac))
+print(table(dds$reflac))
+
+print("Reference: prbc")
+print(levels(dds$refprbc))
+print(table(dds$refprbc))
+
+print("One vs rest comparisons")
+print(levels(dds$inv_vs_rest))
+print(table(dds$inv_vs_rest, dds$study_group))
+
+print(levels(dds$prbc_vs_rest))
+print(table(dds$prbc_vs_rest, dds$study_group))
+
+print(levels(dds$lac_vs_rest))
+print(table(dds$lac_vs_rest, dds$study_group))
+
+print(levels(dds$nonprbc_vs_rest))
+print(table(dds$nonprbc_vs_rest, dds$study_group))
 
 ### Convert to gene symbol count matrix ----
 
@@ -143,7 +170,9 @@ comparisons = c("inv_vs_rest",  #Most interesting
                 'prbc_vs_rest',
                 "study_group",
                 "lac_vs_rest",
-                "nonprbc_vs_rest"
+                "nonprbc_vs_rest",
+                "refprbc",
+                "reflac"
                 )
 
 
@@ -217,8 +246,9 @@ make_score_genes <- function(coef_of_interest="study_group") {
 
 #### Flexgsea ----
 
+geneEx <- as.matrix(column_to_rownames(geneEx, "gene_name"))
+
 x = t(geneEx)
-mode(x)="integer" #Crashes if numeric
 saveRDS(x, file.path(input_DIR, "x.Rds"))
 
 #testing
@@ -275,7 +305,7 @@ for (i in 1:length(comparisons)){
                        nperm=nperm, parallel = T,
                        block.size = 1,
                        abs = this_abs,
-                       return_values = c("gene_name","leading_edge",'running_es_pos','running_es_neg')
+                       return_values = c("gene_name","leading_edge",'running_es_pos','running_es_neg', "running_es_at")
                        )
     #'running_es_at' = Error in res$running_es_at[[i]] <- list() : replacement has length zero
     #test.flexres = flexgsea(x = test.x, y = test.y,
@@ -330,5 +360,5 @@ for (i in 1:length(comparisons)){
 }
 
 
-sink()
-#sink() #Close both warning and output connections
+#sink()
+
