@@ -1,0 +1,35 @@
+*.RData
+*.Rdata
+*.Rproj.user
+*.Rhistory
+*.html
+*.tar.xy
+*.csv
+*.xlsx
+*.pdf
+.snakemake
+.here
+postpartbc.Rproj
+results/
+data/
+doc/
+testingparalellel.txt
+.git_old/
+snakemake_notuptodate/
+bin/
+#Only the Rmd notebooks within the reports folder
+reports/dec2018
+reports/multiqc_data
+reports/unused
+reports/*.tar.xy
+reports/includes_tumorpurity_design
+#Only the scripts within src
+src/dec2018_samples
+.Rproj.user
+src/scratch.R
+src/testme.R
+src/lambda_score_example.R
+reports/Iamtest.Rmd
+src/14_flexgsea_deseq_testforTycho.R
+src/testing_for_tycho.R
+flexgsea_input_for_tycho.RData.gz
