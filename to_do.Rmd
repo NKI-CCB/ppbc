@@ -3,14 +3,13 @@ title: "To do"
 output: html_notebook
 ---
 
-* Make report from Flexgsea results (half done)
-* Clustering with other comparisons (not just inv vs rest)
+* Make report from Flexgsea results (done except for mountain plots)
+* Clustering with other comparisons (not just inv vs rest, low priority)
 * GSEA with "interesting gene list"
 * Variable influence factor (VIF) - Maybe
 * Diffex and KM short vs long-term inv
 * KMs instead of dot plots in 12B
 * Check on whether the IGs found in involution are the same class as those typically found in breast milk (IgA?)
-* Recreate code for mountain plots with flexgsea (Steal some ideas from ClusterProlifer? Or use UpSet plots instead?)
 * Redo diffex with ER status instead of PAM50 and without batch (assuming batch and ER status are correlated)
 * Apply for that cancer genomics class (not PPBC related but don't forget!)
 * Find out why flexgsea crashes at prbc_vs_rest when running_es_at is added to return_values
