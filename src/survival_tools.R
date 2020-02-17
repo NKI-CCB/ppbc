@@ -61,7 +61,7 @@ gene_ntile <- function(gene_id, id_type, gene_dict = gx_annot, geneEx = ens_mat,
 
 
 
-#' Plot Kaplan-Meier curves of ntiles of a given gnee
+#' Plot Kaplan-Meier curves of ntiles of a given gene
 #'
 #' @param gene_id An ensembl id or gene symbol
 #' @param id_type Must be either "symbol" or "ensembl"
@@ -77,7 +77,7 @@ gene_ntile <- function(gene_id, id_type, gene_dict = gx_annot, geneEx = ens_mat,
 #' @export
 #'
 #' @examples km_ntiles("MS4A1")
-
+#' 
 km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx = ens_mat,
                       n = 3, labels = c("low", "medium", "high"),
                       sampledata = sample_data, survival_type = "os"){
@@ -89,7 +89,6 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
   sd <- dplyr::left_join(ntiles, sampledata, by = "sample_name")
   #  return(sd)
   
-  #Nonfunctional due to some kind of parsing problem with Surv()
   #Toggle for survival type
   if(survival_type == "os"){
     ti <- "months_overall_survival"
@@ -163,7 +162,241 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
   
 }
 
+#' Plot Kaplan-Meier curves of ntiles of a given gene for one vs rest comparisons
+#'
+#' @param gene_id An ensembl id or gene symbol
+#' @param id_type Must be either "symbol" or "ensembl"
+#' @param gene_dict A data frame containing a column "gene name" with gene symbols and a column "ensembl_gene_id" with ensembl gene ids
+#' @param geneEx A gene expression matrix with ensembl IDs as row names. Should be tmm/log2 normalized for compatibility with other functions 
+#' (this function will work with any metric).
+#' @param n The number of desired ntiles. Default = 3.
+#' @param labels Text labels for ntiles. Default = c("low", "medium", "high")
+#' @param sampledata A data frame containing the sample annotation data.
+#'  Must contain both sample names and the column representing one vs rest comparison (1 and 0).
+#' @param survival_type Must be either "os" (overall survival) or "drs" (distant recurrence)
+#' @param return_list Whether to return a list of 4 plots instead of arranging them into one
+#' @param p_method If "anova" (default), the p value is the full model including the gene ntile vs
+#' a reduced model containing the clinical covariates only. If "coef", the p value is the
+#' derived from the coeficient in the cox model corresponding to gene ntiles.
+#'
+#' @return Four plots arranged together: the unadjusted survival curves faceted by one vs rest group, the conditionally 
+#' adjusted for clinical covariates survival curves for the group of interest, 
+#' and the adjusted plot for the other groups. See survminer::ggadjustedcurves for details.
+#' @export
+#'
+#' @examples km_ntiles("MS4A1")
 
+km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx = ens_mat,
+                          n = 3, labels = c("low", "medium", "high"), ovr_column = "involution",
+                          sampledata = sample_data, survival_type = "os",
+                          p_method = "anova", return_list = F){
+  
+  stopifnot(survival_type %in% c("os", "drs"))
+  stopifnot(p_method %in% c("anova", "coef"))
+  stopifnot(ovr_column %in% colnames(sampledata))
+  
+  ntiles <- gene_ntile(gene_id = gene_id, id_type = id_type, gene_dict = gene_dict,
+                       geneEx = geneEx, n = n, labels = labels)
+  
+  sd <- dplyr::left_join(ntiles, sampledata, by = "sample_name")
+  #  return(sd)
+  
+  #Toggle for survival type
+  if(survival_type == "os"){
+    ti <- "months_overall_survival"
+    ev <- "overall_survival"
+    ylab <- "Overall survival probability"
+    type <- "Overall survival"
+  }
+  
+  if(survival_type == "drs"){
+    ti <- "months_to_drs"
+    ev <- "distant_recurrence"
+    ylab <- "Distant recurrence probability"
+    type <- "Distant recurrence"
+  }
+  
+  covariates <- c("age_at_diagnosis", "year_of_diagnosis", "grade",
+                  "stage", "surgery", "radiotherapy", "hormonetherapy",
+                  "chemotherapy", "herceptin", "PAM50")
+  
+  cov_legend <- c("age", "year of diagnosis", "grade",
+                  "stage", "treatment", "PAM50")
+  
+  cov <- paste(covariates, collapse = "+")
+  svf = paste0('Surv(time=',ti,', event=',ev,')~')
+  facet_formula <- as.formula(paste0(svf, "labels"))
+  #ntile_formula <- as.formula(paste0(svf, "ntile"))
+  reduced =  as.formula(paste0(svf, cov))
+  formula = as.formula(paste0(svf, paste0(cov, "+ntile")))
+  
+  reslist <- list()
+  gn <- unique(sd$gene_symbol)
+  
+  #Split sample data into those samples belonging to the group of interest (or not)
+  sd1 = sd[sd[[ovr_column]] == 1,]
+  sd0 = sd[sd[[ovr_column]] == 0,]
+  
+  
+  curv1 <- survminer::ggsurvplot(
+    fit = survminer::surv_fit(facet_formula, data = as.data.frame(sd1)), 
+    xlab = "Months", 
+    ylab = ylab,
+    legend = "none",
+    #title = paste(type, "(unadjusted), with", gn, "\nexpression in", ovr_column, "samples"),
+    title = paste("Unadjusted curve for", ovr_column, "samples"),
+    pval = T, #Logrank method
+    )
+  
+  curv1 = curv1$plot #Otherwise we get a ggsurvplot object, which cannot be used with ggarrange
+  
+  curv1 <- curv1 +
+    theme(plot.title = element_text(size = 12),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank()
+    )
+  
+  reslist$curv1 <- curv1
+  
+  #Unadajusted kaplan meier plot in other samples
+  curv0 <- survminer::ggsurvplot(
+    fit = survminer::surv_fit(facet_formula, data = as.data.frame(sd0)), 
+    xlab = "Months", 
+    ylab = ylab,
+    legend = "none",
+    #title = paste(type, "(unadjusted), with", gn, "\nexpression in other samples"),
+    title = paste("Unadjusted curve for other samples"),
+    pval = T, #Logrank method
+    ) 
+  
+  curv0 <- curv0$plot #Otherwise we get a ggsurvplot object, which cannot be used with ggarrange
+  
+  curv0 <- curv0 +
+    theme(plot.title = element_text(size = 12),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank()
+    )
+  
+  reslist$curv0 <- curv0
+  
+  #return(reslist)
+  
+  #Cox models for involution group, adjusted for all covariates and ntile gene expression
+  c <- survival::coxph(formula, data = sd1)
+  #print(c)
+  
+  #Store p value associated with the coefficient of the ntile
+  fit_ntile <- as.data.frame(summary(c)$coefficients)
+  p_ntile <- signif(fit_ntile[rownames(fit_ntile) == "ntile", ]$`Pr(>|z|)`, 2)
+  if (p_ntile < 0.001){
+    p_ntile <- "< 0.001"
+  }
+  
+  #print(p_ntile)
+  #Anova p value vs reduced model
+  d <- survival::coxph(reduced, data = as.data.frame(sd1))
+  aod <- anova(d,c) #Conventional to list models from smallest to largest but order does not matter
+  aod_p <- signif(aod[4][2,], 2)
+  if (aod_p < 0.001){
+    aod_p <- "< 0.001"
+  }
+  
+  if (p_method == "anova"){
+    p <- aod_p
+  } else {
+    p <- p_ntile
+  }
+  
+  #Adjusted survival curve for samples belonging to group of interest
+  #Use surv_adjustedcurves to get data and the then manually plot for more control over appearance
+  adj_curv1 <- survminer::surv_adjustedcurves(fit = c, variable = "ntile", data = as.data.frame(sd1), method = "conditional") %>%
+    left_join(select(mutate(sd1, ntile = as.factor(ntile)), ntile, labels), by = c("variable" = "ntile")) %>%
+    ggplot(., aes(x = time, y = surv, color = labels)) + 
+    geom_step(size = 1) + theme_survminer() + scale_y_continuous(limits = c(0,1)) +
+    #scale_x_continuous(limits = c(0,250)) +
+    ylab(label =  ylab) +
+    labs(color = paste(gn, "expression")) +
+    #ggtitle(paste(type, "for gene", gn, "in", ovr_column, "\nsamples, adjusted for clinical covariates")) +
+    ggtitle(paste("Adjusted curve for", ovr_column,"samples")) +
+    #annotate(geom = "text", label = paste0("Coef pval for ntile: ", p_ntile), x= 25, y =0.1) +
+    #annotate(geom = "text", label = paste0("Anova pval vs reduced: ", aod_p), x= 25, y =0.2) +
+    annotate(geom = "text", label = paste("p =", p), x= 25, y =0.1) +
+    theme(plot.title = element_text(size = 12),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank(),
+          legend.position = "bottom"
+    )
+  
+  reslist$adj_curv1 <- adj_curv1
+  
+  #Cox models for rest group, adjusted for all covariates and ntile gene expression
+  c <- survival::coxph(formula, data = sd0)
+  #print(c)
+  
+  #Store p value associated with the coefficient of the ntile
+  fit_ntile <- as.data.frame(summary(c)$coefficients)
+  p_ntile <- signif(fit_ntile[rownames(fit_ntile) == "ntile", ]$`Pr(>|z|)`, 2)
+  if (p_ntile < 0.001){
+    p_ntile <- "< 0.001"
+  }
+  
+  #Anova p value vs reduced model
+  d <- survival::coxph(reduced, data = as.data.frame(sd0))
+  aod <- anova(d,c) #Conventional to list models from smallest to largest but order does not matter
+  aod_p <- signif(aod[4][2,], 2)
+  if (aod_p < 0.001){
+    aod_p <- "< 0.001"
+  }
+  
+  if (p_method == "anova"){
+    p <- aod_p
+  } else {
+    p <- p_ntile
+  }
+  
+  #Adjusted survival curve for samples belonging to group of interest
+  #Use surv_adjustedcurves to get data and the then manually plot for more control over appearance
+  adj_curv0 <- survminer::surv_adjustedcurves(fit = c, variable = "ntile", data = as.data.frame(sd0), method = "conditional") %>%
+    left_join(select(mutate(sd0, ntile = as.factor(ntile)), ntile, labels), by = c("variable" = "ntile")) %>%
+    ggplot(., aes(x = time, y = surv, color = labels)) + 
+    geom_step(size = 1) + theme_survminer() + scale_y_continuous(limits = c(0,1)) + 
+    #scale_x_continuous(limits = c(0,250)) +
+    ylab(label =  ylab) +
+    labs(color = paste(gn, "expression")) +
+    #ggtitle(paste(type, "for gene", gn, "\nin other samples, adjusted for clinical covariates")) +
+    ggtitle(paste("Adjusted curve for other samples")) +
+    #annotate(geom = "text", label = paste0("Coef pval for ntile: ", p_ntile), x= 25, y =0.1) +
+    #annotate(geom = "text", label = paste0("Anova pval vs reduced: ", aod_p), x= 25, y =0.2) +
+    annotate(geom = "text", label = paste("p =", p), x= 25, y =0.1) +
+    theme(plot.title = element_text(size = 12),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank(),
+          legend.position = "bottom"
+          )
+  
+  reslist$adj_curv0 <- adj_curv0
+  
+  if(return_list == T){
+    return(reslist)  
+  }
+  
+  # Arrange them all together
+  arplot <- ggpubr::ggarrange(plotlist = reslist, nrow = 2, ncol = 2)
+  
+  arplot <- annotate_figure(arplot,
+                  top = text_grob(paste(type, "for gene", gn), face = "bold", size = 14),
+                  #bottom = text_grob("Time (Months)", size = 12),
+                  bottom = text_grob(paste0("Time (Months)\n\nClinical covariates: ",
+                                            paste(cov_legend, collapse=", ")),
+                                     size = 12),
+                  left = text_grob(ylab, rot = 90),
+                  #right = "I'm done, thanks :-)!",
+                  #fig.lab = "Figure 1", fig.lab.face = "bold"
+  )
+  
+  return(arplot)
+  
+}
 
 #' Combine and display results from survival analyses
 #'
@@ -329,6 +562,7 @@ tmm_plots <- function(id, id_type = "symbol", ensembl_mat = ens_mat, symbol_mat 
   
   return(rsl)
 }
+
 
 
 #Not very useful, get rid of this?

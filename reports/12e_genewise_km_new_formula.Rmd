@@ -1,0 +1,616 @@
+---
+title: "Kaplan Meier plots for gene tertiles: New interaction formula"
+output: 
+  html_notebook:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: tango
+---
+
+```{r}
+rm(list = ls())
+```
+
+```{r, include=F}
+library(DESeq2)
+library(survival)
+library(ggthemes)
+library(survminer)
+library(pheatmap)
+library(RColorBrewer)
+library(edgeR)
+library(glmnet)
+library(openxlsx)
+library(here)
+library(ggpubr)
+library(tidyverse)
+```
+
+# Set up
+
+```{r}
+source(here("src", "survival_tools.R"))
+```
+
+
+## Gene metadata
+
+```{r}
+gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
+```
+
+
+## Survival metadata
+
+As described in notebook 12, we have 183 samples with adequate data.
+
+```{r}
+metadata = readxl::read_excel(here("data", "metadata", "12_survival_metadata.xlsx"))
+nrow(metadata)
+```
+
+
+## Previous results
+
+### Diffex
+
+
+
+```{r, collapse=T}
+lrt <- here("results", "diffex", "06_LRT_allgenes.xlsx") %>% 
+  readxl::excel_sheets() %>% 
+  set_names() %>% 
+  map(readxl::read_excel, path = here("results", "diffex", "06_LRT_allgenes.xlsx"))
+names(lrt)
+
+pw <- here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx") %>% 
+  readxl::excel_sheets() %>% 
+  set_names() %>% 
+  map(readxl::read_excel, path = here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx"))
+names(pw)
+
+ovr = here("results", "diffex", "08_one_vs_rest_allgenes.xlsx") %>% 
+  readxl::excel_sheets() %>% 
+  set_names() %>% 
+  map(readxl::read_excel, path = here("results", "diffex", "08_one_vs_rest_allgenes.xlsx"))
+names(ovr)
+
+#Substitute lrt down to all genes and rename it for convenience.
+lrt = lrt["repLRT_all"]
+names(lrt) = "LRT"
+
+#Combine all results into single list.
+res_list = append(lrt, pw)
+res_list = append(res_list, ovr)
+names(res_list) = str_remove_all(str_remove_all(names(res_list), "rep_"), "_all")
+names(res_list) = str_replace(names(res_list), "_", "_vs_")
+names(res_list)
+```
+
+### Overall survival
+
+```{r}
+
+os <- readxl::read_excel(path = here("results", "survival", "12_cox_allgenes.xlsx"),
+                         sheet = "multi_cox_surv")
+head(filter(os, gene_type == "protein_coding"), 20)
+```
+
+```{r}
+os_path = readxl::read_excel(path = here("results", "survival", "12_cox_allgenes.xlsx"),
+                         sheet = "path_multi_os")
+os_path
+```
+
+
+### Distant recurrence
+
+```{r}
+drs <- readxl::read_excel(path = here("results", "survival", "12_cox_allgenes.xlsx"),
+                         sheet = "multi_cox_dr")
+head(filter(drs, gene_type == "protein_coding"), 20)
+```
+
+
+### Interaction model
+
+```{r}
+inv_int_os <- readxl::read_excel(here("results", "survival", "12d_os_gene:inv_newformula.xlsx"))
+
+head(inv_int_os)
+```
+
+```{r}
+inv_int_drs <- readxl::read_excel(here("results", "survival", "12b_drs_gene:inv_interaction.xlsx"))
+
+head(inv_int_drs)
+```
+
+## Transposed matrix for Cox regressions
+
+Also created in notebook 12. First 20 columns are metadata, after that there is one column per gene. Gene expression columns are TMM-log2 normalized.
+
+```{r}
+coxdata = readRDS(here("data", "Rds", "12_coxdata.Rds"))
+colnames(coxdata)[1:30]
+```
+
+Exclusively sample data. Clean up sample labels a little.
+
+```{r}
+sample_data = coxdata[,1:20]
+
+#head(sample_data)
+
+sample_data = sample_data %>%
+  mutate(PPBC = case_when(
+    study_group == "non_prbc" ~ "nulliparous",
+    study_group == "ppbc_inv" ~ "involution",
+    study_group == "ppbc_lac" ~ "lactation",
+    study_group == "prbc" ~ "pregnant",
+    
+  ))
+
+table(sample_data$study_group, sample_data$PPBC)
+```
+
+
+In gene x sample format:
+
+```{r}
+ens_mat <- t(coxdata[21:ncol(coxdata)])
+dim(ens_mat)
+ens_mat[1:10,1:10]
+```
+
+
+A count matrix in genes x samples format, containing the same TMM/log normalized expression information as coxdata, but with gene symbols and repeat IDs de-duplicated:
+
+```{r}
+sym_mat <- as.matrix(readRDS(here("data", "Rds", "12b_tmmnorm_geneEx_survival.Rds")))
+dim(sym_mat)
+sym_mat[1:10,1:10]
+```
+
+## Involution vs rest encoding
+
+```{r}
+levels(coxdata$study_group)
+```
+
+```{r}
+coxdata = coxdata %>%
+  mutate(involution = as.numeric(study_group == "ppbc_inv")) %>%
+  select(sample_name:study_group, involution, everything())
+
+table(coxdata$study_group, coxdata$involution)
+```
+
+```{r}
+colnames(coxdata)[1:30]
+#Genes start at position 22
+colnames(coxdata)[22]
+```
+
+## Sample data
+
+```{r}
+sample_data = coxdata[,1:21]
+
+#head(sample_data)
+
+sample_data = sample_data %>%
+  mutate(PPBC = case_when(
+    study_group == "non_prbc" ~ "nulliparous",
+    study_group == "ppbc_inv" ~ "involution",
+    study_group == "ppbc_lac" ~ "lactation",
+    study_group == "prbc" ~ "pregnant",
+    
+  ))
+
+head(sample_data)
+```
+
+# Genes of interest from general OS/DRS
+
+Or background literature
+
+## CD20 (MS4A1)
+
+### Summary survival
+
+```{r}
+gene_summary("MS4A1")$survival_report
+```
+
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("MS4A1", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("MS4A1"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("MS4A1", ovr_column = "involution", survival_type = "drs")
+```
+
+
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("MS4A1", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+
+
+### Diffex
+
+```{r}
+gene_summary("MS4A1")$diffex_report
+```
+
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("MS4A1")$beehive
+```
+
+## CD27
+
+The protein encoded by this gene is a member of the TNF-receptor superfamily. This receptor is required for generation and long-term maintenance of T cell immunity. It binds to ligand CD70, and plays a key role in regulating B-cell activation and immunoglobulin synthesis. This receptor transduces signals that lead to the activation of NF-κB and MAPK8/JNK. Adaptor proteins TRAF2 and TRAF5 have been shown to mediate the signaling process of this receptor. CD27-binding protein (SIVA), a proapoptotic protein, can bind to this receptor and is thought to play an important role in the apoptosis induced by this receptor.[5]
+
+In murine γδ T cells its expression has been correlated with the secretion of IFNγ.[6]
+Varlilumab is an antibody that binds to CD27 and is an experimental cancer treatment.
+CD27 has been shown to interact with SIVA1,[7] TRAF2[8][9] and TRAF3.[8][9] 
+
+[The immunobiology of CD27 and OX40 and their potential as targets for cancer immunotherapy](https://www.ncbi.nlm.nih.gov/pubmed/29118006)
+
+### Summary survival
+
+```{r}
+gene_summary("CD27")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("CD27", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("CD27"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("CD27", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("MS4A1", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("CD27")$diffex_report
+```
+
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("CD27")$beehive
+```
+
+## CD7
+
+This gene encodes a transmembrane protein which is a member of the immunoglobulin superfamily. This protein is found on thymocytes and mature T cells. It plays an essential role in T-cell interactions and also in T-cell/B-cell interaction during early lymphoid development.
+
+### Summary survival
+
+```{r}
+gene_summary("CD7")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("CD7", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("CD7"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("CD7", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("CD7", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("CD7")$diffex_report
+```
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("CD7")$beehive
+```
+
+## FoxP3
+
+### Summary survival
+
+```{r}
+gene_summary("FOXP3")$survival_report
+```
+
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("FOXP3", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("FOXP3"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("FOXP3", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("FOXP3", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+
+### Diffex
+
+```{r}
+gene_summary("FOXP3")$diffex_report
+```
+
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("FOXP3")$beehive
+```
+
+# Genes of interest from interaction models
+
+```{r}
+inv_int_os %>% filter(fdr < 0.25 & gene_type == "protein_coding") %>% pull(gene_name)
+```
+
+```{r}
+inv_int_os %>% filter(fdr < 0.25 & gene_type == "protein_coding") %>% pull(description)
+```
+## LILRA3
+
+Leukocyte Immunoglobulin Like Receptor A3
+
+This gene encodes a member of a family of immunoreceptors that are expressed predominantly in monocytes and B cells, and at lower levels in dendritic cells and natural killer cells. The encoded protein lacks the transmembrane region found in other members of this family. It acts as a soluble receptor for class I major histocompatibility complex (MHC) antigens. Alternatively spliced transcript variants encoding different isoforms have been found. This gene is located in a cluster of related genes on chromosome 19 and is polymorphic in human populations, with many individuals containing a deletion of this genomic region.
+
+Multiple ensembl IDs retrieved with wildly different p values!
+
+This gene is very lowly expressed.
+
+```{r}
+inv_int_os %>% filter(gene_name == "LILRA3")
+```
+
+
+### Summary survival
+
+```{r}
+gene_summary("ENSG00000275841", id_type = "ensembl")$survival_report
+```
+
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("ENSG00000275841", id_type = "ensembl", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("ENSG00000275841", id_type = "symbol",), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("ENSG00000275841", id_type = "ensembl", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("ENSG00000275841", id_type = "ensembl", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+
+### Diffex
+
+```{r}
+gene_summary("ENSG00000275841", id_type = "ensembl")$diffex_report
+```
+
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("ENSG00000275841", id_type = "ensembl")$beehive
+```
+
+
+## ING4
+
+This gene encodes a tumor suppressor protein that contains a PHD-finger, which is a common motif in proteins involved in chromatin remodeling. This protein can bind TP53 and EP300/p300, a component of the histone acetyl transferase complex, suggesting its involvement in the TP53-dependent regulatory pathway. Multiple alternatively spliced transcript variants have been observed that encode distinct proteins.
+
+### Summary survival
+
+```{r}
+gene_summary("ING4")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("ING4", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("ING4"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("ING4", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("ING4", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("ING4")$diffex_report
+```
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("ING4")$beehive
+```
+
+# EIF4E3
+
+Binds to 5' cap during translation. Known tumor suppressor.
+
+[eIF4E3 acts as a tumor suppressor by utilizing an atypical mode of methyl-7-guanosine cap recognition](https://www.pnas.org/content/110/10/3877)
+[eIF4E3, a new actor in mRNA metabolism and tumor suppression](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3674077/)
+
+### Summary survival
+
+```{r}
+gene_summary("EIF4E3")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("EIF4E3", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("EIF4E3"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("EIF4E3", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("EIF4E3", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("EIF4E3")$diffex_report
+```
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("EIF4E3")$beehive
+```
+
+
+To be continued
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

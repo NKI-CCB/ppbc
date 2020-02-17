@@ -630,22 +630,43 @@ for(i in drs_top){
 ## Top 20 interaction model
 
 ```{r, collapse=T}
-print(paste("Interaction model identifies", nrow(inv_int %>% filter(fdr < 0.05 & gene_type == "protein_coding")), "protein coding genes at fdr < 0.05"))
+print(paste("Interaction model identifies", nrow(inv_int_os %>% filter(fdr < 0.05 & gene_type == "protein_coding")), "protein coding genes at fdr < 0.05"))
 
-inv_int %>% filter(fdr < 0.05 & gene_type == "protein_coding") %>% pull(gene_name)
+inv_int_os %>% filter(fdr < 0.05 & gene_type == "protein_coding") %>% pull(gene_name)
+```
+```{r, fig.height = 10, fig.width=8}
+print(ggarrange(plotlist = km_ntiles("BCAR4", survival_type = "os"), ncol = 1, nrow = 2)) 
 ```
 
 
 Filter on protein coding only
 
 ```{r, fig.height = 10, fig.width=8}
-for (i in inv_int %>% filter(fdr < 0.05 & gene_type == "protein_coding") %>% head(20) %>% pull(gene_name)){
+for (i in inv_int_os %>% filter(fdr < 0.05 & gene_type == "protein_coding") %>% head(20) %>% pull(gene_name)){
   #print(km_ntiles(i)$facet_plot)
   print(ggarrange(plotlist = km_ntiles(i, survival_type = "os"), ncol = 1, nrow = 2)) 
 }
 
 ```
 
+Using a different function we can see 1 vs rest comparisons.
+
+```{r, fig.width=10, fig.height = 8}
+source(here("src", "survival_tools.R"))
+#km_ntiles_ovr("MS4A1", ovr_column = "involution", sampledata = sample_data)
+
+for (i in (inv_int_os %>%
+           filter(fdr < 0.05 & gene_type == "protein_coding") %>%
+           head(20) %>% pull(gene_name))){
+  print(km_ntiles_ovr(i, ovr_column = "involution", survival_type = "os",
+                      sampledata =  mutate(sample_data, involution = if_else(study_group == "ppbc_inv", 1, 0))))
+}
+
+```
+```{r,fig.height=8, fig.width=10}
+km_ntiles_ovr("BCAR4", ovr_column = "involution", survival_type = "os",
+                      sampledata =  mutate(sample_data, involution = if_else(study_group == "ppbc_inv", 1, 0)))
+```
 
 
 # Stepwise work and debugging

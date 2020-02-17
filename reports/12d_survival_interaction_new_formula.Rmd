@@ -1,5 +1,5 @@
 ---
-title: "PPBC: Survival analyses with interaction terms"
+title: "PPBC: Survival analyses with one vs rest interaction terms"
 output: 
   html_notebook:
     toc: yes
@@ -584,6 +584,10 @@ pheatmap::pheatmap(otmm[rownames(otmm) %in% filter(os, fdr < 0.25)$gene_name,],
 
 ## KM tertiles
 
+We cannot create adjusted plots for each individual study group, because the number of events is too low. We can however show them for one vs rest comparisons (either involution or not).
+
+This function shows the unadajusted study groups individually as well as the survival curves for all study groups together.
+
 ```{r, fig.height=10, fig.width=8}
 for (i in filter(os, gene_type == "protein_coding" & fdr < 0.25)$gene_name){
   #print(km_ntiles(i, id_type = "symbol"))
@@ -591,9 +595,17 @@ for (i in filter(os, gene_type == "protein_coding" & fdr < 0.25)$gene_name){
 }
 
 ```
+This function shows the unadjusted and adjusted survival curves for involution samples, non-involution samples
 
+```{r, fig.width=10, fig.height = 8}
+source(here("src", "survival_tools.R"))
+#km_ntiles_ovr("MS4A1", ovr_column = "involution", sampledata = sample_data)
 
+for (i in filter(os, gene_type == "protein_coding" & fdr < 0.25)$gene_name){
+  print(km_ntiles_ovr(i, ovr_column = "involution", survival_type = "os", sampledata = sample_data))
+}
 
+```
 
 ## Dot plots
 
@@ -883,6 +895,28 @@ for (i in filter(drs, gene_type == "protein_coding" & fdr < 0.25)$gene_name){
 }
 
 ```
+
+
+```{r, fig.width=10, fig.height = 8}
+source(here("src", "survival_tools.R"))
+#km_ntiles_ovr("MS4A1", ovr_column = "involution", sampledata = sample_data)
+
+for (i in filter(drs, gene_type == "protein_coding" & fdr < 0.25)$gene_name){
+  print(km_ntiles_ovr(i, ovr_column = "involution", survival_type = "drs", sampledata = sample_data))
+}
+
+```
+
+
+
+
+
+
+
+
+
+
+
 
 
 
