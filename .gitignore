@@ -37,3 +37,8 @@ src/lambda_score_example.R
 *scratch*
 src/dec2018_samples/
 src/NMF.R
+
+shinyApp/*/data
+
+
+
