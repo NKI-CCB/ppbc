@@ -33,12 +33,25 @@ library(tidyverse)
 source(here("src", "survival_tools.R"))
 ```
 
+## Raw counts
+
+```{r}
+dds = readRDS(here("data/Rds/08_dds_inv_vs_rest_standard.Rds"))
+```
+
 
 ## Gene metadata
 
 ```{r}
 gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
-gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
+gx_annot = gx_annot %>%
+  select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>%
+  distinct() %>%
+  mutate(description = str_remove_all(description, " \\[.*\\]"))
+
+head(gx_annot)
+
+saveRDS(gx_annot, here("data","Rds","12e_gx_annot.Rds"))
 ```
 
 
@@ -61,19 +74,19 @@ nrow(metadata)
 ```{r, collapse=T}
 lrt <- here("results", "diffex", "06_LRT_allgenes.xlsx") %>% 
   readxl::excel_sheets() %>% 
-  set_names() %>% 
+  purrr::set_names() %>% 
   map(readxl::read_excel, path = here("results", "diffex", "06_LRT_allgenes.xlsx"))
 names(lrt)
 
 pw <- here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx") %>% 
   readxl::excel_sheets() %>% 
-  set_names() %>% 
+  purrr::set_names() %>% 
   map(readxl::read_excel, path = here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx"))
 names(pw)
 
 ovr = here("results", "diffex", "08_one_vs_rest_allgenes.xlsx") %>% 
   readxl::excel_sheets() %>% 
-  set_names() %>% 
+  purrr::set_names() %>% 
   map(readxl::read_excel, path = here("results", "diffex", "08_one_vs_rest_allgenes.xlsx"))
 names(ovr)
 
@@ -87,6 +100,8 @@ res_list = append(res_list, ovr)
 names(res_list) = str_remove_all(str_remove_all(names(res_list), "rep_"), "_all")
 names(res_list) = str_replace(names(res_list), "_", "_vs_")
 names(res_list)
+
+saveRDS(res_list, here("data", "Rds", "12e_diffex_res_list.Rds"))
 ```
 
 ### Overall survival
@@ -123,7 +138,7 @@ head(inv_int_os)
 ```
 
 ```{r}
-inv_int_drs <- readxl::read_excel(here("results", "survival", "12b_drs_gene:inv_interaction.xlsx"))
+inv_int_drs <- readxl::read_excel(here("results", "survival", "12d_drs_gene:inv_newformula.xlsx"))
 
 head(inv_int_drs)
 ```
@@ -154,6 +169,7 @@ sample_data = sample_data %>%
   ))
 
 table(sample_data$study_group, sample_data$PPBC)
+
 ```
 
 
@@ -162,7 +178,9 @@ In gene x sample format:
 ```{r}
 ens_mat <- t(coxdata[21:ncol(coxdata)])
 dim(ens_mat)
-ens_mat[1:10,1:10]
+#ens_mat[1:10,1:10]
+
+saveRDS(ens_mat, here("data", "Rds", "12e_ensembl_tmmnorm_genesxsample.Rds"))
 ```
 
 
@@ -171,7 +189,9 @@ A count matrix in genes x samples format, containing the same TMM/log normalized
 ```{r}
 sym_mat <- as.matrix(readRDS(here("data", "Rds", "12b_tmmnorm_geneEx_survival.Rds")))
 dim(sym_mat)
-sym_mat[1:10,1:10]
+#sym_mat[1:10,1:10]
+
+saveRDS(sym_mat, here("data", "Rds", "12e_symbol_tmmnorm_genesxsample.Rds"))
 ```
 
 ## Involution vs rest encoding
@@ -211,6 +231,8 @@ sample_data = sample_data %>%
   ))
 
 head(sample_data)
+
+saveRDS(sample_data, here("data","Rds","12e_survival_sample_data.Rds"))
 ```
 
 # Genes of interest from general OS/DRS
@@ -320,6 +342,58 @@ gene_summary("CD27")$diffex_report
 tmm_plots("CD27")$beehive
 ```
 
+#### TRAF2
+
+Downstream of CD27
+
+##### Summary survival
+
+```{r}
+gene_summary("TRAF2")$survival_report
+```
+
+##### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("TRAF2", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("TRAF2"), ncol = 2, nrow = 1)
+```
+
+##### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("TRAF2", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("MS4A1", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+##### Diffex
+
+```{r}
+gene_summary("TRAF2")$diffex_report
+```
+
+
+##### Expression
+
+```{r, fig.width=8}
+tmm_plots("TRAF2")$beehive
+```
+
+##### Traf3?
+```{r}
+gene_summary("TRAF3")$survival_report
+```
+
 ## CD7
 
 This gene encodes a transmembrane protein which is a member of the immunoglobulin superfamily. This protein is found on thymocytes and mature T cells. It plays an essential role in T-cell interactions and also in T-cell/B-cell interaction during early lymphoid development.
@@ -415,13 +489,21 @@ tmm_plots("FOXP3")$beehive
 
 # Genes of interest from interaction models
 
-```{r}
+```{r,collapse=T}
+print("Overall survival")
 inv_int_os %>% filter(fdr < 0.25 & gene_type == "protein_coding") %>% pull(gene_name)
+
+print("Distant recurrence")
+inv_int_drs %>% filter(fdr < 0.25 & gene_type == "protein_coding") %>% pull(gene_name)
 ```
 
 ```{r}
 inv_int_os %>% filter(fdr < 0.25 & gene_type == "protein_coding") %>% pull(description)
 ```
+```{r}
+inv_int_drs %>% filter(fdr < 0.25 & gene_type == "protein_coding") %>% pull(description)
+```
+
 ## LILRA3
 
 Leukocyte Immunoglobulin Like Receptor A3
@@ -529,7 +611,7 @@ gene_summary("ING4")$diffex_report
 tmm_plots("ING4")$beehive
 ```
 
-# EIF4E3
+## EIF4E3
 
 Binds to 5' cap during translation. Known tumor suppressor.
 
@@ -578,8 +660,521 @@ gene_summary("EIF4E3")$diffex_report
 tmm_plots("EIF4E3")$beehive
 ```
 
+## FGFRL1
 
-To be continued
+The protein encoded by this gene is a member of the fibroblast growth factor receptor (FGFR) family, where amino acid sequence is highly conserved between members and throughout evolution. FGFR family members differ from one another in their ligand affinities and tissue distribution. A full-length representative protein would consist of an extracellular region, composed of three immunoglobulin-like domains, a single hydrophobic membrane-spanning segment and a cytoplasmic tyrosine kinase domain. The extracellular portion of the protein interacts with fibroblast growth factors, setting in motion a cascade of downstream signals, ultimately influencing mitogenesis and differentiation. A marked difference between this gene product and the other family members is its lack of a cytoplasmic tyrosine kinase domain. The result is a transmembrane receptor that could interact with other family members and potentially inhibit signaling. Multiple alternatively spliced transcript variants encoding the same isoform have been found for this gene. [provided by RefSeq, Jul 2008]
+
+GeneCards Summary for FGFRL1 Gene
+
+FGFRL1 (Fibroblast Growth Factor Receptor Like 1) is a Protein Coding gene. Diseases associated with FGFRL1 include Wolf-Hirschhorn Syndrome and Familiar Ovarian Carcinoma. Among its related pathways are Signaling by GPCR and VEGF Signaling Pathway. Gene Ontology (GO) annotations related to this gene include heparin binding and fibroblast growth factor-activated receptor activity. An important paralog of this gene is MCRIP2.
+
+
+### Summary survival
+
+```{r}
+gene_summary("FGFRL1")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("FGFRL1", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("FGFRL1"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("FGFRL1", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("FGFRL1", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("FGFRL1")$diffex_report
+```
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("FGFRL1")$beehive
+```
+
+## CD69
+
+Associated with distant recurrence, but less so with survival.
+
+This gene encodes a member of the calcium dependent lectin superfamily of type II transmembrane receptors. Expression of the encoded protein is induced upon activation of T lymphocytes, and may play a role in proliferation. Furthermore, the protein may act to transmit signals in natural killer cells and platelets.
+
+CD69 expression has been associated with both regulatory T cell (Treg), memory T cell and Bcl6 loCD69 hiLZ GC B plasmablast precursors.[11] Treg precursors exit the thymus expressing CD69 and complete differentiation into Treg cells in peripheral tissues when they encounter antigens and other cytokines, like IL-2.[12] Through the JAK/STAT signaling pathway, CD69 activation also induces the production of TGF-β as well as IL-2, which contribute to the differentiation of Treg cells as mentioned above.[8] Furthermore, CD69 is also known to be upregulated by NF-κB signaling at the onset of an immune response. A prolonged immune response is then maintained by the non-canonical NF-κB pathway, which in turn is associated with Treg differentiation.[7]
+
+In addition to Treg differentiation, CD69 is a common marker of precursor and mature resident memory T cells (TRMs) that are localized in peripheral tissues.[13][9] TGF-β is also responsible for the development of TRMs, thus promoting TRM differentiation in a manner similar to Treg differentiation.[14] 
+
+### Summary survival
+
+```{r}
+gene_summary("CD69")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("CD69", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("CD69"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("CD69", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("CD69", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("CD69")$diffex_report
+```
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("CD69")$beehive
+```
+
+## LENG1
+
+Multiple ensembl IDs retrieved. "ENSG00000105617" is associated with interaction term for survival.
+
+```{r}
+inv_int_os %>% filter(gene_name == "LENG1")
+```
+
+
+### Summary survival
+
+```{r}
+gene_summary("ENSG00000105617", id_type = "ensembl")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("ENSG00000105617", id_type = "ensembl", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("ENSG00000105617", id_type = "ensembl", ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("ENSG00000105617", id_type = "ensembl", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("ENSG00000105617", id_type = "ensembl", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("ENSG00000105617", id_type = "ensembl")$diffex_report
+```
+
+### Expression
+
+```{r}
+as.data.frame(assay(dds)) %>% rownames_to_column("ensembl_gene_id") %>%
+  filter(ensembl_gene_id == "ENSG00000105617") %>% select(-ensembl_gene_id) %>%
+  t() %>% summary()
+```
+
+
+```{r, fig.width=8}
+tmm_plots("ENSG00000105617", id_type = "ensembl")$beehive
+```
+
+## Rad52
+
+### Summary survival
+
+```{r}
+gene_summary("RAD52")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("RAD52", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("CD69"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("RAD52", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("CD69", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("RAD52")$diffex_report
+```
+
+
+```{r, fig.width=8}
+tmm_plots("RAD52")$beehive
+```
+
+# Genes of interest from diffex
+
+## IGHD
+
+Multiple ensembl IDs reported
+
+```{r}
+gx_annot %>% filter(gene_name == "IGHD")
+```
+Which was the differentially expressed gene?
+
+```{r}
+res_list$inv_vs_rest[res_list$inv_vs_rest$gene_name == "IGHD", ]
+```
+
+
+### Summary survival
+
+Check for both isotypes.
+
+```{r}
+gene_summary("ENSG00000211898", id_type = "ensembl")$survival_report
+#gene_summary("ENSG00000278801", id_type = "ensembl")$survival_report
+#gene_survival("ENSG00000278801", id_type = "ensembl")
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("IGHD", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("IGHD"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("IGHD", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("IGHD", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("IGHD")$diffex_report
+```
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("IGHD")$beehive
+```
+
+## IGHA1
+
+### Summary survival
+
+```{r}
+gene_summary("IGHA1")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("IGHA1", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("IGHA1"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("IGHA1", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("IGHA1", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("IGHA1")$diffex_report
+```
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("IGHA1")$beehive
+```
+
+## JCHAIN
+
+### Summary survival
+
+```{r}
+gene_summary("JCHAIN")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("JCHAIN", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("IGHA1"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("JCHAIN", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("IGHA1", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("JCHAIN")$diffex_report
+```
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("JCHAIN")$beehive +
+  geom_hline(yintercept = 5.3179857, linetype = "dashed") +
+  geom_hline(yintercept = 6.7924900, linetype = "dashed")
+```
+
+```{r}
+tmm_plots("JCHAIN")$violin +
+  geom_hline(yintercept = 5.3179857, linetype = "dashed") +
+  geom_hline(yintercept = 6.7924900, linetype = "dashed")
+```
+
+
+How many of the lower ntile samples are there in the involution group?
+
+```{r}
+gene_ntile("JCHAIN", id_type = "symbol") %>%
+  left_join(., select(sample_data, sample_name, study_group), by = "sample_name") %>%
+  select(study_group, ntile) %>% table()
+```
+```{r}
+dplyr::ntile(sym_mat[rownames(sym_mat) %in% c("JCHAIN"), ], n = 3)
+
+quantile(sym_mat[rownames(sym_mat) %in% c("JCHAIN"), ], probs = seq(0, 1, 0.333333), na.rm = FALSE)
+```
+
+
+
+# From literature
+
+## IFNG
+
+### Summary survival
+
+```{r}
+gene_summary("ENSG00000111537", id_type = "ensembl")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("IFNG", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("IGHA1"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("IFNG", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("IGHA1", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("IFNG")$diffex_report
+```
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("IFNG")$beehive
+```
+
+## IGHG1
+
+### Summary survival
+
+```{r}
+gene_summary("IGHG1")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("IGHG1", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("IGHA1"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("IGHG1", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("IGHA1", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("IGHG1")$diffex_report
+```
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("IGHG1")$beehive
+```
+
+### Save data
+
+```{r}
+save.image(here("reports", "12e_genewise_km_new_formula.RData"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -630,3 +630,30 @@ cox_dotplot <- function(gene_id,  cox_results, id_type = "gene_name", cox_events
     labs(color=legend_label)
   
 }
+
+#' Retreive gene annotation information
+#'
+#' @param id An ensembl gene id or gene symbol
+#' @param id_type Either "ensembl" or "symbol"
+#' @param dictionary A data frame that contains the columns "ensembl_gene_id" and "gene_name"
+#' Other columns also possible.
+#'
+#' @return A data frame corresponding to the input id
+#' @export
+#'
+#' @examples
+gene_lookup <- function(id, id_type, dictionary = gx_annot){
+  
+  stopifnot(id_type %in% c("symbol", "ensembl"))
+  
+  if (id_type == "symbol"){
+    gn <- dictionary[dictionary$gene_name == id, , drop=F]
+  } else {
+    gn <- dictionary[dictionary$ensembl_gene_id == id, , drop =F]
+  }
+  
+  return(gn)
+}
+
+
+
