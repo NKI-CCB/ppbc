@@ -200,13 +200,21 @@ saveRDS(sym_mat, here("data", "Rds", "12e_symbol_tmmnorm_genesxsample.Rds"))
 levels(coxdata$study_group)
 ```
 
-```{r}
+```{r, eval=F}
+#Takes a long time for some reason
 coxdata = coxdata %>%
   mutate(involution = as.numeric(study_group == "ppbc_inv")) %>%
   select(sample_name:study_group, involution, everything())
 
+saveRDS(coxdata, here("data", "Rds", "12e_coxdata_invgroup.Rds"))
+
+```
+
+```{r}
+coxdata <- readRDS(here("data", "Rds", "12e_coxdata_invgroup.Rds"))
 table(coxdata$study_group, coxdata$involution)
 ```
+
 
 ```{r}
 colnames(coxdata)[1:30]
@@ -286,6 +294,7 @@ gene_summary("MS4A1")$diffex_report
 ### Expression
 
 ```{r, fig.width=8}
+#source(here("src", "survival_tools.R"))
 tmm_plots("MS4A1")$beehive
 ```
 
@@ -1030,7 +1039,7 @@ gene_ntile("JCHAIN", id_type = "symbol") %>%
   left_join(., select(sample_data, sample_name, study_group), by = "sample_name") %>%
   select(study_group, ntile) %>% table()
 ```
-```{r}
+```{r, eval=F, include=F}
 dplyr::ntile(sym_mat[rownames(sym_mat) %in% c("JCHAIN"), ], n = 3)
 
 quantile(sym_mat[rownames(sym_mat) %in% c("JCHAIN"), ], probs = seq(0, 1, 0.333333), na.rm = FALSE)

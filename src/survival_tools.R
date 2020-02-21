@@ -29,7 +29,7 @@ gene_ntile <- function(gene_id, id_type, gene_dict = gx_annot, geneEx = ens_mat,
     name <- gene_dict[gene_dict$ensembl_gene_id == gene_id,]$gene_name
   }
   
-  gene <- ens_mat[rownames(ens_mat) %in% id, , drop = F]
+  gene <- geneEx[rownames(geneEx) %in% id, , drop = F]
   if(nrow(gene) == 0){
     stop("Gene not found in provided count matrix")
   }
@@ -532,19 +532,40 @@ tmm_plots <- function(id, id_type = "symbol", ensembl_mat = ens_mat, symbol_mat 
     stop("Id not found in expression matrix, do you have the right identifier?")
   }
   
+  
+  sampledata <- sampledata %>% mutate(survival = case_when(
+    overall_survival == 1 & months_overall_survival < 50 ~ "death at 50 months",
+    overall_survival == 1 & months_overall_survival < 100 ~ "death at 100 months",  
+    overall_survival == 1 & months_overall_survival < 150 ~ "death at 150 months",
+    overall_survival == 1 & months_overall_survival < 200 ~ "death at 200 months",
+    overall_survival == 1 & months_overall_survival < 250 ~ "death at 250 months",
+    overall_survival == 0 ~ "survived",
+    TRUE ~ "no_data"
+  )) %>%
+    mutate(survival = factor(survival,
+                                   levels = c("survived",
+                                              "death at 50 months",
+                                              "death at 100 months",  
+                                              "death at 150 months",
+                                              "death at 200 months",
+                                              "death at 250 months")))
+  
   df <- as.data.frame(mat) %>% rownames_to_column("gene_name") %>%
     gather(key = "sample_name", -gene_name, value = "tmm_log") %>%
-    left_join(., sample_data, by = "sample_name")
+    left_join(., sampledata, by = "sample_name")
   
-  #return(df)
+  #Unused for now
+  #os_colors = viridis::viridis(length(unique(df$survival)))
+  #names(os_colors) =unique(df$survival)
   
   bh <- df %>%
     ggplot(aes(x = factor(PPBC, levels = c("nulliparous", "pregnant", "lactation", "involution")), y = tmm_log)) +
-    geom_jitter(aes(color = PAM50), height = 0, width = 0.2) +
+    geom_jitter(aes(color = survival), height = 0, width = 0.2) +
     geom_boxplot(alpha = 0) +
     xlab("PPBC") +
     ylab("Log(TMM expression)") +
     ggthemes::scale_color_colorblind() +
+    #scale_color_manual(values = os_colors) +
     ggthemes::theme_clean() +
     ggtitle(paste("TMM/Log normalized expression of", unique(df$gene_name)))
   

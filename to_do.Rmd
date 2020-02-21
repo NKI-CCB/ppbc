@@ -5,20 +5,17 @@ output: html_notebook
 
 * Make report from Flexgsea results (done except for mountain plots)
 * Clustering with other comparisons (not just inv vs rest, low priority)
-* GSEA with "interesting gene list"
 * Variable influence factor (VIF) - Maybe
 * Diffex and KM short vs long-term inv
-* KMs instead of dot plots in 12B
-* Check on whether the IGs found in involution are the same class as those typically found in breast milk (IgA?)
 * Redo diffex with ER status instead of PAM50 and without batch (assuming batch and ER status are correlated)
 * Apply for that cancer genomics class (not PPBC related but don't forget!)
-* Find out why flexgsea crashes at prbc_vs_rest when running_es_at is added to return_values
-* Look at clonality in combination with mortality [Clonality had a much stronger association with survival: the combination of high immunoglobulin expression (that is, numerous plasma cells at the site) and low clonality, which could be interpreted as absence of a distinct antigen-specific response, resulted in an equally poor prognosis as low immunoglobulin expression, while low immunoglobulin expression and high clonality resulted in an average prognosis.](https://www.nature.com/articles/s41577-019-0257-x#Tab2)
+* change colors in beehvive plots to reflect survival events instead of pam50
+* Look at clonality in combination with mortality (TRUST algorithm) [Clonality had a much stronger association with survival: the combination of high immunoglobulin expression (that is, numerous plasma cells at the site) and low clonality, which could be interpreted as absence of a distinct antigen-specific response, resulted in an equally poor prognosis as low immunoglobulin expression, while low immunoglobulin expression and high clonality resulted in an average prognosis.](https://www.nature.com/articles/s41577-019-0257-x#Tab2)
+* Look at MCP with survival
+* Add annotation for events in survival heatmap for notebook 12.
+* Make new percentage bar visualizations of cibersort and dwls
 
-Open questions/theories from survival interaction analysis:
 
-Do low B cell patients have a high fibrinogen signature (FGB/FGG/FGFBP1)? Could the fibrinogen be suppressing B cell activity, resulting in increased mortality?
-What about Akt1 signaling (DUSP13 and FLT3) and cancer-testis antigens (MAGE family)?
 
 ## Odds & ends
 
