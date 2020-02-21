@@ -1519,20 +1519,22 @@ meta_allgenes <- tibble(
            "path_univ_dr",
            "path_multi_os",
            "path_multi_dr",
-           "metadata",
-           "input_diffex"),
+           "metadata"#,
+           #"input_diffex"
+           ),
   Type = c(rep("Univariate",2),
            rep("Multivariate",2),
            rep("Fisher's exact pathway analysis", 4),
-           "sample metadata",
-           "TMM-normalized gene expression matrix"),
+           "sample metadata"#,
+           #"TMM-normalized gene expression matrix"
+           ),
   Formula = c("Surv(time=months_overall_survival,event=overall_survival)~gene",
               "Surv(time=months_to_drs,event=distant_recurrence)~gene",
               "Surv(time=months_overall_survival,event=overall_survival)~age_at_diagnosis+year_of_diagnosis+stage+grade+surgery+radiotherapy+hormonetherapy+chemotherapy+herceptin+PAM50+gene",
               "Surv(time=months_to_drs,event=distant_recurrence)~age_at_diagnosis+year_of_diagnosis+stage+grade+surgery+radiotherapy+hormonetherapy+chemotherapy+herceptin+PAM50+gene",
-              rep(NA, 6)),
-  Package = c(rep("survival/survminer",4), rep(NA, 5), "edgeR"),
-  Test = c("Cox survival", "Cox metastasis", "Cox survival", "Cox metastasis", rep("Fisher's exact",4), NA, "TMM"))
+              rep(NA, 5)),
+  Package = c(rep("survival/survminer",4), rep(NA, 4), "edgeR"),
+  Test = c("Cox survival", "Cox metastasis", "Cox survival", "Cox metastasis", rep("Fisher's exact",4), NA))
 
 meta_allgenes
 
@@ -1545,8 +1547,9 @@ openxlsx::write.xlsx(list(description = meta_allgenes,
                           path_univ_dr = bind_rows(path_allgenes_univ_dr, .id="gene_set"),
                           path_multi_os = bind_rows(path_allgenes_multivar_surv, .id="gene_set"),
                           path_multi_dr = bind_rows(path_allgenes_multivar_dr, .id="gene_set"),
-                          metadata = as.data.frame(colData(dds)),
-                          input_norm_geneEx = rownames_to_column(as.data.frame(t(mat)), "ensembl_gene_id")),
+                          metadata = as.data.frame(colData(dds))#,
+                          #input_norm_geneEx = rownames_to_column(as.data.frame(t(mat)), "ensembl_gene_id") #Unnecessary, makes huge file
+                          ),
                      file = here("results", "survival", "12_cox_allgenes.xlsx"))
 ```
 
