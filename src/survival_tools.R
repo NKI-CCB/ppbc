@@ -673,6 +673,7 @@ gene_lookup <- function(id, id_type, dictionary = gx_annot){
     gn <- dictionary[dictionary$ensembl_gene_id == id, , drop =F]
   }
   
+
   return(gn)
 }
 
