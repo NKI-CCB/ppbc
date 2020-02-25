@@ -8,6 +8,7 @@
 #
 
 library(shiny)
+library(shinycssloaders)
 library(here)
 library(survival)
 library(survminer)
@@ -44,6 +45,7 @@ ens_mat <- readRDS(file.path(dataDir, "12e_ensembl_tmmnorm_genesxsample.Rds"))
 
 #Functions for plotting
 source(here("src", "survival_tools.R"))
+source(here("src", "retrieve_gene_summaries.R"))
 
 #### UI ----
 ui <- fluidPage(
@@ -59,30 +61,64 @@ ui <- fluidPage(
         # Select symbol type
         selectInput("id_type", label = h3("Select id type"), 
                     choices = list("Gene name/symbol" = "symbol", "Ensembl ID" = "ensembl")),
-        textOutput("gn"),
-        textOutput("ens"),
-        textOutput("gene_type"),
-        textOutput("description")
+        #h5("Gene name:"),
+        #textOutput("gn"),
+        fluidRow(column(6,"Gene name:"), column(6, textOutput("gn"))),
+        #h5("Ensembl gene ID:"),
+        #textOutput("ens"),
+        fluidRow(column(6,"Ensembl gene ID:"), column(6, textOutput("ens"))),
+        #h5("Entrez ID:"),
+        #textOutput("entrez"),
+        fluidRow(column(6,"Entrez ID:"), column(6, textOutput("entrez"))),
+        #h5("Uniprot ID:"),
+        #textOutput("uniprot"),
+        fluidRow(column(6,"Uniprot ID:"), column(6, textOutput("uniprot"))),
+        #h5("Gene biotype:"),
+        #textOutput("gene_type"),
+        fluidRow(column(6,"Gene biotype:"), column(6, textOutput("gene_type"))),
+        #h5("Gene description:"),
+        #textOutput("description")
+        fluidRow(column(6,"Description:"), column(6, textOutput("description")))
     ),
     
+
     #### Output data ----
     mainPanel(
         tabsetPanel(
-            tabPanel("Results summary",
-                     conditionalPanel(
-                         condition = "output.len_ens",
-                         span(h3("Warning"), style="color:red"),
-                         span(textOutput("warning"), style = "color:red"),
-                         span(textOutput("thisens"), style = "color:red")),
-                     tableOutput("survival_summary"),
-                     tableOutput("diffex_report")
+            tabPanel("Gene summary",
+
+                     h3("Entrez summary:"),
+                     hr(),
+                     h3(""),
+                     textOutput("entrez_summary") %>% shinycssloaders::withSpinner(),
+                     br(),
+                     h3("Uniprot summary:"),
+                     hr(),
+                     textOutput("uniprot_summary") %>% shinycssloaders::withSpinner()#,
+                     #Breaks things
+                     #conditionalPanel(
+                      #   condition = "output.len_ens",
+                       #  span(h3("Warning"), style="color:red"),
+                    #     span(textOutput("warning"), style = "color:red"),
+                    #     span(textOutput("thisens"), style = "color:red")
+                    # )
+                     #tableOutput("diffex_report")# %>% shinycssloaders::withSpinner()
             ),
-            tabPanel("Kaplan-meier gene ntiles",
-                     plotOutput("ntile_os"),
-                     plotOutput("ntile_drs")    
+            tabPanel("Survival",
+                     dataTableOutput("survival_summary"),
+                     plotOutput("ntile_os") %>% shinycssloaders::withSpinner(),
+                     br(),
+                     br(),
+                     plotOutput("ntile_drs") %>% shinycssloaders::withSpinner(),
+                     br(),
+                     br()
             ),
-            tabPanel("Boxplot gene expression",
-                     plotOutput("beehive")
+            tabPanel("Differential expression",
+                     #textOutput("entrez_summary"),
+                     dataTableOutput("diffex_report") %>% shinycssloaders::withSpinner(),
+                     plotOutput("beehive") %>% shinycssloaders::withSpinner(),
+                     br(),
+                     br()
             )
         )
     )
@@ -93,52 +129,71 @@ ui <- fluidPage(
 server <- function(input, output) {
     
     #### Show a warning message if the gene name is mapped to multiple IDs----
-    output$len_ens <- reactive({
-        nrow(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)) > 1
-    })
+    #output$len_ens <- reactive({
+       # nrow(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)) > 1
+    #})
     #Output values can only be used when they are rendered elsewhere in the ui
     #Workaround is to set outputOptions
-    outputOptions(output, "len_ens", suspendWhenHidden = FALSE)
+    #outputOptions(output, "len_ens", suspendWhenHidden = FALSE)
     
     #Will only show if multiple ensembl IDs retrieved
-    output$warning <- renderText({
-        paste("Multiple ensembl ids found for", input$id, ":",
-              paste(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$ensembl_gene_id, collapse = ", ")
-        )
-    })
+    #output$warning <- renderText({
+     #   paste("Multiple ensembl ids found for", input$id, ":",
+      #        paste(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$ensembl_gene_id, collapse = ", ")
+       # )
+    #})
     
-    output$thisens <- renderText({
-        paste("Showing results for first in list: ", gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$ensembl_gene_id)[1]
-    })
+    #output$thisens <- renderText({
+     #   paste("Showing results for first in list: ", gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$ensembl_gene_id)[1]
+    #})
     
-    #### Get the gene symbol and ensembl ID as reactive objects----
+    #An empty reactive element
+    #e <- reactive({
+     #   str_remove_all(input$id, ".*")
+    #})
+    
+    #### Get the various IDs as reactive objects----
     gn <- reactive({
         head(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$gene_name, 1)
     })
+    output$gn <- renderText({gn()})
     
     ens <- reactive({
         head(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$ensembl_gene_id, 1)
     })
+    output$ens <- renderText({ens()})
     
-    #### Format the above fields alongside gene biotype and description for plotting----
-    output$gn <- renderText({ 
-        paste("Gene name:", gn())
+    entrez <- reactive({
+        head(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$entrez_id, 1)
     })
+    output$entrez <- renderText({entrez()})
     
-    output$ens <- renderText({
-        paste("Ensembl gene id:", ens()) 
+    uniprot <- reactive({
+        head(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$uniprot_id, 1)
     })
+    output$uniprot <- renderText({uniprot()})
+    
     
     output$gene_type <- renderText({ 
-        paste("Gene biotype:", str_replace_all(head(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$gene_type, 1), "_", " "))
+        str_replace_all(head(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$gene_type, 1), "_", " ")
     })
     
     output$description <- renderText({ 
-        paste("Description:", str_replace_all(head(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$description, 1), "_", " "))
+        str_replace_all(head(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$description, 1), "_", " ")
+    })
+    
+    #### Retrieve gene summaries from entrez and uniprot ----
+    
+    output$entrez_summary <- renderText({
+        get_entrez_summary(id = entrez())$entrez_summary
+    })
+    
+    output$uniprot_summary <- renderText({
+        get_uniprot_summary(id = uniprot())
     })
     
     #### Render the overall survival and distant recurrence table results for that gene---- 
-    output$survival_summary <- renderTable({
+    output$survival_summary <- renderDataTable({
         gene_survival(id = ens(),
                       id_type = "ensembl", s = os, d = drs, ios = inv_int_os, idrs = inv_int_drs,
                       gene_dict = gx_annot) %>%
@@ -146,7 +201,7 @@ server <- function(input, output) {
     })
     
     #### Render the differential expression table results for that gene----
-    output$diffex_report <- renderTable({
+    output$diffex_report <- renderDataTable({
         diffex_report(ensembl_id = ens(), 
                       list_reports = res_list, pthresh = 0.05, abslogfcthresh = 0.5) %>%
             dplyr::select(comparison, padj, log2FoldChange, sig)
@@ -173,7 +228,7 @@ server <- function(input, output) {
     
     #### Render the gene expression boxplot ----
     output$beehive <- renderPlot({
-        tmm_plots(id = ens(),
+        tmm_plots(id = ens(),ensembl_mat = ens_mat, sampledata = sample_data,
                   id_type = "ensembl")$beehive +
             ggtitle(paste("TMM/log normalized expression of", gn()))
     })
