@@ -192,7 +192,7 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
 #' @examples km_ntiles("MS4A1")
 
 km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx = ens_mat,
-                          n = 3, ovr_column = "involution",
+                          n = 3, ovr_column = "involution", line_colors = viridis::scale_color_viridis(discrete = T),
                           sampledata = sample_data, survival_type = "os",
                           p_method = "anova", return_list = F){
   
@@ -260,7 +260,8 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
     theme(plot.title = element_text(size = 12),
           axis.title.x=element_blank(),
           axis.title.y=element_blank()
-    )
+    ) +
+    line_colors
   
   reslist$curv1 <- curv1
   
@@ -281,7 +282,8 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
     theme(plot.title = element_text(size = 12),
           axis.title.x=element_blank(),
           axis.title.y=element_blank()
-    )
+    ) +
+    line_colors
   
   reslist$curv0 <- curv0
   
@@ -318,7 +320,10 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
   adj_curv1 <- survminer::surv_adjustedcurves(fit = c, variable = "ntile", data = as.data.frame(sd1), method = "conditional") %>%
     left_join(select(mutate(sd1, ntile = as.factor(ntile)), ntile, labels), by = c("variable" = "ntile")) %>%
     ggplot(., aes(x = time, y = surv, color = labels)) + 
-    geom_step(size = 1) + theme_survminer() + scale_y_continuous(limits = c(0,1)) +
+    geom_step(size = 1) +
+    theme_survminer() +
+    line_colors + 
+    scale_y_continuous(limits = c(0,1)) +
     #scale_x_continuous(limits = c(0,250)) +
     ylab(label =  ylab) +
     labs(color = paste(gn, "expression")) +
@@ -365,7 +370,10 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
   adj_curv0 <- survminer::surv_adjustedcurves(fit = c, variable = "ntile", data = as.data.frame(sd0), method = "conditional") %>%
     left_join(select(mutate(sd0, ntile = as.factor(ntile)), ntile, labels), by = c("variable" = "ntile")) %>%
     ggplot(., aes(x = time, y = surv, color = labels)) + 
-    geom_step(size = 1) + theme_survminer() + scale_y_continuous(limits = c(0,1)) + 
+    geom_step(size = 1) + 
+    theme_survminer() + 
+    line_colors +
+    scale_y_continuous(limits = c(0,1)) + 
     #scale_x_continuous(limits = c(0,250)) +
     ylab(label =  ylab) +
     labs(color = paste(gn, "expression")) +
