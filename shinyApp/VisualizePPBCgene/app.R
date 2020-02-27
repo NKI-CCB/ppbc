@@ -8,6 +8,7 @@
 #
 
 library(shiny)
+library(shinyalert)
 library(shinycssloaders)
 library(here)
 library(survival)
@@ -61,23 +62,11 @@ ui <- fluidPage(
         # Select symbol type
         selectInput("id_type", label = h3("Select id type"), 
                     choices = list("Gene name/symbol" = "symbol", "Ensembl ID" = "ensembl")),
-        #h5("Gene name:"),
-        #textOutput("gn"),
         fluidRow(column(6,"Gene name:"), column(6, textOutput("gn"))),
-        #h5("Ensembl gene ID:"),
-        #textOutput("ens"),
         fluidRow(column(6,"Ensembl gene ID:"), column(6, textOutput("ens"))),
-        #h5("Entrez ID:"),
-        #textOutput("entrez"),
         fluidRow(column(6,"Entrez ID:"), column(6, textOutput("entrez"))),
-        #h5("Uniprot ID:"),
-        #textOutput("uniprot"),
         fluidRow(column(6,"Uniprot ID:"), column(6, textOutput("uniprot"))),
-        #h5("Gene biotype:"),
-        #textOutput("gene_type"),
         fluidRow(column(6,"Gene biotype:"), column(6, textOutput("gene_type"))),
-        #h5("Gene description:"),
-        #textOutput("description")
         fluidRow(column(6,"Description:"), column(6, textOutput("description")))
     ),
     
@@ -86,23 +75,15 @@ ui <- fluidPage(
     mainPanel(
         tabsetPanel(
             tabPanel("Gene summary",
-
-                     h3("Entrez summary:"),
+                     useShinyalert(),
                      hr(),
-                     h3(""),
+                     h4("Entrez summary:"),
                      textOutput("entrez_summary") %>% shinycssloaders::withSpinner(),
                      br(),
-                     h3("Uniprot summary:"),
                      hr(),
-                     textOutput("uniprot_summary") %>% shinycssloaders::withSpinner()#,
-                     #Breaks things
-                     #conditionalPanel(
-                      #   condition = "output.len_ens",
-                       #  span(h3("Warning"), style="color:red"),
-                    #     span(textOutput("warning"), style = "color:red"),
-                    #     span(textOutput("thisens"), style = "color:red")
-                    # )
-                     #tableOutput("diffex_report")# %>% shinycssloaders::withSpinner()
+                     h4("Uniprot summary:"),
+                     textOutput("uniprot_summary") %>% shinycssloaders::withSpinner(),
+                     hr()
             ),
             tabPanel("Survival",
                      dataTableOutput("survival_summary"),
@@ -129,13 +110,19 @@ ui <- fluidPage(
 server <- function(input, output) {
     
     #### Show a warning message if the gene name is mapped to multiple IDs----
-    #output$len_ens <- reactive({
-       # nrow(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)) > 1
-    #})
-    #Output values can only be used when they are rendered elsewhere in the ui
-    #Workaround is to set outputOptions
-    #outputOptions(output, "len_ens", suspendWhenHidden = FALSE)
-    
+
+  observeEvent(input$id, {
+    if (nrow(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)) > 1) {
+    shinyalert(title = "Warning",
+               text = paste0(
+                 paste0("More than one ensembl ID detected for ", input$id, ": "),
+                 "\n",
+                 paste(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$ensembl_gene_id, collapse = ", "),
+                 "\n",
+                 paste("Showing results for first in series:",
+                       gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$ensembl_gene_id[1])),
+               type = "warning")
+  }})
     #Will only show if multiple ensembl IDs retrieved
     #output$warning <- renderText({
      #   paste("Multiple ensembl ids found for", input$id, ":",
