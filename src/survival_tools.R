@@ -4,7 +4,7 @@
 #' @param id_type Either "ensembl" or "symbol"
 #' @param gene_dict A data frame containing a column "gene name" with gene symbols and a column "ensembl_gene_id" with ensembl gene ids
 #' @param geneEx A gene expression matrix with ensembl IDs as row names. Should be tmm/log2 normalized for compatibility with other functions (this function will work with any metric).
-#' @param n The number of desired ntiles. Default = 3.
+#' @param n The number of desired ntiles. Choices: 2, 3, or 4. Default = 3.
 #' @param labels Text labels for ntiles. Default = c("low", "medium", "high")
 #'
 #' @return A data frame showing the ntiles for the gene in question
@@ -13,10 +13,16 @@
 #' @examples gene_ntile("ENSG00000000003", id_type = "ensembl"), gene_ntile("MUC2", id_type = "symbol")
 
 gene_ntile <- function(gene_id, id_type, gene_dict = gx_annot, geneEx = ens_mat,
-                       n = 3, labels = c("low", "medium", "high")){
+                       n = 3){
   
   stopifnot(id_type %in% c("ensembl", "symbol"))
-  stopifnot(length(labels) == n)
+  stopifnot(n %in% c(2,3,4))
+  
+  labels = switch(as.character(n),
+                  "2" = c("low", "high"),
+                  "3" = c("low", "medium", "high"),
+                  "4" = c("Q1", "Q2", "Q3", "Q4")
+  )
   
   if(id_type == "symbol"){
     id <- gene_dict[gene_dict$gene_name == gene_id,]$ensembl_gene_id
@@ -67,8 +73,7 @@ gene_ntile <- function(gene_id, id_type, gene_dict = gx_annot, geneEx = ens_mat,
 #' @param id_type Must be either "symbol" or "ensembl"
 #' @param gene_dict A data frame containing a column "gene name" with gene symbols and a column "ensembl_gene_id" with ensembl gene ids
 #' @param geneEx A gene expression matrix with ensembl IDs as row names. Should be tmm/log2 normalized for compatibility with other functions (this function will work with any metric).
-#' @param n The number of desired ntiles. Default = 3.
-#' @param labels Text labels for ntiles. Default = c("low", "medium", "high")
+#' @param n The number of desired ntiles. Choices: 2, 3 or 4. Default = 3.
 #' @param sampledata A data frame containing the sample annotation data. Must contain both sample names and the faceted group "PPBC".
 #' @param survival_type Must be either "os" (overall survival) or "drs" (distant recurrence) 
 #'
@@ -79,12 +84,13 @@ gene_ntile <- function(gene_id, id_type, gene_dict = gx_annot, geneEx = ens_mat,
 #' @examples km_ntiles("MS4A1")
 #' 
 km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx = ens_mat,
-                      n = 3, labels = c("low", "medium", "high"),
+                      n = 3,
                       sampledata = sample_data, survival_type = "os"){
   
   stopifnot(survival_type %in% c("os", "drs"))
+  stopifnot(n %in% c(2,3,4))
   ntiles <- gene_ntile(gene_id = gene_id, id_type = id_type, gene_dict = gene_dict,
-                       geneEx = geneEx, n = n, labels = labels)
+                       geneEx = geneEx, n = n)
   
   sd <- dplyr::left_join(ntiles, sampledata, by = "sample_name")
   #  return(sd)
@@ -169,8 +175,7 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
 #' @param gene_dict A data frame containing a column "gene name" with gene symbols and a column "ensembl_gene_id" with ensembl gene ids
 #' @param geneEx A gene expression matrix with ensembl IDs as row names. Should be tmm/log2 normalized for compatibility with other functions 
 #' (this function will work with any metric).
-#' @param n The number of desired ntiles. Default = 3.
-#' @param labels Text labels for ntiles. Default = c("low", "medium", "high")
+#' @param n The number of desired ntiles. Choices: 2, 3 or 4. Default = 3.
 #' @param sampledata A data frame containing the sample annotation data.
 #'  Must contain both sample names and the column representing one vs rest comparison (1 and 0).
 #' @param survival_type Must be either "os" (overall survival) or "drs" (distant recurrence)
@@ -187,16 +192,17 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
 #' @examples km_ntiles("MS4A1")
 
 km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx = ens_mat,
-                          n = 3, labels = c("low", "medium", "high"), ovr_column = "involution",
+                          n = 3, ovr_column = "involution",
                           sampledata = sample_data, survival_type = "os",
                           p_method = "anova", return_list = F){
   
   stopifnot(survival_type %in% c("os", "drs"))
+  stopifnot(n %in% c(2,3,4))
   stopifnot(p_method %in% c("anova", "coef"))
   stopifnot(ovr_column %in% colnames(sampledata))
   
   ntiles <- gene_ntile(gene_id = gene_id, id_type = id_type, gene_dict = gene_dict,
-                       geneEx = geneEx, n = n, labels = labels)
+                       geneEx = geneEx, n = n)
   
   sd <- dplyr::left_join(ntiles, sampledata, by = "sample_name")
   #  return(sd)
@@ -511,14 +517,16 @@ gene_summary <- function(id, id_type = "symbol", ...){
 #' @param ensembl_mat A matrix with TMM/log2 transformed expression data, ensembl ids as rownames and samples as columns
 #' @param symbol_mat A matrix with TMM/log2 transformed expression data, gene names/symbols as rownames and samples as columns
 #' @param sampledata A data frame containing the sample annotation data. Must contain both sample names and the faceted group "PPBC".
+#' @param colorby Either "survival", "drs", or "PAM50" (default = survival)
 #'
 #' @return A list of plots, beehive and violin
 #' @export
 #'
 #' @examples
-tmm_plots <- function(id, id_type = "symbol", ensembl_mat = ens_mat, symbol_mat = sym_mat, sampledata = sample_data){
+tmm_plots <- function(id, id_type = "symbol", ensembl_mat = ens_mat, symbol_mat = sym_mat, sampledata = sample_data, colorby = "survival"){
   
   stopifnot(id_type %in% c("symbol", "ensembl"))
+  stopifnot(colorby %in% c("survival", "drs", "PAM50"))
   
   if(id_type == "symbol"){
     mat <- symbol_mat
@@ -532,7 +540,7 @@ tmm_plots <- function(id, id_type = "symbol", ensembl_mat = ens_mat, symbol_mat 
     stop("Id not found in expression matrix, do you have the right identifier?")
   }
   
-  
+  #Define classes for overall survival plotting
   sampledata <- sampledata %>% mutate(survival = case_when(
     overall_survival == 1 & months_overall_survival < 50 ~ "death at 50 months",
     overall_survival == 1 & months_overall_survival < 100 ~ "death at 100 months",  
@@ -550,6 +558,26 @@ tmm_plots <- function(id, id_type = "symbol", ensembl_mat = ens_mat, symbol_mat 
                                               "death at 200 months",
                                               "death at 250 months")))
   
+  #Define classes for distant recurrence plotting
+  #Define classes for overall survival plotting
+  sampledata <- sampledata %>% mutate(drs = case_when(
+    distant_recurrence == 1 & months_to_drs < 50 ~ "metastasis at 50 months",
+   distant_recurrence == 1 & months_to_drs < 100 ~ "metastasis at 100 months",  
+   distant_recurrence == 1 & months_to_drs < 150 ~ "metastasis at 150 months",
+   distant_recurrence == 1 & months_to_drs < 200 ~ "metastasis at 200 months",
+   distant_recurrence == 1 & months_to_drs < 250 ~ "metastasis at 250 months",
+   distant_recurrence == 0 ~ "no recurrence",
+    TRUE ~ "no_data"
+  )) %>%
+    mutate(drs = factor(drs,
+                             levels = c("no recurrence",
+                                        "metastasis at 50 months",
+                                        "metastasis at 100 months",  
+                                        "metastasis at 150 months",
+                                        "metastasis at 200 months",
+                                        "metastasis at 250 months")))
+  
+  #Melt into tidy format
   df <- as.data.frame(mat) %>% rownames_to_column("gene_name") %>%
     gather(key = "sample_name", -gene_name, value = "tmm_log") %>%
     left_join(., sampledata, by = "sample_name")
@@ -560,10 +588,11 @@ tmm_plots <- function(id, id_type = "symbol", ensembl_mat = ens_mat, symbol_mat 
   
   bh <- df %>%
     ggplot(aes(x = factor(PPBC, levels = c("nulliparous", "pregnant", "lactation", "involution")), y = tmm_log)) +
-    geom_jitter(aes(color = survival), height = 0, width = 0.2) +
+    geom_jitter(aes(color = get(colorby)), height = 0, width = 0.2) +
     geom_boxplot(alpha = 0) +
     xlab("PPBC") +
     ylab("Log(TMM expression)") +
+    labs(color = colorby) +
     ggthemes::scale_color_colorblind() +
     #scale_color_manual(values = os_colors) +
     ggthemes::theme_clean() +
@@ -571,14 +600,14 @@ tmm_plots <- function(id, id_type = "symbol", ensembl_mat = ens_mat, symbol_mat 
   
   vb <- df %>%
     ggplot(aes(x = gene_name, y = tmm_log)) +
-    geom_jitter(aes(color = study_group), height = 0, width = 0.2) +
+    geom_jitter(aes(color = get(colorby)), height = 0, width = 0.2) +
     geom_violin(alpha = 0 ) +
     xlab("PPBC") +
     ylab("Log(TMM expression)") +
+    labs(color = colorby) +
     ggthemes::scale_color_colorblind() +
     ggthemes::theme_clean()
   
-  #rsl <- ggpubr::ggarrange(plotlist = list(bh, vb), ncol = 2)
   rsl <- list(beehive = bh, violin = vb)
   
   return(rsl)

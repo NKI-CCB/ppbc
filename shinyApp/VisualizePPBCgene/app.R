@@ -15,6 +15,8 @@ library(survival)
 library(survminer)
 library(tidyverse)
 
+#### Load data ----
+{
 appDir <- "/DATA/share/postpartumbc/shinyApp/VisualizePPBCgene"
 dataDir <- file.path(appDir, "data")
 
@@ -43,6 +45,7 @@ sample_data <- readRDS(file.path(dataDir,"12e_survival_sample_data.Rds"))
 #TMM/log normalized gene expression matrices, with ensembl ids and gene symbols
 sym_mat <- readRDS(file.path(dataDir, "12e_symbol_tmmnorm_genesxsample.Rds"))
 ens_mat <- readRDS(file.path(dataDir, "12e_ensembl_tmmnorm_genesxsample.Rds"))
+}
 
 #Functions for plotting
 source(here("src", "survival_tools.R"))
@@ -60,8 +63,8 @@ ui <- fluidPage(
         textInput("id", "Gene ID", "MS4A1"),
         
         # Select symbol type
-        selectInput("id_type", label = h3("Select id type"), 
-                    choices = list("Gene name/symbol" = "symbol", "Ensembl ID" = "ensembl")),
+        selectInput("id_type", label = "Select id type", 
+                    choices = list("Gene name" = "symbol", "Ensembl ID" = "ensembl")),
         fluidRow(column(6,"Gene name:"), column(6, textOutput("gn"))),
         fluidRow(column(6,"Ensembl gene ID:"), column(6, textOutput("ens"))),
         fluidRow(column(6,"Entrez ID:"), column(6, textOutput("entrez"))),
@@ -86,17 +89,29 @@ ui <- fluidPage(
                      hr()
             ),
             tabPanel("Survival",
+                     hr(),
                      dataTableOutput("survival_summary"),
+                     hr(),
+                     selectInput("ntile", label = "Select Ntiles:", 
+                                 choices = list("2" = 2,
+                                                "3" = 3,
+                                                "4" = 4),
+                                 selected = "3"),
                      plotOutput("ntile_os") %>% shinycssloaders::withSpinner(),
                      br(),
                      br(),
+                     hr(),
                      plotOutput("ntile_drs") %>% shinycssloaders::withSpinner(),
                      br(),
                      br()
             ),
             tabPanel("Differential expression",
-                     #textOutput("entrez_summary"),
                      dataTableOutput("diffex_report") %>% shinycssloaders::withSpinner(),
+                     hr(),
+                     selectInput("beehive_color", label = h4("Select color variable"), 
+                                 choices = list("Overall survival" = "survival",
+                                                "Distant recurrence" = "drs",
+                                                "PAM50" = "PAM50")),
                      plotOutput("beehive") %>% shinycssloaders::withSpinner(),
                      br(),
                      br()
@@ -123,22 +138,7 @@ server <- function(input, output) {
                        gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$ensembl_gene_id[1])),
                type = "warning")
   }})
-    #Will only show if multiple ensembl IDs retrieved
-    #output$warning <- renderText({
-     #   paste("Multiple ensembl ids found for", input$id, ":",
-      #        paste(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$ensembl_gene_id, collapse = ", ")
-       # )
-    #})
-    
-    #output$thisens <- renderText({
-     #   paste("Showing results for first in list: ", gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$ensembl_gene_id)[1]
-    #})
-    
-    #An empty reactive element
-    #e <- reactive({
-     #   str_remove_all(input$id, ".*")
-    #})
-    
+   
     #### Get the various IDs as reactive objects----
     gn <- reactive({
         head(gene_lookup(input$id, id_type = input$id_type, dictionary = gx_annot)$gene_name, 1)
@@ -199,7 +199,7 @@ server <- function(input, output) {
         km_ntiles_ovr(gene_id =  ens(),
                       id_type = "ensembl", 
                       survival_type = "os", ovr_column = "involution",
-                      n = 3, labels = c("low", "medium", "high"), 
+                      n = as.integer(input$ntile),
                       p_method = "anova", return_list = F, 
                       sampledata = sample_data, gene_dict = gx_annot, geneEx = ens_mat)
     })
@@ -208,7 +208,7 @@ server <- function(input, output) {
         km_ntiles_ovr(gene_id = ens(),
                       id_type = "ensembl", 
                       survival_type = "drs", ovr_column = "involution",
-                      n = 3, labels = c("low", "medium", "high"), 
+                      n = as.integer(input$ntile),
                       p_method = "anova", return_list = F, 
                       sampledata = sample_data, gene_dict = gx_annot, geneEx = ens_mat)
     })
@@ -216,7 +216,7 @@ server <- function(input, output) {
     #### Render the gene expression boxplot ----
     output$beehive <- renderPlot({
         tmm_plots(id = ens(),ensembl_mat = ens_mat, sampledata = sample_data,
-                  id_type = "ensembl")$beehive +
+                  colorby = input$beehive_color, id_type = "ensembl")$beehive +
             ggtitle(paste("TMM/log normalized expression of", gn()))
     })
 }
