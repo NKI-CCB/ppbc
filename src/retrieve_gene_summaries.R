@@ -38,15 +38,15 @@ get_uniprot_summary <- function(id){
   base_url = "https://www.uniprot.org/uniprot/"
   url = paste0(base_url, id)
   
-  page = xml2::read_html(url)
-  
-  uniprot_summary <- page %>%
+  uniprot_summary <- tryCatch(
+  xml2::read_html(url) %>%
     rvest::html_node(xpath='/html/body/main/div/div[3]/div[3]/div[1]') %>%
-    rvest::html_text()
+    rvest::html_text(),
+    error = function(e){NA} 
+  )
   
   uniprot_summary <- uniprot_summary %>% str_split("[:digit:] Publications")
   uniprot_summary <- uniprot_summary[[1]][[1]]
-  
   return(uniprot_summary)
 }
 
