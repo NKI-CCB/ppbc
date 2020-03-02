@@ -39,6 +39,6 @@ src/dec2018_samples/
 src/NMF.R
 
 shinyApp/*/data
-
+shinyApp/*/*.pdf
 
 

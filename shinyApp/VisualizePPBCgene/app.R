@@ -69,12 +69,13 @@ ui <- fluidPage(
         fluidRow(column(6,"Ensembl gene ID:"), column(6, textOutput("ens"))),
         fluidRow(column(6,"Entrez ID:"), column(6, textOutput("entrez"))),
         fluidRow(column(6,"Uniprot ID:"), column(6, textOutput("uniprot"))),
-        fluidRow(column(6,"Gene biotype:"), column(6, textOutput("gene_type")))
-        #fluidRow(column(6,"Description:"), column(6, textOutput("description")))
+        fluidRow(column(6,"Gene biotype:"), column(6, textOutput("gene_type"))),
+        downloadButton("report", "Generate report"),
+        textOutput("checkrender")
     ),
     
 
-    #### Output data ----
+
     mainPanel(
         tabsetPanel(
           
@@ -335,7 +336,45 @@ server <- function(input, output) {
     output$uniprot_summary <- renderText({
       get_uniprot_summary(id = uniprot())
     })
-}
+    
+    #### Download handler ----
+    
+    output$checkrender <- renderText({
+      if (identical(rmarkdown::metadata$runtime, "shiny")) {
+        TRUE
+      } else {
+        FALSE
+      }
+    })
+    
+    output$report <- downloadHandler(
+      filename = "PPBC_gene_report.pdf",
+      content = function(file) {
+        withProgress(message = 'Rendering, please wait!', {
+          # Copy the report file to a temporary directory before processing it, in
+          # case we don't have write permissions to the current working dir (which
+          # can happen when deployed).
+          tempReport <- file.path(tempdir(), "gene_report_template.Rmd")
+          file.copy("gene_report_template.Rmd", tempReport, overwrite = TRUE)
+          
+          # Set up parameters to pass to Rmd document
+          params <- list(id = input$id,
+                         id_type = input$id_type,
+                         ntile = input$ntile)
+          # Knit the document, passing in the `params` list, and eval it in a
+          # child of the global environment (this isolates the code in the document
+          # from the code in this app)
+          rmarkdown::render(
+            tempReport,
+            output_file = file,
+            params = params,
+            envir = new.env(parent = globalenv())
+          )
+        })
+      }
+    )
+} 
+
 
 #### Run the application ----
 shinyApp(ui = ui, server = server)

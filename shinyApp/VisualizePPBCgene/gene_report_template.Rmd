@@ -1,0 +1,264 @@
+---
+title: "Dynamic PPBC gene report"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    highlight: tango
+    toc: true
+    toc_depth: 3
+    number_sections: false
+    df_print: kable
+params:
+  id: 
+    label: "Gene ID"
+    value: NA
+    input: text
+  id_type: 
+      label: "ID type"
+      value: NA
+      input: select
+      choices: ["symbol", "ensembl"]
+  ntile:
+    label: "ntile"
+    value: NA
+    input: select
+    choices: [2, 3, 4]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+library(here)
+library(survival)
+library(survminer)
+library(tidyverse)
+```
+
+```{r load data, include=F}
+appDir <- "/DATA/share/postpartumbc/shinyApp/VisualizePPBCgene"
+dataDir <- file.path(appDir, "data")
+
+#Gene annotation data
+gx_annot <- readRDS(file.path(dataDir,"12e_gx_annot.Rds"))
+
+#Genewise overall survival
+os <- readxl::read_excel(path = file.path(dataDir, "12_cox_allgenes.xlsx"),
+                         sheet = "multi_cox_surv")
+#Genewise distant recurrence
+drs <- readxl::read_excel(path = file.path(dataDir, "12_cox_allgenes.xlsx"),
+                          sheet = "multi_cox_dr")
+
+#Interaction model overall survival
+inv_int_os <- readxl::read_excel(file.path(dataDir, "12d_os_gene:inv_newformula.xlsx"))
+
+#Interaction model distant recurrence
+inv_int_drs <- readxl::read_excel(file.path(dataDir, "12d_drs_gene:inv_newformula.xlsx"))
+
+#Differential expression results
+res_list <- readRDS(file.path(dataDir, "12e_diffex_res_list.Rds"))
+
+#Sample metadata
+sample_data <- readRDS(file.path(dataDir,"12e_survival_sample_data.Rds"))
+
+#TMM/log normalized gene expression matrices, with ensembl ids and gene symbols
+sym_mat <- readRDS(file.path(dataDir, "12e_symbol_tmmnorm_genesxsample.Rds"))
+ens_mat <- readRDS(file.path(dataDir, "12e_ensembl_tmmnorm_genesxsample.Rds"))
+```
+
+```{r source functions, include=F}
+source(here("src", "survival_tools.R"))
+source(here("src", "retrieve_gene_summaries.R"))
+```
+
+```{r gene info, include=F}
+#Gene name
+gn <- head(gene_lookup(params$id, id_type = params$id_type, dictionary = gx_annot)$gene_name, 1)
+
+#First ensembl ID in list
+ens <-  head(gene_lookup(params$id, id_type = params$id_type, dictionary = gx_annot)$ensembl_gene_id, 1) 
+
+#All ensembl IDs
+ens_all <- 
+  gene_lookup(params$id, id_type = params$id_type, dictionary = gx_annot)$ensembl_gene_id
+
+#Whether to print warning text
+multi_ids <- length(ens_all) > 1
+
+#Entrez ID
+entrez <- 
+  head(gene_lookup(params$id, id_type = params$id_type, dictionary = gx_annot)$entrez_id, 1)
+
+#Uniprot ID
+uniprot <- 
+  head(gene_lookup(params$id, id_type = params$id_type, dictionary = gx_annot)$uniprot_id, 1)
+
+#Gene biotype
+gene_type <- 
+  str_replace_all(head(gene_lookup(params$id, id_type = params$id_type, dictionary = gx_annot)$gene_type, 1), "_", " ")
+
+#Gene description
+description <-  
+  str_replace_all(head(gene_lookup(params$id, id_type = params$id_type, dictionary = gx_annot)$description, 1), "_", " ")
+
+shiny::setProgress(0.25)
+```
+
+
+## Gene  name: `r gn`
+
+#### Description: 
+`r description`
+
+#### Other aliases: 
+`r get_entrez_summary(id = entrez)$otheraliases`
+
+#### Ensembl ID: `r ens`
+```{r, eval=multi_ids}
+warning(paste("Multiple ensembl ids retrieved for", gn, paste0(ens_all, collapse=", ")))
+warning(paste("Showing results for first in series:", ens))
+```
+#### Entrez ID: 
+`r entrez`
+
+#### Entrez summary
+`r get_entrez_summary(id = entrez)$entrez_summary`
+
+#### Uniprot ID: 
+`r uniprot`
+
+#### Uniprot summary:
+`r get_uniprot_summary(id = uniprot)`
+
+```{r}
+shiny::setProgress(0.5)
+```
+
+\newpage
+
+## Genewise survival results
+
+Model types 'overall survival' and 'distant recurrence' will identify genes associated with OS/DRS in all study groups using the following multivariate Cox model (notebook 12):
+
+`survival ~ age + year of diagnosis + stage + grade + treatment + PAM50 + gene`
+
+Displayed is the p value for the gene covariate, corrected for multiple testing across the entire dataset (~31K genes).
+
+By contrast, interaction-type models seek to identify genes that behave differently in the involution patients than in patients who are nulliparous, lactating or pregnant. 
+The interaction model is as follows (notebook 12d):
+
+`survival ~ age + year of diagnosis + stage + grade + treatment + PAM50 + gene + involution + involution*gene`
+
+'Involution' is a binary variable indicating whether that sample belongs to an involuting patient (or not). 
+Displayed is the p value for the involution * gene covariate.
+For all models, gene expression input was TMM and log2 normalized. 
+Only genes which pass the minimum count threshold were considered. (Nonzero count in 1/3 of dataset.) 
+
+```{r}
+gene_survival(id = ens,
+              id_type = "ensembl", s = os, d = drs, ios = inv_int_os, idrs = inv_int_drs,
+              gene_dict = gx_annot) %>%
+  dplyr::select(-gene_name, -ensembl_gene_id, -gene_type, -description)
+```
+
+## Kaplan-Meier curves for `r gn` ntiles
+
+Shown are user-defined quantiles ranging from 2-4 for the selected gene
+Samples are allocated to a ntile category using `dplyr::ntile()`.
+
+Unadjusted (univariate) curves, are created using `survminer::ggsurvplot()`.
+Displayed is the logrank p value.
+
+Adjusted curves are created via `survminer::ggadjustedcurves()` using the conditional method.
+The conditional method seeks to correct for group size along with confounders.
+A detailed description of the methodology can be found [here](https://cran.r-project.org/web/packages/survival/vignettes/adjcurve.pdf).
+
+For adjusted curves, the p value is calculated via an anova that compares the formula
+`survival ~ clinical covariate + gene ntile`
+to the reduced formula 
+`survival ~ clinical covariates`.
+
+### Overall survival
+
+```{r}
+km_ntiles_ovr(gene_id =  ens,
+              id_type = "ensembl", 
+              survival_type = "os", ovr_column = "involution",
+              n = as.integer(params$ntile),
+              line_colors = viridis::scale_color_viridis(discrete = T),
+              p_method = "anova", return_list = T, 
+              sampledata = sample_data, gene_dict = gx_annot, geneEx = ens_mat)
+```
+    
+### Distant recurrence
+  
+```{r}
+km_ntiles_ovr(gene_id = ens,
+                    id_type = "ensembl", 
+                    survival_type = "drs", ovr_column = "involution",
+                    n = as.integer(params$ntile),
+                    line_colors = viridis::scale_color_viridis(discrete = T),
+                    p_method = "anova", return_list = T, 
+                    sampledata = sample_data, gene_dict = gx_annot, geneEx = ens_mat)
+```
+
+```{r}
+shiny::setProgress(0.75)
+```
+
+
+Treatment is a binary value with the following possible categories:
+surgery, radiotherapy, hormonetherapy, chemotherapy, and herceptin
+
+\newpage
+  
+## Differential expression
+
+The table below shows the results for the selected gene from a series of DESeq2 analyses:
+
+1. A likelihood ratio test (LRT), which identifies genes that differ in *at least one* of the groups (notebook 6).
+2. A pairwise comparison, which compairs one group vs another (notebook 7). Possible values:
+  - nonprbc = nulliparous
+  - prbc = pregnant
+  - lac = lactation
+  - inv = involution
+3. A one-vs-rest comparison, in which one group is paired vs all the rest pooled together ('vs rest', notebook 8).
+
+For all methods, the apeglm method was used for fold change shrinkage.
+Only genes which pass the minimum count threshold were considered. (Nonzero count in 1/3 of dataset.)
+                
+```{r}
+diffex_report(ensembl_id = ens, 
+                      list_reports = res_list, pthresh = 0.05, abslogfcthresh = 0.5) %>%
+            dplyr::select(comparison, padj, log2FoldChange, sig)
+```
+      
+                    
+## Boxplot of gene expression
+Because the Cox regression was run on TMM-log normalized counts, the same method is used to display expression below.
+Of course, differential expression with DESeq2 was performed on raw counts, as is the prescribed methodology.
+
+### Overall survival
+```{r}
+tmm_plots(id = ens, ensembl_mat = ens_mat, sampledata = sample_data,
+                  colorby = "survival", id_type = "ensembl")$beehive +
+            ggtitle(paste("TMM/log normalized expression of", gn))
+```
+
+### Distant recurrence    
+```{r}
+tmm_plots(id = ens, ensembl_mat = ens_mat, sampledata = sample_data,
+                  colorby = "drs", id_type = "ensembl")$beehive +
+            ggtitle(paste("TMM/log normalized expression of", gn))
+```
+
+### PAM50    
+```{r}
+tmm_plots(id = ens, ensembl_mat = ens_mat, sampledata = sample_data,
+                  colorby = "PAM50", id_type = "ensembl")$beehive +
+            ggtitle(paste("TMM/log normalized expression of", gn))
+```
+
+```{r}
+shiny::setProgress(1)
+```
+
