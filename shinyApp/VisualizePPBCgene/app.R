@@ -70,8 +70,8 @@ ui <- fluidPage(
         fluidRow(column(6,"Entrez ID:"), column(6, textOutput("entrez"))),
         fluidRow(column(6,"Uniprot ID:"), column(6, textOutput("uniprot"))),
         fluidRow(column(6,"Gene biotype:"), column(6, textOutput("gene_type"))),
-        downloadButton("report", "Generate report"),
-        textOutput("checkrender")
+        downloadButton("report", "Generate report")#,
+        #textOutput("checkrender")
     ),
     
 
@@ -339,13 +339,13 @@ server <- function(input, output) {
     
     #### Download handler ----
     
-    output$checkrender <- renderText({
-      if (identical(rmarkdown::metadata$runtime, "shiny")) {
-        TRUE
-      } else {
-        FALSE
-      }
-    })
+    #output$checkrender <- renderText({
+     # if (identical(rmarkdown::metadata$runtime, "shiny")) {
+      #  TRUE
+      #} else {
+      #  FALSE
+      #}
+    #})
     
     output$report <- downloadHandler(
       filename = "PPBC_gene_report.pdf",

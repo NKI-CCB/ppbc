@@ -100,7 +100,6 @@ gene_type <-
 description <-  
   str_replace_all(head(gene_lookup(params$id, id_type = params$id_type, dictionary = gx_annot)$description, 1), "_", " ")
 
-shiny::setProgress(0.25)
 ```
 
 
@@ -118,7 +117,7 @@ warning(paste("Multiple ensembl ids retrieved for", gn, paste0(ens_all, collapse
 warning(paste("Showing results for first in series:", ens))
 ```
 #### Entrez ID: 
-`r entrez`
+`r as.character(entrez)`
 
 #### Entrez summary
 `r get_entrez_summary(id = entrez)$entrez_summary`
@@ -128,10 +127,6 @@ warning(paste("Showing results for first in series:", ens))
 
 #### Uniprot summary:
 `r get_uniprot_summary(id = uniprot)`
-
-```{r}
-shiny::setProgress(0.5)
-```
 
 \newpage
 
@@ -201,11 +196,6 @@ km_ntiles_ovr(gene_id = ens,
                     sampledata = sample_data, gene_dict = gx_annot, geneEx = ens_mat)
 ```
 
-```{r}
-shiny::setProgress(0.75)
-```
-
-
 Treatment is a binary value with the following possible categories:
 surgery, radiotherapy, hormonetherapy, chemotherapy, and herceptin
 
@@ -256,9 +246,5 @@ tmm_plots(id = ens, ensembl_mat = ens_mat, sampledata = sample_data,
 tmm_plots(id = ens, ensembl_mat = ens_mat, sampledata = sample_data,
                   colorby = "PAM50", id_type = "ensembl")$beehive +
             ggtitle(paste("TMM/log normalized expression of", gn))
-```
-
-```{r}
-shiny::setProgress(1)
 ```
 
