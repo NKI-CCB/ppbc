@@ -13,6 +13,9 @@ library(shinycssloaders)
 library(here)
 library(survival)
 library(survminer)
+library(viridis)
+library(rvest)
+library(rentrez)
 library(tidyverse)
 
 #### Load data ----
@@ -105,7 +108,7 @@ ui <- fluidPage(
                             "(Nonzero count in 1/3 of dataset.)"),
                      
                      hr(),
-                     dataTableOutput("survival_summary") %>% shinycssloaders::withSpinner(),
+                     tableOutput("survival_summary") %>% shinycssloaders::withSpinner(),
                      hr(),
                      h4("Kaplan-Meier curves for gene ntiles"),
                      hr(),
@@ -172,7 +175,7 @@ ui <- fluidPage(
                        "(Nonzero count in 1/3 of dataset.)"
                      ),
                      hr(),
-                     dataTableOutput("diffex_report") %>% shinycssloaders::withSpinner(),
+                     tableOutput("diffex_report") %>% shinycssloaders::withSpinner(),
                      hr(),
                      h4("Boxplot of gene expression"),
                      tags$p(
@@ -275,7 +278,7 @@ server <- function(input, output) {
     #### Survival----
     
     #Survival results table
-    output$survival_summary <- renderDataTable({
+    output$survival_summary <- renderTable({
         gene_survival(id = ens(),
                       id_type = "ensembl", s = os, d = drs, ios = inv_int_os, idrs = inv_int_drs,
                       gene_dict = gx_annot) %>%
@@ -289,6 +292,7 @@ server <- function(input, output) {
                     survival_type = "os", ovr_column = "involution",
                     n = as.integer(input$ntile),
                     line_colors = viridis::scale_color_viridis(discrete = T),
+                    legend_positions = c("none","none", "bottom","bottom"),
                     p_method = "anova", return_list = F, 
                     sampledata = sample_data, gene_dict = gx_annot, geneEx = ens_mat)
     })
@@ -299,6 +303,7 @@ server <- function(input, output) {
                     survival_type = "drs", ovr_column = "involution",
                     n = as.integer(input$ntile),
                     line_colors = viridis::scale_color_viridis(discrete = T),
+                    legend_positions = c("none","none", "bottom","bottom"),
                     p_method = "anova", return_list = F, 
                     sampledata = sample_data, gene_dict = gx_annot, geneEx = ens_mat)
     })
@@ -307,7 +312,7 @@ server <- function(input, output) {
     #### Differential expression----
     
     #Render the differential expression table results for that gene
-    output$diffex_report <- renderDataTable({
+    output$diffex_report <- renderTable({
         diffex_report(ensembl_id = ens(), 
                       list_reports = res_list, pthresh = 0.05, abslogfcthresh = 0.5) %>%
             dplyr::select(comparison, padj, log2FoldChange, sig)

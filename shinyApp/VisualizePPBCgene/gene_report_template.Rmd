@@ -174,26 +174,69 @@ to the reduced formula
 
 ### Overall survival
 
-```{r}
-km_ntiles_ovr(gene_id =  ens,
-              id_type = "ensembl", 
-              survival_type = "os", ovr_column = "involution",
-              n = as.integer(params$ntile),
-              line_colors = viridis::scale_color_viridis(discrete = T),
-              p_method = "anova", return_list = T, 
-              sampledata = sample_data, gene_dict = gx_annot, geneEx = ens_mat)
+```{r, warning=F}
+os_curves <- km_ntiles_ovr(gene_id =  ens,
+                           id_type = "ensembl", 
+                           survival_type = "os", ovr_column = "involution",
+                           n = as.integer(params$ntile),
+                           line_colors = viridis::scale_color_viridis(discrete = T),
+                           legend_positions = c("bottom","bottom", "bottom","bottom"),
+                           p_method = "anova", return_list = T, 
+                           sampledata = sample_data, gene_dict = gx_annot, geneEx = ens_mat)
+os_curves$curv1
 ```
     
+\newpage
+
+```{r, warning = F}
+os_curves$curv0
+```
+
+\newpage
+
+```{r, warning = F}
+os_curves$adj_curv1
+```
+
+\newpage
+
+```{r, warning = F}
+os_curves$adj_curv0
+```
+
+\newpage
+
 ### Distant recurrence
   
-```{r}
-km_ntiles_ovr(gene_id = ens,
-                    id_type = "ensembl", 
-                    survival_type = "drs", ovr_column = "involution",
-                    n = as.integer(params$ntile),
-                    line_colors = viridis::scale_color_viridis(discrete = T),
-                    p_method = "anova", return_list = T, 
-                    sampledata = sample_data, gene_dict = gx_annot, geneEx = ens_mat)
+```{r, warning=F}
+drs_curves <- km_ntiles_ovr(gene_id = ens,
+                            id_type = "ensembl", 
+                            survival_type = "drs", ovr_column = "involution",
+                            n = as.integer(params$ntile),
+                            line_colors = viridis::scale_color_viridis(discrete = T),
+                            legend_positions = c("bottom","bottom", "bottom","bottom"),
+                            p_method = "anova", return_list = T, 
+                            sampledata = sample_data, gene_dict = gx_annot, geneEx = ens_mat)
+
+drs_curves$curv1
+```
+
+\newpage
+
+```{r, warning = F}
+drs_curves$curv0
+```
+
+\newpage
+
+```{r, warning = F}
+drs_curves$adj_curv1
+```
+
+\newpage
+
+```{r, warning = F}
+drs_curves$adj_curv0
 ```
 
 Treatment is a binary value with the following possible categories:

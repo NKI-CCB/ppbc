@@ -183,9 +183,11 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
 #' @param p_method If "anova" (default), the p value is the full model including the gene ntile vs
 #' a reduced model containing the clinical covariates only. If "coef", the p value is the
 #' derived from the coeficient in the cox model corresponding to gene ntiles.
+#' @param legend Where to show the legend of each of the 4 plots produced. Must be
+#' "none", "top", "bottom", "left" or "right"
 #'
 #' @return Four plots arranged together: the unadjusted survival curves faceted by one vs rest group, the conditionally 
-#' adjusted for clinical covariates survival curves for the group of interest, 
+#' adjusted for clinical covariates survival curves for the group of interest, OR a list with each plot as an individual element.
 #' and the adjusted plot for the other groups. See survminer::ggadjustedcurves for details.
 #' @export
 #'
@@ -193,7 +195,7 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
 
 km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx = ens_mat,
                           n = 3, ovr_column = "involution", line_colors = viridis::scale_color_viridis(discrete = T),
-                          sampledata = sample_data, survival_type = "os",
+                          sampledata = sample_data, survival_type = "os", legend_positions = c("none","none", "bottom","bottom"),
                           p_method = "anova", return_list = F){
   
   stopifnot(survival_type %in% c("os", "drs"))
@@ -248,7 +250,7 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
     fit = survminer::surv_fit(facet_formula, data = as.data.frame(sd1)), 
     xlab = "Months", 
     ylab = ylab,
-    legend = "none",
+    legend = legend_positions[1],
     #title = paste(type, "(unadjusted), with", gn, "\nexpression in", ovr_column, "samples"),
     title = paste("Unadjusted curve for", ovr_column, "samples"),
     pval = T, #Logrank method
@@ -270,7 +272,7 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
     fit = survminer::surv_fit(facet_formula, data = as.data.frame(sd0)), 
     xlab = "Months", 
     ylab = ylab,
-    legend = "none",
+    legend = legend_positions[2],
     #title = paste(type, "(unadjusted), with", gn, "\nexpression in other samples"),
     title = paste("Unadjusted curve for other samples"),
     pval = T, #Logrank method
@@ -335,7 +337,7 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
     theme(plot.title = element_text(size = 12),
           axis.title.x=element_blank(),
           axis.title.y=element_blank(),
-          legend.position = "bottom"
+          legend.position = legend_positions[3]
     )
   
   reslist$adj_curv1 <- adj_curv1
@@ -385,7 +387,7 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
     theme(plot.title = element_text(size = 12),
           axis.title.x=element_blank(),
           axis.title.y=element_blank(),
-          legend.position = "bottom"
+          legend.position = legend_positions[4]
           )
   
   reslist$adj_curv0 <- adj_curv0
