@@ -1,20 +1,19 @@
 ---
 title: "To do"
-output: html_notebook
+output: html_document
 ---
 
 * Make report from Flexgsea results (done except for mountain plots)
 * Clustering with other comparisons (not just inv vs rest, low priority)
 * Variable influence factor (VIF) - Maybe
 * Diffex and KM short vs long-term inv
-* Redo diffex with ER status instead of PAM50 and without batch (assuming batch and ER status are correlated)
+* Redo diffex with ER status instead of PAM50 and without batch (assuming batch and ER status are not correlated)
 * Apply for that cancer genomics class (not PPBC related but don't forget!)
-* change colors in beehvive plots to reflect survival events instead of pam50
 * Look at clonality in combination with mortality (TRUST algorithm) [Clonality had a much stronger association with survival: the combination of high immunoglobulin expression (that is, numerous plasma cells at the site) and low clonality, which could be interpreted as absence of a distinct antigen-specific response, resulted in an equally poor prognosis as low immunoglobulin expression, while low immunoglobulin expression and high clonality resulted in an average prognosis.](https://www.nature.com/articles/s41577-019-0257-x#Tab2)
 * Look at MCP with survival
 * Add annotation for events in survival heatmap for notebook 12.
 * Make new percentage bar visualizations of cibersort and dwls
-
+<* Dot plot of interaction os genes in IG clusters (as ordinal variable) with correlation
 
 
 ## Odds & ends

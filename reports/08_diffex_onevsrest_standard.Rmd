@@ -102,6 +102,10 @@ all_colors = readRDS(here("data","Rds", "06_heatmap_colors.Rds"))
 study_colors = all_colors$study_colors
 pam_colors = all_colors$pam_colors
 gene_colors = all_colors$gene_colors
+
+surv_colors <- readRDS(here("data", "Rds", "17_survival_colors.Rds"))
+os_colors <- surv_colors$os_colors
+drs_colors <- surv_colors$drs_colors
 ```
 
 ## Variance stabilizing transformation
@@ -114,6 +118,65 @@ Previously performed in notebook 6.
 
 ```{r}
 vsd = readRDS(here("data","Rds","06_vsd_standardfilter.Rds"))
+```
+
+## Survival categories
+
+Per request, add code which will allow us to add survival categories to the heatmaps.
+
+```{r survival categories}
+sample_data <- as.data.frame(colData(dds))
+
+print(paste("Max follow up overall survival:",
+            max(sample_data$months_overall_survival, na.rm = T)))
+
+print(paste("Max follow up distant recurrence:",
+            max(sample_data$months_to_drs, na.rm = T)))
+
+
+#Define classes for overall survival plotting
+sample_data <- sample_data %>% mutate(survival = case_when(
+  overall_survival == 1 & months_overall_survival < 50 ~ "death at 50 months",
+  overall_survival == 1 & months_overall_survival < 100 ~ "death at 100 months",  
+  overall_survival == 1 & months_overall_survival < 150 ~ "death at 150 months",
+  overall_survival == 1 & months_overall_survival < 200 ~ "death at 200 months",
+  overall_survival == 1 & months_overall_survival < 250 ~ "death at 250 months",
+  overall_survival == 0 ~ "survived",
+  TRUE ~ "no_data"
+)) %>%
+  mutate(survival = factor(survival,
+                           levels = c("survived",
+                                      "death at 50 months",
+                                      "death at 100 months",  
+                                      "death at 150 months",
+                                      "death at 200 months",
+                                      "death at 250 months")))
+
+stopifnot(identical(sample_data$sample_name, colnames(dds)))
+dds$survival <- sample_data$survival
+stopifnot(identical(sample_data$sample_name, colnames(vsd)))
+vsd$survival <- sample_data$survival
+
+#Define classes for distant recurrence plotting
+sample_data <- sample_data %>% mutate(recurrence = case_when(
+  distant_recurrence == 1 & months_to_drs < 50 ~ "recurrence at 50 months",
+  distant_recurrence == 1 & months_to_drs < 100 ~ "recurrence at 100 months",  
+  distant_recurrence == 1 & months_to_drs < 150 ~ "recurrence at 150 months",
+  distant_recurrence == 1 & months_to_drs < 200 ~ "recurrence at 200 months",
+  distant_recurrence == 1 & months_to_drs < 250 ~ "recurrence at 250 months",
+  distant_recurrence == 0 ~ "no recurrence",
+  TRUE ~ "no_data"
+)) %>%
+  mutate(recurrence = factor(recurrence,
+                            levels = c("no recurrence",
+                                       "recurrence at 50 months",
+                                       "recurrence at 100 months",  
+                                       "recurrence at 150 months",
+                                       "recurrence at 200 months",
+                                       "recurrence at 250 months")))
+
+dds$recurrence <- sample_data$recurrence
+vsd$recurrence <- sample_data$recurrence
 ```
 
 # One vs rest formula levels
@@ -139,6 +202,8 @@ table(dds$inv_vs_rest, dds$study_group)
 table(dds$prbc_vs_rest, dds$study_group)
 table(dds$lac_vs_rest, dds$study_group)
 table(dds$nonprbc_vs_rest, dds$study_group)
+
+saveRDS(dds, here("data/Rds/08_dds_standard_vs_rest.Rds"))
 ```
 
 
@@ -248,7 +313,11 @@ A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 
 ```{r}
 rep_inv_rest = deseq_report(ape_inv_rest, dds=dds, absl2fc = 0.5, groups = c("ppbc_inv", "rest"),
+                            top_vars = c("study_group", "survival"),
+                            top_colors = list(study_group=study_colors,
+                                              survival = os_colors),
                             beehive_groups = "all", title = "Involution vs rest")
+
 ```
 
 
@@ -398,6 +467,9 @@ A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 
 ```{r}
 rep_prbc_rest = deseq_report(ape_prbc_rest, dds=dds, absl2fc = 0.5, groups = c("prbc", "rest"),
+                             top_vars = c("study_group", "survival"),
+                             top_colors = list(study_group=study_colors,
+                                               survival = os_colors),
                              title="Pregnancy vs rest", beehive_groups = "all")
 ```
 
@@ -519,6 +591,9 @@ A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 
 ```{r}
 rep_lac_rest = deseq_report(ape_lac_rest, dds=dds, absl2fc = 0.5, groups = c("ppbc_lac", "rest"),
+                            top_vars = c("study_group", "survival"),
+                            top_colors = list(study_group=study_colors,
+                                              survival = os_colors),
                             title="Lactation vs rest", beehive_groups = "all")
 ```
 
@@ -627,6 +702,9 @@ A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 
 ```{r}
 rep_nonprbc_rest = deseq_report(ape_nonprbc_rest, dds=dds, absl2fc = 0.5, groups = c("non_prbc", "rest"),
+                                top_vars = c("study_group", "survival"),
+                                top_colors = list(study_group=study_colors,
+                                                  survival = os_colors),
                                 title = "Nulliparous vs rest", beehive_groups = "all")
 ```
 

@@ -40,5 +40,6 @@ src/NMF.R
 
 shinyApp/*/data
 shinyApp/*/*.pdf
+shinyApp/*/reports
 
 
