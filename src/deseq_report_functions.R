@@ -268,12 +268,47 @@ color_grid = function (colours, labels = T, names = T, borders = NULL, cex_label
 
 
 
+#' Title Complex Heatmap for Deseq Results
+#'
+#' @param mat A gene expression matrix with genes as rows and samples as columns. 
+#' Rownames must not repeat, and should be found in sig_results$gene_name.
+#' @param sampledata A data frame that matches in sample name from colnames(mat) to a phenotype
+#' in the heatmap annotation color scheme. Must contain a primary column of interest called "study group"
+#' and a Type column containing gene biotypes that match the named vector for gene_colors.
+#' @param sig_results A data frame created by calling annotate_results() followed by significance() on a dds results object,
+#' or the product of shrinkRes(). Only these genes will
+#' @param groups_to_plot A subset of groups to plot. Default: levels(sampledata$study_group)
+#' @param title A text string to title the heat map
+#' @param top_vars A vector of columns from sample data to include in the top heatmap annotation
+#' Default =  c("study_group")
+#' @param top_colors A named list of of colors to match top_vars.
+#' Default: list(study_group=study_colors)
+#' @param bottom_vars A vector of columns from sample data to include in the bottom heatmap annotation
+#' Default" bottom_vars = c("PAM50")
+#' @param bottom_colors A named list of of colors to match top_vars.
+#' Default: list(PAM50=bottom_colors)
+#' @param row_colors Currently the only valid option is list(Type = gene_colors)
+#' @param row_scale Whether to mean-center the rows of the heatmap
+#' @param maxn_rownames The maximum number of rows to allow before row names are turned off. Default = 50.
+#' @param row_size The fontsize of the row (Default: 8)
+#' @param col_size The fontsize of the columns (Default: 8)
+#' @param show_col_names Whether to show the column names
+#' @param ... Additional parameters to pass to Heatmap()
+#'
+#' @return A heatmap object from ComplexHeatmap
+#' @export 
+#'
+#' @examples deseq_heatmap(mat = dedup_geneEx, sampledata = as.data.frame(colData(variance_stabilized_dds)),
+#' sig_results = sig, title = title, groups_to_plot = groups)
+#' 
 deseq_heatmap = function(mat, sampledata, sig_results,
                          groups_to_plot=levels(sampledata$study_group),
                          title=NULL,
-                         top_colors = study_colors,
-                         bottom_colors = pam_colors,
-                         row_colors = gene_colors,
+                         top_vars = c("study_group"),
+                         top_colors = list(study_group=study_colors),
+                         bottom_vars = c("PAM50"),
+                         bottom_colors = list(PAM50 = pam_colors),
+                         row_colors = list(Type = gene_colors),
                          row_scale = T,
                          maxn_rownames = 50,
                          row_size = 8, col_size = 8,
@@ -324,15 +359,15 @@ deseq_heatmap = function(mat, sampledata, sig_results,
   mat = as.matrix(mat)
 
   #Heatmap annotation
-  ann_top = sampledata[,"study_group", drop=F]
+  ann_top = sampledata[,top_vars, drop=F]
 
   #Top column annotation
   colTop <- HeatmapAnnotation(df=ann_top, which="col",
-                              col = list(study_group=top_colors))
+                              col = top_colors)
 
   #Bottom column annotation
-  ann_bottom = sampledata[,"PAM50", drop=F]
-  colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = list(PAM50 = bottom_colors))
+  ann_bottom = sampledata[,bottom_vars, drop=F]
+  colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = bottom_colors)
 
   # Row annotation
   anno_rows = sig_results %>%
@@ -344,7 +379,10 @@ deseq_heatmap = function(mat, sampledata, sig_results,
   #Essential that the order be the same!
   anno_rows = anno_rows[match(rownames(mat),rownames(anno_rows)), ,drop=F]
 
-  rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=list(Type = row_colors))
+  rowAnno = HeatmapAnnotation(df=anno_rows, which="row",
+                              col=row_colors
+                              #col=list(Type = row_colors)
+                              )
 
   Heatmap(mat,
           top_annotation = colTop,
@@ -424,6 +462,10 @@ plot_many_beehives = function(dds, result_df, ...){
 deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, immune_list=immune_gene_list,
                         pthresh = 0.05, absl2fc = 0.5, variance_stabilized_dds = vsd,
                         title=NULL, list_gene_sets = gene_sets, plot_pathway = T,
+                        top_vars = c("study_group"),
+                        top_colors = list(study_group=study_colors),
+                        bottom_vars = c("PAM50"),
+                        bottom_colors = list(PAM50 = pam_colors),
                         intgroup="study_group", colorby="PAM50",
                         groups=levels(colData(dds)[,intgroup]),
                         beehive_groups = "comparison",
@@ -488,6 +530,8 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
   }
 
   hm = deseq_heatmap(mat = dedup_geneEx, sampledata = as.data.frame(colData(variance_stabilized_dds)),
+                     top_vars = top_vars, bottom_vars = bottom_vars,
+                     top_colors = top_colors, bottom_colors = bottom_colors,
                      sig_results = sig, title = title, groups_to_plot = groups)
 
 
