@@ -221,6 +221,24 @@ colnames(coxdata)[1:30]
 #Genes start at position 22
 colnames(coxdata)[22]
 ```
+```{r}
+gene_dump <- function(id, id_type = "symbol"){
+  
+  res <- list()
+  
+  res$surv_df <- gene_summary(id = id, id_type = id_type)$survival_report
+  
+  res$os_km <- km_ntiles_ovr(gene_id = id, id_type = id_type, survival_type = "os")
+  
+  res$drs_km <- km_ntiles_ovr(gene_id = id, id_type = id_type, survival_type = "os")
+  
+  res$diffex_df <- gene_summary(id = id, id_type = id_type)$diffex_report
+  
+  res$beehive <- tmm_plots(id = id, id_type = id_type)$beehive
+  
+  return(res)
+}
+```
 
 ## Sample data
 
@@ -496,6 +514,57 @@ gene_summary("FOXP3")$diffex_report
 tmm_plots("FOXP3")$beehive
 ```
 
+## CD69
+
+This gene encodes a member of the calcium dependent lectin superfamily of type II transmembrane receptors. Expression of the encoded protein is induced upon activation of T lymphocytes, and may play a role in proliferation. Furthermore, the protein may act to transmit signals in natural killer cells and platelets.
+
+CD69 expression has been associated with both regulatory T cell (Treg), memory T cell and Bcl6 loCD69 hiLZ GC B plasmablast precursors.[11] Treg precursors exit the thymus expressing CD69 and complete differentiation into Treg cells in peripheral tissues when they encounter antigens and other cytokines, like IL-2.[12] Through the JAK/STAT signaling pathway, CD69 activation also induces the production of TGF-β as well as IL-2, which contribute to the differentiation of Treg cells as mentioned above.[8] Furthermore, CD69 is also known to be upregulated by NF-κB signaling at the onset of an immune response. A prolonged immune response is then maintained by the non-canonical NF-κB pathway, which in turn is associated with Treg differentiation.[7]
+
+In addition to Treg differentiation, CD69 is a common marker of precursor and mature resident memory T cells (TRMs) that are localized in peripheral tissues.[13][9] TGF-β is also responsible for the development of TRMs, thus promoting TRM differentiation in a manner similar to Treg differentiation.[14] 
+
+### Summary survival
+
+```{r}
+gene_summary("CD69")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("CD69", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("CD69"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("CD69", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("CD69", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("CD69")$diffex_report
+```
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("CD69")$beehive
+```
+
+
 # Genes of interest from interaction models
 
 ```{r,collapse=T}
@@ -720,57 +789,6 @@ gene_summary("FGFRL1")$diffex_report
 tmm_plots("FGFRL1")$beehive
 ```
 
-## CD69
-
-Associated with distant recurrence, but less so with survival.
-
-This gene encodes a member of the calcium dependent lectin superfamily of type II transmembrane receptors. Expression of the encoded protein is induced upon activation of T lymphocytes, and may play a role in proliferation. Furthermore, the protein may act to transmit signals in natural killer cells and platelets.
-
-CD69 expression has been associated with both regulatory T cell (Treg), memory T cell and Bcl6 loCD69 hiLZ GC B plasmablast precursors.[11] Treg precursors exit the thymus expressing CD69 and complete differentiation into Treg cells in peripheral tissues when they encounter antigens and other cytokines, like IL-2.[12] Through the JAK/STAT signaling pathway, CD69 activation also induces the production of TGF-β as well as IL-2, which contribute to the differentiation of Treg cells as mentioned above.[8] Furthermore, CD69 is also known to be upregulated by NF-κB signaling at the onset of an immune response. A prolonged immune response is then maintained by the non-canonical NF-κB pathway, which in turn is associated with Treg differentiation.[7]
-
-In addition to Treg differentiation, CD69 is a common marker of precursor and mature resident memory T cells (TRMs) that are localized in peripheral tissues.[13][9] TGF-β is also responsible for the development of TRMs, thus promoting TRM differentiation in a manner similar to Treg differentiation.[14] 
-
-### Summary survival
-
-```{r}
-gene_summary("CD69")$survival_report
-```
-
-### OS
-
-One vs rest survival depications
-
-```{r, warning=F, fig.height=7, fig.width=10}
-km_ntiles_ovr("CD69", ovr_column = "involution", survival_type = "os")
-```
-
-```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
-#Separated study groups
-ggarrange(plotlist = km_ntiles("CD69"), ncol = 2, nrow = 1)
-```
-
-### DRS
-
-```{r, warning=F, fig.height=7, fig.width=10}
-km_ntiles_ovr("CD69", ovr_column = "involution", survival_type = "drs")
-```
-
-```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
-#Separated study groups.
-ggarrange(plotlist = km_ntiles("CD69", survival_type = "drs"), ncol = 2, nrow = 1)
-```
-
-### Diffex
-
-```{r}
-gene_summary("CD69")$diffex_report
-```
-
-### Expression
-
-```{r, fig.width=8}
-tmm_plots("CD69")$beehive
-```
 
 ## LENG1
 
@@ -832,6 +850,7 @@ tmm_plots("ENSG00000105617", id_type = "ensembl")$beehive
 
 ## Rad52
 
+
 ### Summary survival
 
 ```{r}
@@ -871,6 +890,129 @@ gene_summary("RAD52")$diffex_report
 
 ```{r, fig.width=8}
 tmm_plots("RAD52")$beehive
+```
+
+## GNB3
+
+G protein subunit beta 3
+
+https://www.ncbi.nlm.nih.gov/pubmed/?term=GNB3+cancer
+
+Polymorphisms associated with altered survival in several cancer types.
+
+[Reduced prevalence of the C825T polymorphism of the G-protein beta subunit gene in women with breast cancer.](https://www.ncbi.nlm.nih.gov/pubmed/22034052)
+
+```{r}
+gene_dump("GNB3")
+```
+
+
+## ANKS1A
+
+[Anks1a regulates COPII-mediated anterograde transport of receptor tyrosine kinases critical for tumorigenesis](https://www.ncbi.nlm.nih.gov/pubmed/27619642)
+
+ErbB2 (HER2) signalling, which is amplified by EphA2 binding, is an important therapeutic target for breast cancer. Despite the importance of the EphA2/ErbB2 complex in promoting breast tumorigenesis, the mechanism by which these receptor tyrosine kinases (RTKs) are exported from the endoplasmic reticulum (ER) remains poorly understood. Here we report that the PTB adaptor Anks1a is specifically localized to the ER on its own serine phosphorylation. Once there, Anks1a acts as an important regulator of COPII-mediated EphA2 ER export. The Anks1a ankyrin repeat domain binds EphA2 and causes it to accumulate at sites of ER exit. Simultaneously, the Anks1a PTB domain binds Sec23. This induces internalization of EphA2 via COPII vesicles, while Anks1a remains behind on the ER membrane. EphA2 also binds ErbB2 in the ER and seems to load ErbB2 into growing COPII carriers. Together, our study reveals a novel mechanism that regulates the loading of RTKs into COPII vesicles.
+
+```{r}
+gene_dump("ANKS1A")
+```
+
+## YTHDF3
+
+Specifically recognizes and binds N6-methyladenosine (m6A)-containing RNAs and promotes RNA translation
+efficiency (PubMed:28106072, PubMed:28106076, PubMed:28281539). M6A is a modification present at
+internal sites of mRNAs and some non-coding RNAs and plays a role in the efficiency of mRNA splic-
+ing, processing and stability (PubMed:22575960, PubMed:24284625, PubMed:28106072, PubMed:28106076,
+1PubMed:28281539). Shares m6A-containing mRNAs targets with YTHDF1 and YTHDF2, and regulates dif-
+ferent processes depending on the context (PubMed:28106072, PubMed:28106076). Facilitates the translation
+of targeted mRNAs in cooperation with YTHDF1 by binding to m6A-containing mRNAs and interacting
+with 40S and 60S ribosome subunits (PubMed:28106072, PubMed:28106076). Acts as a negative regulator of
+type I interferon response by down-regulating interferon-stimulated genes (ISGs) expression: acts by binding
+to FOXO3 mRNAs and promoting their translation. Binds to FOXO3 mRNAs independently of METTL3-
+mediated m6A modification (By similarity). Can also act as a regulator of mRNA stability in cooperation with
+YTHDF2 by binding to m6A-containing mRNA and promoting their degradation (PubMed:28106072). Recog-
+nizes and binds m6A-containing circular RNAs (circRNAs) and promotes their translation (PubMed:28281539).
+circRNAs are generated through back-splicing of pre-mRNAs, a non-canonical splicing process promoted by
+dsRNA structures across circularizing exons (PubMed:28281539).
+
+[N6-methyladenosine-related Genomic Targets are Altered in Breast Cancer Tissue and Associated with Poor Survival](https://www.ncbi.nlm.nih.gov/pubmed/31632489)
+
+> Purpose: The ectopic expression of N6-methyladenosine (m6A) associated genes is a common feature of multiple tumors. However, little is known about the expression status and the prognostic value of these genes in human breast cancer (BRC). Herein, we conducted a comprehensive analysis to identify the expression profiling and clinical significance of m6A-related genomic targets in BRC. Materials and Methods: The expression data including 1109 BRC tissues and 113 normal breast tissues were obtained from The Cancer Genome Atlas (TCGA) database to evaluate the mRNA expression levels of m6A-related genomic targets. In addition, 6 independent BRCA cohorts retrieved from the Gene Expression Omnibus (GEO) database were enrolled to further ascertain the expression profiling of m6A-related genomic targets. Meanwhile, the immunohistochemical (IHC) staining data from BRC tissue microarray (TMA) cohort and the Human Protein Atlas (HPA) database were used to evaluate the proteomic expression of m6A-related genomic targets. Immunofluorescence (IF) analysis was performed to validate the subcellular location of m6A-related genomic targets. Moreover, the prognostic value of m6A-related genomic targets in BRC was analyzed by Kaplan-Meier analysis and Cox regression models. Results: m6A-related genomic targets were differentially expressed in BRC tissues. TMA IHC staining showed that most of the m6A-related genomic targets were significantly altered at the protein level (either upregulated or downregulated), consistent with their changes in the genomic profile. IF analysis showed the subcellular location of m6A-related genomic targets in BRC cell lines. Furthermore, we demonstrated that overexpression of YTHDF1 (P=0.049), YTHDF3 (P<0.001) and KIAA1429 (P=0.032) predicted poor prognosis in terms of overall survival (OS). Upregulation of YTHDF3 was an independent prognostic factor for OS in patients with BRC (P=0.036). Conclusion: m6A-related genomic targets are significantly altered in BRC and predict poor prognosis. These m6A-related genomic targets could serve as novel prognostic biomarkers for BRC.
+
+```{r}
+gene_dump("YTHDF3")
+```
+
+
+## AHRR
+
+aryl-hydrocarbon receptor repressor
+
+The protein encoded by this gene participates in the aryl hydrocarbon receptor (AhR) signaling cascade, which mediates dioxin toxicity, and is involved in regulation of cell growth and differentiation. It functions as a feedback modulator by repressing AhR-dependent gene expression. Alternatively spliced transcript variants encoding different isoforms have been described for this gene. [provided by RefSeq, Jun 2011]
+
+Normally a tumor repressor gene.
+
+May be a marker of environmental toxicity
+
+```{r}
+gene_dump("AHRR")
+```
+
+## ACRBP
+
+The protein encoded by this gene is similar to proacrosin binding protein sp32 precursor found in mouse, guinea pig, and pig. This protein is located in the sperm acrosome and is thought to function as a binding protein to proacrosin for packaging and condensation of the acrosin zymogen in the acrosomal matrix. This protein is a member of the *cancer/testis* family of antigens and it is found to be immunogenic. In normal tissues, this mRNA is expressed only in testis, whereas it is detected in a range of different tumor types such as bladder, breast, lung, liver, and colon. [provided by RefSeq, Jul 2008]
+
+```{r}
+gene_dump("ACRBP")
+```
+
+## PCGF3
+
+Component of a Polycomb group (PcG) multiprotein PRC1-like complex, a complex class required to maintain the transcriptionally repressive state of many genes, including Hox genes, throughout development. PcG PRC1 complex acts via chromatin remodeling and modification of histones; it mediates monoubiquitination of histone H2A 'Lys-119', rendering chromatin heritably changed in its expressibility. Within the PRC1-like complex, regulates RNF2 ubiquitin ligase activity (PubMed:26151332). Plays a redundant role with PCGF5 as part of a PRC1-like complex that mediates monoubiquitination of histone H2A 'Lys-119' on the X chromosome and is required for normal silencing of one copy of the X chromosome in XX females.
+
+[Response Predictors of S-1, Cisplatin, and Docetaxel Combination Chemotherapy for Metastatic Gastric Cancer: Microarray Analysis of Whole Human Genes.](https://www.ncbi.nlm.nih.gov/pubmed/?term=PCGF3+cancer)
+
+```{r}
+gene_dump("PCGF3")
+```
+
+## P3H3
+
+The protein encoded by this gene belongs to the leprecan family of proteoglycans, which function as collagen prolyl hydroxylases that are required for proper collagen biosynthesis, folding and assembly. This protein, like other family members, is thought to reside in the endoplasmic reticulum. Epigenetic inactivation of this gene is associated with breast and other cancers, suggesting that it may function as a tumor suppressor. [provided by RefSeq, Aug 2013]
+
+```{r}
+gene_dump("P3H3")
+```
+
+## CLIC2
+
+May be involved in metastasis to the liver.
+
+[Chloride intracellular channel protein 2 in cancer and non-cancer human tissues: relationship with tight junctions](https://www.ncbi.nlm.nih.gov/pubmed/30929599)
+
+Chloride intracellular channel protein 2 (CLIC2) belongs to the CLIC family of conserved metazoan proteins. Although CLICs have been identified as chloride channels, they are currently considered multifunctional proteins. CLIC2 is the least studied family member. We investigated CLIC2 expression and localization in human hepatocellular carcinoma, metastatic colorectal cancer in the liver, and colorectal cancer. Significant expression of mRNAs encoding CLIC1, 2, 4, and 5 were found in the human tissues, but only CLIC2 was predominantly expressed in non-cancer tissues surrounding cancer masses. Fibrotic or dysfunctional (aspartate aminotransferase ≥40) non-cancer liver tissues and advanced stage HCC tissues expressed low levels of CLIC2. Endothelial cells lining blood vessels but not lymphatic vessels in non-cancer tissues expressed CLIC2 as well as high levels of the tight junction proteins claudins 1 and 5, occludin, and ZO-1. Most endothelial cells in blood vessels in cancer tissues had very low expressions of CLIC2 and tight junction proteins. CD31+/CD45- endothelial cells isolated from non-cancer tissues expressed mRNAs encoding CLIC2, claudin 1, occludin and ZO-1, while similar cell fractions from cancer tissues had very low expressions of these molecules. Knockdown of CLIC2 expression in human umbilical vein endothelial cells (HUVECs) allowed human cancer cells to transmigrate through a HUVEC monolayer. These results suggest that CLIC2 may be involved in the formation and/or maintenance of tight junctions and that cancer tissue vasculature lacks CLIC2 and tight junctions, which allows the intravasation of cancer cells necessary for hematogenous metastasis.
+
+```{r}
+gene_dump("CLIC2")
+```
+
+## DPYSL4
+
+[p53-inducible DPYSL4 associates with mitochondrial supercomplexes and regulates energy metabolism in adipocytes and cancer cells](https://www.ncbi.nlm.nih.gov/pubmed/30061407)
+
+```{r}
+gene_dump("DPYSL4")
+```
+
+## KANSL2
+
+May promote tumorigenesis and metastasis
+
+[The NSL Chromatin-Modifying Complex Subunit KANSL2 Regulates Cancer Stem-like Properties in Glioblastoma That Contribute to Tumorigenesis.](https://www.ncbi.nlm.nih.gov/pubmed/27406830)
+
+
+```{r}
+gene_dump("KANSL2")
 ```
 
 # Genes of interest from diffex
