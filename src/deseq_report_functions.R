@@ -5,7 +5,7 @@ source(here("src", "enrichment-analysis-functions.R"))
 
 #### Standard report functions ####
 
-annotate_results <- function(results_object, anno_df = gx_annot, immune_list = immune_gene_list,
+annotate_results <- function(results_object, anno_df = gx_annot, immune_df = immune_gene_list,
                              mark_immune = T, mark_outliers = T){
 
   #Takes a res object from deseq, merges it with a gene annotation file, and an optional immune list to create a data frame sorted by adjusted p value
@@ -17,7 +17,7 @@ annotate_results <- function(results_object, anno_df = gx_annot, immune_list = i
 
   if (mark_immune==T){ #Shows genes that defined as immune based on external list
     anno_res = anno_res %>% mutate(ImmPort_gene = if_else(
-      ensembl_gene_id %in% immune_list$ensembl, T, F
+      ensembl_gene_id %in% immune_df$ensembl, T, F
     ))
 
     anno_res = anno_res %>%
@@ -273,11 +273,12 @@ color_grid = function (colours, labels = T, names = T, borders = NULL, cex_label
 #' @param mat A gene expression matrix with genes as rows and samples as columns. 
 #' Rownames must not repeat, and should be found in sig_results$gene_name.
 #' @param sampledata A data frame that matches in sample name from colnames(mat) to a phenotype
-#' in the heatmap annotation color scheme. Must contain a primary column of interest called "study group"
+#' in the heatmap annotation color scheme. Must contain a primary column of interest specified in intgroup
 #' and a Type column containing gene biotypes that match the named vector for gene_colors.
 #' @param sig_results A data frame created by calling annotate_results() followed by significance() on a dds results object,
-#' or the product of shrinkRes(). Only these genes will
-#' @param groups_to_plot A subset of groups to plot. Default: levels(sampledata$study_group)
+#' or the product of shrinkRes(). Only these genes will be plotted. Must contain columns "gene_name" and "Type".
+#' @param groups_to_plot A subset of intgroup that will be plotted. Default: levels(sampledata$study_group)
+#' @param intgroup The main category of interest and a column in dds
 #' @param title A text string to title the heat map
 #' @param top_vars A vector of columns from sample data to include in the top heatmap annotation
 #' Default =  c("study_group")
@@ -287,7 +288,12 @@ color_grid = function (colours, labels = T, names = T, borders = NULL, cex_label
 #' Default" bottom_vars = c("PAM50")
 #' @param bottom_colors A named list of of colors to match top_vars.
 #' Default: list(PAM50=bottom_colors)
-#' @param row_colors Currently the only valid option is list(Type = gene_colors)
+#' @param row_colors Currently the only valid option is list(Type = gene_colors), where gene_colors is a vector
+#' containing a color for each unique value of sig_results$Type.
+#' Ex. gene_colors
+#' other noncoding immune protein coding        protein coding        immunoglobulin       T cell receptor 
+#' "#1B9E77"             "#D95F02"             "#7570B3"             "#E7298A"             "#66A61E" 
+#' @param legend_title A string to rename the legend correspoding to the top row annotation. Optional.
 #' @param row_scale Whether to mean-center the rows of the heatmap
 #' @param maxn_rownames The maximum number of rows to allow before row names are turned off. Default = 50.
 #' @param row_size The fontsize of the row (Default: 8)
@@ -304,11 +310,13 @@ color_grid = function (colours, labels = T, names = T, borders = NULL, cex_label
 deseq_heatmap = function(mat, sampledata, sig_results,
                          groups_to_plot=levels(sampledata$study_group),
                          title=NULL,
+                         intgroup = c("study_group"),
                          top_vars = c("study_group"),
                          top_colors = list(study_group=study_colors),
                          bottom_vars = c("PAM50"),
                          bottom_colors = list(PAM50 = pam_colors),
                          row_colors = list(Type = gene_colors),
+                         legend_title = NULL,
                          row_scale = T,
                          maxn_rownames = 50,
                          row_size = 8, col_size = 8,
@@ -316,13 +324,13 @@ deseq_heatmap = function(mat, sampledata, sig_results,
   require(scrime)
   require(ComplexHeatmap)
   require(tidyverse)
-
-  #stopifnot(groups_to_plot %in% levels(sampledata$study_group)) #Now accepts other columns
+  
+  stopifnot(groups_to_plot %in% levels(sampledata[,intgroup])) #Now accepts other columns
   stopifnot(identical(colnames(mat), sampledata$sample_name)) #Ensure that a column containing all sample names exists
 
 
   if(is.null(title)==T){
-    title = if_else(identical(groups_to_plot,levels(sampledata$study_group)),
+    title = if_else(identical(groups_to_plot,levels(sampledata[, intgroup])),
                     "All groups",
                     paste(groups_to_plot, collapse="vs"))
   }
@@ -333,7 +341,8 @@ deseq_heatmap = function(mat, sampledata, sig_results,
   mat = mat[rownames(mat) %in% genestoplot, ]
 
   #Reduce genes and sample data to compared groups only
-  sampledata = sampledata %>% dplyr::filter(study_group %in% groups_to_plot)
+  #sampledata = sampledata %>% dplyr::filter(study_group %in% groups_to_plot)
+  sampledata = sampledata %>% dplyr::filter(!!as.symbol(intgroup) %in% groups_to_plot)
   mat = mat[,colnames(mat) %in% sampledata$sample_name]
   stopifnot(identical(colnames(mat), sampledata$sample_name))
 
@@ -363,7 +372,8 @@ deseq_heatmap = function(mat, sampledata, sig_results,
 
   #Top column annotation
   colTop <- HeatmapAnnotation(df=ann_top, which="col",
-                              col = top_colors)
+                              col = top_colors,
+                              annotation_legend_param = list(list(title = legend_title)))
 
   #Bottom column annotation
   ann_bottom = sampledata[,bottom_vars, drop=F]
@@ -400,7 +410,8 @@ deseq_heatmap = function(mat, sampledata, sig_results,
 
 
 plot_gene_beehive = function(dds, result_df, groups_to_plot = levels(colData(dds)[,intgroup]),
-                             intgroup="study_group", colorby="PAM50", path_save_fig = NULL){
+                             intgroup="study_group", colorby="PAM50",
+                             title_string = "", path_save_fig = NULL){
 
   #Takes a results data frame subsetted down to just the gene of interest
   #For example : plot_gene_beehive(dds, result_df = res_list$LRT[res_list$LRT$ensembl_gene_id == "ENSG00000156738",])
@@ -422,18 +433,18 @@ plot_gene_beehive = function(dds, result_df, groups_to_plot = levels(colData(dds
 
   stopifnot(groups_to_plot %in% levels(colData(dds)[,intgroup]))
 
-  comparison = if_else(groups_to_plot == levels(colData(dds)[,intgroup]),
-                       "all groups", paste(groups_to_plot, collapse = " vs "))
-
-
   samples_to_keep = colnames(dds)[as.data.frame(colData(dds)[intgroup])[,1] %in% groups_to_plot]
 
   dds.trim = dds[,samples_to_keep]
 
   #Normalizes by size factors
+  #print(colnames(colData(dds.trim)))
+  #print(intgroup)
+  #print(colorby)
   d <- plotCounts(dds.trim, gene=ensembl_gene_id, intgroup=c(intgroup,colorby), normalize=T, returnData=TRUE)
 
-  title = paste0(paste(gene_name,ensembl_gene_id, sep=":"), ", ", comparison, ", padj: ",
+  title = paste0(paste0(title_string, ", "),
+                 paste(gene_name,ensembl_gene_id, sep=":"), "\npadj: ",
                  formatC(result_df$padj, format = "e", digits = 2),
                  ", log2fc: ", round(result_df$log2FoldChange,2))
 
@@ -441,10 +452,12 @@ plot_gene_beehive = function(dds, result_df, groups_to_plot = levels(colData(dds
     geom_boxplot(alpha=0, show.legend = F, outlier.shape = NA) +
     geom_point(position=position_jitter(w=0.1,h=0), aes(color=get(colorby))) +
     scale_y_log10() + xlab(intgroup) + labs(color=colorby) + ylab("size-factor normalized counts") +
-    ggtitle(title)
+    ggtitle(title) +
+    theme_classic() +
+    scale_color_viridis_d(na.value = "grey50")
 
   if (is.null(path_save_fig)!=T){
-    suppressMessages(ggsave(filename=path_save_fig, plot = volcplot))
+    suppressMessages(ggsave(filename=path_save_fig, plot = dplot))
   }
 
   return(dplot)
@@ -459,7 +472,75 @@ plot_many_beehives = function(dds, result_df, ...){
 }
 
 
-deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, immune_list=immune_gene_list,
+#' @title DESeq2 report wrapper
+#' 
+#' @description Creates a list of important results objects from various DESeq2 analyses for the PPBC project.
+#'
+#' @param results_object A data frame creating by calling deseq2::results(), deseq2::lfcshrink() or shrinkRes on a deseqdataset.
+#' @param dds A deseqdataset with results from DESeq().
+#' @param anno_df A data frame containing a gene dictionary with the following columns:
+#'  ensembl_gene_id, gene_name, gene_type and description. Additional columns are permitted.
+#' @param mark_immune 
+#' @param immune_df A data frame containing columns for ensembl ids and gene names of genes with known immune functions.
+#' Additional columns are permitted.
+#' Default df is from the ImmPort database. See https://www.innatedb.com/redirect.do?go=resourcesGeneLists
+#' @param pthresh The adjusted p value (from DESeq2) threshold for significance. Default: 0.05
+#' @param absl2fc The absolute log2 fold change (from DESeq2) for significance. Default: 0.5 (equivalent to log fold change of 1.414214)
+#' @param variance_stabilized_dds A DESeq2Tranform object created by calling DESeq2::vst(), DESeq2::varianceStabilizingTransformation(),
+#' or blind_vst(). This object will be used to create the (row-scaled) heatmap.
+#' @param title A string that will be incorporated into the title of plots. Ex: "Involuting vs nulliparous"
+#' @param list_gene_sets An optional list of genes sets (for example: GO-BP) in nested format, created by flexsgsea::read_gmt (or equivalent output).
+#' Default: gene_sets = list(
+#' go_bp = flexgsea::read_gmt(here("data","external","gmt","c5.bp.v7.0.symbols.gmt")),
+#' hallmark = flexgsea::read_gmt(here("data","external","gmt","h.all.v7.0.symbols.gmt")),
+#' c2_canon = flexgsea::read_gmt(here("data","external","gmt","c2.cp.v7.0.symbols.gmt")),
+#' c2_cgp = flexgsea::read_gmt(here("data","external","gmt","c2.cgp.v7.0.symbols.gmt")))
+#' Required for fisher's exact pathway analysis, which will be skipped if param is NULL.
+#' @param plot_pathway Whether to create a dot plot from Fisher's exact pathway analysis.
+#' Will be ignored if list_genes_sets = NULL. Default = T.
+#' @param top_vars A vector of columns from colData(variance_stabilized_dds) to include in the top heatmap annotation
+#' Default =  c("study_group")
+#' @param top_colors A named list of of colors to match top_vars.
+#' Default: list(study_group=study_colors)
+#' @param bottom_vars A vector of columns from colData(variance_stabilized_dds) to include in the bottom heatmap annotation
+#' Default" bottom_vars = c("PAM50")
+#' @param bottom_colors A named list of of colors to match bottom_vars.
+#' Default: list(PAM50=bottom_colors)
+#' @param intgroup The primary column of interest from colData(dds). Will be used to select which groups to include in plots.
+#' Default = "study_group"
+#' @param colorby A column in colData(dds) which will be colorized in beehive plots.
+#' @param groups Which values of \code{dds[,intgroup,]} to include in plots. Can be used to subset intgroup to, for example, plot only
+#' the two groups in a pairwise comparison.
+#' @param beehive_groups Either "comparison" or "all". A manual toggle to force the groups plotted in beehives to differ from
+#' those plotted in the heatmap.
+#' @param n_beehive_plots The number of beehive plots to be shown.
+#' @param verbose Whether to print progress messages
+#' @param ... Additional parameters for deseq_heatmap()
+#'
+#' @return A list object with the following components:
+#' "annotated_results"
+#' "sig_threshold"     
+#' "significant_genes" 
+#' "volcano_plot"      
+#' "heatmap"           
+#' "beehive_plots"     
+#' "pathways"          
+#' "pathway_plots"     
+#' "cooks_threshold"   
+#' "volc_outliers"    
+#' "outlier_bees"   
+#'
+#' @examples rep_inv_nonprbc = deseq_report(ape, dds=dds, absl2fc = 0.5, title="Involution vs nulliparous",
+#'                   intgroup="PPBC", groups = c("involuting", "nulliparous"), 
+#'                   colorby="survival",
+#'                   top_vars = c("PPBC", "survival"),
+#'                   top_colors = list(PPBC=ppbc_colors,
+#'                                     survival = os_colors),
+#'                   bottom_vars = c("ER", "HER2"),
+#'                   bottom_colors = list(ER = er_colors,
+#'                                        HER2 = her2_colors))
+
+deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, immune_df=immune_gene_list,
                         pthresh = 0.05, absl2fc = 0.5, variance_stabilized_dds = vsd,
                         title=NULL, list_gene_sets = gene_sets, plot_pathway = T,
                         top_vars = c("study_group"),
@@ -474,12 +555,13 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
   require(tidyverse)
 
   stopifnot(beehive_groups %in% c("all", "comparison"))
-
+  stopifnot(intgroup %in% colnames(colData(dds)))
+  
   mega = list()
 
   if(is.null(title==T)){
     title = if_else(identical(sort(groups),
-                              sort(levels(colData(dds)[,"study_group"]))), "All groups - Interpret with caution",
+                              sort(levels(colData(dds)[,"study_group"]))), "All groups",
                     paste(groups, collapse=" vs "))
   }
 
@@ -488,7 +570,7 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
     print("Annotating results...")
   }
 
-  df = annotate_results(results_object, mark_immune = mark_immune, immune_list = immune_list)
+  df = annotate_results(results_object, mark_immune = mark_immune, immune_df = immune_df)
 
   mega$annotated_results = df
 
@@ -530,9 +612,10 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
   }
 
   hm = deseq_heatmap(mat = dedup_geneEx, sampledata = as.data.frame(colData(variance_stabilized_dds)),
+                     intgroup = intgroup,
                      top_vars = top_vars, bottom_vars = bottom_vars,
                      top_colors = top_colors, bottom_colors = bottom_colors,
-                     sig_results = sig, title = title, groups_to_plot = groups)
+                     sig_results = sig, title = title, groups_to_plot = groups, ...)
 
 
   mega$heatmap = hm
@@ -543,12 +626,13 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
   }
 
   if(beehive_groups == "all"){
-    beehive_groups = levels(dds$study_group) #Plot all study groups in beehive
+    beehive_groups = levels(colData(dds)[,intgroup]) #Plot all study groups in beehive
   } else {
     beehive_groups = groups #Plot only the ones involved in calculating significance
   }
 
-  beelist = plot_many_beehives(dds = dds, result_df = head(sig, n_beehive_plots), groups_to_plot = beehive_groups)
+  beelist = plot_many_beehives(dds = dds, result_df = head(sig, n_beehive_plots), groups_to_plot = beehive_groups,
+                               intgroup=intgroup, colorby=colorby, title_string = title)
 
   mega$beehive_plots = beelist
 
@@ -609,9 +693,10 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
   outlier_df = df[df$ensembl_gene_id %in% notable_outliers,]
   outlier_df = outlier_df %>% arrange(desc(abs(log2FoldChange)))
 
-  outlier_bees = plot_many_beehives(dds = dds,
+  outlier_bees = plot_many_beehives(dds = dds, title_string = title,
                                     result_df = head(outlier_df, 10),
-                                    groups_to_plot = beehive_groups)
+                                    groups_to_plot = beehive_groups,
+                                    intgroup=intgroup, colorby=colorby)
   mega$outlier_bees = outlier_bees
 
   return(mega)
@@ -832,7 +917,7 @@ plot_gene_simple = function(dds, ensembl_gene_id, gene_name, intgroup="study_gro
     ggtitle(paste(gene_name,ensembl_gene_id, sep=":"))
 
   if (is.null(path_save_fig)!=T){
-    suppressMessages(ggsave(filename=path_save_fig, plot = volcplot))
+    suppressMessages(ggsave(filename=path_save_fig, plot = dplot))
   }
 
   return(dplot)

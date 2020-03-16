@@ -2,6 +2,17 @@
 title: "To do"
 output: html_document
 ---
+**Rerun survival analysis with new metadata:**
+```{r}
+new_metadata <- here("data", "external", "Hercoderingslijst_v09032020_KM.xlsx")
+
+#From Hanne:
+#Forget the previous version I send you. 
+#Here the final update of today (09/03/2020)! In this excel file it is important to look at the sheet labelled: Recoding_Book_v09032020_R.
+#Everything that changed to the previous file is highlighted in red! 
+#If I am correct, the only change to the previous version you have now (29/07/2019), is that there are 4 extra columns which are also indicated in red. 
+```
+
 
 * Make report from Flexgsea results (done except for mountain plots)
 * Clustering with other comparisons (not just inv vs rest, low priority)
