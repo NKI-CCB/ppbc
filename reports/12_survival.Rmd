@@ -3,7 +3,7 @@ title: "12_survival"
 author: "Kat Moore"
 date: "11/7/2019"
 output: 
-  html_notebook:
+  html_document:
     toc: yes
     toc_float: yes
     toc_depth: 4
