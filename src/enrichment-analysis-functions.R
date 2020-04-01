@@ -113,7 +113,7 @@ fisher_pathways <- function(sig_genes, background_genes, list_signatures, fdr_cu
     res[[this_sig]] = this_res
   }
   if(collapse_rows){
-    res = res %>% bind_rows(.id="pathway")
+    res = res %>% bind_rows(.id="signature")
   }
   return(res)
 }

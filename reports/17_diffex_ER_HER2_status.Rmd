@@ -244,7 +244,7 @@ color_grid(ppbc_colors)
 
 # Relationship ER/HER2/PR status and study group
 
-We want the p value between ER status and study group to be low to avoid colinearity within the differential expression design formula. Using ER status, we can hopefully avoid colinearity without completely ignoring PAM50 subtypes.
+We want the p value between ER status and study group to be high to avoid colinearity within the differential expression design formula. Using ER status, we can hopefully avoid colinearity without completely ignoring PAM50 subtypes.
 
 ```{r chisq new}
 tbl <- table(sample_data$ER, sample_data$study_group)

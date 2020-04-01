@@ -1,26 +1,64 @@
+#' Read excel tables
+#'
+#' @description Reads all excel tabs from a given file into a list
+#'
+#' @param path The path to the excel file
+#'
+#' @return A list of data frame containing the content of the excel tabs.
+#' The list names are the same as the tab names.
+#'
 read_excel_tabs = function(path){
-  require(tidyverse)
   tab_names = readxl::excel_sheets(path)
   ldf = lapply(tab_names, function(x) readxl::read_excel(path, sheet = x))
   names(ldf) = tab_names
   return(ldf)
 }
 
-subset_tximport <- function(txi, cols){
-  require(tximport)
-  lapply(txi, function(x) if ( is.matrix(x) ) return(x[, cols]) else return(x))
+
+#' Subset TxImport
+#'
+#' @description Subset a 
+#'
+#' @param txi A list of matrices from tximport
+#' @param cols A vector of column names to be kept
+#'
+#' @return A list containing the same matrices as produced by tximport: abundance, counts, length
+#' containing only the column names in `cols`
+#'
+#' @examples
+subset_tximport <- function(txdb, cols){
+  lapply(txi, function(x) if(is.matrix(x)) return(x[, cols]) else return(x))
 }
 
+
+
+#' Generate a unique ID from multiple replicates
+#' 
+#' @description Creates a unique identifier for a series of samples with the same identifier within a data frame
+#' 
+#' @param df A data frame
+#' @param column_name The column within the data frame containing the identifiers to be made unique
+#'
+#' @return A data frame that contains a new column "id" that contains the original sample name and a replicate
+#' number separated by an underscore.
+#'
+#' @examples
+#' df <- data.frame(sample = c(rep("a", 3), rep("b", 2)))
+#' unique_id_from_replicates(df, "sample")
 unique_id_from_replicates = function(df, column_name){
-
-  require(tidyverse)
-
+  
+  stopifnot(column_name %in% colnames(df))
+  if(c("rep", "id") %in% colnames(df)){
+    stop("The rep and id columns will be overwritten") #FIXME
+  }
+  
   #Programming with dplyr the easy way: Standardize the column name
-  colnames(df)[colnames(df)==column_name] = "id"
-
+  #colnames(df)[colnames(df)==column_name] = "id"
+  df$id = df[,column_name]
+  
   #Columns for to track duplication and a dummy replicate column
-  df = df %>% mutate(dup = duplicated(id), rep=0) %>% select(id, dup, rep, everything())
-
+  df = df %>% dplyr::mutate(dup = duplicated(id), rep=0) 
+  
   #Add one to the previous counter if the id is duplicated
   rep=c()
   for (i in 1:nrow(df)){
@@ -31,11 +69,12 @@ unique_id_from_replicates = function(df, column_name){
     }
   }
   df$rep = rep
-
+  
   #Concatenate the rep counter with the id and ditch the extraneous columns
-  df= df %>% mutate(id = paste(id, rep, sep="_")) %>%
-    select(-dup, -rep) %>% select(id, everything())
-
+  df = df %>% dplyr::mutate(id = paste(id, rep, sep="_"))
+  
+  df <- df %>% dplyr::select(-dup) %>% dplyr::select(id, everything())
+  
   return(df)
 }
 

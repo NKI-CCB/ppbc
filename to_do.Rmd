@@ -18,14 +18,15 @@ new_metadata <- here("data", "external", "Hercoderingslijst_v09032020_KM.xlsx")
 * Clustering with other comparisons (not just inv vs rest, low priority)
 * Variable influence factor (VIF) - Maybe
 * Diffex and KM short vs long-term inv
-* Redo diffex with ER status instead of PAM50 and without batch (assuming batch and ER status are not correlated)
-* Apply for that cancer genomics class (not PPBC related but don't forget!)
 * Look at clonality in combination with mortality (TRUST algorithm) [Clonality had a much stronger association with survival: the combination of high immunoglobulin expression (that is, numerous plasma cells at the site) and low clonality, which could be interpreted as absence of a distinct antigen-specific response, resulted in an equally poor prognosis as low immunoglobulin expression, while low immunoglobulin expression and high clonality resulted in an average prognosis.](https://www.nature.com/articles/s41577-019-0257-x#Tab2)
 * Look at MCP with survival
 * Add annotation for events in survival heatmap for notebook 12.
 * Make new percentage bar visualizations of cibersort and dwls
-<* Dot plot of interaction os genes in IG clusters (as ordinal variable) with correlation
-
+* Dot plot of interaction os genes in IG clusters (as ordinal variable) with correlation
+* Compare PAM50 between involution and nulliparous
+  -LumA np vs LumA inv, etc
+* Rerun analysis with new metadata
+* Duration of breastfeeding? Not just time since weaning?
 
 ## Odds & ends
 
@@ -34,19 +35,6 @@ ALTERNATE THRESHOLD possibility:
 Performs a filtering pass on the dataset to remove any features (rows) without at least 1 read per million in n of the samples, where n is the size of the smallest group of replicates. Recommended in:
 Anders S, McCarthy DJ, Chen Y, Okoniewski M, Smyth GK, Huber W, Robinson MD (2013). " [Count-based differential expression analysis of RNA sequencing data using R and Bioconductor." Nat. Protocols, 8, 1765-1786.](https://www.nature.com/articles/nprot.2013.099)
 
-```{r}
-library(DESeq2)
-library(tidyverse)
-colnames(colData(dds))
-as.data.frame(colData(dds)[,c("study_group", "TIL_percent")]) %>% 
-  filter(!is.na(TIL_percent)) %>%
-  ggplot(aes(x = study_group, y = TIL_percent)) +
-  geom_boxplot() +
-  ggtitle("TIL percent")
-```
 
-```{r}
-print("Fix")
-```
 
 
