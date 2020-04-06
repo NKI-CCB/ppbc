@@ -1,7 +1,7 @@
 ---
 title: "12_survival"
 author: "Kat Moore"
-date: "11/7/2019"
+date: "`r Sys.Date()`"
 output: 
   html_document:
     toc: yes
@@ -1178,6 +1178,31 @@ res_allgenes_multivar_surv %>% filter(beta < 0 & fdr < 0.1) %>%
   pull(gene_name)
 ```
 
+### "Volcano" plot
+
+
+```{r, fig.width = 10}
+p = res_allgenes_multivar_surv %>% 
+  mutate(type=case_when(
+        str_detect(string=gene_type,pattern="^IG") ~ "immunoglobulin",
+        str_detect(string=gene_type,pattern="^TR") ~ "T cell receptor",
+        #ImmPort_gene == T ~ "immune protein coding",
+        gene_type == "protein_coding" ~ "protein coding",
+        TRUE ~ "other noncoding")) %>%
+  mutate(type = ifelse(fdr > 0.1, NA, type))
+
+p %>%
+  ggplot(aes(x = beta, y = -log10(fdr), color = type, label = gene_name)) +
+  geom_point(alpha = 0.8) +
+  geom_hline(yintercept = -log10(0.1), linetype = "dashed") +
+  ggthemes::theme_few() +
+  ggthemes::scale_color_few(na.value = "grey50")+
+  ggrepel::geom_label_repel(show.legend = F, data = filter(p,fdr < 0.05 & type == "protein coding" |
+                                                             fdr < 0.1 & abs(beta) > 1.5)) +
+  ggtitle("Genewise multivariate Cox model for overall survival")
+```
+
+
 Pathway overview: Fisher's exact
 
 ```{r}
@@ -1207,6 +1232,7 @@ plot_enrichment(
         title = "Sig pathways fdr < 0.1: Multivariate Overall Survival"
       )
 ```
+
 
 ```{r, include=F}
 ggsave(here("results", "survival", "12_paths_multivar_os.pdf"), height = 6, width=9)
@@ -1366,6 +1392,28 @@ print(paste("Metastasis multivariate beta < 0, fdr < 0.1:",
       nrow(res_allgenes_multivar_dr %>% filter(beta < 0 & fdr < 0.1))))
 res_allgenes_multivar_dr %>% filter(beta < 0 & fdr < 0.1) %>%
   pull(gene_name)
+```
+### "Volcano" plot
+
+
+```{r, fig.width = 10}
+p = res_allgenes_multivar_dr %>% 
+  mutate(type=case_when(
+        str_detect(string=gene_type,pattern="^IG") ~ "immunoglobulin",
+        str_detect(string=gene_type,pattern="^TR") ~ "T cell receptor",
+        #ImmPort_gene == T ~ "immune protein coding",
+        gene_type == "protein_coding" ~ "protein coding",
+        TRUE ~ "other noncoding")) %>%
+  mutate(type = ifelse(fdr > 0.1, NA, type))
+
+p %>%
+  ggplot(aes(x = beta, y = -log10(fdr), color = type, label = gene_name)) +
+  geom_point(alpha = 0.8) +
+  geom_hline(yintercept = -log10(0.1), linetype = "dashed") +
+  ggthemes::theme_few() +
+  ggthemes::scale_color_few(na.value = "grey50")+
+  ggrepel::geom_label_repel(show.legend = F, data = filter(p,fdr < 0.1 & type == "protein coding")) +
+  ggtitle("Genewise multivariate Cox model for distant recurrence")
 ```
 
 Pathway overview: Fisher's exact
@@ -1696,6 +1744,8 @@ glm.os <- readRDS(file.path(resDir,"12_glm_os.Rds"))
 #### Model plots
 
 Plots of first 10 cross-validation runs. Performance is fairly consitent below 100 transcripts, with relatively little performance gained vs more than 2 features.
+
+
 
 ```{r, fig.width=8, fig.height=10}
 par(mar=c(4,4,2,2))
@@ -2218,9 +2268,9 @@ pheatmap(vsd[rownames(vsd) %in% filter(glm.os.features, n > 30)$gene_name,],
 Limit plots to those genes with an fdr of < 0.05 from the genewise regression. 
 
 ```{r, fig.width=8}
-pheatmap::pheatmap(ovsd[rownames(ovsd) %in% filter(res_allgenes_multivar_surv, fdr < 0.05)$gene_name,],
+pheatmap::pheatmap(ovsd[rownames(ovsd) %in% filter(res_allgenes_multivar_surv, fdr < 0.05 )$gene_name,],
          show_colnames = F, scale="row", annotation_col = ann_df,
-         cluster_cols = T,
+         cluster_cols = F,
          annotation_colors = list(study_group = study_colors[-5],
                                   survival_group = os_colors),
          main = "Genes associated with survival: genewise fdr <0.05") 

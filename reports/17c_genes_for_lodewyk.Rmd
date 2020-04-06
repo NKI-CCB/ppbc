@@ -881,6 +881,14 @@ ggpubr::ggarrange(plot_gene_beehive(dds.x, filter(bpam$rep_inv_nonprbc_all, ense
 ```
 
 ```{r}
+#test = prcomp(model.matrix(dds.y))
+
+test = as.data.frame(colData(dds.y)) %>% select(PAM50)
+model.matrix(test[,1, drop=T])
+```
+
+
+```{r}
 colData(dds.y) %>%
   as.data.frame() %>%
   select(ER, HER2, PR) %>%
@@ -910,9 +918,10 @@ for (i in 1:nrow(corvars_cat)){
 ```{r}
 sd$PAM50 %>% levels()
 ```
+### Possible covariates
 
 ```{r}
-colData(dds.y) %>%
+test = colData(dds.y) %>%
   as.data.frame() %>%
   mutate(
     Basal = if_else(PAM50 == "Basal", 1, 0),
@@ -921,8 +930,12 @@ colData(dds.y) %>%
     LumA = if_else(PAM50 == "LumA", 1, 0),
     Normal = if_else(PAM50 == "Normal", 1, 0)
     ) %>%
-  select(Basal, HerPos, LumB, LumA, Normal, ER, HER2, PR) %>%
-  cor() %>% round(2)
+  select(Basal, HerPos, LumB, LumA, Normal, ER, HER2, PR)
+
+res = prcomp(test)
+
+res$x[,1:2] #Use these two PCs as covariates
+res$rotation[,1:2]
 ```
 
 ```{r}
@@ -946,53 +959,5 @@ sd %>% select(PAM50, ER) %>% table()
 sd %>% select(PAM50, HER2) %>% table()
 sd %>% select(PAM50, PR) %>% table()
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

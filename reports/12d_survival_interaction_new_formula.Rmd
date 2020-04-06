@@ -402,13 +402,13 @@ os$formula[1]
 
 ## Total hits
  
-```{r}
+```{r, collapse = T}
 print(paste("Total number of OS-associated genes with fdr ~ 0:", nrow(os[os$fdr == 0,])))
 
 print(paste("Total number of OS-associated genes with fdr < 0.05:", nrow(os[os$fdr < 0.05,])))
 
 print(paste("Total number of OS-associated genes with fdr < 0.1:", nrow(os[os$fdr < 0.1,])))
-print(paste("Total number of OS-associated genes with fdr < 0.2:", nrow(os[os$fdr < 0.2,])))
+print(paste("Total number of OS-associated genes with fdr < 0.25:", nrow(os[os$fdr < 0.25,])))
 print(paste("Total number of OS-associated genes with fdr < 0.3:", nrow(os[os$fdr < 0.3,])))
 
 print(
@@ -425,7 +425,15 @@ head(os, 30)
 
 ## Protein coding only
 
-```{r}
+```{r, collapse = T}
+print(
+  paste(
+    "Total number of OS-associated genes with fdr < 0.1:",
+    (os %>% filter(fdr < 0.1) %>% nrow())
+  ))
+
+os %>% filter(fdr < 0.1) %>% pull(gene_name) %>% paste(collapse = ", ")
+
 print(
   paste(
     "Total number of OS-associated protein-coding genes with fdr < 0.25:",
@@ -581,6 +589,33 @@ pheatmap::pheatmap(otmm[rownames(otmm) %in% filter(os, fdr < 0.25)$gene_name,],
                                   survival_group = os_colors),
          main = "Genes associated with OS interaction gene:ppbc_inv- genewise fdr <0.25") 
 ```
+
+## "Volcano" plot
+
+```{r}
+p = os %>% 
+  mutate(type=case_when(
+        str_detect(string=gene_type,pattern="^IG") ~ "immunoglobulin",
+        str_detect(string=gene_type,pattern="^TR") ~ "T cell receptor",
+        #ImmPort_gene == T ~ "immune protein coding",
+        gene_type == "protein_coding" ~ "protein coding",
+        TRUE ~ "other noncoding")) %>%
+  mutate(type = ifelse(fdr > 0.1, NA, type))
+
+p %>%
+  ggplot(aes(x = beta, y = -log10(fdr), color = type, label = gene_name)) +
+  geom_point(alpha = 0.8) +
+  geom_hline(yintercept = -log10(0.1), linetype = "dashed") +
+  ggthemes::theme_few() +
+  ggthemes::scale_color_few(na.value = "grey50")+
+  ggrepel::geom_label_repel(show.legend = F, data = filter(p,fdr < 0.1 & type == "protein coding")) +
+  ggtitle("Interaction model for overall survival")
+```
+
+```{r}
+os %>% arrange(beta) %>% head(1)
+```
+
 
 ## KM tertiles
 
@@ -885,6 +920,33 @@ pheatmap::pheatmap(otmm[rownames(otmm) %in% filter(drs, fdr < 0.25)$gene_name,],
                                   drs_group = drs_colors),
          main = "Genes associated with DRS interaction gene:ppbc_inv (fdr <0.25)") 
 ```
+
+## "Volcano" plot
+
+```{r}
+p = drs %>% 
+  mutate(type=case_when(
+        str_detect(string=gene_type,pattern="^IG") ~ "immunoglobulin",
+        str_detect(string=gene_type,pattern="^TR") ~ "T cell receptor",
+        #ImmPort_gene == T ~ "immune protein coding",
+        gene_type == "protein_coding" ~ "protein coding",
+        TRUE ~ "other noncoding")) %>%
+  mutate(type = ifelse(fdr > 0.2, NA, type))
+
+p %>%
+  ggplot(aes(x = beta, y = -log10(fdr), color = type, label = gene_name)) +
+  geom_point(alpha = 0.8) +
+  geom_hline(yintercept = -log10(0.1), linetype = "dashed") +
+  ggthemes::theme_few() +
+  ggthemes::scale_color_few(na.value = "grey50")+
+  ggrepel::geom_label_repel(show.legend = F, data = filter(p,fdr < 0.2 & type == "protein coding")) +
+  ggtitle("Interaction model for distant recurrence")
+```
+
+```{r}
+drs %>% arrange(beta) %>% head(1)
+```
+
 
 ## KM tertiles
 

@@ -188,9 +188,22 @@ Depicted are genes significant in the comparison involution vs non-prbc using co
 
 Inv vs np
 
+```{r}
+sd$study_group_orig %>% unique()
+```
+
+
+```{r}
+study_colors
+
+glimpse(geneEx)
+```
+
+
 ```{r, fig.height=6, fig.width=10}
-deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = study_group_orig), 
-              top_colors = study_colors, bottom_colors = pam_colors,
+source(here("src", "deseq_report_functions.R"))
+
+deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = study_group_orig),
               sig_results = sig.invp, title = "Involution vs nonprbc, Cutree split",
               groups_to_plot =c("ppbc_inv", "non_prbc"), maxn_rownames = Inf,
               column_split=3, row_split = 3)
@@ -276,7 +289,7 @@ set.seed(1)
 deseq_heatmap(mat = geneEx, sampledata = tsd,
               sig_results = sig.invr, title = "Significant genes involution vs rest, K-means",
               groups_to_plot = unique(tsd$study_group),
-              column_km=3, row_km = 3, top_colors = bf_col)
+              column_km=3, row_km = 3, top_colors = list(study_group = bf_col))
 ```
 
 
@@ -292,10 +305,6 @@ pdf(file.path(resDir, "11_kmeans_hm_invvsrest_sig_showallgroups.pdf"),width = 10
 print(inv.hm.all)
 dev.off()
 ```
-
-
-
-todo: collapse cluster 2 into single metagene by averaging experession, then test assocation between metagene and survival/subgroups
 
 ### Summary column clusters
 
@@ -326,10 +335,10 @@ addmargins(table(col_clust$study_group, col_clust$IG_col_cluster), 1)
 
 Note that for this to work, you MUST create the heatmap by explicitly calling draw. If this this not done, the code will complete without errors, but the sample labels will be wrong!
 
-```{r}
+```{r, eval=F}
 stopifnot(class(inv.hm) == "HeatmapList") #Will be "HeatmapList" instead of Heatmap if draw has been called
 
-coldend.hm = column_dend(draw(inv.hm))
+
 test_clust =
 bind_rows(
   tibble(sample_name = as.hclust(coldend.hm$`1`)$labels,IG_col_cluster = "low", col_cluster=1),
@@ -413,6 +422,127 @@ saveRDS(row_clust, here("data", "Rds", "11_ig_row_clusters.Rds"))
 saveRDS(col_clust, here("data", "Rds", "11_ig_column_clusters.Rds"))
 ```
 
+### Clusters as metagenes
+
+Collapse clusters into single metagene by averaging experession, then test assocation between metagene and survival/subgroups
+
+Remember that row cluster 3 is the IG genes.
+
+```{r}
+metagene_mat = 
+  rbind(colMeans(geneEx[rownames(geneEx) %in% row_clust[row_clust$row_cluster==1,"gene_name"], ]),
+        colMeans(geneEx[rownames(geneEx) %in% row_clust[row_clust$row_cluster==2,"gene_name"], ]),
+        colMeans(geneEx[rownames(geneEx) %in% row_clust[row_clust$row_cluster==3,"gene_name"], ])
+  )
+
+rownames(metagene_mat) = c("metagene1", "metagene2","metageneIG")
+metagene_mat = scrime::rowScales(metagene_mat)
+
+
+#pheatmap::pheatmap(metagene_mat, show_colnames = F, cluster_rows = F,
+#                   annotation_col = data.frame(row.names = sd$sample_name,
+#                                               study_group = sd$inv_vs_rest))
+
+  
+
+#Top column annotation
+colTop <- HeatmapAnnotation(df=data.frame(row.names = sd$sample_name,
+                                          study_group = sd$inv_vs_rest),
+                            which="col",
+                            col = list(study_group = study_colors),
+                            annotation_legend_param = list(list(title = "PPBC")))
+
+#Bottom column annotation
+
+colBottom <- HeatmapAnnotation(df=data.frame(row.names = sd$sample_name,
+                                             PAM50 = sd$PAM50),
+                               which="col",
+                               col = list(PAM50 = pam_colors))
+
+set.seed(1)
+Heatmap(metagene_mat,column_km = 3,
+        top_annotation = colTop,
+        bottom_annotation = colBottom,
+        #left_annotation = rowAnno,
+        heatmap_legend_param = list(title="rowscaled vst"),
+        show_row_names = T,
+        show_column_names = F,
+        cluster_rows = F,
+        #row_names_gp = gpar(fontsize = row_size),
+        #column_names_gp = gpar(fontsize = col_size),
+        #column_title = title
+)
+```
+MetageneIG only
+              
+```{r, fig.width = 8}
+set.seed(1)
+
+Heatmap(metagene_mat[rownames(metagene_mat) == "metageneIG", , drop =F],column_km = 3,
+        top_annotation = colTop,
+        bottom_annotation = colBottom,
+        #left_annotation = rowAnno,
+        heatmap_legend_param = list(title="rowscaled vst"),
+        show_row_names = T,
+        show_column_names = F,
+        cluster_rows = F,
+        #row_names_gp = gpar(fontsize = row_size),
+        #column_names_gp = gpar(fontsize = col_size),
+        #column_title = title
+)
+```
+              
+#### KW
+
+For inv vs rest
+
+```{r}
+stopifnot(all(colnames(metagene_mat) == sd$sample_name))
+
+kruskal.test(x = metagene_mat[rownames(metagene_mat)== "metageneIG"], 
+             g = sd$inv_vs_rest)
+```
+
+
+```{r}
+kruskal.test(x = metagene_mat[rownames(metagene_mat)== "metageneIG"], 
+             g = sd$study_group)
+```
+
+
+```{r}
+kruskal.test(x = metagene_mat[rownames(metagene_mat)== "metageneIG"], 
+             g = sd$PAM50)
+```
+
+```{r}
+kruskal.test(x = sd$inv_vs_rest, 
+             g = sd$PAM50)
+```
+
+## Sanity check
+
+Just checking to ensure we see the same thing outside of complex heatmaps. It won't be exactly the same due to nstart etc, but it should be close
+              
+```{r}
+set.seed(1)
+
+IG_mat = as.matrix(geneEx[rownames(geneEx) %in% row_clust[row_clust$row_cluster==3,"gene_name"],])
+
+kIG = kmeans(t(IG_mat), centers = 3, nstart = 25)
+
+sanity_clust = 
+  left_join(enframe(kIG$cluster, "sample_name", "cluster_k"),
+          select(col_clust, hm_clust = col_cluster, IG_level = IG_col_cluster, study_group, sample_name),
+          by = "sample_name"
+)
+
+#sanity_clust[sanity_clust$hm_clust != sanity_clust$cluster_k,]
+#It's mostly the same
+table(sanity_clust$hm_clust == sanity_clust$cluster_k)
+
+```
+              
 
 # Clustering involution samples
 
@@ -824,12 +954,6 @@ ggsurvplot(
 
 
 ```
-
-
-```{r}
-addmargins(table(test_clust$study_group, test_clust$IG_col_cluster), 1)
-```
-
 
 
 ### Multivariate Cox

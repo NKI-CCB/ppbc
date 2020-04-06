@@ -261,6 +261,38 @@ head(sample_data)
 saveRDS(sample_data, here("data","Rds","12e_survival_sample_data.Rds"))
 ```
 
+# Overlap diffex and Cox genes
+
+```{r}
+sig_genes <- list(
+  "diffex inv vs np" = filter(res_list$inv_vs_nonprbc, padj < 0.05 & abs(log2FoldChange) > 0.5)$ensembl_gene_id,
+  "diffex inv vs rest" = filter(res_list$inv_vs_rest, padj < 0.05 & abs(log2FoldChange) > 0.5)$ensembl_gene_id,
+  "cox os" = filter(os, fdr < 0.1)$ensembl_gene_id,
+  "cox drs" = filter(drs, fdr < 0.1)$ensembl_gene_id,
+  "cox inv int os" = filter(inv_int_os, fdr < 0.2)$ensembl_gene_id,
+  "cox inv int drs" = filter(inv_int_drs, fdr < 0.2)$ensembl_gene_id  
+)
+```
+
+```{r, fig.width=8}
+upset_surv = UpSetR::upset(UpSetR::fromList(sig_genes), order.by = "freq", #empty.intersections = "on",
+                       nsets = 6, set_size.show = TRUE, mainbar.y.label = "Overlap diffex and Cox genes",
+                       sets.bar.color = "blue", main.bar.color = "black", 
+                       set_size.scale_max = 450,
+                       sets.x.label = "Sig genes")
+
+upset_surv
+```
+
+```{r}
+intersect(
+  filter(res_list$inv_vs_rest, padj < 0.05 & abs(log2FoldChange) > 0.5)$ensembl_gene_id,
+  filter(os, fdr < 0.1)$ensembl_gene_id)
+
+#Reduce(intersect, list(a,b,c))
+```
+
+
 # Genes of interest from general OS/DRS
 
 Or background literature
@@ -332,6 +364,12 @@ CD27 has been shown to interact with SIVA1,[7] TRAF2[8][9] and TRAF3.[8][9]
 gene_summary("CD27")$survival_report
 ```
 
+```{r, include=F}
+gene_summary("CD27")$survival_report %>%
+     select(gene_name, type, fdr, p.value, beta, `HR (95% CI for HR)`)
+```
+
+
 ### OS
 
 One vs rest survival depications
@@ -369,17 +407,17 @@ gene_summary("CD27")$diffex_report
 tmm_plots("CD27")$beehive
 ```
 
-#### TRAF2
+### TRAF2
 
 Downstream of CD27
 
-##### Summary survival
+#### Summary survival
 
 ```{r}
 gene_summary("TRAF2")$survival_report
 ```
 
-##### OS
+#### OS
 
 One vs rest survival depications
 
@@ -392,7 +430,7 @@ km_ntiles_ovr("TRAF2", ovr_column = "involution", survival_type = "os")
 ggarrange(plotlist = km_ntiles("TRAF2"), ncol = 2, nrow = 1)
 ```
 
-##### DRS
+#### DRS
 
 ```{r, warning=F, fig.height=7, fig.width=10}
 km_ntiles_ovr("TRAF2", ovr_column = "involution", survival_type = "drs")
@@ -403,20 +441,20 @@ km_ntiles_ovr("TRAF2", ovr_column = "involution", survival_type = "drs")
 ggarrange(plotlist = km_ntiles("MS4A1", survival_type = "drs"), ncol = 2, nrow = 1)
 ```
 
-##### Diffex
+#### Diffex
 
 ```{r}
 gene_summary("TRAF2")$diffex_report
 ```
 
 
-##### Expression
+#### Expression
 
 ```{r, fig.width=8}
 tmm_plots("TRAF2")$beehive
 ```
 
-##### Traf3?
+#### Traf3?
 ```{r}
 gene_summary("TRAF3")$survival_report
 ```
@@ -564,6 +602,54 @@ gene_summary("CD69")$diffex_report
 tmm_plots("CD69")$beehive
 ```
 
+
+## UACA
+
+Uveal Autoantigen With Coiled-Coil Domains And Ankyrin Repeats
+
+This gene encodes a protein that contains ankyrin repeats and coiled coil domains and likely plays a role in apoptosis. Studies in rodents have implicated the encoded protein in the stimulation of apoptosis and the regulation of mammary gland involution, in which the mammary gland returns to its pre-pregnant state. This protein has also been proposed to negatively regulate apoptosis based on experiments in human cell lines in which the protein was shown to interact with PRKC apoptosis WT1 regulator protein, also known as PAR-4, and inhibit translocation of the PAR-4 receptor. Autoantibodies to this protein have been identified in human patients with panuveitis and Graves' disease. Differential expression of this gene has been observed in various human cancers. 
+
+### Summary survival
+
+```{r}
+gene_summary("UACA")$survival_report
+```
+
+### OS
+
+One vs rest survival depications
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("UACA", ovr_column = "involution", survival_type = "os")
+```
+
+```{r, warning=F, eval=F, include=F, fig.height=5, fig.width=10}
+#Separated study groups
+ggarrange(plotlist = km_ntiles("UACA"), ncol = 2, nrow = 1)
+```
+
+### DRS
+
+```{r, warning=F, fig.height=7, fig.width=10}
+km_ntiles_ovr("UACA", ovr_column = "involution", survival_type = "drs")
+```
+
+```{r, warning=F, include=F, eval=F, fig.height=5, fig.width=10}
+#Separated study groups.
+ggarrange(plotlist = km_ntiles("CD69", survival_type = "drs"), ncol = 2, nrow = 1)
+```
+
+### Diffex
+
+```{r}
+gene_summary("UACA")$diffex_report
+```
+
+### Expression
+
+```{r, fig.width=8}
+tmm_plots("UACA")$beehive
+```
 
 # Genes of interest from interaction models
 

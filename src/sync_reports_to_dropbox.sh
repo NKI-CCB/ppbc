@@ -8,7 +8,7 @@ sshfs harris:/DATA/share/postpartumbc ~/mnt/postpartumbc
 
 #Html reports
 cd ~/mnt/postpartumbc/reports
-for REPORT in `ls *nb.html`; do echo $REPORT; rclone sync -P $REPORT remote:ppbc/reports; done
+for REPORT in `ls *.html`; do echo $REPORT; rclone sync -P $REPORT remote:ppbc/reports; done
 
 #Excel differential expression lists
 cd ~/mnt/postpartumbc/results/diffex
