@@ -43,3 +43,6 @@ shinyApp/*/*.pdf
 shinyApp/*/reports
 covid19.Rmd
 
+#Archive pre April 2020 metadata update
+reports/pre_April2020_metadata_update/
+src/src_pre_metadata_update_April2020/
