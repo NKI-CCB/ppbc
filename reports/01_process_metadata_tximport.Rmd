@@ -644,6 +644,11 @@ Save notebook data.
 save.image(here("reports","01_process_metadata_tximport.RData"))
 ```
 
+# Session info
+
+```{r}
+sessionInfo()
+```
 
 
 

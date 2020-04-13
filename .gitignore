@@ -1,6 +1,7 @@
 .RData
 testingparalellel.txt
 snakemake_notuptodate
+.snakemake/
 results
 postpartumbc.Rproj
 flexgsea_input_for_tycho.RData.gz
