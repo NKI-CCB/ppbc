@@ -1,0 +1,1027 @@
+---
+title: "Quality control PPBC"
+date: "`r Sys.Date()`"
+author: "Kat Moore"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: tango
+    df_print: paged
+---
+
+```{r, include=F}
+rm(list = ls())
+```
+
+```{r Load packages, include=F}
+library(here)
+library(DESeq2)
+library(fastqcr)
+library(ggbeeswarm)
+library(tidyverse)
+library(ggrepel)
+library(viridis)
+library(ggthemes)
+library(UpSetR)
+opts <- options()  # save old options for ggplots
+```
+
+```{r Default ggplot themes, include=F}
+options(ggplot2.continuous.colour = "viridis")
+options(ggplot2.continuous.fill = "viridis")
+scale_colour_discrete <- scale_color_colorblind
+#scale_colour_discrete <- scale_colour_viridis_d
+
+#For fill
+#viridis_qualitative_pal7 <- c("#440154FF", "#FDE725FF", "#443A83FF", 
+#                              "#8FD744FF", "#31688EFF",  "#35B779FF", 
+#                              "#21908CFF")
+
+scale_fill_discrete <- function(...) {
+  #scale_fill_manual(..., values = viridis_pal()(7)) #Wrong order
+  #scale_fill_manual(..., values = viridis_qualitative_pal7)
+  scale_fill_manual(..., values = colorblind_pal()(8))
+}
+
+theme_set(theme_minimal())
+```
+
+
+# Sample Origin
+
+The majority (186) of samples in the postpartum breast cancer dataset (ppbc) were delivered in December of 2018. In June 2019, an additional 84 samples were delivered. Both groups of samples are the result of multiple library preparation batches (8 in total). All samples were re-quantified using an updated version of Salmon (0.14) and subjected again to fastqc/multiqc for quality control. In the metadata, sample ids are unique but patient refs are not. This is because some samples had a poor quality library prep and needed to be resequenced.
+
+# Rationale for cutoffs
+
+From: [A survey of best practices for RNA-seq data analysis](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4728800/)
+
+Quality control for the raw reads involves the analysis of sequence quality, GC content, the presence of adaptors, overrepresented k-mers and duplicated reads in order to detect sequencing errors, PCR artifacts or contaminations. Acceptable duplication, k-mer or GC content levels are experiment- and organism-specific, but these values should be homogeneous for samples in the same experiments. We recommend that outliers with over 30% disagreement to be discarded.
+
+We will not specifically adhere to the 30% rule, but we will generally hold to the idea that extreme outliers as visualized with box plots should be discarded.
+
+# Load data
+
+Data was packaged into a list via tx_import in the previous notebooks (01_process_metadata_tximport.Rmd)
+
+```{r}
+tx <- readRDS(here("data/Rds/01_tx.Rds"))
+
+sample_annot <- read_tsv(here("data/metadata/01_sample_annot.tsv"))
+```
+
+For the overrepresented sequences analysis we will need a data frame that can translate refseq ids to gene names. This was retireved from the UCSC browser on 1 July 2019 using the following selections:
+
+Assembly:hg38
+Group: Genes and Gene Prediction
+Track: NCBI Refseq
+Table: Refseq All
+
+```{r}
+refseq_db = read_tsv(here("data/external/refseqid_genename_hg38.txt"))
+
+refseq_db = refseq_db %>% select(refseq_id=name,gene_name=name2)
+head(refseq_db)
+```
+
+# Batch overview
+
+Sequencing batch overview. When a sample belongs to more than one batch, it's because the original prep had bad quality and it had to be redone.
+
+```{r}
+sample_annot %>% group_by(library_prep) %>% summarise(n=n())
+```
+
+The Jun 2019 samples refer to batches 6&7, 7 and 8
+
+```{r}
+recent_samples <- read.csv(here("data/metadata/new_samples_jun2019.txt"), header = F, stringsAsFactors = F)
+sample_annot %>% filter(patient_ref %in% recent_samples$V1) %>% pull(library_prep) %>% table()
+```
+
+# Library size
+
+We previously set a minimum library size of 10e6.5. Based on the histogram, we get the following distribution.
+
+```{r}
+hist(log10(colSums(tx$counts)), breaks=40, main="Log10 library size PPBC") 
+abline(v = 6.7, col = "red")
+```
+
+This is equivalent to approximately 5 million reads. We keep this cutoff.
+
+```{r}
+10^6.7
+```
+
+How many samples would this amount to?
+
+```{r}
+table(colSums(tx$counts) > 10^6.7)
+```
+
+Add library size to sample annotation data
+
+```{r}
+sample_annot = colSums(tx$counts) %>% enframe("sample_id", "lib.size") %>% left_join(sample_annot, ., by ="sample_id")
+
+sample_annot = sample_annot %>% mutate(low_count_sample = lib.size < 10^6.7)
+```
+
+How many of each group do we lose?
+
+```{r}
+table(sample_annot$study_group, sample_annot$low_count_sample)
+```
+
+# Alignment stats
+
+```{r}
+alignstats = read_tsv(file=here("reports/multiqc_data/multiqc_general_stats.txt"))
+alignstats = alignstats %>% select(sample_id=Sample,
+                                   percent_mapped=`Salmon_mqc-generalstats-salmon-percent_mapped`)
+```
+
+The majority of samples with poor mapping are below the library size cutoff. There are three exceptions.
+
+```{r}
+sample_annot = left_join(sample_annot, alignstats, by = "sample_id")
+```
+
+
+```{r}
+
+sample_annot %>% ggplot(aes(x=lib.size, y=percent_mapped, color=low_count_sample)) +
+  geom_point() + scale_x_log10() +
+  ggtitle("Poor mapping is associated with small library size") +
+  geom_hline(yintercept = 75, color="red")
+```
+
+Add a threshold of 75% mapped reads.
+
+```{r}
+sample_annot = sample_annot %>% mutate(poor_mapping = percent_mapped < 75)
+```
+
+# Fastqcr
+
+```{r}
+qc <- qc_aggregate(here("results/fastqc"))
+```
+
+Limit to only those samples which have not already been excluded for some other reason.
+
+```{r}
+qc = qc %>% filter(sample %in% sample_annot$sample_id)
+```
+
+## Fastqcr overview
+
+As seen in the previous batch of samples, many samples show high sequence duplication levels. There are also many warnings and failures in overrepresented sequences.
+
+```{r}
+summary(qc)
+```
+
+### Plot overview
+
+```{r}
+qc %>% ggplot(aes(x=module, fill = status)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+Metrics with issues:
+
+* Per base sequence content
+* Overrepresented sequences
+* Per tile sequence quality
+* Sequence duplication levels
+
+We will also have a look at the 10 samples whhich fail GC content.
+
+## Utility functions
+
+Function for reading in fastqc data, filtered for those above the library size cutoff:
+
+```{r}
+retrieve_fastqc_module = function(qc, sample_annot, module.type, dir=here("results/fastqc"), failorwarn = c("FAIL", "WARN"),
+                                              min.lib.size = 10^6.7){
+  require(tidyverse)
+  require(fastqcr)
+  
+  qc = qc %>% filter(module == !!module.type) %>% filter(status %in% failorwarn) %>%
+    filter(as.integer(tot.seq) > min.lib.size)
+  
+  qc = left_join(qc, select(sample_annot, sample_id, sample_name), by= c("sample"="sample_id"))
+  
+  #return(qc)
+  
+  file.paths = file.path(dir, qc$sample)
+  
+  or = fastqcr::qc_read_collection(file = file.paths,
+                            sample_names = qc$sample_name,
+                            modules = module.type,
+                            verbose=F)[[1]]
+  or = left_join(or, sample_annot, by = c("sample"="sample_name"))
+  
+  or = left_join(or, select(qc, -module), by=c("sample_id"="sample"))
+
+  return(or)
+}
+
+```
+
+```{r}
+add_qc_to_metadata = function(metadata, qcdata, module.type){
+  qcdata = qcdata %>% filter(module == !!module.type) %>% dplyr::rename(status.module=status)
+  newdata = left_join(metadata, select(qcdata, sample, status.module), by=c("sample_id"="sample"))
+  colnames(newdata)[length(colnames(newdata))] = str_to_lower(str_replace_all(module.type, " ", "_"))
+  return(newdata)
+}
+```
+
+## Per base sequence content
+
+```{r}
+summary(qc) %>% filter(module == "Per base sequence content")
+```
+
+Per base sequence content is almost always a fail in RNAseq libraries, as per this excerpt from the fastqc documentation. Multiqc confirms the bias is largely at the start of the reads.
+
+"It's worth noting that some types of library will always produce biased sequence composition, normally at the start of the read. Libraries produced by priming using random hexamers (including nearly all RNA-Seq libraries) and those which were fragmented using transposases inherit an intrinsic bias in the positions at which reads start. This bias does not concern an absolute sequence, but instead provides enrichement of a number of different K-mers at the 5' end of the reads. Whilst this is a true technical bias, it isn't something which can be corrected by trimming and in most cases doesn't seem to adversely affect the downstream analysis."
+
+Because RNAseq data cannot be expected to pass this module, we will not add the information to the metadata.
+
+## Per tile sequence quality
+
+```{r}
+summary(qc) %>% filter(module == "Per tile sequence quality")
+```
+
+Per tile sequence quality is not reported by Multiqc and is therefore harder to visually inspect. From the documentation: 
+
+This graph will only appear in your analysis results if you're using an Illumina library which retains its original sequence identifiers. Encoded in these is the flowcell tile from which each read came. The graph allows you to look at the quality scores from each tile across all of your bases to see if there was a loss in quality associated with only one part of the flowcell. Reasons for seeing warnings or errors on this plot could be transient problems such as bubbles going through the flowcell, or they could be more permanent problems such as smudges on the flowcell or debris inside the flowcell lane. Whilst warnings in this module can be triggered by individual specific events we have also observed that greater variation in the phred scores attributed to tiles can also appear when a flowcell is generally overloaded. In this case events appear all over the flowcell rather than being confined to a specific area or range of cycles. We would generally ignore errors which mildly affected a small number of tiles for only 1 or 2 cycles, but would pursue larger effects which showed high deviation in scores, or which persisted for several cycles. 
+
+Is there a particular batch that looks extra bad here?
+
+```{r}
+as.data.frame(qc) %>% filter(module=="Per tile sequence quality") %>% dplyr::rename(per_tile_sequence_quality = status) %>%
+  left_join(.,sample_annot, by=c("sample"="sample_id")) %>%
+  ggplot(aes(x=library_prep, y=lib.size, color=per_tile_sequence_quality)) + ggbeeswarm::geom_beeswarm() +
+  ggtitle("Per tile sequence quality by batch")
+```
+
+Batch 7 has an unusual number of fails. No strong correlation between library size and per tile sequence quality.
+
+Worth talking to the sequencing facility in Belgium about not overloading their flowcells so much?
+
+Add the info to the metadata.
+
+```{r}
+sample_annot = add_qc_to_metadata(sample_annot, qc, "Per tile sequence quality")
+```
+
+## Sequence duplication levels
+
+Overwhelmingly the samples fail this module.
+
+```{r}
+summary(qc) %>% filter(module == "Sequence Duplication Levels")
+```
+
+The 10 samples that pass sequence duplication levels are those with tiny library sizes. All samples above the library size cutoff fail this module.
+
+```{r}
+qc %>% filter(module == "Sequence Duplication Levels") %>% ggplot(aes(x=status,y=as.integer(tot.seq))) +
+  geom_boxplot() + scale_y_log10() + geom_hline(yintercept = 10^6.7, color="red") +
+  ylab("Library size") + xlab("Sequence duplication level") +
+  ggtitle("Samples above the lib.size cutoff are flagged for sequence duplication level")
+```
+
+Add the information to the sample annotation data for bookkeeping.
+
+```{r}
+sample_annot = add_qc_to_metadata(sample_annot, qc, "Sequence Duplication Levels")
+```
+
+### Duplication by sample
+
+What's the distribution of the samples who pass the library size threshold?
+
+```{r}
+seqdup = retrieve_fastqc_module(qc, sample_annot, module="Sequence Duplication Levels")
+
+seqdup %>% rename(dup_level = `Duplication Level`, perc_total = `Percentage of total`) %>% 
+  ggplot(aes(x=factor(dup_level, levels=c("1","2","3","4","5","6","7","8","9",">10",">50",">100",">500",">1k",">5k",">10k+")),
+             y = perc_total, color = library_prep, group=sample)) + geom_line() +
+  xlab("Sequence duplication levels") + ylab("Percentage of total") +
+  scale_color_viridis_d()#+ theme(legend.position = "none")
+```
+
+All samples have a lot more sequence duplication than predicted: probably this has to do with the ffpe preparation in combination with the rRNA library prep. Unfortunately the module doesn't report which sequences are duplicated: for this we have to rely on the overrepresented sequences.
+
+### High duplication samples
+
+There are a few samples for which the overall percentage of reads with more than 10K duplication is over 15%. Which samples are these?
+
+```{r}
+seqdup %>% rename(dup_level = `Duplication Level`, perc_total = `Percentage of total`) %>%
+  filter(dup_level == ">10k+", perc_total > 15) %>% select(sample, sample_id, low_count_sample, library_prep) %>%
+  unique()
+```
+
+Given the overall pattern of high sequence duplication, we don't have a good justification for removing these samples based on this metric. However, we will make a note of them.
+
+```{r}
+high_dup_samples = seqdup %>% rename(dup_level = `Duplication Level`, perc_total = `Percentage of total`) %>%
+  filter(dup_level == ">10k+", perc_total > 15) %>% select(sample, sample_id, low_count_sample, library_prep) %>%
+  unique() %>% pull(sample_id)
+
+sample_annot = sample_annot %>% mutate(high_dup_sample = sample_id %in% high_dup_samples)
+```
+
+```{r}
+colnames(sample_annot)
+```
+
+## Duplication by batch
+
+It doesn't appear that one batch or the other has a higher duplication level than the rest.
+
+```{r}
+seqdup %>% rename(dup_level = `Duplication Level`, perc_total = `Percentage of total`) %>% 
+  ggplot(aes(x=factor(dup_level, levels=c("1","2","3","4","5","6","7","8","9",">10",">50",">100",">500",">1k",">5k",">10k+")),
+             y = perc_total, fill = library_prep, group=library_prep)) + geom_bar(stat="identity") +
+  xlab("Sequence duplication levels") + ylab("Cumulative percent reads") +
+  scale_fill_viridis_d()
+```
+
+## Overrepresented sequences
+
+Warnings are prevalent for this module.
+
+```{r}
+summary(qc) %>% filter(module=="Overrepresented sequences")
+```
+
+Are the 83 samples that pass overrepresented sequences mostly from the most recent batch?
+Looks the later batches have more samples that pass, but not all such samples fall into the second batch that was delivered in june.
+
+```{r}
+qc %>% filter(module == "Overrepresented sequences") %>% left_join(sample_annot,., by =c("sample_id"="sample")) %>%
+   select(library_prep, overrepresented_sequences = status) %>% table()
+```
+
+Add the module status to sample annotation for bookkeeping.
+
+```{r}
+sample_annot = add_qc_to_metadata(sample_annot, qc, "Overrepresented sequences")
+```
+
+### Lib.size and overrepresented sequences
+
+Is there a connection between overrepresented sequences and library size?
+The majority of those that fail this module have library sizes smaller than our usual cutoff.
+
+```{r}
+qc %>% filter(module == "Overrepresented sequences") %>%
+  ggplot(aes(x=status,y=as.integer(tot.seq))) +
+  geom_boxplot() +
+  scale_y_log10() +
+  geom_hline(yintercept = 10^6.7, color="red") +
+  ggtitle("Library size vs overrepresented sequences")
+```
+
+What is the primary source of these overrepresented sequences? By looking at the fails, it's clear that a small library size predictably results in a large number of overrepresented sequences.
+
+```{r}
+or_failed_all = fastqcr::qc_read_collection(
+  file = here("results", "fastqc",
+              (qc %>% filter(module == "Overrepresented sequences" & status == "FAIL") %>% pull(sample))),
+  sample_names = here("results", "fastqc",
+                      (qc %>% filter(module == "Overrepresented sequences" & status == "FAIL") %>% pull(sample))),
+  modules = "Overrepresented sequences", verbose = F)
+
+or_failed_all$overrepresented_sequences %>% group_by(sample) %>% summarise(n=n()) %>%
+  mutate(sample = str_remove(sample, "/DATA/share/postpartumbc/results/fastqc/")) %>%
+  left_join(., select(sample_annot, sample_id, lib.size), by=c("sample"="sample_id")) %>%
+  arrange(lib.size) #%>% ggplot(aes(x=lib.size, y = n)) + geom_point() + scale_x_log10()
+```
+
+Look first at just the overrepresented sequences which failed the module. There are only two such samples that are above the minimum count threshold, with a total of 19 overrepresented sequences between them. Some of them are clearly poly(a) tails, for ppbc_lac_268.
+
+```{r}
+or_failed = retrieve_fastqc_module(qc, sample_annot, module="Overrepresented sequences", failorwarn = "FAIL")
+or_failed %>% select(sample, Sequence, Count, Percentage)
+```
+
+Now at overrepresented sequences that were either warnings or failures. This amounts to a total of 149 samples above the minimum count threshold. out of the 226 we started with.
+
+```{r}
+or = retrieve_fastqc_module(qc, sample_annot, module="Overrepresented sequences", failorwarn = c("FAIL","WARN"))
+unique(or$sample) %>% length()
+#length(unique(sample_annot$sample_name))
+```
+
+The samples with the most overrepresented sequences often represent multiple runs of the same patient.
+
+```{r}
+or %>% group_by(sample, lib.size, sample_id) %>% summarise(overrepresented_seq = n()) %>%
+  select(overrepresented_seq, everything()) %>% arrange(desc(overrepresented_seq)) %>% head(10)
+```
+
+Create a fasta file for blasting
+
+```{r}
+or %>% mutate(name=paste(">",1:n(),"-",sample,"-",round(as.numeric(Percentage),3),sep="")) %>% 
+  mutate(fa=paste(name,Sequence, sep="\n")) %>% pull(fa) %>%
+  readr::write_lines(path=here("results", "fastqc", "overrepresented.fa"))
+
+or_failed %>% mutate(name=paste(">",1:n(),"-",sample,"-",round(as.numeric(Percentage),3),sep="")) %>% 
+  mutate(fa=paste(name,Sequence, sep="\n")) %>% pull(fa) %>%
+  readr::write_lines(path=here("results", "fastqc", "failed_overrepresented.fa"))
+```
+
+### Read in blast results
+
+We blasted them separately via the web browser. (Todo: Incorporate into pipeline?)
+
+```{r}
+blast_or <- read_csv(here("results/fastqc/overrepresented-BLAST-HitTable.csv"), col_names = F)
+
+blast_failed = read_csv(here("results/fastqc/failedor-BLAST-HitTable.csv"), col_names = F)
+```
+
+Function to merge the BLAST results with the annotation db and get the gene name.
+
+```{r}
+process_blast_results <- function(blast_results, annot){
+  blast_results = blast_results %>% select(id = X1, refseq_id = X2)
+  results = right_join(refseq_db,blast_results, by="refseq_id")
+  return(results)
+}
+```
+
+```{r}
+blast_failed = process_blast_results(blast_failed, refseq_db)
+blast_or = process_blast_results(blast_or, refseq_db)
+```
+
+Most common blast results for overrepresented sequences in samples above the lib.size threshold
+
+```{r}
+blast_or %>% group_by(gene_name) %>%
+  summarise(n=n()) %>% arrange(desc(n)) %>% head(20)
+```
+
+The two samples which failed outright are basically all MALAT1 (and its antisense transcript, TALAM1).
+
+```{r}
+blast_failed %>% group_by(gene_name) %>%
+  summarise(n=n()) %>% arrange(desc(n)) %>% head(20)
+```
+
+### Threshold for overrepresented sequences
+
+Multiqc has a report which can summarize this for us.
+
+```{r}
+or_summary <- read_tsv(here("reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt"))
+or_summary$percent_overrepresented_sequences = or_summary$`Top over-represented sequence` + or_summary$`Sum of remaining over-represented sequences`
+
+sample_annot = left_join(sample_annot, select(or_summary, Sample,percent_overrepresented_sequences), by=c("sample_id"="Sample"))
+```
+
+Graph this percentage for all samples.
+
+```{r}
+sample_annot %>%
+  ggplot(aes(x=lib.size, y=percent_overrepresented_sequences, color=low_count_sample)) +
+  geom_point() + scale_x_log10() +
+  ggtitle("Extremely high % overrepresented sequences occurs with small library size")
+```
+
+Graph those which are above the lib.size threshold.
+
+```{r}
+sample_annot %>% filter(low_count_sample==FALSE) %>%
+  ggplot(aes(x=study_group, y=percent_overrepresented_sequences)) +
+  geom_boxplot() + geom_hline(yintercept = 5, color="red") +
+  ggtitle("Overrepresented sequences by study group with 5% threshold")
+```
+
+Mark those samples with over 5% total overrepresented sequences for exclusion.  
+
+```{r}
+sample_annot = sample_annot %>%
+  mutate(too_high_overrepresented_sequences = percent_overrepresented_sequences > 5)
+```
+  
+Which additional samples do we lose, after filtering on library size?
+
+```{r}
+sample_annot %>%
+  filter(low_count_sample != TRUE) %>%
+  select(study_group, too_high_overrepresented_sequences) %>% table()
+```
+
+
+## Percent GC content
+
+From the documentation:
+
+This module measures the GC content across the whole length of each sequence in a file and compares it to a modelled normal distribution of GC content. In a normal random library you would expect to see a roughly normal distribution of GC content where the central peak corresponds to the overall GC content of the underlying genome. Since we don't know the the GC content of the genome the modal GC content is calculated from the observed data and used to build a reference distribution. An unusually shaped distribution could indicate a contaminated library or some other kinds of biased subset. A normal distribution which is shifted indicates some systematic bias which is independent of base position. If there is a systematic bias which creates a shifted normal distribution then this won't be flagged as an error by the module since it doesn't know what your genome's GC content should be.
+
+Warnings in this module usually indicate a problem with the library. Sharp peaks on an otherwise smooth distribution are normally the result of a specific contaminant (adapter dimers for example), which may well be picked up by the overrepresented sequences module. Broader peaks may represent contamination with a different species. 
+
+It is also well known that rRNA contamination can lead to large shifts in GC content peaks.
+
+Warnings are common here, with a few failures.
+
+```{r}
+summary(qc) %>%
+  filter(module == "Per sequence GC content")
+```
+
+Add module data to sample annotation for bookkeeping.
+
+```{r}
+sample_annot = add_qc_to_metadata(sample_annot, qc, "Per sequence GC content")
+```
+
+Which samples are flagged as failing the GC content module?
+
+```{r}
+sample_annot %>% filter(per_sequence_gc_content == "FAIL") %>%
+  select(sample_name, low_count_sample, per_tile_sequence_quality, sequence_duplication_levels,
+         overrepresented_sequences) #%>%
+  #ggplot(aes(x=per_tile_sequence_quality, y=sequence_duplication_levels, color=low_count_sample)) + ggbeeswarm::geom_quasirandom()
+```
+
+Do the sequences flagged for GC content fail some of the other quality metrics?
+
+```{r}
+sample_annot %>% filter(low_count_sample==FALSE) %>% 
+  ggplot(aes(x=per_tile_sequence_quality, y=percent_overrepresented_sequences, color=per_sequence_gc_content)) +
+  ggbeeswarm::geom_quasirandom()
+```
+
+It looks like there's a slight correlation between percent GC content and present overrepresented sequences.
+
+How many additional samples would be if we excluded these 10 on top of the previously existing filters?
+
+```{r}
+sample_annot %>%
+  filter(low_count_sample != TRUE & too_high_overrepresented_sequences != TRUE & per_sequence_gc_content == "FAIL") %>%
+  select(sample_name, library_prep, per_tile_sequence_quality,
+         sequence_duplication_levels,high_dup_sample, too_high_overrepresented_sequences,
+         percent_overrepresented_sequences)
+```
+
+To reduce the risk of PCR artefacts and unusual contaminants, we will exclude samples that fail this module. This amounts to an additional three samples after the previously existing crtieria.
+
+# Correlation analysis on duplicate samples
+
+Several samples have duplicate runs. For those with duplicates, we want to ensure that the duplicates correlate better to each other than they do to random patients. If they do, we combine the replicates. If the correlation is poor, then discard the older of the two samples.
+
+This section was originally written by Evert Bodriesz and modified slightly by Kat Moore.
+
+```{r}
+duplicate_patients <-
+  sample_annot %>% 
+  group_by(patient_ref) %>%
+  summarise(N = n()) %>%
+  filter(N >= 2) %>%
+  pull(patient_ref)
+
+#duplicate_patients
+```
+
+
+```{r Get correlations}
+get_correlations_for_patient_samples <- function(pref, sannot = sample_annot){
+  stopifnot(pref %in% c(sannot$patient_ref, "random"))
+  if (pref %in% sannot$patient_ref) {
+    cors <- cor(
+      tx$counts[, filter(sannot, patient_ref %in% pref)$sample_id],
+      method = "spearman"
+      ) 
+  } else{
+    samples <- sample(sannot$sample_id, 2)
+    cors <- cor(tx$counts[, samples], method = "spearman")
+  }
+  cors[lower.tri(cors, diag = T)] <- NA
+  cors %>% 
+    as_tibble(rownames = "sample_1") %>% 
+    gather(sample_2, spearman, -sample_1) %>% 
+    filter(!is.na(spearman)) %>% 
+    mutate(patient_ref = pref) %>% 
+    select(patient_ref, sample_1, sample_2, spearman)
+}
+
+correlations <- 
+  purrr::map(duplicate_patients, get_correlations_for_patient_samples) %>% 
+  bind_rows()
+
+correlations %>% head()
+```
+
+Also look at random correlations as a point of comparison.
+We (correctly) suspect that low correlations between repeat sequencing runs from the same patient is due to one library size being much smaller than the other.
+
+```{r}
+correlations_random <- 
+  purrr::map(rep("random", 100), get_correlations_for_patient_samples) %>% 
+  bind_rows() 
+
+ggplot(
+  #Retrieve flags for first sample
+  left_join(bind_rows(correlations, correlations_random),
+            select(sample_annot, sample_1 = sample_id,
+                   #Potential color metrics
+                   lib.size, 
+                   #poor_mapping,
+                   low_count_sample,
+                   #high_dup_sample, too_high_overrepresented_sequences
+                   ),
+            by = "sample_1") %>%
+    #And again for second
+    left_join(.,
+            select(sample_annot, sample_2 = sample_id,
+                   #Potential color metrics
+                   lib.size, 
+                   low_count_sample, 
+                   #poor_mapping,
+                   #high_dup_sample, too_high_overrepresented_sequences
+                   ),
+            by = "sample_2") %>%
+    mutate(
+      low_count_samples = as.factor(low_count_sample.x + low_count_sample.y),
+      lib.size.ave = (lib.size.x + lib.size.y)/2
+    ),
+  aes(x = !(patient_ref == "random"), y = spearman,
+      color = low_count_samples,
+      #size = lib.size.ave
+      )) +
+  ggbeeswarm::geom_quasirandom() +
+  labs(title = "Correlation in readcounts (all samples)",
+       x = "Samples from same patient?",
+       y = "Spearman correlation between samples") #+
+  #geom_hline(yintercept = 0.9, color="red")
+```
+
+And if we eliminate those which don't fail one of the other flags?
+
+```{r}
+good_libs <- sample_annot %>%
+  filter(low_count_sample == F) %>%
+  filter(poor_mapping == F) %>%
+  filter(high_dup_sample == F) %>%
+  filter(too_high_overrepresented_sequences == F)
+
+dup_pref_good_lib <-
+  good_libs %>% 
+  group_by(patient_ref) %>%
+  summarise(N = n()) %>%
+  filter(N >= 2) %>%
+  pull(patient_ref)
+
+corrs_good_libs <- 
+  purrr::map(.x = dup_pref_good_lib,
+             sannot = good_libs,
+             get_correlations_for_patient_samples) %>% 
+  bind_rows()
+
+corrs_random_good_libs <- 
+  purrr::map(.x = rep("random", 100),
+             sannot = good_libs,
+             get_correlations_for_patient_samples) %>% 
+  bind_rows() 
+
+ggplot(
+  bind_rows(corrs_good_libs, corrs_random_good_libs),
+  aes(x = !(patient_ref == "random"), y = spearman)) +
+  ggbeeswarm::geom_quasirandom() +
+  labs(title = "Correlation in readcounts (no flags)",
+       x = "Samples from same patient?",
+       y = "Spearman correlation between samples") +
+  geom_hline(yintercept = 0.9, color = "red")
+
+```
+
+From this we can see that when the library prep otherwise goes well, most samples sequenced from the same patient have a correlation of above 0.9.
+Random patients are also correlated, but not quite as highly.
+
+Identify duplicate patients below the threshold of 0.9.
+
+```{r Low correlation patients}
+low_correlation_patients <- 
+  correlations %>% 
+  filter(patient_ref %in% pull(filter(correlations, spearman < 0.9), patient_ref)) %>% 
+  arrange(patient_ref)
+
+low_correlation_patients %>% pull(patient_ref) %>% unique()  
+```
+
+When the correlation is low, we identify the older of the two samples from the same patients and discard the old one. 
+The newer one will be kept.
+
+```{r Low correlation samples}
+low_correlation_samples <- 
+  sample_annot %>% 
+  filter(patient_ref %in% unique(pull(low_correlation_patients, patient_ref))) %>% 
+  filter(sample_ref == old_ref) %>% 
+  arrange(patient_ref) %>% 
+  pull(sample_id)
+
+print(paste("Total of",length(low_correlation_samples), "low correlation samples will be discarded."))
+```
+
+As we previously demonstrated, many were low count samples.
+
+```{r}
+sample_annot %>% filter(sample_id %in% low_correlation_samples) %>%
+  select(low_count_sample) %>% table()
+```
+
+Those which are not low count samples have warnings or failures for per title sequence quality.
+
+```{r}
+sample_annot %>%
+  filter(sample_id %in% low_correlation_samples) %>%
+  filter(low_count_sample == F) %>%
+  select(sample_id, patient_ref, study_group,
+         poor_mapping, per_tile_sequence_quality,
+         high_dup_sample, too_high_overrepresented_sequences)
+```
+
+Add duplicate and correlation status to sample annotation
+
+```{r}
+sample_annot = sample_annot %>%
+  mutate(
+    duplicate = sample_id %in% sample_annot$sample_id[duplicated(sample_annot$patient_ref)|duplicated(sample_annot$patient_ref, fromLast = T)]
+    )
+
+sample_annot = sample_annot %>%
+  mutate(low_correlation_sample = sample_id %in% low_correlation_samples)
+
+sample_annot %>% select(duplicate, low_correlation_sample) %>% table()
+```
+
+# Exclusion criteria
+
+* Library size above 10^6.7 (~5 million reads)
+* Less than 75% of reads mapped
+* Overrepresented sequences less than 5%
+* GC module flagged as FAIL
+* For duplicates, correlation less than 0.9
+
+Remove samples which fail one or more of these criteria.
+
+```{r}
+sample_annot_filtered = sample_annot %>%
+  filter(low_count_sample == FALSE &
+           poor_mapping == FALSE &
+           too_high_overrepresented_sequences == FALSE &
+           per_sequence_gc_content!="FAIL" & #Debatable
+           low_correlation_sample == FALSE)
+
+print(paste("Discarded", nrow(sample_annot) - nrow(sample_annot_filtered),
+            "samples out of", nrow(sample_annot), "during QC.",
+            nrow(sample_annot_filtered), "remaining."))
+
+sample_annot = sample_annot %>%
+  mutate(keep = sample_id %in% sample_annot_filtered$sample_id) %>%
+  select(sample_ref, patient_ref, keep, sample_id, everything()) %>%
+  arrange(patient_ref)
+```
+
+## Summary discarded samples
+
+Visualize the overlapping reasons samples may be discarded.
+
+```{r, fig.width = 10, fig.height= 6}
+discarded_samples = list("low count" = filter(sample_annot, low_count_sample == T)$sample_id,
+                         "poor mapping sample" = filter(sample_annot, poor_mapping == T)$sample_id,
+                         "overrepresented sequences" = filter(sample_annot, too_high_overrepresented_sequences == T)$sample_id,
+                         "gc content" = filter(sample_annot, per_sequence_gc_content == "FAIL")$sample_id,
+                         "low cor duplicate" = filter(sample_annot, low_correlation_sample == T)$sample_id
+                         )
+
+upset(fromList(discarded_samples), order.by = "freq")
+grid::grid.text("Samples discarded by reason",x = 0.65, y=0.95, gp=grid::gpar(fontsize=16))
+```
+
+```{r, include=F, fig.width = 10, fig.height= 6}
+pdf(here("data/metadata/02_QC_samples_discarded_by_reason.pdf"), onefile = F)
+upset(fromList(discarded_samples), order.by = "freq")
+grid::grid.text("Samples discarded by reason",x = 0.65, y=0.95, gp=grid::gpar(fontsize=16))
+dev.off()
+```
+
+```{r, fig.width = 10, fig.height= 6}
+discarded_patients = list("low count" = filter(sample_annot, low_count_sample == T)$patient_ref,
+                         "poor mapping sample" = filter(sample_annot, poor_mapping == T)$patient_ref,
+                         "overrepresented sequences" = filter(sample_annot, too_high_overrepresented_sequences == T)$patient_ref,
+                         "gc content" = filter(sample_annot, per_sequence_gc_content == "FAIL")$patient_ref,
+                         "low cor duplicate" = filter(sample_annot, low_correlation_sample == T)$patient_ref
+                         )
+
+upset(fromList(discarded_patients), order.by = "freq")
+grid::grid.text("Patients discarded by reason",x = 0.65, y=0.95, gp=grid::gpar(fontsize=16))
+```
+
+```{r, include = F, fig.width = 10, fig.height= 6}
+pdf(here("data/metadata/02_QC_patients_discarded_by_reason.pdf"), onefile = F)
+upset(fromList(discarded_patients), order.by = "freq")
+grid::grid.text("Patients discarded by reason",x = 0.65, y=0.95, gp=grid::gpar(fontsize=16))
+dev.off()
+```
+
+The most questionable decision here is whether to remove the samples which fail the per sequence GC content flag but aren't flagged for any other reason.
+
+Which samples are those?
+
+```{r}
+sample_annot %>%
+  filter(low_count_sample == FALSE &
+           poor_mapping == FALSE &
+           too_high_overrepresented_sequences == FALSE &
+           per_sequence_gc_content == "FAIL" & #Debatable
+           low_correlation_sample == FALSE) %>%
+  select(sample_id, sample_ref, patient_ref, sample_name,
+         study_group, library_prep,
+         lib.size:low_correlation_sample) %>%
+  pull(sample_name)
+```
+
+Find out whether there's an obvious issue with rRNA or other contaminents.
+
+```{r}
+or %>% filter(sample %in% c("prbc_243", "prbc_290", "prbc_291")) %>%
+  mutate(name=paste(">",1:n(),"-",sample,"-",round(as.numeric(Percentage),3),sep="")) %>% 
+  mutate(fa=paste(name,Sequence, sep="\n")) %>% pull(fa) %>%
+  readr::write_lines(path=here("results", "fastqc", "gc_or.fa"))
+
+#Blast via the web browser, save hit table as csv
+
+gc_blast = read_csv(here("results/fastqc/gc_or_Alignment-HitTable.csv"), col_names = F)
+process_blast_results(gc_blast) %>%
+  separate(id, into=c("rep", "sample_name", "percent"), sep = "-") %>%
+  mutate(percent = as.numeric(percent)) %>%
+  group_by(refseq_id, gene_name, sample_name) %>%
+  summarise(percent = sum(percent)) %>%
+  arrange(desc(percent)) %>% head(30)
+```
+
+This suggests that these samples were highly enriched for pseudogenes etc.
+Their exclusion is a conservative approach.
+
+The other samples were discarded for failing one of the QC criteria above.
+
+```{r}
+discarded_df <- sample_annot %>% filter(sample_id %in% setdiff(sample_annot$sample_id,
+                                                                    sample_annot_filtered$sample_id))
+
+discarded_df = discarded_df %>% select(sample_id, sample_name, patient_ref,
+                             low_count_sample, poor_mapping, too_high_overrepresented_sequences,
+                             low_correlation_sample, per_sequence_gc_content, everything())
+
+patients_discarded = setdiff(unique(discarded_df$patient_ref),unique(sample_annot_filtered$patient_ref))
+summary_discarded_samples=
+discarded_df %>% summarise(total_samples_discarded=nrow(discarded_df),
+                                total_patients_discarded=length(patients_discarded),
+                                total_low_count = sum(low_count_sample==T),
+                                total_poor_mapping = sum(poor_mapping ==T),
+                                total_high_overrep = sum(too_high_overrepresented_sequences==T),
+                                total_low_cor = sum(low_correlation_sample==T),
+                                total_gc_fail = sum(per_sequence_gc_content=="FAIL"))
+
+summary_discarded_samples = summary_discarded_samples %>% t() %>% as.data.frame() %>% rename(count=V1)
+
+summary_discarded_samples
+```
+
+Write discarded samples
+
+```{r}
+write_csv(discarded_df, path=here("data/metadata/02_discarded_samples.csv"))
+```
+
+## Summary retained samples
+
+Before filtering:
+
+```{r}
+sample_annot %>% select(study_group, molecular_subtype) %>% table()
+```
+
+After filtering:
+
+```{r}
+sample_annot_filtered %>% select(study_group, molecular_subtype) %>% table()
+```
+
+Difference:
+
+```{r}
+(sample_annot_filtered %>% select(study_group, molecular_subtype) %>% table() %>% as.matrix())-
+  (sample_annot %>% select(study_group, molecular_subtype) %>% table() %>% as.matrix())
+```
+
+Write new metadata:
+
+```{r}
+stopifnot(all(sample_annot_filtered$sample_id %in% filter(sample_annot, keep == T)$sample_id))
+write_csv(sample_annot_filtered, path = here("data/metadata/02_sample_annot_filtered.csv"))
+```
+
+# Filter count data and create dds
+
+```{r}
+subset_tximport <- function(txi, cols){
+  lapply(txi, function(x) if ( is.matrix(x) ) return(x[, cols]) else return(x))
+}
+
+tx_clean <- subset_tximport(tx, sample_annot_filtered$sample_id)
+```
+
+Save filtered count matrix
+
+```{r}
+saveRDS(tx_clean, file = here("data/Rds/02_tx_clean.Rds"))
+```
+
+Create dds and collapse technical replicates
+
+```{r}
+dds <- DESeqDataSetFromTximport(tx_clean, sample_annot_filtered, ~ molecular_subtype + study_group)
+dds <- collapseReplicates(dds, dds$sample_name)
+```
+
+```{r}
+dim(dds)
+```
+
+Write dds
+
+```{r}
+saveRDS(dds, file = here("data/Rds/02_QC_dds.Rds"))
+```
+
+
+## Molecular subtype PCA
+
+```{r}
+get_PCA <- function(dds, labelled_samples = NULL, color.group, shape.group){
+  
+  require(DESeq2)
+  require(tidyverse)
+  require(ggrepel)
+  
+  vsd = vst(dds, blind=FALSE)
+  
+  sampleDists <- dist(t(assay(vsd)))
+  
+  pcaData <- plotPCA(vsd, intgroup=c(color.group, shape.group), returnData=TRUE) #To do: Make intgroup variables
+  percentVar <- round(100 * attr(pcaData, "percentVar"))
+  
+  if (is.null(labelled_samples)==T){
+    ggplot(pcaData, aes(PC1, PC2, color=get(color.group), shape=get(shape.group))) +
+      geom_point(size=3) +
+      xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+      coord_fixed() + labs(color = color.group, shape = shape.group)
+  } else {
+    pcaData = pcaData %>% mutate(labels = if_else(name %in% labelled_samples, name, NULL))
+    ggplot(pcaData, aes(PC1, PC2, color=get(color.group), shape=get(shape.group), label=labels)) +
+      geom_point(size=3) +
+      xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+      coord_fixed() + ggrepel::geom_label_repel(size=4, show.legend = F) +
+      labs(color = color.group, shape = shape.group)
+  }
+
+}
+```
+
+```{r, fig.width=8, fig.height=6}
+get_PCA(dds, color.group = "molecular_subtype", shape.group = "study_group")
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+
+
+Save notebook data
+
+```{r}
+save.image(here("reports/02_QC_salmon.RData"))
+```
+
