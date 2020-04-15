@@ -1,0 +1,11 @@
+name: ppbc
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - salmon=0.14.2
+  - fastqc=0.11.9
+  - multiqc=1.8
+prefix: /home/k.moore/bin/anaconda3/envs/ppbc
+
