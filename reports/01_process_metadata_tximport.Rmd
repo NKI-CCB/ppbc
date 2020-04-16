@@ -587,6 +587,29 @@ head(sample_annot)
 stopifnot(length(unique(sample_annot$patient_ref))==length(unique(sample_annot$sample_name)))
 ```
 
+# Clean PPBC group names
+
+For when we prefer full words over acronyms (plotting).
+
+```{r}
+sample_annot = sample_annot %>%
+  mutate(PPBC = case_when(
+    study_group == "non_prbc" ~ "nulliparous",
+    study_group == "prbc" ~ "pregnant",
+    study_group == "ppbc_lac" ~ "lactating",
+    study_group == "ppbc_inv" ~ "involuting"
+  )) %>%
+  mutate(PPBC = factor(PPBC,
+                       levels = c(
+                          "nulliparous",
+                          "pregnant",
+                          "lactating",
+                          "involuting"
+                       ))) %>%
+  select(sample_id:study_group, PPBC, everything())
+
+
+```
 
 # Save the metadata.
 
@@ -596,6 +619,7 @@ Before we do that, let's remove the totally unnecessary status columns. They bot
 unique(sample_annot$Status...3)
 unique(sample_annot$Status...4)
 ```
+
 ```{r}
 sample_annot = sample_annot %>% select(-Status...3, -Status...4)
 ```
