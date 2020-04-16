@@ -16,7 +16,7 @@ rule fastqc:
         "environment.yml"         
     shell:
         """
-        ~/tools/FastQC/fastqc {input} -o results/fastqc/ -t {threads}
+        fastqc {input} -o results/fastqc/ -t {threads}
         """
 
 rule salmon_index:
@@ -56,17 +56,20 @@ rule multiqc:
     shell:
         """multiqc {input.fastqc} {input.salmon_quant} -o results -n multiqc_report.html --force"""
 
+#Rmarkdown files may only have a single output file in Snakemake.
+#We'll keep track of other files, but only the html report can be used as a rule target.
+
 rule process_metadata:
     input:
         raw_metadata="data/external/Hercoderingslijst_v09032020_KM.xlsx"
     output:
         report="reports/01_process_metadata_tximport.html",
-        multiple_patient_fastqs="data/metadata/01_patients_with_multiple_fastqs.csv",
-        excluded_samples="data/metadata/01_pre_excluded_samples.csv",
-        sample_annot="data/metadata/01_sample_annot.tsv",
-        gene_annot="data/metadata/01_tx_annot.tsv",
-        tx="data/Rds/01_tx.Rds",
-        rdata="reports/01_process_metadata_tximport.RData"
+        #multiple_patient_fastqs="data/metadata/01_patients_with_multiple_fastqs.csv",
+        #excluded_samples="data/metadata/01_pre_excluded_samples.csv",
+        #sample_annot="data/metadata/01_sample_annot.tsv",
+        #gene_annot="data/metadata/01_tx_annot.tsv",
+        #tx="data/Rds/01_tx.Rds",
+        #rdata="reports/01_process_metadata_tximport.RData"
     script:
         "reports/01_process_metadata_tximport.Rmd"
         
@@ -88,22 +91,39 @@ rule QC_salmon:
     output:
       "reports/02_QC_salmon.html",
       #Overrepresented fasta sequences aggregated in the report
-      "results/fastqc/overrepresented.fa",
-      "results/fastqc/failed_overrepresented.fa",
-      "results/fastqc/gc_or.fa",
+      #"results/fastqc/overrepresented.fa",
+      #"results/fastqc/failed_overrepresented.fa",
+      #"results/fastqc/gc_or.fa",
       #Upset plots
-      "data/metadata/02_QC_samples_discarded_by_reason.pdf",
-      "data/metadata/02_QC_patients_discarded_by_reason.pdf",
+      #"data/metadata/02_QC_samples_discarded_by_reason.pdf",
+      #"data/metadata/02_QC_patients_discarded_by_reason.pdf",
       #Kept vs discarded metadata
-      "data/metadata/02_discarded_samples.csv",
-      "data/metadata/02_sample_annot_filtered.csv",
+      #"data/metadata/02_discarded_samples.csv",
+      #"data/metadata/02_sample_annot_filtered.csv",
       #Txdata from only kept samples
-      "data/Rds/02_tx_clean.Rds",
+      #"data/Rds/02_tx_clean.Rds",
       #A dds from only kept samples, with replicates collapsed
-      "data/Rds/02_QC_dds.Rds",
-      "reports/02_QC_salmon.RData"
+      #"data/Rds/02_QC_dds.Rds",
+      #"reports/02_QC_salmon.RData"
     script:
       "reports/02_QC_salmon.Rmd"
+    
+    
+rule pam50_ihc:
+  input:
+    #A DESeqDataSet
+    dds="data/Rds/02_QC_dds.Rds"
+  output:
+    "reports/03_PAM50_IHC.html",
+    #"data/metadata/03_ihc_outliers.csv",
+    # Samples discarded due to clear incongruity
+    #"data/metadata/03_removed_pam50_outliers.csv",
+    # New dds post Pam50 determination
+    #"data/Rds/03_dds_PAM50.Rds",
+    # New metadata post PAM50 determination
+    #"data/metadata/03_sample_annot_filtered_PAM50.csv"
+  script:
+    "reports/03_PAM50_IHC.Rmd"
     
     
     
