@@ -46,6 +46,20 @@ meta_raw <- readxl::read_excel(new_metadata_path, sheet = "Recoding_Book_v090320
 ```{r}
 colnames(meta_raw)
 ```
+How many of these names changed since the previous version?
+
+```{r}
+meta_old = readxl::read_excel(here("data", "external", "Hecoderingslijst HL-FA_v29072019_KM.xlsx"))
+
+table(colnames(meta_raw) %in% colnames(meta_old))
+```
+Substantial changes between this version and the previous means we will need to carefully check the columns.
+
+```{r, include=F}
+rm(meta_old)
+```
+
+
 A glimpse at the data type shows us that `Ouderdom FFPE` and `extraction_date` should be a date but are being read as a character.
 
 ```{r}
