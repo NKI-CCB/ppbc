@@ -144,3 +144,11 @@ normTMMlog2 <- function(object){
   object = cpm(object, log=T, normalized.lib.sizes=T)
   return(object)
 }
+
+#Returns a factor with levels in the same order as they were supplied to case_when
+fct_case_when <- function(...) {
+  args <- as.list(match.call())
+  levels <- sapply(args[-1], function(f) f[[3]])  # extract RHS of formula
+  levels <- levels[!is.na(levels)]
+  factor(dplyr::case_when(...), levels=levels)
+}
