@@ -63,6 +63,20 @@ table(dds$molecular_subtype)
 table(dds$study_group, dds$molecular_subtype)
 ```
 
+Check for NAs in receptor status
+
+```{r}
+as.data.frame(colData(dds)) %>%
+  filter(is.na(HER2)|is.na(ER)|is.na(PR)) %>%
+  select(sample_name, ER, PR, HER2)
+```
+
+Hanne confirms that this sample is ER positive.
+
+```{r}
+dds$ER[is.na(dds$ER)] <- 1
+```
+
 Extract coldata for convenience
 
 ```{r}
@@ -116,11 +130,9 @@ head(vsub)
 Check for NAs in IHC status
 
 ```{r}
-vsub %>%
-  filter(is.na(HER2)|is.na(ER)|is.na(PR))
+stopifnot(nrow(filter(vsub, is.na(HER2)|is.na(ER)|is.na(PR)))==0)
 ```
 
-TODO: Check this sample with Hanne
 
 ## Overview receptor expression by study group
 
