@@ -12,11 +12,7 @@ for REPORT in `ls *.html`; do echo $REPORT; rclone sync -P $REPORT remote:ppbc/r
 
 #Metadata
 cd ~/mnt/postpartumbc/data/metadata
-rclone sync -P *.txt remote:ppbc/metadata
-rclone sync -P *.tsv remote:ppbc/metadata
-rclone sync -P *.csv remote:ppbc/metadata
-rclone sync -P *.pdf remote:ppbc/metadata
-rclone sync -P *.xlsx remote:ppbc/metadata
+for f in `ls | grep -E ".tsv|.csv|.txt|.pdf|.xlsx"`; do echo $f; rclone sync -P $f remote:ppbc/reports; done
 
 #Excel differential expression lists
 cd ~/mnt/postpartumbc/results/diffex
@@ -31,3 +27,4 @@ rclone sync -P survival remote:ppbc/results/survival
 
 cd ~/mnt/postpartumbc/results/flexgsea/deseq
 rclone sync -P *.xlsx remote:ppbc/results/flexgsea
+
