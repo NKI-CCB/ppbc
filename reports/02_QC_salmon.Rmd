@@ -966,6 +966,19 @@ dds <- collapseReplicates(dds, dds$sample_name)
 dim(dds)
 ```
 
+Convert characters to factors for a few groups.
+
+```{r}
+dds$PPBC = factor(dds$PPBC,
+                  levels = c(
+                    "nulliparous",
+                    "pregnant",
+                    "lactating",
+                    "involuting"
+                  ))
+```
+
+
 Write dds
 
 ```{r}
