@@ -1,0 +1,172 @@
+---
+title: "Color Palettes"
+date: "`r Sys.Date()`"
+author: "Kat Moore"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: tango
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=F}
+rm(list = ls())
+```
+
+```{r, include=F}
+library(tidyverse)
+library(here)
+library(RColorBrewer)
+library(DESeq2)
+```
+
+This notebook defines color palettes to be used consistently in plots throughout the pipeline.
+
+```{r}
+dds = readRDS(here("data/Rds/03_dds_PAM50.Rds"))
+```
+
+```{r}
+color_grid = function (colours, labels = T, names = T, borders = NULL, cex_label = 1)
+{
+  
+  #Adapted from scales' show_colors
+  #Visualizes colors chosen for each study group
+  
+  n <- length(colours)
+  ncol <- ceiling(sqrt(n))
+  nrow <- ceiling(n/ncol)
+  
+  #Also add option to plot group labels
+  colornames = c(names(colours), rep(NA, nrow * ncol - length(names(colours))))
+  colornames <- matrix(colornames, ncol = ncol, byrow = TRUE)
+  
+  #Original scales code
+  colours <- c(colours, rep(NA, nrow * ncol - length(colours)))
+  colours <- matrix(colours, ncol = ncol, byrow = TRUE)
+  
+  
+  old <- par(pty = "s", mar = c(0, 0, 0, 0))
+  on.exit(par(old))
+  size <- max(dim(colours))
+  plot(c(0, size), c(0, -size), type = "n", xlab = "", ylab = "",
+       axes = FALSE)
+  rect(col(colours) - 1, -row(colours) + 1, col(colours), -row(colours),
+       col = colours, border = borders)
+  
+  
+  
+  if (labels) {
+    text(col(colours) - 0.5, -row(colours) + 0.3, colours,
+         cex = cex_label)
+  }
+  
+  #Plot the group labels
+  if (names) {
+    text(col(colornames) - 0.5, -row(colornames) + 0.5, colornames,
+         cex = cex_label)
+  }
+}
+```
+
+# Define PPBC colors
+
+Hanne has indicated her preferred palette for study group.
+Demonstrate palette for both the encoded and non-encoded version.
+
+Encoded version:
+
+```{r}
+levels(dds$study_group)
+```
+
+Full version:
+
+```{r}
+levels(dds$PPBC)
+```
+
+```{r}
+study_colors = c(
+  ppbc_inv = "#46CDCF",
+  ppbc_lac = "#112D4E",
+  prbc = "#AA96DA",
+  non_prbc = "#521262",
+  rest = "#F73859"
+)
+color_grid(study_colors)
+
+ppbc_colors = c(
+  involuting = "#46CDCF",
+  lactating = "#112D4E",
+  pregnant = "#AA96DA",
+  nulliparous = "#521262",
+  rest = "#F73859"
+)
+
+color_grid(ppbc_colors)
+```
+
+#Define PAM50 colors
+
+```{r}
+levels(dds$PAM50)
+```
+
+```{r}
+pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(dds$PAM50)),"Paired"))(length(unique(dds$PAM50))))
+#names(pam_colors)= levels(dds$PAM50) #Change the order
+names(pam_colors) = c(
+  "Basal",
+  "Normal",
+  "LumA",
+  "LumB",
+  "Her2"
+)
+
+color_grid(pam_colors)
+```
+
+# Define gene biotype colors
+
+Reduce the possible types of genes down to those defined in deseq_report_functons::annotate_results()
+
+```{r}
+gene_types = c("other noncoding", "immune protein coding", "protein coding", "immunoglobulin", "T cell receptor")
+gene_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(gene_types)),"Dark2"))(length(unique(gene_types))))
+names(gene_colors) = gene_types
+color_grid(gene_colors)
+```
+
+# Tertile colors
+
+```{r}
+tertile_colors = colorRampPalette(brewer.pal(3,"YlOrRd"))(3)
+names(tertile_colors) = c("low", "medium", "high")
+color_grid(tertile_colors)
+```
+
+```{r}
+saveRDS(list(study_colors = study_colors,
+             ppbc_colors = ppbc_colors,
+             pam_colors = pam_colors,
+             gene_colors = gene_colors,
+             tertile_colors = tertile_colors
+             ),
+        here("data", "Rds", "color_palettes.Rds"))
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+
+
+
