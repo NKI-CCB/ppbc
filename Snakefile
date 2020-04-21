@@ -56,9 +56,6 @@ rule multiqc:
   shell:
     """multiqc {input.fastqc} {input.salmon_quant} -o results -n multiqc_report.html --force"""
 
-#Rmarkdown files may only have a single output file in Snakemake.
-#We'll keep track of other files, but only the html report can be used as a rule target.
-
 rule process_metadata:
   input:
     raw_metadata="data/external/Hercoderingslijst_v09032020_KM.xlsx",
@@ -73,9 +70,7 @@ rule process_metadata:
     tx="data/Rds/01_tx.Rds",
     rdata="reports/01_process_metadata_tximport.RData"
   shell:
-    #"mkdir -p reports\n"
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-  
 
 rule QC_salmon:
   input:
@@ -132,19 +127,33 @@ rule pam50_ihc:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
-kaplan_meiers = [
-  "drs_breastfeeding", "drs_months_inv", "drs_ppbc",
-  "km_breastfeeding", "km_months_inv", "km_ppbc",
-  "drs_immune_score", "drs_pam50", "drs_stromal_score",
-  "km_immune_score", "km_pam50", "km_stromal_score"
-  ]
+rule color_palettes:
+  input:
+    rmd="reports/color_palettes.Rmd",
+    script="src/rmarkdown.R",
+    dds="data/Rds/03_dds_PAM50.Rds"
+  output:
+    html="reports/color_palettes.html",
+    color_palettes="data/Rds/color_palettes.Rds"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+#We originally had a list of kms, but now they're bundled into one pdf
+#kaplan_meiers = [
+#  "drs_breastfeeding", "drs_months_inv", "drs_ppbc",
+#  "km_breastfeeding", "km_months_inv", "km_ppbc",
+#  "drs_immune_score", "drs_pam50", "drs_stromal_score",
+#  "km_immune_score", "km_pam50", "km_stromal_score",
+#  "os_ppbc_adjusted"
+#  ]
 
 rule surv_est:
   input:
     script="src/rmarkdown.R",
     rmd="reports/04_survival_and_ESTIMATE.Rmd",
     dds="data/Rds/03_dds_PAM50.Rds",
-    tx_annot="data/metadata/01_tx_annot.tsv"
+    tx_annot="data/metadata/01_tx_annot.tsv",
+    color_palette="data/Rds/color_palettes.Rds"
   output:
     #Files from ESTIMATE
     "data/RNA-seq/hugo_fpkm.txt",
@@ -156,18 +165,15 @@ rule surv_est:
     "data/metadata/04_samples_excluded_survival.xlsx",
     #Samples x features matrix for Cox regressions
     "data/Rds/04_survdata.Rds",
-    expand("results/survival/04_{km}.pdf", km=kaplan_meiers),
-    #"results/survival/04_km_ppbc.pdf"
-    #"results/survival/04_km_pam50.pdf"
-    #"results/survival/04_km_immune_score.pdf"
-    #"results/survival/04_km_stromal_score.pdf"
-    #"results/survival/04_drs_ppbc.pdf"
-    #"results/survival/04_drs_immune_score.pdf"
-    #"results/survival/04_drs_stromal_score.pdf"
-    #"results/survival/04_km_months_inv.pdf"
-    #"results/survival/04_km_breastfeeding.pdf"
-    #"results/survival/04_drs_months_inv.pdf"
-    #"results/survival/04_drs_breastfeeding.pdf"
+    #Kaplan-meier survival curves
+    "results/survival/04_kaplan_meiers.pdf",
+    #expand("results/survival/04_{km}.pdf", km=kaplan_meiers),
+    #Updated colData for dds
+    "data/metadata/04_sample_annot_filtered_PAM50_EST.csv",
+    #Updated dds
+    "data/Rds/04_dds_PAM50_EST.Rds",
+    #Notebook environment
+    "reports/04_survival_and_ESTIMATE.RData",
     html="reports/04_survival_and_ESTIMATE.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
