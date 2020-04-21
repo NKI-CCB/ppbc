@@ -157,10 +157,10 @@ rule surv_est:
   output:
     #Files from ESTIMATE
     "data/RNA-seq/hugo_fpkm.txt",
-    "results/ESTIMATE/filterCommonGenes.gct"
-    "results/ESTIMATE/results_estimate_score.gct"
+    "results/ESTIMATE/filterCommonGenes.gct",
+    "results/ESTIMATE/results_estimate_score.gct",
     #Survival metadata
-    "data/metadata/04_samples_with_missing_survival_data.csv"
+    "data/metadata/04_samples_with_missing_survival_data.csv",
     "data/metadata/04_survival_metadata.csv",
     "data/metadata/04_samples_excluded_survival.xlsx",
     #Samples x features matrix for Cox regressions

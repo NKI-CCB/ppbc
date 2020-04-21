@@ -206,7 +206,7 @@ It requires writing a file instead of returning an object within the R environme
 dir.create(here("results","ESTIMATE"), showWarnings = F)
 
 filterCommonGenes(input.f=here("data","RNA-seq","hugo_fpkm.txt"),
-                  output.f = here("results","ESTIMATE","filterCommonGenes.gct"), id="GeneSymbol")
+                  output.f = here("results/ESTIMATE/filterCommonGenes.gct"), id="GeneSymbol")
 ```
 
 The next function computes stromal, immune, and ESTIMATE scores per sample using gene expression data. It also insists on writing files.
@@ -455,7 +455,7 @@ Save metadata
 
 ```{r}
 write_csv(metadata,
-          path = here("data", "metadata", "04_survival_metadata.csv"))
+          path = here("data/metadata/04_survival_metadata.csv"))
 ```
 
 Overview excluded samples:
