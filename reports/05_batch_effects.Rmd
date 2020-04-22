@@ -1,0 +1,724 @@
+---
+title: "Batch effects in ppbc"
+author: Kat Moore and Tycho Bismeijer
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: tango
+    df_print: paged
+---
+
+
+```{r, include=F}
+rm(list = ls())
+```
+
+In this notebook we examine and visualize the presence of a batch effect within the PPBC dataset.
+Additional elements within the design formula are assessed for association with principal components and for colinearity.
+
+Based off the notebook imagene-batch-effects.Rmd by Tycho Bismeijer. 
+Adapted for the post-partum breast cancer project (ppbc).
+
+```{r, include=F}
+library(here)
+library(openxlsx)
+library(DESeq2)
+library(tidyverse)
+library(RColorBrewer)
+library(scales) #For shape_pal
+library(corrplot)
+```
+
+# Load data
+
+```{r Load data}
+#Count matrix post QC, with PAM50 and tumor purity determined, and replicates collapsed
+dds <- readRDS(file=here("data/Rds/04_dds_PAM50_EST.Rds"))
+
+#Load gene annotation (Ensembl -> Gene name)
+gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+```
+
+Select only gene-level information
+
+```{r}
+gx_annot <- gx_annot %>%
+  select(gene_name, gene_description, gene_id) %>%
+  distinct()
+```
+
+Save separate df for sample metadata, including country
+
+```{r}
+sd = as.data.frame(colData(dds))
+```
+
+Color palettes:
+
+```{r}
+cp = readRDS(here("data/Rds/color_palettes.Rds"))
+```
+
+# Collapse small batches
+
+Distribution of samples over batches.
+
+```{r}
+sd %>%
+  group_by(library_prep) %>%
+  summarise(n=n())
+```
+
+Very small batches are going to cause problems in differential expression later on if batch is used as part of the design formula.
+To handle this, we combine batches to ensure that they are at least 10 samples in size.
+
+```{r}
+sd = sd %>% mutate(batch = str_replace_all(
+  library_prep, "&", "en"
+))
+
+sd = sd %>%  mutate(batch = dplyr::case_when(
+  batch %in% c("2.0 en 5.0", "2.0") ~ "5.0",
+  batch == "1.0 en 5.0" ~ "5.0",
+  batch %in% c("7.0", "6.0 en 7.0") ~ "7.0",
+  TRUE ~ library_prep))
+
+sd$batch = as.factor(sd$batch)
+
+```
+
+New distribution of samples by batch:
+
+```{r}
+sd %>%
+  group_by(batch) %>%
+  summarise(n=n())
+```
+
+
+# Normalize count data
+
+Using a variance stabilizing transformation that is fully blind to experimental design.
+
+```{r}
+blind_vst = function(dds){
+  design(dds) = formula(~ 1)
+  vsd = vst(dds, blind=T)
+  mat = assay(vsd)
+  return(mat)
+}
+```
+
+```{r}
+normcounts <- blind_vst(dds)
+normcounts[1:4,1:4]
+```
+
+# Calculate PCA
+
+Minimum expression filter: the sum of all counts must exceed the number of genes. This is true in all samples
+
+```{r calc-pca}
+table(colSums(normcounts) > nrow(normcounts))
+nc.pca <- prcomp(t(normcounts[,colSums(normcounts) > nrow(normcounts)]))
+```
+
+## Scree plot
+
+```{r}
+scree_plot = function(res_prcomp, n_pca=20, returnData = F){
+  
+  require(tidyverse)
+  
+  percentVar <- res_prcomp$sdev^2/sum(res_prcomp$sdev^2) * 100
+  names(percentVar) = paste0("PC", seq(1, length(percentVar)))
+  percentVar = enframe(percentVar, "PC", "variance")
+  
+  percentVar$PC=factor(percentVar$PC, levels=percentVar$PC)
+  if(returnData){return(percentVar)}
+  percentVar %>%
+    slice(1:n_pca) %>%
+    ggplot(aes(x=PC, y=variance)) +
+    geom_bar(stat="identity") +
+    ggtitle("Scree plot") +
+    ylab("Percent total variance") +
+    theme_bw()
+  
+}
+```
+
+```{r}
+percVar = scree_plot(nc.pca, returnData = T)
+head(percVar)
+```
+
+```{r}
+scree_plot(nc.pca)
+```
+
+```{r, include=F}
+resdir = here("results", "PCA")
+dir.create(resdir, showWarnings = F)
+ggsave(filename = file.path(resdir, "05_scree.pdf"),
+       device="pdf", width = 8, height = 6)
+```
+
+And put first 10 components into a data frame with sample annotations.
+
+```{r pca-data-frame}
+pca.df <- as.data.frame(nc.pca$x[, 1:100])
+pca.df$sample_name <- rownames(nc.pca$x)
+pca.df <- inner_join(pca.df, sd, by='sample_name')
+pca.df = pca.df %>% select(sample_name, batch, everything())
+head(pca.df)
+```
+
+Check we didn't lose samples.
+
+```{r}
+stopifnot(nrow(pca.df) == nrow(t(normcounts)))
+```
+
+## PCA library prep and country
+
+Belgian samples are spread throughout all batches, but the rest belong mostly to one batch.
+Batch 4 = Italy
+Batch 6 = Germany
+Batches 7 and 8 = NL and Canada
+
+```{r}
+table(sd$batch, sd$country)
+```
+
+Function to easily add % var to PCA plots:
+
+```{r}
+get_var <- function(PC){
+  p = percVar[percVar$PC == PC, ]$variance
+  paste0(round(p, 1), "%")
+}
+
+get_var("PC1")
+```
+
+```{r}
+gg_pca <- function(pca.df, x.pc, y.pc,
+                   color.var, shape.var=NULL,
+                   palette = "Set1", title=""){
+  
+  ncolors <- length(unique(pca.df[,color.var]))
+  
+  if(is.null(shape.var)){
+    ggplot(pca.df, aes(x=get(x.pc), y=get(y.pc),
+                       color=get(color.var))) +
+      geom_point()  + 
+      scale_color_manual(values = colorRampPalette(brewer.pal(8, palette))(ncolors)) +
+      ggtitle(title) +
+      theme_bw() +
+      xlab(paste0(x.pc, ": ", get_var(x.pc))) +
+      ylab(paste(y.pc, ": ", get_var(y.pc))) +
+      labs(color = color.var)
+  } else {
+    ggplot(pca.df, aes(x=get(x.pc), y=get(y.pc),
+                       color=get(color.var),
+                       shape=get(shape.var))) +
+      geom_point()  + 
+      scale_color_manual(values = colorRampPalette(brewer.pal(8, palette))(ncolors)) +
+      ggtitle(title) +
+      theme_bw() +
+      xlab(paste0(x.pc, ": ", get_var(x.pc))) +
+      ylab(paste(y.pc, ": ", get_var(y.pc))) +
+      labs(color = color.var, shape = shape.var)
+  }
+}  
+
+```
+
+First 6 PCAs by shape and country.
+No obvious clustering by batch until PCs 5 and 6.
+
+```{r}
+gg_pca(pca.df, "PC1", "PC2",
+       color.var = "batch", shape.var = "country",
+       title = "PCA by batch and country")
+
+gg_pca(pca.df, "PC3", "PC4",
+       color.var = "batch", shape.var = "country",
+       title = "PCA by batch and country")
+
+gg_pca(pca.df, "PC5", "PC6",
+       color.var = "batch", shape.var = "country",
+       title = "PCA by batch and country")
+```
+
+By contrast, this is what study group and molecular subtype looks like.
+Note that it's a bit different than the PCA we produced in earlier notebooks, because the DESeq wrapper for PCA only plots the top 500 genes with the highest row variance.
+Here we're looking at all genes.
+
+```{r}
+gg_pca(pca.df, "PC1", "PC2",
+       color.var = "PAM50", shape.var = "PPBC",
+       title = "PCA by PAM50 and PPBC") +
+  scale_color_manual(values = cp$pam_colors)
+```
+
+```{r}
+gg_pca(pca.df, "PC1", "PC2",
+       shape.var = "PAM50", color.var = "PPBC",
+       title = "PCA by PAM50 and PPBC") +
+  scale_color_manual(values = cp$ppbc_colors)
+```
+
+# Kruskal-Wallis genewise significance test by batch
+
+We use the Kruskal-Wallis Ranked Sum Test.
+
+```{r kw-test}
+batch <- sd[match(colnames(normcounts), sd$sample_name),]$batch
+
+res <- apply(normcounts, 1, function (x) {kruskal.test(x, batch)})
+```
+
+This test will give us genes that are signfiicantly differentially expressed in at least one batch vs the rest.
+
+```{r kw-df}
+kw.tests <- tibble(
+    gene = rownames(normcounts),
+    nom.p = map_dbl(res, 'p.value'),
+    kw.stat = map_dbl(res, 'statistic'),
+    df = map_dbl(res, 'parameter'))
+#kw.tests <- kw.tests[colSums(gexp.counts) > nrow(gexp.counts), ]
+kw.tests <- mutate(kw.tests,
+    fdr = p.adjust(nom.p, 'BH'),
+    p = p.adjust(nom.p, 'bonferroni'))
+
+kw.tests = kw.tests %>% arrange(p)
+
+head(kw.tests)
+```
+
+## Histogram significant genes by batch
+
+```{r plot-kw-p}
+hist(kw.tests$fdr,
+     main=paste("FDR histogram of Gene Expresion ~ Batch,", nrow(kw.tests), "total genes"),
+     xlab="fdr of Kruskal-Wallis Test")
+```
+
+```{r}
+print(paste("Sig genes: ", kw.tests %>% filter(fdr < 0.05) %>%
+  nrow()))
+```
+
+
+Extract the top most significant genes in the batch analysis.
+
+```{r show-top-kw-diff}
+top.tests <- slice(arrange(kw.tests, nom.p), 1:20)
+top.tests <- left_join(top.tests, gx_annot, by = c("gene"="gene_id")) %>% filter(duplicated(gene_name)==F)
+
+head(top.tests, 10)
+```
+
+Make box plots of the top 10.
+
+```{r boxplot-top-kw-diff, fig.height=8, fig.width=5}
+par(mfrow=c(5,2))
+par(mar=c(2,2,2,2))
+for (gene.name in top.tests$gene[1:10]) {
+  boxplot(t(normcounts)[, gene.name] ~ batch, main=gene.name)
+}
+```
+
+It's interesting that the top 10 genes all seem to hold the same S-form shape. 
+This does not appear to be due to smaller lib sizes in the first few batches.
+
+```{r}
+sd %>% ggplot(aes(x=batch, y = lib.size)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  theme_bw() +
+  ggtitle("Library size distribution by batch")
+```
+
+Which genes are these?
+
+```{r}
+top.tests$gene_name[1:10]
+```
+
+# PCs associated with batch
+
+Testing the first 100 principal components for significance by library prep batch.
+
+```{r kw-test-pca, cache=T}
+rp <- list()
+for (pc in paste0('PC', 1:100)) {
+    rp[[pc]] <- kruskal.test(pca.df[[pc]], as.factor(pca.df$batch))
+} 
+
+```
+
+Extract significant hits
+
+```{r}
+PC_batch = lapply(rp, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
+  mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
+  filter(fdr < 0.05) %>% arrange(fdr)
+
+print(paste("There are", nrow(PC_batch), "principal components significantly associated with library batch."))
+
+print(paste("These are:", paste(sort(PC_batch$PC), collapse = ", ")))
+```
+
+```{r}
+print(paste("Percent total variance represented:",
+            round(sum(percVar[percVar$PC %in% PC_batch$PC, "variance"]), 2)))
+```
+
+## Box plots significant PCs by batch
+
+Keep it to the top 10
+
+```{r boxplot-top-pca-diff, fig.height=8, fig.width=5}
+par(mfrow=c(5,2),
+    mar=c(2,2,2,2))
+for (i in 1:10){
+  boxplot(get(PC_batch$PC[i]) ~ batch, data=pca.df, main=PC_batch$PC[i])
+}
+```
+
+## PCA batch plot
+
+Plot the top PCs associated with batch
+
+```{r}
+gg_pca(pca.df, "PC5", "PC6",
+       color.var = "batch",
+       title = "PCs significantly associated with batch")
+```
+
+```{r, include=F}
+ggsave(filename=file.path(resdir, "05_sigPCA_batch.pdf"),
+       device="pdf", width=8, height=5)
+```
+
+Compare with PCAs 1 and 2 for batch.
+
+```{r}
+gg_pca(pca.df, "PC1", "PC2",
+       color.var = "batch",
+       title = "PCA by batch")
+```
+
+```{r, include=F}
+ggsave(filename=file.path(resdir, "05_firstPCA_batch.pdf"),
+       device="pdf", width=8, height=5)
+```
+
+# PCs associated with PPBC
+
+```{r}
+sp <- list()
+
+for (pc in paste0('PC', 1:100)) {
+    sp[[pc]] <- kruskal.test(pca.df[[pc]], as.factor(pca.df$PPBC))
+} 
+
+PC_ppbc = lapply(sp, function(x) x$p.value) %>%
+  unlist() %>%
+  enframe("PC", "nom.p") %>%
+  mutate(bonferroni=p.adjust(nom.p, "bonferroni"),
+         fdr = p.adjust(nom.p, "BH")) %>%
+  filter(fdr < 0.05) %>% arrange(fdr)
+
+print(paste("There are",
+            nrow(PC_ppbc),
+            "principal components significantly associated with PPBC."))
+
+print(paste("These are:", paste(sort(PC_ppbc$PC), collapse = ", ")))
+```
+
+```{r}
+print(paste("Percent variance represented:",
+            round(sum(percVar[percVar$PC %in% PC_ppbc$PC, "variance"]), 2)))
+```
+
+## Box plots significant PCs by study group
+
+```{r, fig.height=8, fig.width=6}
+par(mfrow=c(2,1))
+for (i in 1:nrow(PC_ppbc)){
+  boxplot(get(PC_ppbc$PC[i]) ~ PPBC, data=pca.df, main=PC_ppbc$PC[i])
+}
+```
+
+## PCA study group plot
+
+Only two principle components significantly associated with study group.
+Although they are significant, no obvious pattern is visible
+
+```{r}
+gg_pca(pca.df, "PC10", "PC13",
+       color.var = "PPBC", shape.var="PPBC",
+       title = "PCs significantly associated with PPBC") +
+  scale_color_manual(values=cp$ppbc_colors)
+```
+
+```{r, include=F}
+ggsave(filename=file.path(resdir, "05_sigPCA_PPBC.pdf"),
+       device="pdf", width=8, height=5)
+```
+
+Compare with PCAs 1 and 2 for PPBC.
+
+```{r}
+gg_pca(pca.df, "PC1", "PC2",
+       color.var = "PPBC",
+       title = "PCA by PPBC") +
+  scale_color_manual(values=cp$ppbc_colors)
+```
+
+```{r, include=F}
+ggsave(filename=file.path(resdir, "05_firstPCA_PPBC.pdf"),
+       device="pdf", width=8, height=5)
+```
+
+
+## Without the lac group
+
+Based on downtstream analysis, it appears that the lac group may be over-contributing. 
+Can we still find PCs associated with study group when lac is removed?
+
+```{r, no lac PCA}
+#Remove lac samples from dds
+dds.nolac = dds[,colnames(dds)[colData(dds)$study_group != "ppbc_lac"]]
+dds.nolac$study_group = droplevels(dds.nolac$study_group)
+#table(dds.nolac$study_group)
+
+#VST
+normcounts.nolac <- blind_vst(dds.nolac)
+
+#Calculate PCs
+nc.pca.nolac <- prcomp(t(normcounts.nolac[,colSums(normcounts.nolac) > nrow(normcounts.nolac)]))
+pca.df.nl <- as.data.frame(nc.pca.nolac$x[, 1:100])
+pca.df.nl$sample_name <- rownames(nc.pca.nolac$x)
+pca.df.nl <- inner_join(pca.df.nl, sd, by='sample_name')
+pca.df.nl = pca.df.nl %>% select(sample_name, batch, everything())
+#head(pca.df.nl)
+```
+
+If we do this, only PC13 remains significant.
+
+```{r}
+nl <- list()
+
+for (pc in paste0('PC', 1:100)) {
+    nl[[pc]] <- kruskal.test(pca.df.nl[[pc]], as.factor(pca.df.nl$study_group))
+} 
+
+
+PC_study_nolac = lapply(nl, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
+  mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
+  filter(fdr < 0.05) %>% arrange(fdr)
+
+print(paste("There are", nrow(PC_study_nolac), "principal components significantly associated with study group."))
+
+print(paste("These are:", paste(sort(PC_study_nolac$PC), collapse = ", ")))
+```
+
+# KW PC by PAM50
+
+Should be very strong given the obvious patterns on PC1 and 2.
+
+```{r}
+pm <- list()
+for (pc in paste0('PC', 1:100)) {
+    pm[[pc]] <- kruskal.test(pca.df[[pc]], as.factor(pca.df$PAM50))
+} 
+
+
+PC_pam = lapply(pm, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
+  mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
+  filter(fdr < 0.05) %>% arrange(fdr)
+
+print(paste("There are", nrow(PC_pam), "principal components significantly associated with PAM50."))
+
+print(paste("These are:", paste(sort(PC_pam$PC), collapse = ", ")))
+```
+
+```{r}
+print(paste("Percent variance represented:", round(sum(percVar[percVar$PC %in% PC_pam$PC, "variance"]), 2)))
+```
+
+## PCA PAM50 plot
+
+The top 2 PCAs associated with PAM50 are PC1 and 2, so the "significant" plot is the same as the "first PCs" plot.
+
+```{r}
+gg_pca(pca.df, "PC1", "PC2",
+       color.var = "PAM50",
+       title = "PCs significantly associated with Pam50") +
+  scale_color_manual(values=cp$pam_colors)
+```
+
+```{r, include=F}
+ggsave(filename=file.path(resdir, "05_sigPCA_Pam50.pdf"),
+       device="pdf", width=8, height=5)
+```
+
+# KW PC by tumor purity
+
+The lack of significantly associated PCs validates our decision to exclude this element from the design formula.
+
+```{r}
+tp <- list()
+for (pc in paste0('PC', 1:100)) {
+  tp[[pc]] <- wilcox.test(pca.df[[pc]], pca.df$tumor_purity)
+} 
+
+PC_tp = 
+lapply(tp, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
+  mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
+  arrange(fdr)
+
+print(paste("There are", nrow(filter(PC_tp, fdr < 0.05)),
+            "principal components significantly associated with tumor purity."))
+
+print(paste("These are:", paste(sort(filter(PC_tp, fdr < 0.05)$PC), collapse = ", ")))
+```
+
+# Correlation between variables
+
+```{r}
+corvars = t(combn(c("batch", "PAM50", "study_group"), 2))
+corvars
+```
+
+Pearson correlation is inappropriate because these are not two normally distributed continuous variables.
+
+```{r}
+for (i in 1:nrow(corvars)){
+  thisx = corvars[i,1]
+  thisy = corvars[i,2]
+  thiscor = round(cor(as.numeric(sd[,thisx]), as.numeric(sd[,thisy]), method = "spearman"), 3)
+  print(paste("Spearman between", thisx, "and", thisy, ":", thiscor))
+}
+```
+
+Choice between spearman and kendall is largely irrelevant.
+
+```{r}
+for (i in 1:nrow(corvars)){
+  thisx = corvars[i,1]
+  thisy = corvars[i,2]
+  thiscor = round(cor(as.numeric(sd[,thisx]), as.numeric(sd[,thisy]), method = "kendall"), 3)
+  print(paste("Kendall between", thisx, "and", thisy, ":", thiscor))
+}
+```
+
+# Chi Square test for independence
+
+Arguably more appropriate than either of the correlation methods for categorical variables.
+
+Also look at [Cramer's V](https://en.wikipedia.org/wiki/Cram%C3%A9r%27s_V), a measure of association between two nominal variables, giving a value between 0 and +1 (inclusive). 
+(The smaller v, the lower the correlation) 
+See also [this explanation](https://datascience.stackexchange.com/questions/893/how-to-get-correlation-between-two-categorical-variable-and-a-categorical-variab).
+
+Regenerate combinations of categorical variables only.
+
+```{r}
+corvars_cat = t(combn(c("batch", "PAM50", "study_group"), 2))
+corvars_cat
+```
+
+```{r}
+for (i in 1:nrow(corvars_cat)){
+  thisx = corvars_cat[i,1]
+  thisy = corvars_cat[i,2]
+  tbl = table(sd[,thisx], sd[,thisy])
+  chires =chisq.test(sd[,thisx], sd[,thisy], simulate.p.value = T)
+  v = sqrt(chires$statistic / sum(tbl))
+  print(paste("ChiSq pval between", thisx, "and", thisy, ":", round(chires$p.value, 4), ", V:", round(v,2)))
+  
+}
+```
+
+## Correlation plots
+
+See also [this example](http://www.sthda.com/english/wiki/chi-square-test-of-independence-in-r) for making correlation plots from chisq results.
+
+**Positive residuals** are in blue. 
+Positive values in cells specify an attraction (positive association) between the corresponding row and column variables.
+
+**Negative residuals** are in red. 
+This implies a repulsion (negative association) between the corresponding row and column variables.
+
+
+```{r}
+for (i in 1:nrow(corvars_cat)){
+  thisx = corvars_cat[i,1]
+  thisy = corvars_cat[i,2]
+  tbl = table(sd[,thisx], sd[,thisy])
+  chires =chisq.test(sd[,thisx], sd[,thisy], simulate.p.value = T)
+  corrplot::corrplot(chires$residuals, is.corr=F, cl.cex = 1.5,
+                     cl.align.text = "l"
+                     )
+}
+```
+
+We can alternatively visualize this as a traditional heatmap:
+
+```{r}
+library(pheatmap)
+as.matrix(table(sd$batch, sd$PPBC)) %>%
+  pheatmap(cluster_rows = F, cluster_cols = F, display_numbers = T,
+           number_format = "%i", fontsize_number = 12)
+```
+
+```{r}
+as.matrix(table(sd$PAM50, sd$PPBC)) %>%
+  pheatmap(cluster_rows = F, cluster_cols = F, display_numbers = T,
+           number_format = "%i", fontsize_number = 12)
+```
+
+# Conclusion
+
+The overall amount of variance associated with the principal components is relatively low (~9% for PC1). 
+However, around 12K/60K genes are significant in a kruskal-wallis test of gene expression vs batch. 
+16 out of the first 100 principal components are significantly associated with batch. 
+This suggests that include batch in the design formula for differential expression analysis is prudent.
+
+More problematically, only 2 PCs are associated with study group. 
+A chisquare analysis indicates a strong association between batch and study group.
+This makes the inclusion of batch in the design formula less effective as a compensation mechanism.
+However, extensive experimentation with alternate design formulas shows that excluding batch from the design does not improve the outcome.
+See notebook 17 in 6 April 2020 commit: 524ee07dc463359ed4566817bef927694bd4daba.
+
+As predicted, PAM50 is strongly associated with most of the first 10 principal components.
+However, tumor purity is not associated with any of the first 100 PCs.
+This suggests that it will yield little additional benefit if included in the design formula, and may in fact over-complicate the design.
+
+```{r}
+stopifnot(identical(sd$sample_name, dds$sample_name))
+dds$batch = sd$batch
+
+design(dds) <- formula(~ batch + PAM50 + study_group)
+```
+
+# Write data
+
+```{r}
+write.csv(as.data.frame(colData(dds)),
+          file=here("data","metadata", "05_sample_annot_filtered.csv"), row.names = F)
+
+saveRDS(dds, file=here("data","Rds","05_dds_PAM50_batch.Rds"))
+```
+
+```{r}
+save.image(here("reports/05_batch_effects.RData"))
+```
+
