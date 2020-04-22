@@ -1,8 +1,16 @@
 configfile: "config.yaml"
 
+#### Conda and Snakemake ####
+#To activate conda environment, use: conda env create -f envs/environment.yml
+#If environment.yml has been updated, update the environment with: conda env update --prefix ./envs --file environment.yml  --prune
+#Save environment to text with: conda env export > envs/environment.yml
+#For condensed version: conda env export --from-history
+#To use a conda envinroment with snakemake: snakemake -n --use-conda
+#To create the environments without running any rules: snakemake -n --use-conda --create-envs-only
+
 rule all:
   input:
-    "reports/04_survival_and_ESTIMATE.html"
+    "dag.svg"
   #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
 
 rule fastqc:
@@ -13,7 +21,7 @@ rule fastqc:
     zip = "results/fastqc/{sample}_fastqc.zip"
   threads: 5
   conda:
-    "environment.yml"         
+    "envs/environment.yml"         
   shell:
         """
         fastqc {input} -o results/fastqc/ -t {threads}
@@ -26,7 +34,7 @@ rule salmon_index:
     #directory("data/external/index/grch38_index")
     "data/external/index/grch38_index/hash.bin"
   conda:
-    "environment.yml"        
+    "envs/environment.yml"        
   shell:
     "bash {input}"
 
@@ -39,7 +47,7 @@ rule salmon_quant:
     index = "data/external/index/grch38_index",
     outdir = "data/RNA-seq/salmon/{sample}"
   conda:
-    "environment.yml"     
+    "envs/environment.yml"     
   shell:
     """
     bash {input}
@@ -52,7 +60,7 @@ rule multiqc:
   output:
     "reports/multiqc_report.html"
   conda:
-    "environment.yml"             
+    "envs/environment.yml"             
   shell:
     """multiqc {input.fastqc} {input.salmon_quant} -o results -n multiqc_report.html --force"""
 
@@ -138,15 +146,6 @@ rule color_palettes:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
-#We originally had a list of kms, but now they're bundled into one pdf
-#kaplan_meiers = [
-#  "drs_breastfeeding", "drs_months_inv", "drs_ppbc",
-#  "km_breastfeeding", "km_months_inv", "km_ppbc",
-#  "drs_immune_score", "drs_pam50", "drs_stromal_score",
-#  "km_immune_score", "km_pam50", "km_stromal_score",
-#  "os_ppbc_adjusted"
-#  ]
-
 rule surv_est:
   input:
     script="src/rmarkdown.R",
@@ -167,7 +166,6 @@ rule surv_est:
     "data/Rds/04_survdata.Rds",
     #Kaplan-meier survival curves
     "results/survival/04_kaplan_meiers.pdf",
-    #expand("results/survival/04_{km}.pdf", km=kaplan_meiers),
     #Updated colData for dds
     "data/metadata/04_sample_annot_filtered_PAM50_EST.csv",
     #Updated dds
@@ -177,3 +175,32 @@ rule surv_est:
     html="reports/04_survival_and_ESTIMATE.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+pca_pdfs = [
+  "scree", "sigPCA_batch", "firstPCA_batch",
+  "sigPCA_PPBC", "firstPCA_PPBC", "sigPCA_Pam50"
+]
+    
+rule batch_effects:
+  input:
+    script="src/rmarkdown.R",
+    rmd="reports/05_batch_effects.Rmd",
+    dds="data/Rds/04_dds_PAM50_EST.Rds",
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    cp="data/Rds/color_palettes.Rds"
+  output:
+    expand("results/PCA/05_{pca}.pdf", pca=pca_pdfs),
+    metadata="data/metadata/05_sample_annot_filtered.csv",
+    dds="data/Rds/05_dds_PAM50_batch.Rds",
+    rdata="reports/05_batch_effects.RData",
+    html="reports/05_batch_effects.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    
+rule workflow_diagram:
+  conda:
+    "envs/environment.yml"
+  shell:
+    "snakemake --use-conda --dag | dot -Tsvg > dag.svg"
+    #To view via shell: display dag.svg
+    

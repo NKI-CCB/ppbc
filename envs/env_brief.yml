@@ -7,5 +7,7 @@ dependencies:
   - salmon=0.14.2
   - fastqc=0.11.9
   - multiqc=1.8
+  - graphviz=2.42.3
+  - imagemagick=7.0.10_6
 prefix: /home/k.moore/bin/anaconda3/envs/ppbc
 

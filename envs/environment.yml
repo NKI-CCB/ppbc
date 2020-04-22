@@ -9,6 +9,7 @@ dependencies:
   - alsa-lib=1.1.5=h516909a_1002
   - bzip2=1.0.8=h516909a_2
   - ca-certificates=2020.4.5.1=hecc5488_0
+  - cairo=1.16.0=hcf35c78_1003
   - certifi=2020.4.5.1=py36h9f0ad1d_0
   - cffi=1.14.0=py36hd463f26_0
   - chardet=3.0.4=py36h9f0ad1d_1006
@@ -18,15 +19,32 @@ dependencies:
   - cryptography=2.8=py36h45558ae_2
   - cycler=0.10.0=py_2
   - decorator=4.4.2=py_0
+  - expat=2.2.9=he1b5a44_2
   - fastqc=0.11.9=0
+  - fftw=3.3.8=nompi_h7f3a6c3_1110
   - font-ttf-dejavu-sans-mono=2.37=hab24e00_0
+  - font-ttf-inconsolata=2.001=hab24e00_0
+  - font-ttf-source-code-pro=2.030=hab24e00_0
+  - font-ttf-ubuntu=0.83=hab24e00_0
   - fontconfig=2.13.1=h86ecdb6_1001
+  - fonts-conda-forge=1=0
   - freetype=2.10.1=he06d7ca_0
+  - fribidi=1.0.9=h516909a_0
   - future=0.18.2=py36h9f0ad1d_1
+  - gdk-pixbuf=2.38.2=h3f25603_3
+  - gettext=0.19.8.1=hc5be6a0_1002
+  - ghostscript=9.18=1
   - giflib=5.2.1=h516909a_2
+  - glib=2.64.2=h6f030ca_0
+  - gobject-introspection=1.58.2=py36h6d43c07_1004
+  - graphite2=1.3.13=he1b5a44_1001
+  - graphviz=2.42.3=h0511662_0
+  - harfbuzz=2.4.0=h9f30f68_3
   - humanfriendly=8.1=py36h9f0ad1d_1
   - icu=64.2=he1b5a44_1
   - idna=2.9=py_1
+  - imagemagick=7.0.10_6=pl526ha9fe49d_0
+  - jbig=2.1=h516909a_2002
   - jinja2=2.11.2=pyh9f0ad1d_0
   - jpeg=9c=h14c3975_1001
   - kiwisolver=1.2.0=py36hdb11119_0
@@ -34,7 +52,9 @@ dependencies:
   - ld_impl_linux-64=2.34=h53a641e_0
   - libblas=3.8.0=14_openblas
   - libcblas=3.8.0=14_openblas
+  - libcroco=0.6.13=h8d621e5_1
   - libffi=3.2.1=he1b5a44_1007
+  - libgcc=7.2.0=h69d50b8_2
   - libgcc-ng=9.2.0=h24d8f2e_2
   - libgfortran-ng=7.3.0=hdf63c60_5
   - libgomp=9.2.0=h24d8f2e_2
@@ -42,10 +62,12 @@ dependencies:
   - liblapack=3.8.0=14_openblas
   - libopenblas=0.3.7=h5ec1e0e_6
   - libpng=1.6.37=hed695b0_1
+  - librsvg=2.48.3=h33a7fed_0
   - libstdcxx-ng=9.2.0=hdf63c60_2
-  - libtiff=4.1.0=hc7e4089_6
+  - libtiff=4.1.0=hc3755c2_3
+  - libtool=2.4.6=h14c3975_1002
   - libuuid=2.32.1=h14c3975_1000
-  - libwebp-base=1.1.0=h516909a_3
+  - libwebp=1.0.2=h56121f0_5
   - libxcb=1.13=h14c3975_1002
   - libxml2=2.9.10=hee79883_0
   - lz4-c=1.9.2=he1b5a44_0
@@ -58,9 +80,14 @@ dependencies:
   - networkx=2.1=py36_0
   - numpy=1.18.1=py36h7314795_1
   - openjdk=11.0.1=h600c080_1018
-  - openssl=1.1.1f=h516909a_0
+  - openjpeg=2.3.1=h981e76c_3
+  - openssl=1.1.1g=h516909a_0
+  - pango=1.42.4=h7062337_4
+  - pcre=8.44=he1b5a44_0
   - perl=5.26.2=h516909a_1006
   - pip=20.0.2=py_2
+  - pixman=0.38.0=h516909a_1003
+  - pkg-config=0.29.2=h516909a_1006
   - pthread-stubs=0.4=h14c3975_1001
   - pycparser=2.20=py_0
   - pyopenssl=19.1.0=py_1
@@ -87,13 +114,17 @@ dependencies:
   - xorg-fixesproto=5.0=h14c3975_1002
   - xorg-inputproto=2.3.2=h14c3975_1002
   - xorg-kbproto=1.0.7=h14c3975_1002
+  - xorg-libice=1.0.10=h516909a_0
+  - xorg-libsm=1.2.3=h84519dc_1000
   - xorg-libx11=1.6.9=h516909a_0
   - xorg-libxau=1.0.9=h14c3975_0
   - xorg-libxdmcp=1.1.3=h516909a_0
   - xorg-libxext=1.3.4=h516909a_0
   - xorg-libxfixes=5.0.3=h516909a_1004
   - xorg-libxi=1.7.10=h516909a_0
+  - xorg-libxpm=3.5.13=h516909a_0
   - xorg-libxrender=0.9.10=h516909a_1002
+  - xorg-libxt=1.1.5=h516909a_1003
   - xorg-libxtst=1.2.3=h516909a_1002
   - xorg-recordproto=1.14.2=h516909a_1002
   - xorg-renderproto=0.11.1=h14c3975_1002
