@@ -60,8 +60,8 @@ rule multiqc:
     salmon_quant = "data/RNA-seq/salmon/"
   output:
     report="reports/multiqc_report.html",
-    #alignstats="reports/multiqc_data/multiqc_general_stats.txt",
-    #or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt"
+    #alignstats="reports/multiqc_data/multiqc_general_stats.txt", #Decouple
+    #or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt" #Decouple
   conda:
     "envs/environment.yml"             
   shell:
@@ -69,7 +69,7 @@ rule multiqc:
 
 rule process_metadata:
   input:
-    #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples']),
+    #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples']), #Decouple
     raw_metadata="data/external/Hercoderingslijst_v09032020_KM.xlsx",
     rmd="reports/01_process_metadata_tximport.Rmd",
     script="src/rmarkdown.R"
@@ -210,8 +210,7 @@ rule batch_effects:
 #Setting the number of threads prevents unwanted parallelization    
 rule lrt_diffex:
   input:
-    dds="data/Rds/05_dds_PAM50_batch.Rds",
-    gx_annot="data/metadata/01_tx_annot.tsv"
+    dds="data/Rds/05_dds_PAM50_batch.Rds"
   output:
     "data/Rds/06_vsd.Rds",
     "data/Rds/06_vsd_nolac.Rds",
@@ -267,6 +266,71 @@ rule lrt_report:
     html="reports/06_diffex_lrt.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+pairwise_refs = ["non_prbc", "ppbc_lac", "prbc"]
+
+pairwise_apeglm = [
+  "prbc_vs_non_prbc", "ppbc_lac_vs_non_prbc", "ppbc_inv_vs_non_prbc", 
+  "prbc_vs_ppbc_lac", "ppbc_inv_vs_prbc", "ppbc_inv_vs_ppbc_lac"
+]
+    
+rule diffex_pairwise:
+  input:
+    dds="data/Rds/05_dds_PAM50_batch.Rds"
+  output:
+    pairwise_dds=expand("data/Rds/07_dds_pairwise_ref_{pw}.Rds", pw=pairwise_refs),
+    apeglm_results=expand("data/Rds/07_ape_{pw}.Rds", pw=pairwise_apeglm)
+  shell:
+    """
+    export OMP_NUM_THREADS=1 
+    Rscript src/07_diffex_pairwise.R
+    """
+    
+pairwise_prefixes = [
+  "inv_lac", "inv_nonprbc", "inv_prbc",
+  "lac_nonprbc", "lac_prbc", "prbc_nonprbc"
+]
+
+rule pairwise_report:
+  input:
+    pairwise_dds=expand("data/Rds/07_dds_pairwise_ref_{pw}.Rds", pw=pairwise_refs),
+    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
+    immune_genes="data/external/gene-sets/InnateDB_genes.csv",
+    cp="data/Rds/color_palettes.Rds",
+    sp="data/Rds/survival_colors.Rds",
+    vsd="data/Rds/06_vsd.Rds",
+    tools="src/deseq_report_functions.R",
+    apeglm_results=expand("data/Rds/07_ape_{pw}.Rds", pw=pairwise_apeglm),
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    rmd="reports/07_diffex_pairwise.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    "results/diffex/figs/07_pairwise/heatmaps/n_siggenes_pairwise_hm.pdf",
+    #"results/diffex/figs/07_pairwise/heatmaps/07_commoninvpaths_hm.pdf",
+    "results/diffex/figs/07_pairwise/upset_pairwise.pdf",
+    "results/diffex/07_pairwise_comparisons_allgenes.xlsx",
+    "results/diffex/07_pairwise_comparisons_sig_genes.xlsx",
+    "results/diffex/07_pairwise_comparisons_pathways.xlsx",
+    expand("results/diffex/figs/07_pairwise/heatmaps/hm_{pf}.pdf", pf=pairwise_prefixes),
+    expand("results/diffex/figs/07_pairwise/volcano_plots/volc_{pf}.jpeg", pf=pairwise_prefixes),
+    expand("results/diffex/figs/07_pairwise/volcano_plots/volc_{pf}.outliers.jpeg", pf=pairwise_prefixes),
+    html="reports/06_diffex_pairwise.html"
+  shell:
+     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+ovr_comps = ["inv_vs_rest", "prbc_vs_rest", "lac_vs_rest", "nonprbc_vs_rest"]
+     
+rule diffex_one_vs_rest:
+  input:
+    dds="data/Rds/05_dds_PAM50_batch.Rds"
+  output:
+    dds_ovr=expand("data/Rds/08_dds_ovr_{comp}.Rds", comp=ovr_comps),
+    ape_ovr=expand("data/Rds/08_ape_ovr_{comp}.Rds", comp=ovr_comps)
+  shell:
+    """
+    export OMP_NUM_THREADS=1 
+    Rscript src/08_diffex_onevsrest.R
+    """
     
 rule workflow_diagram:
   conda:

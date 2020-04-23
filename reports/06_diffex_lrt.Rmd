@@ -34,7 +34,7 @@ library(RColorBrewer)
 
 In this notebook, we enact differential expression as a fourway comparison between all 4 postpartum breast cancer groups, using the DESeq2 package and a likelihood ratio test. We perform this using the standard count threshold of non-zero expression in at least one third of all samples.
 
-# Load and pre-process data
+# Load and pre-process data {.tabset}
 
 ## Gene and sample data
 
@@ -127,7 +127,7 @@ A version without the lac group is also produced.
 vsd.nolac = readRDS(here("data", "Rds", "06_vsd_nolac.Rds"))
 ```
 
-# Likelihood ratio test
+# Likelihood ratio test {.tabset}
 
 The likelihood ratio test (LRT) is an ANOVA-like test design to check for genes which are significantly differentially expressed in at least one group. 
 From the manual: "The LRT examines two models for the counts, a full model with a certain number of terms and a reduced model, in which some of the terms of the full model are removed. 
@@ -151,8 +151,6 @@ resLRT <- results(ddsLRT)
 
 resLRT@elementMetadata$description
 ```
-
-# LRT report
 
 The log fold change of a likelihood ratio test is actually between the first and last levels of the factor in the design formula.
 In this case, of study_group.
@@ -233,7 +231,7 @@ Beehive plot of genes that fail Cooks filtering and are above the fold change th
 repLRT$outlier_bees
 ```
 
-# LRT - without the lac group
+# LRT - without the lac group {.tabset}
 
 Both upstream and downstream results indicate that lactation samples, by far the smallest group in the study, are contributing disproportionately to the model and, in this small selection, have a poorer prognosis than is represented in the larger clinical data. 
 
@@ -426,7 +424,7 @@ Beehive plot of genes that fail Cooks filtering and are above the fold change th
 repLRT.nolac$outlier_bees[1:5]
 ```
 
-# Batch
+# Batch {.tabset}
 
 ```{r}
 ddsLRT = readRDS(here("data", "Rds", "06_ddsLRT_batch.Rds"))
@@ -484,7 +482,7 @@ repBatch$pathways %>% bind_rows() %>%
 repBatch$pathway_plots
 ```
 
-# Batch - no lac
+# Batch - no lac {.tabset}
 
 ```{r}
 ddsLRT = readRDS(here("data", "Rds", "06_ddsLRT_batch_nolac.Rds"))
@@ -543,7 +541,7 @@ repBatch.nolac$pathways %>% bind_rows() %>%
 repBatch.nolac$pathway_plots
 ```
 
-# PAM50
+# PAM50 {.tabset}
 
 ```{r}
 ddsLRT = readRDS(here("data", "Rds", "06_ddsLRT_pam.Rds"))
@@ -603,8 +601,7 @@ repPam$pathways %>% bind_rows() %>%
 repPam$pathway_plots
 ```
 
-
-# PAM50 - no lac
+# PAM50 - no lac {.tabset}
 
 ```{r}
 ddsLRT = readRDS(here("data", "Rds", "06_ddsLRT_pam_nolac.Rds"))
@@ -664,7 +661,7 @@ repPam.nolac$pathways %>% bind_rows() %>%
 repPam.nolac$pathway_plots
 ```
 
-# Overlap LRTs
+# Overlap LRTs {.tabset}
 
 Generally a sign of colinearity if many genes are significant for multiple terms.
 
@@ -817,7 +814,7 @@ unique_ppbc_paths = filter(bind_rows(repLRT$pathways), fdr < 0.1)$pathway[
 bind_rows(repLRT$pathways) %>% filter(pathway %in% unique_ppbc_paths)
 ```
 
-# Save data
+# Save data {.tabset}
 
 Create a master results list.
 
