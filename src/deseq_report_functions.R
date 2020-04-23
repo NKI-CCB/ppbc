@@ -299,6 +299,7 @@ color_grid = function (colours, labels = T, names = T, borders = NULL, cex_label
 #' @param row_size The fontsize of the row (Default: 8)
 #' @param col_size The fontsize of the columns (Default: 8)
 #' @param show_col_names Whether to show the column names
+#' @param maxn_genes The max number of genes in the heatmap.
 #' @param ... Additional parameters to pass to Heatmap()
 #'
 #' @return A heatmap object from ComplexHeatmap
@@ -319,6 +320,7 @@ deseq_heatmap = function(mat, sampledata, sig_results,
                          legend_title = NULL,
                          row_scale = T,
                          maxn_rownames = 50,
+                         maxn_genes = 5000,
                          row_size = 8, col_size = 8,
                          show_col_names = F, ...){
   require(scrime)
@@ -337,7 +339,8 @@ deseq_heatmap = function(mat, sampledata, sig_results,
   
   
   #Reduce genes to significant only
-  genestoplot = sig_results$gene_name
+  sig_results = sig_results %>% arrange(padj)
+  genestoplot = sig_results$gene_name[1:maxn_genes]
   mat = mat[rownames(mat) %in% genestoplot, ]
   
   #Reduce genes and sample data to compared groups only
@@ -410,6 +413,7 @@ deseq_heatmap = function(mat, sampledata, sig_results,
 
 
 plot_gene_beehive = function(dds, result_df, groups_to_plot = levels(colData(dds)[,intgroup]),
+                             color_vals = NULL,
                              intgroup="study_group", colorby="PAM50", color_fun = scale_color_viridis_d(na.value = "grey50"),
                              title_string = "", path_save_fig = NULL){
   
@@ -456,11 +460,18 @@ plot_gene_beehive = function(dds, result_df, groups_to_plot = levels(colData(dds
     geom_point(position=position_jitter(w=0.1,h=0), aes(color=get(colorby))) +
     scale_y_log10() + xlab(intgroup) + labs(color=colorby) + ylab("size-factor normalized counts") +
     ggtitle(title) +
-    theme_classic() +
-    color_fun
+    theme_classic()
   
   if (is.null(path_save_fig)!=T){
     suppressMessages(ggsave(filename=path_save_fig, plot = dplot))
+  }
+  
+  if (is.null(color_vals)){
+    dplot = dplot +
+      color_fun
+  } else {
+    dplot = dplot +
+      scale_color_manual(values = color_vals)
   }
   
   return(dplot)
@@ -551,6 +562,7 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
                         bottom_vars = c("PAM50"),
                         bottom_colors = list(PAM50 = pam_colors),
                         intgroup="study_group", colorby="PAM50",
+                        beehive_colors = pam_colors,
                         groups=levels(colData(dds)[,intgroup]),
                         beehive_groups = "comparison",
                         n_beehive_plots=5, verbose=T, ...){
@@ -634,7 +646,9 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
     beehive_groups = groups #Plot only the ones involved in calculating significance
   }
   
-  beelist = plot_many_beehives(dds = dds, result_df = head(sig, n_beehive_plots), groups_to_plot = beehive_groups,
+  beelist = plot_many_beehives(dds = dds, result_df = head(sig, n_beehive_plots),
+                               groups_to_plot = beehive_groups,
+                               color_vals = beehive_colors,
                                intgroup=intgroup, colorby=colorby, title_string = title)
   
   mega$beehive_plots = beelist
@@ -699,7 +713,8 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
   outlier_bees = plot_many_beehives(dds = dds, title_string = title,
                                     result_df = head(outlier_df, 10),
                                     groups_to_plot = beehive_groups,
-                                    intgroup=intgroup, colorby=colorby)
+                                    intgroup=intgroup, colorby=colorby,
+                                    color_vals = beehive_colors)
   mega$outlier_bees = outlier_bees
   
   return(mega)

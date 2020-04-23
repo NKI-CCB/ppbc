@@ -10,15 +10,16 @@ configfile: "config.yaml"
 
 rule all:
   input:
-    "dag.svg"
-  #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
+    "reports/06_diffex_lrt.html"
+    #"dag.svg"
+    #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
 
 rule fastqc:
   input:
-    "data/RAW/{sample}.fastq.gz"
+    expand("data/RAW/{sample}.fastq.gz", sample=config['samples'])
   output:
-    html = "results/fastqc/{sample}_fastqc.html",
-    zip = "results/fastqc/{sample}_fastqc.zip"
+    html = expand("results/fastqc/{sample}_fastqc.html", sample=config['samples']),
+    zip = expand("results/fastqc/{sample}_fastqc.zip", sample=config['samples'])
   threads: 5
   conda:
     "envs/environment.yml"         
@@ -42,10 +43,10 @@ rule salmon_quant:
   input:
     "src/01-salmon.sh"
   output:
-    "data/RNA-seq/salmon/{sample}/quant.sf"
+    expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
   params:
     index = "data/external/index/grch38_index",
-    outdir = "data/RNA-seq/salmon/{sample}"
+    outdir = expand("data/RNA-seq/salmon/{sample}", sample=config['samples'])
   conda:
     "envs/environment.yml"     
   shell:
@@ -58,7 +59,9 @@ rule multiqc:
     fastqc = "results/fastqc/",
     salmon_quant = "data/RNA-seq/salmon/"
   output:
-    "reports/multiqc_report.html"
+    report="reports/multiqc_report.html",
+    #alignstats="reports/multiqc_data/multiqc_general_stats.txt",
+    #or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt"
   conda:
     "envs/environment.yml"             
   shell:
@@ -66,6 +69,7 @@ rule multiqc:
 
 rule process_metadata:
   input:
+    #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples']),
     raw_metadata="data/external/Hercoderingslijst_v09032020_KM.xlsx",
     rmd="reports/01_process_metadata_tximport.Rmd",
     script="src/rmarkdown.R"
@@ -146,6 +150,12 @@ rule color_palettes:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
+rule survival_colors:
+  output:
+    "data/Rds/survival_colors.Rds"
+  shell:
+    "Rscript src/survival_colors.R"
+
 rule surv_est:
   input:
     script="src/rmarkdown.R",
@@ -194,6 +204,67 @@ rule batch_effects:
     dds="data/Rds/05_dds_PAM50_batch.Rds",
     rdata="reports/05_batch_effects.RData",
     html="reports/05_batch_effects.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+#Setting the number of threads prevents unwanted parallelization    
+rule lrt_diffex:
+  input:
+    dds="data/Rds/05_dds_PAM50_batch.Rds",
+    gx_annot="data/metadata/01_tx_annot.tsv"
+  output:
+    "data/Rds/06_vsd.Rds",
+    "data/Rds/06_vsd_nolac.Rds",
+    "data/Rds/06_ddsLRT.Rds",
+    "data/Rds/06_ddsLRT_nolac.Rds",
+    "data/Rds/06_ddsLRT_pam.Rds",
+    "data/Rds/06_ddsLRT_pam_nolac.Rds",
+    "data/Rds/06_ddsLRT_batch.Rds",
+    "data/Rds/06_ddsLRT_batch_nolac.Rds"
+  shell:
+    """
+    export OMP_NUM_THREADS=1 
+    Rscript src/06_diffex_lrt.R
+    """
+
+dds_lrt = [
+    "vsd", "vsd_nolac", "ddsLRT",
+    "ddsLRT_nolac", "ddsLRT_pam", "ddsLRT_pam_nolac",
+    "ddsLRT_batch", "ddsLRT_batch_nolac"
+    ]
+    
+gene_sets = [
+  "c5.bp.v7.0.symbols", "h.all.v7.0.symbols",
+  "c2.cp.v7.0.symbols", "c2.cgp.v7.0.symbols"
+]
+
+lrt_reports = [
+  "LRT", "LRT.nolac", "Batch",
+  "Batch.nolac", "Pam", "Pam.nolac"
+]
+
+rule lrt_report:
+  input:
+    expand("data/Rds/06_{dds}.Rds", dds=dds_lrt),
+    expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
+    dds="data/Rds/05_dds_PAM50_batch.Rds",
+    #ImmPort database: https://www.innatedb.com/redirect.do?go=resourcesGeneLists
+    immune_genes="data/external/gene-sets/InnateDB_genes.csv",
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    cp="data/Rds/color_palettes.Rds",
+    tools="src/deseq_report_functions.R",
+    rmd="reports/06_diffex_lrt.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    padj_comp="results/diffex/figs/06_LRT/06_allgenes_fdrvsexcludelac.pdf",
+    padj_comp_sig="results/diffex/figs/06_LRT/06_siggenes_fdrvsexcludelac.pdf",
+    sig_genes="results/diffex/06_LRT_sig_genes.xlsx",
+    all_genes="results/diffex/06_LRT_allgenes.xlsx",
+    pathways="results/diffex/06_LRT_pathways.xlsx",
+    heatmaps=expand("results/diffex/figs/06_LRT/heatmaps/hm{comp}.pdf", comp=lrt_reports),
+    volcanos=expand("results/diffex/figs/06_LRT/volcano_plots/volc{comp}.outliers.jpeg", comp=lrt_reports),
+    #rdata="reports/06_diffex_lrt.Rdata",
+    html="reports/06_diffex_lrt.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     

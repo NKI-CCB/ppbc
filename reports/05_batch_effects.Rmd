@@ -707,6 +707,24 @@ stopifnot(identical(sd$sample_name, dds$sample_name))
 dds$batch = sd$batch
 
 design(dds) <- formula(~ batch + PAM50 + study_group)
+
+dds$study_group = factor(dds$study_group,
+                         levels = c("non_prbc", "prbc",
+                                    "ppbc_lac", "ppbc_inv"))
+dds$PPBC = factor(dds$PPBC,
+                  levels=c("nulliparous", "pregnant",
+                           "lactating", "involuting"))
+
+dds$batch = factor(dds$batch,
+                   levels = c(
+                     "3.0", "4.0", "5.0",
+                     "6.0", "7.0", "8.0"  
+                   ))
+
+dds$PAM50 = factor(dds$PAM50,
+                   levels = c("Basal", "Her2",
+                              "LumB", "LumA",
+                              "Normal"))
 ```
 
 # Write data
