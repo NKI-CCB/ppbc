@@ -82,8 +82,6 @@ source(here("src", "deseq_report_functions.R"))
 
 ## Heatmap colors
 
-Created in notebook 6
-
 ```{r}
 cp = readRDS(here("data", "Rds", "color_palettes.Rds"))
 study_colors = cp$study_colors

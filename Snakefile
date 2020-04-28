@@ -10,7 +10,7 @@ configfile: "config.yaml"
 
 rule all:
   input:
-    "reports/08_diffex_onevsrest.html"
+    "reports/09_genewise_diffex_reports.html"
     #"dag.svg"
     #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
 
@@ -354,11 +354,33 @@ rule one_vs_rest_report:
     "results/diffex/08_one_vs_rest_pathways.xlsx",
     expand("results/diffex/figs/08_onevsrest/heatmaps/hm_{ovr}.pdf", ovr=ovr_reports),
     expand("results/diffex/figs/08_onevsrest/volcano_plots/volc_{ovr}.jpeg", ovr=ovr_reports),
-        expand("results/diffex/figs/08_onevsrest/volcano_plots/volc_{ovr}.outliers.jpeg", ovr=ovr_reports),
+    expand("results/diffex/figs/08_onevsrest/volcano_plots/volc_{ovr}.outliers.jpeg", ovr=ovr_reports),
     html="reports/08_diffex_onevsrest.html"
   shell:
-     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-    
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+diffex_results = [
+  "08_one_vs_rest_allgenes",
+  "07_pairwise_comparisons_allgenes",
+  "06_LRT_allgenes"
+  ]
+
+rule genewise_diffex_reports:
+  input:
+    diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
+    cp="data/Rds/color_palettes.Rds",
+    sp="data/Rds/survival_colors.Rds",
+    tools="src/deseq_report_functions.R",
+    vsd="data/Rds/08_vsd_ovr.Rds",
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    rmd="reports/08_diffex_onevsrest.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    "results/diffex/figs/milk_vs_IG_genes.pdf",
+    html="reports/09_genewise_diffex_reports.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+  
 rule workflow_diagram:
   conda:
     "envs/environment.yml"
