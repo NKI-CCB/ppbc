@@ -10,7 +10,7 @@ configfile: "config.yaml"
 
 rule all:
   input:
-    "reports/06_diffex_lrt.html"
+    "reports/08_diffex_onevsrest.html"
     #"dag.svg"
     #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
 
@@ -314,7 +314,7 @@ rule pairwise_report:
     expand("results/diffex/figs/07_pairwise/heatmaps/hm_{pf}.pdf", pf=pairwise_prefixes),
     expand("results/diffex/figs/07_pairwise/volcano_plots/volc_{pf}.jpeg", pf=pairwise_prefixes),
     expand("results/diffex/figs/07_pairwise/volcano_plots/volc_{pf}.outliers.jpeg", pf=pairwise_prefixes),
-    html="reports/06_diffex_pairwise.html"
+    html="reports/07_diffex_pairwise.html"
   shell:
      "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
@@ -331,6 +331,33 @@ rule diffex_one_vs_rest:
     export OMP_NUM_THREADS=1 
     Rscript src/08_diffex_onevsrest.R
     """
+ovr_reports = ["inv_rest", "prbc_rest", "lac_rest", "nonprbc_rest"]
+
+rule one_vs_rest_report:
+  input:
+    ape_ovr=expand("data/Rds/08_ape_ovr_{comp}.Rds", comp=ovr_comps),
+    dds_ovr=expand("data/Rds/08_dds_ovr_{comp}.Rds", comp=ovr_comps),
+    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
+    immune_genes="data/external/gene-sets/InnateDB_genes.csv",
+    cp="data/Rds/color_palettes.Rds",
+    sp="data/Rds/survival_colors.Rds",
+    vsd="data/Rds/06_vsd.Rds",
+    tools="src/deseq_report_functions.R",
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    rmd="reports/08_diffex_onevsrest.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    "results/diffex/figs/08_onevsrest/upset_onevsrest.pdf",
+    "results/diffex/figs/08_onevsrest/08_barplot_onevsrest.jpg",
+    "results/diffex/08_one_vs_rest_allgenes.xlsx",
+    "results/diffex/08_one_vs_rest_sig_genes.xlsx",
+    "results/diffex/08_one_vs_rest_pathways.xlsx",
+    expand("results/diffex/figs/08_onevsrest/heatmaps/hm_{ovr}.pdf", ovr=ovr_reports),
+    expand("results/diffex/figs/08_onevsrest/volcano_plots/volc_{ovr}.jpeg", ovr=ovr_reports),
+        expand("results/diffex/figs/08_onevsrest/volcano_plots/volc_{ovr}.outliers.jpeg", ovr=ovr_reports),
+    html="reports/08_diffex_onevsrest.html"
+  shell:
+     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     
 rule workflow_diagram:
   conda:

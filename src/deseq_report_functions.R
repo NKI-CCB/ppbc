@@ -329,8 +329,7 @@ deseq_heatmap = function(mat, sampledata, sig_results,
   
   stopifnot(groups_to_plot %in% levels(sampledata[,intgroup])) #Now accepts other columns
   stopifnot(identical(colnames(mat), sampledata$sample_name)) #Ensure that a column containing all sample names exists
-  
-  
+
   if(is.null(title)==T){
     title = if_else(identical(groups_to_plot,levels(sampledata[, intgroup])),
                     "All groups",
@@ -375,9 +374,10 @@ deseq_heatmap = function(mat, sampledata, sig_results,
   
   #Top column annotation
   colTop <- HeatmapAnnotation(df=ann_top, which="col",
-                              col = top_colors,
-                              annotation_legend_param = list(list(title = legend_title)))
-  
+                              col = top_colors
+                              #annotation_legend_param = list(list(title = legend_title))
+                              )
+  #return(colTop)
   #Bottom column annotation
   ann_bottom = sampledata[,bottom_vars, drop=F]
   colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = bottom_colors)
@@ -571,7 +571,7 @@ deseq_report = function(results_object, dds, anno_df = gx_annot, mark_immune=T, 
   
   stopifnot(beehive_groups %in% c("all", "comparison"))
   stopifnot(intgroup %in% colnames(colData(dds)))
-  
+
   mega = list()
   
   if(is.null(title==T)){

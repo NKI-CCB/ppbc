@@ -1,0 +1,792 @@
+---
+title: "One vs rest Wald tests"
+Author: Kat Moore
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: tango
+    df_print: paged
+---
+
+```{r, include=F}
+rm(list = ls())
+```
+
+```{r, include=F}
+#library(devtools)
+#install_github("jokergoo/ComplexHeatmap")
+#install_github("mikelove/DESeq2") 
+#install_github("azhu513/apeglm")
+library(flexgsea) #For read_gmt()
+library(ggrepel)
+library(ComplexHeatmap)
+library(openxlsx)
+library(scrime)
+library(RColorBrewer)
+library(here)
+library(DESeq2)
+library(UpSetR)
+library(apeglm)
+library(tidyverse)
+```
+
+This notebook provides a report for so-called "one vs rest" comparisons, where we compare a single PPBC subgroup against all the rest pooled together.
+
+# Load and pre-process data {.tabset}
+
+## Gene data
+
+```{r}
+gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+#head(gx_annot)
+gx_annot = gx_annot %>%
+  select(ensembl_gene_id = gene_id, gene_name, hgnc_symbol,
+         gene_type, description = gene_description) %>%
+  distinct()
+```
+
+## Gene signatures
+
+```{r}
+gene_sets = list(
+  go_bp = flexgsea::read_gmt(here("data","external","gmt","c5.bp.v7.0.symbols.gmt")),
+  hallmark = flexgsea::read_gmt(here("data","external","gmt","h.all.v7.0.symbols.gmt")),
+  c2_canon = flexgsea::read_gmt(here("data","external","gmt","c2.cp.v7.0.symbols.gmt")),
+  c2_cgp = flexgsea::read_gmt(here("data","external","gmt","c2.cgp.v7.0.symbols.gmt"))
+)
+```
+
+## Retrieve immune genes
+
+For downstream analyses, we'd like to know which of the differentially expressed genes are immunologically relevant.
+
+An immune gene is defined as follows:
+
+Either immune/immuno/interleukin is part of the gene name and description OR the gene is part of the the ImmPort database. See https://www.innatedb.com/redirect.do?go=resourcesGeneLists
+
+The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The principal investigator of the BISC project is Dr. Richard Scheuermann at University of Texas Southwestern Medical Center. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
+
+```{r}
+immune_gene_list <- read_csv(here("data", "external","gene-sets","InnateDB_genes.csv"))
+head(immune_gene_list)
+```
+
+## Helper functions
+
+```{r}
+source(here("src", "deseq_report_functions.R"))
+```
+
+## Heatmap colors
+
+Created in notebook 6
+
+```{r}
+cp = readRDS(here("data", "Rds", "color_palettes.Rds"))
+study_colors = cp$study_colors
+pam_colors = cp$pam_colors
+gene_colors = cp$gene_colors
+
+sp = readRDS(here("data/Rds/survival_colors.Rds"))
+```
+
+## Variance stabilizing transformation
+
+We want a transformation that is fully blind to the experimental design, but still uses the faster sampling method in the vst wrapper for varianceStabilizingTransformation.
+
+This homoskedastic dataset will be used later on for heatmap visualization.
+Previously performed in notebook 6.
+
+```{r}
+vsd = readRDS(here("data","Rds","06_vsd.Rds"))
+```
+
+# Diffex: Involution vs rest {.tabset}
+
+Filtering and differential expression was performed in script 8.
+
+```{r}
+dds = readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
+design(dds)
+table(dds$PPBC, dds$inv_vs_rest)
+nrow(dds)
+```
+
+Set up the same levels for vsd.
+
+```{r}
+vsd$study_group_orig = vsd$study_group
+vsd$inv_vs_rest  = colData(vsd) %>% as.data.frame() %>%
+  mutate(inv_vs_rest = if_else(study_group == "ppbc_inv", "ppbc_inv", "rest")) %>%
+  pull(inv_vs_rest) %>% factor(levels=c("rest", "ppbc_inv"))
+
+vsd$prbc_vs_rest  = colData(vsd) %>% as.data.frame() %>%
+  mutate(prbc_vs_rest = if_else(study_group == "prbc", "prbc", "rest")) %>%
+  pull(prbc_vs_rest) %>% factor(levels=c("rest", "prbc"))
+
+vsd$lac_vs_rest  = colData(vsd) %>% as.data.frame() %>%
+  mutate(lac_vs_rest = if_else(study_group == "ppbc_lac", "ppbc_lac", "rest")) %>%
+  pull(lac_vs_rest) %>% factor(levels=c("rest", "ppbc_lac"))
+
+vsd$nonprbc_vs_rest  = colData(vsd) %>% as.data.frame() %>%
+  mutate(nonprbc_vs_rest = if_else(study_group == "non_prbc", "non_prbc", "rest")) %>%
+  pull(nonprbc_vs_rest) %>% factor(levels=c("rest", "non_prbc"))
+
+saveRDS(vsd, here("data", "Rds", "08_vsd_ovr.Rds"))
+```
+
+```{r}
+ape_inv_rest = readRDS(here("data","Rds", "08_ape_ovr_inv_vs_rest.Rds"))
+ape_inv_rest@elementMetadata$description
+```
+
+## Summary report
+
+The reporting function requires vsd to have the same levels as dds in study_group
+
+```{r}
+vsd$study_group = vsd$inv_vs_rest
+```
+
+A log2 fold change cutoff of 0.5 is equivalent to 1.414.
+
+
+```{r}
+#dds$PPBC = recode(dds$inv_vs_rest,"ppbc_inv" = "involuting" )
+#vsd$PPBC = recode(vsd$inv_vs_rest,"ppbc_inv" = "involuting" )
+```
+
+TODO:
+This should give the heatmap we want, but it is instead incorrectly mapping colors to the PPBC scheme (and only that scheme)
+
+Colors that get passed to complex heatmap:
+involuting = "#46CDCF", rest = "#F73859" 
+Colors that complex heatmap is actually plotting:
+involuting ="#46CDCFFF", rest = "#F73859FF" 
+
+rep_inv_rest = deseq_report(ape_inv_rest, dds=dds, absl2fc = 0.5, 
+                            variance_stabilized_dds = vsd,
+                            groups = c("involuting", "rest"),
+                            top_vars = c("PPBC", "death"),
+                            top_colors = list(PPBC = cp$ppbc_colors,
+                                              death = sp$overall_survival),
+                            intgroup="PPBC",
+                            beehive_groups = "comparison",
+                            title = "Involution vs rest")
+
+For now, we use an alternate call that prints all of the levels of PPBC in the heatmap.
+
+```{r}
+dds$death <- dds$overall_survival
+vsd$death <- vsd$overall_survival
+
+rep_inv_rest = deseq_report(ape_inv_rest, dds=dds, absl2fc = 0.5, 
+                            variance_stabilized_dds = vsd,
+                            #groups = c("ppbc_inv", "rest"),
+                            top_vars = c("PPBC", "death"),
+                            top_colors = list(PPBC = cp$ppbc_colors,
+                                              death = sp$overall_survival),
+                            intgroup="PPBC",
+                            beehive_groups = "comparison",
+                            title = "Involution vs rest")
+```
+
+## Top genes
+
+```{r}
+rep_inv_rest$significant_genes %>%
+  select(gene_name, gene_type, padj, log2FoldChange,
+         baseMean, description, everything()) %>%
+  head(30)
+```
+
+## Volcano plot
+
+
+```{r}
+rep_inv_rest$volcano_plot
+```
+
+## Heatmap
+
+```{r, fig.height=7, fig.width=10}
+rep_inv_rest$heatmap
+```
+
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+rep_inv_rest$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+```{r, fig.height=6, fig.width=8}
+rep_inv_rest$pathway_plots
+```
+
+```{r}
+rep_inv_rest$pathways %>%
+  bind_rows() %>% 
+  filter(fdr < 0.1) %>%
+  arrange(desc(path_in_sample)) %>%
+  filter(str_detect(pathway, "CYTOSIS"))
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_inv_rest$pathways %>%
+  bind_rows() %>%
+  plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Top 20 sig pathways fdr < 0.1: Involution vs rest"
+      )
+```
+
+
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+rep_inv_rest$beehive_plots
+```
+
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_inv_rest$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold. Sorted by descending l2fc, top 10:
+
+```{r}
+rep_inv_rest$outlier_bees
+```
+
+
+# Diffex: Pregnancy vs rest {.tabset}
+
+```{r}
+dds = readRDS(here("data/Rds/08_dds_ovr_prbc_vs_rest.Rds"))
+vsd$study_group = vsd$prbc_vs_rest
+table(dds$PPBC, dds$prbc_vs_rest)
+design(dds)
+nrow(dds)
+```
+
+```{r}
+ape_prbc_rest = readRDS(here("data","Rds","08_ape_ovr_prbc_vs_rest.Rds"))
+ape_prbc_rest@elementMetadata$description
+```
+
+
+## Summary report
+
+A log2 fold change cutoff of 0.5 is equivalent to 1.414.
+
+```{r}
+dds$death <- dds$overall_survival
+vsd$death <- vsd$overall_survival
+
+rep_prbc_rest = deseq_report(ape_prbc_rest, dds=dds, absl2fc = 0.5, 
+                            variance_stabilized_dds = vsd,
+                            #groups = c("ppbc_inv", "rest"),
+                            top_vars = c("PPBC", "death"),
+                            top_colors = list(PPBC = cp$ppbc_colors,
+                                              death = sp$overall_survival),
+                            intgroup="PPBC",
+                            beehive_groups = "comparison",
+                            title = "Pregnant vs rest")
+
+```
+
+## Top genes
+
+There's a noticeable chemokine/innate immune enrichment among the top hits.
+
+```{r}
+rep_prbc_rest$significant_genes %>%
+  select(gene_name, gene_type, padj, log2FoldChange,
+         baseMean, description, everything()) %>%
+  head(30)
+```
+
+## Volcano plot
+
+```{r}
+rep_prbc_rest$volcano_plot
+```
+
+## Heatmap
+
+```{r, fig.height=6, fig.width=10}
+rep_prbc_rest$heatmap
+```
+
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+rep_prbc_rest$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05)%>% select(pathway,everything())%>% arrange(fdr)
+```
+
+```{r, fig.height=6, fig.width=8}
+rep_prbc_rest$pathway_plots
+```
+
+```{r, fig.height=6, fig.width=8}
+rep_prbc_rest$pathways %>%
+  bind_rows() %>%
+  plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Top 20 sig pathways fdr < 0.1: Pregnancy vs rest"
+      )
+```
+
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+rep_prbc_rest$beehive_plots
+```
+
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_prbc_rest$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold:
+
+```{r}
+rep_prbc_rest$outlier_bees
+```
+
+# Diffex: Lac vs rest {.tabset}
+
+```{r}
+dds = readRDS(here("data/Rds/08_dds_ovr_lac_vs_rest.Rds"))
+vsd$study_group = vsd$lac_vs_rest
+table(dds$PPBC, dds$lac_vs_rest)
+design(dds)
+nrow(dds)
+```
+
+```{r}
+ape_lac_rest = readRDS(here("data","Rds","08_ape_ovr_lac_vs_rest.Rds"))
+ape_lac_rest@elementMetadata$description
+```
+
+## Summary report
+
+A log2 fold change cutoff of 0.5 is equivalent to 1.414.
+
+```{r}
+dds$death <- dds$overall_survival
+vsd$death <- vsd$overall_survival
+
+rep_lac_rest = deseq_report(ape_lac_rest, dds=dds, absl2fc = 0.5, 
+                            variance_stabilized_dds = vsd,
+                            #groups = c("ppbc_inv", "rest"),
+                            top_vars = c("PPBC", "death"),
+                            top_colors = list(PPBC = cp$ppbc_colors,
+                                              death = sp$overall_survival),
+                            intgroup="PPBC",
+                            beehive_groups = "comparison",
+                            title = "Lactating vs rest")
+
+```
+
+## Top genes
+
+```{r}
+rep_lac_rest$significant_genes %>%
+  select(gene_name, gene_type, padj, log2FoldChange,
+         baseMean, description, everything()) %>%
+  head(30)
+```
+
+## Volcano plot
+
+```{r}
+rep_lac_rest$volcano_plot
+```
+
+## Heatmap
+
+```{r, fig.height=6, fig.width=10}
+rep_lac_rest$heatmap
+```
+
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+rep_lac_rest$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05)%>% select(pathway,everything())%>%
+  arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_lac_rest$pathway_plots
+```
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+rep_lac_rest$beehive_plots
+```
+
+## Cook's outliers
+
+Have a look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_lac_rest$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold:
+
+```{r}
+rep_lac_rest$outlier_bees
+```
+
+# Diffex: Non-prbc vs rest
+
+```{r}
+dds = readRDS(here("data/Rds/08_dds_ovr_nonprbc_vs_rest.Rds"))
+vsd$study_group = vsd$nonprbc_vs_rest
+table(dds$PPBC, dds$nonprbc_vs_rest)
+design(dds)
+nrow(dds)
+```
+
+```{r}
+ape_nonprbc_rest = readRDS(here("data","Rds","08_ape_ovr_nonprbc_vs_rest.Rds"))
+ape_nonprbc_rest@elementMetadata$description
+```
+
+## Summary report
+
+A log2 fold change cutoff of 0.5 is equivalent to 1.414.
+
+```{r}
+dds$death <- dds$overall_survival
+vsd$death <- vsd$overall_survival
+
+rep_nonprbc_rest = deseq_report(ape_nonprbc_rest, dds=dds, absl2fc = 0.5, 
+                            variance_stabilized_dds = vsd,
+                            #groups = c("ppbc_inv", "rest"),
+                            top_vars = c("PPBC", "death"),
+                            top_colors = list(PPBC = cp$ppbc_colors,
+                                              death = sp$overall_survival),
+                            intgroup="PPBC",
+                            beehive_groups = "comparison",
+                            title = "Nulliparous vs rest")
+
+```
+
+## Top genes
+
+```{r}
+rep_nonprbc_rest$significant_genes %>%
+  select(gene_name, gene_type, padj, log2FoldChange,
+         baseMean, description, everything()) %>%
+  head(30)
+```
+
+## Volcano plot
+
+```{r}
+rep_nonprbc_rest$volcano_plot
+```
+
+## Heatmap
+
+```{r, fig.width=10}
+rep_nonprbc_rest$heatmap
+```
+
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+rep_prbc_rest$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_nonprbc_rest$pathway_plots
+```
+
+
+```{r, fig.height=6, fig.width=8}
+rep_nonprbc_rest$pathways %>%
+  bind_rows() %>%
+  plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Top 20 sig pathways fdr < 0.1: Nulliparous vs rest"
+      )
+```
+
+## Beehive plots
+
+Beehive plot of top 5 most significantly expressed genes.
+
+```{r}
+rep_nonprbc_rest$beehive_plots
+```
+
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+rep_nonprbc_rest$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold:
+
+```{r}
+rep_nonprbc_rest$outlier_bees
+```
+
+# Upset Plot
+
+```{r}
+sig_genes <- list(
+  "inv vs rest" = rep_inv_rest$significant_genes$ensembl_gene_id,
+  "prbc vs rest" = rep_prbc_rest$significant_genes$ensembl_gene_id,
+  "lac vs rest" = rep_lac_rest$significant_genes$ensembl_gene_id,
+  "nonprbc vs rest" = rep_nonprbc_rest$significant_genes$ensembl_gene_id
+)
+```
+
+```{r, fig.width=8}
+upset(fromList(sig_genes), order.by = "freq", #empty.intersections = "on",
+      nsets = 4, set_size.show = TRUE, mainbar.y.label = "Differentially expressed genes",
+      sets.bar.color = "blue", main.bar.color = "black", set_size.scale_max = 500,
+      sets.x.label = "Sig genes one vs rest comparisons")
+```
+
+```{r, echo=F}
+dir.create(here("results", "diffex", "figs", "08_onevsrest"), showWarnings = F, recursive = T)
+
+pdf(here("results", "diffex", "figs", "08_onevsrest", "upset_onevsrest.pdf"),
+    onefile = F, width = 10, height = 7)
+upset(fromList(sig_genes), order.by = "freq", #empty.intersections = "on",
+      nsets = 4, set_size.show = TRUE, mainbar.y.label = "Differentially expressed genes",
+      sets.bar.color = "blue", main.bar.color = "black", set_size.scale_max = 500,
+      sets.x.label = "Sig genes one vs rest comparisons")
+dev.off()
+```
+
+# Bar plot
+
+```{r}
+tibble(
+  "ensembl_gene_id" = c(rep_inv_rest$significant_genes$ensembl_gene_id,
+                        rep_prbc_rest$significant_genes$ensembl_gene_id,
+                        rep_lac_rest$significant_genes$ensembl_gene_id,
+                        rep_nonprbc_rest$significant_genes$ensembl_gene_id),
+  "comparison" = c(rep("inv vs rest", length(rep_inv_rest$significant_genes$ensembl_gene_id)),
+                   rep("prbc vs rest", length(rep_prbc_rest$significant_genes$ensembl_gene_id)),
+                   rep("lac vs rest", length(rep_lac_rest$significant_genes$ensembl_gene_id)),
+                   rep("nonprbc vs rest", length(rep_nonprbc_rest$significant_genes$ensembl_gene_id)))
+) %>%
+  mutate(comparison = factor(comparison, levels = c("prbc vs rest", "lac vs rest", "inv vs rest", "nonprbc vs rest"))) %>%
+  ggplot(aes(x = comparison, fill = comparison)) +
+  geom_bar() +
+  scale_fill_manual(values = set_names(
+    study_colors, c( "nonprbc vs rest", "inv vs rest","lac vs rest", "prbc vs rest",   "rest"))) +
+  theme_bw() +
+  ylab("Genes") +
+  ggtitle("One vs rest differentially expressed gnes")
+```
+
+# Pathway dot plot
+
+```{r, fig.width=8, fig.height=6}
+po = bind_rows(
+  list("inv vs rest" = bind_rows(rep_inv_rest$pathways),
+  "prbc vs rest" = bind_rows(rep_prbc_rest$pathways),
+  "nonprbc vs rest" = bind_rows(rep_nonprbc_rest$pathways),
+  "lac vs rest" = bind_rows(rep_lac_rest$pathways)),
+  .id = "comparison") %>%
+  mutate(sigFDR = fdr < 0.05) %>%
+  mutate(path = substr(pathway, 1, 20))
+#po
+
+po %>% ggplot(aes(x = collection, y = -log10(fdr), color = sigFDR)) +
+  geom_jitter(width=0.1, height = 0) +
+  facet_wrap(~ comparison, ncol = 2, scales = "fixed") +
+  theme(axis.text.x = element_text(angle=90)) +
+  scale_color_manual(values = c("darkgray", "darkred")) +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  ggtitle("Signficant (Fisher's exact test) pathways at FDR < 0.05") +
+  ggthemes::theme_few()# +
+  #ggrepel::geom_label_repel(data=subset(po, -log10(fdr) > 3.5),
+  #                         aes(label=path), show.legend = F, size = 3)
+```
+
+```{r, echo=F}
+ggsave(here("results", "diffex", "figs","08_onevsrest", "08_barplot_onevsrest.jpg"),
+         height = 7, width = 10)
+```
+
+# Save data {.tabset}
+
+```{r}
+res_list = mget(ls(pattern="rep_"))
+names(res_list)
+```
+
+## Significance of genes
+
+Save the significant genes and results from each comparison.
+
+```{r}
+#Save the results for all genes in an Excel file with multiple tabs
+
+#The tab names will be the list names
+resdf = lapply(res_list, function(x) x$annotated_results)
+names(resdf) = paste(names(resdf),"all", sep="_")
+openxlsx::write.xlsx(resdf, file = here("results", "diffex", "08_one_vs_rest_allgenes.xlsx"))
+
+#Save the significant genes in a multi-tab excel file
+resdf = lapply(res_list, function(x) x$significant_genes)
+names(resdf) = paste("sig",names(resdf), sep="_")
+#Also keep the thresholds used for significance
+resdf[[length(resdf)+1]] = enframe(unlist(lapply(res_list, function(x) x$sig_threshold)), "name", "value") %>% #signficance and l2fc
+                 separate(name, into = c("comparison", "threshold"), sep="\\.") %>%
+  bind_rows(.,enframe(unlist(lapply(res_list, function(x) x$cooks_threshold)), #Cooks
+                      "comparison", "value") %>% mutate(threshold = "cooks"))
+names(resdf)[length(resdf)] = "thresholds"
+write.xlsx(resdf, file = here("results", "diffex", "08_one_vs_rest_sig_genes.xlsx"))
+rm(resdf)
+```
+
+## Pathway results
+
+Fisher's exact pathway analyses
+
+```{r}
+resdf = lapply(res_list, function(x) x$pathways)
+
+#Returns a list of aggregated path results per comparison
+pathlist = list()
+pathlist[[names(resdf)[1]]] = resdf %>% map(1, .depth=1) %>% bind_rows( .id = "comp")
+for (i in 2:length(resdf[[1]])){
+  path = resdf %>% map(i, .depth=1) %>% bind_rows( .id = "comp")
+  pathlist[[names(resdf)[i]]] = path
+}
+
+#Fix names
+names(pathlist) = lapply(pathlist, function(x) unique(x$collection)) %>% unlist(use.names = F)
+pathlist = lapply(pathlist, function(x) x[order(x$fdr),])
+
+openxlsx::write.xlsx(pathlist, file = here("results", "diffex", "08_one_vs_rest_pathways.xlsx"))
+
+rm(resdf)
+```
+
+## Heatmaps
+
+```{r}
+hmlist = lapply(res_list, function(x) x$heatmap)
+names(hmlist) = names(hmlist) %>% str_replace_all("rep", "hm")
+
+dir.create(here("results","diffex", "figs", "08_onevsrest" ,"heatmaps"), showWarnings = F, recursive = T)
+for (i in 1:length(hmlist)){
+  pdf(here("results", "diffex", "figs", "08_onevsrest", "heatmaps", paste0(names(hmlist)[i],".pdf")), width = 10, height = 8)
+  print(hmlist[[i]])
+  dev.off()
+}
+
+rm(hm_list)
+```
+
+## Volcano plot sig hits
+
+```{r}
+volclist = lapply(res_list, function(x) x$volcano_plot)
+names(volclist) = names(volclist) %>% str_replace("rep", "volc")
+
+dir.create(here("results","diffex", "figs", "08_onevsrest" ,"volcano_plots"), showWarnings = F)
+lapply(names(volclist), 
+       function(x) ggsave(filename=here("results","diffex", "figs", "08_onevsrest","volcano_plots",
+                                        paste(x,".jpeg",sep="")), plot=volclist[[x]],
+                          height = 6, width = 8))
+rm(volclist)
+```
+
+## Volcano plot outliers
+
+```{r}
+outvplist = lapply(res_list, function(x) x$volc_outliers)
+names(outvplist) = names(outvplist) %>% str_replace("rep", "volc")
+
+dir.create(here("results","diffex", "figs", "08_onevsrest" ,"volcano_plots"), showWarnings = F)
+lapply(names(outvplist), 
+       function(x) ggsave(filename=here("results","diffex", "figs", "08_onevsrest","volcano_plots",
+                                        paste(x,".outliers.jpeg",sep="")), plot=outvplist[[x]],
+                          height = 6, width = 8))
+rm(outvplist)
+```
+
+## Pathway dotplots 
+
+```{r}
+dir.create(here("results","diffex", "figs", "08_onevsrest" ,"fisher_pathway"), showWarnings = F)
+pathwaylist = lapply(res_list, function(x) x$pathway_plots)
+for(i in 1:length(pathwaylist)){
+  thiscomp = pathwaylist[[i]]
+  compname = str_replace(str_remove(names(pathwaylist[i]), "rep_"),"_","_vs_")
+  for (j in 1:length(thiscomp)){
+    thissig = thiscomp[[j]]
+    file=paste0(paste(compname, names(thiscomp[j]), sep="-"),".jpeg")
+    #print(file)
+    ggsave(filename=here("results","diffex", "figs",
+                         "08_onevsrest","fisher_pathway",file),
+           plot=thissig, height = 6, width = 8)
+  }
+}
+
+
+rm(pathwaylist)
+```
+
+## Sessioninfo
+
+```{r}
+sessionInfo()
+```
+
+
+
