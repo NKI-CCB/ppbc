@@ -373,7 +373,7 @@ rule genewise_diffex_reports:
     tools="src/deseq_report_functions.R",
     vsd="data/Rds/08_vsd_ovr.Rds",
     gx_annot="data/metadata/01_tx_annot.tsv",
-    rmd="reports/08_diffex_onevsrest.Rmd",
+    rmd="reports/09_genewise_diffex_reports.Rmd",
     script="src/rmarkdown.R"
   output:
     "results/diffex/figs/milk_vs_IG_genes.pdf",

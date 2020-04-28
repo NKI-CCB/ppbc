@@ -836,15 +836,6 @@ milk_hm
 ```
 
 ```{r}
-pdf(here("results", "diffex", "figs", "milk_vs_IG_genes_rowscaled.pdf"), width = 10, height = 7)
-
-deseq_heatmap(mat = milk_IG_mat, sampledata = sd,sig_results = res_list$inv_vs_rest,
-              title="Milk genes vs IG genes")
-
-dev.off()
-```
-
-```{r}
 pdf(here("results", "diffex", "figs", "milk_vs_IG_genes.pdf"), width = 10, height = 7)
 
 milk_hm
