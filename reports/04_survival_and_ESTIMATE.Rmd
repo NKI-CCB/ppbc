@@ -44,7 +44,7 @@ scale_fill_discrete <- function(...) {
   scale_fill_manual(..., values = colorblind_pal()(8))
 }
 
-theme_set(theme_minimal())
+theme_set(theme_bw())
 ```
 
 In this notebook, we use ESTIMATE to calculate immune/stromal scores and tumor purity for the PPBC dataset.
@@ -58,6 +58,8 @@ dds <- readRDS(here("data/Rds/03_dds_PAM50.Rds"))
 tx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
 
 color_palettes = readRDS(here("data/Rds/color_palettes.Rds"))
+
+sp = readRDS(here("data/Rds/survival_colors.Rds"))
 ```
 
 We only need the gene id and hgnc symbol for this script.
@@ -540,28 +542,33 @@ inv_cox %>%
   geom_density(alpha = 0.5) +
   ggtitle("Distribution of breastfeeding and involution duration")
 ```
-Set up duration categories
+
+Set up duration categories.
+Adjusted in consultation with Hanne.
+
+For time in involution, greater or less than 6 months
+≤6 months: #3538F2
+>6 months: #FF831E
+
+And for breastfeeding, greater or less than 1 month
+≤ 1 month: #264653
+> 1 month: #E9C46A
 
 ```{r}
 inv_cox = inv_cox %>%
   mutate(involution = case_when(
-    months_involution_breastfeeding < 2 ~ "< 2 months",
-    between(months_involution_breastfeeding, 2, 6) ~ "2-6 months",
-    between(months_involution_breastfeeding, 7, 12) ~ "7-12 months",
-    between(months_involution_breastfeeding, 13, 25) ~ "13-25 months",
+    months_involution_breastfeeding <= 6 ~ "<= 6 months",
+    months_involution_breastfeeding > 6 ~ "> 6 months",
   )) %>% mutate(breastfeeding = case_when(
-    breastfeeding_months < 1 ~ "< 1 month",
-    between(breastfeeding_months, 1, 4) ~ "1-4 months",
-    between(breastfeeding_months, 5, 25) ~ "5-25 months"
+    breastfeeding_months <= 1 ~ "<= 1 month",
+    breastfeeding_months > 1 ~ "> 1 month",
   )) %>%
   select(sample_name, months_involution_breastfeeding, involution,
          breastfeeding_months, breastfeeding, everything()) %>%
   mutate(involution = factor(involution,
-                             levels = c("< 2 months", "2-6 months",
-                                        "7-12 months", "13-25 months")),
+                             levels = c("<= 6 months", "> 6 months")),
          breastfeeding = factor(breastfeeding,
-                                levels = c("< 1 month", "1-4 months",
-                                           "5-25 months")))
+                                levels = c("<= 1 month", "> 1 month")))
 
 inv_cox$involution %>% table()
 inv_cox$breastfeeding %>% table()
@@ -736,35 +743,9 @@ table(inv_cox$involution)
 ```
 
 ```{r, fig.width=8, fig.height=6}
-km_time_inv = 
-survfit(Surv(time=months_overall_survival, event=overall_survival) ~ involution,
-        data = inv_cox) %>%
-ggsurvplot(fit = ., 
-    xlab = "Months", 
-    ylab = "Overall survival probability",
-    title = paste0("Overall survival by time since weaning (n = ", nrow(inv_cox), ")"),
-    pval = T,
-    palette = viridis::plasma(length(unique(inv_cox$involution))),
-    #palette = ppbc_colors,
-    ggtheme = theme_bw(),
-    risk.table = F,
-    cumevents = F, cumcensor = F,
-    test.for.trend = F)
-
-km_time_inv$plot
-
-```
-
-Looks like less than 2 months is substantially worse than the rest. Refactor.
-
-```{r}
-inv_cox = inv_cox %>%
-  mutate(involution = case_when(
-    months_involution_breastfeeding < 2 ~ "< 2 months",
-    months_involution_breastfeeding >= 2 ~ "> 2 months"
-    )) %>% 
-  mutate(involution = factor(involution,
-                             levels = c("< 2 months", "> 2 months")))
+inv_colors = sp$involution_duration
+names(inv_colors) = c("involution \u2264 6 months", "involution > 6 months")
+#paste0("involution=", names(inv_colors))
 
 km_time_inv = 
 survfit(Surv(time=months_overall_survival, event=overall_survival) ~ involution,
@@ -774,48 +755,18 @@ ggsurvplot(fit = .,
     ylab = "Overall survival probability",
     title = paste0("Overall survival by time since weaning (n = ", nrow(inv_cox), ")"),
     pval = T,
-    palette = "Dark2",
-    #palette = viridis::cividis(length(unique(inv_cox$involution))),
+    #palette = viridis::plasma(length(unique(inv_cox$involution))),
+    palette = inv_colors,
     ggtheme = theme_bw(),
     risk.table = F,
     cumevents = F, cumcensor = F,
-    test.for.trend = F)
+    test.for.trend = F,
+    legend.labs = c("involution \u2264 6 months", "involution > 6 months"))
 
 km_time_inv$plot
+
 ```
 
-```{r, eval=F}
-#Doesn't help
-inv_cox = inv_cox %>%
-  mutate(involution2 = case_when(
-    months_involution_breastfeeding < 3 ~ "< 3 months",
-    months_involution_breastfeeding >= 3 ~ ">= 3 months"
-    )) %>% 
-  mutate(involution2 = factor(involution2,
-                             levels = c("< 3 months", ">= 3 months")))
-
-km_time_inv2 = 
-survfit(Surv(time=months_overall_survival, event=overall_survival) ~ involution2,
-        data = inv_cox) %>%
-ggsurvplot(fit = ., 
-    xlab = "Months", 
-    ylab = "Overall survival probability",
-    title = paste0("Overall survival by time since weaning (n = ", nrow(inv_cox), ")"),
-    pval = T,
-    palette = "Dark2",
-    #palette = viridis::cividis(length(unique(inv_cox$involution))),
-    ggtheme = theme_bw(),
-    risk.table = F,
-    cumevents = F, cumcensor = F,
-    test.for.trend = F)
-km_time_inv2$plot
-```
-
-```{r, eval=F, include=F}
-#pdf(file.path(resDir, "04_km_months_inv.pdf"), width = 8, height=6)
-#print(km_time_inv$plot)
-#dev.off()
-```
 
 ```{r}
 survdiff(Surv(time=months_overall_survival, event=overall_survival) ~ involution, data = inv_cox)
@@ -830,6 +781,9 @@ table(inv_cox$breastfeeding)
 ```
 
 ```{r, fig.width=8, fig.height=6}
+bf_colors = sp$breastfeeding_duration
+names(bf_colors) = c("breastfeeding \u2264 1 month", "breastfeeding > 1 month")
+
 km_brf = 
 survfit(Surv(time=months_overall_survival, event=overall_survival) ~ breastfeeding,
         data = inv_cox) %>%
@@ -838,16 +792,16 @@ ggsurvplot(fit = .,
     ylab = "Overall survival probability",
     title = paste0("Overall survival by breastfeeding duration (n = ", nrow(inv_cox), ")"),
     pval = T,
-    palette = viridis::plasma(length(unique(inv_cox$breastfeeding))),
+    palette = bf_colors,
     ggtheme = theme_bw(),
     risk.table = F,
     cumevents = F, cumcensor = F,
-    test.for.trend = F)
+    test.for.trend = F,
+    legend.labs = c("breastfeeding \u2264 1 month", "breastfeeding > 1 month"))
 
 km_brf$plot
 
 ```
-
 
 ```{r, eval=F, include=F}
 pdf(file.path(resDir, "04_km_breastfeeding.pdf"), width = 8, height=6)
@@ -873,7 +827,7 @@ ggsurvplot(fit = .,
     ylab = "DRS probability",
     title =  paste0("DRS: All samples with adequate data (n = ", nrow(coxdata), ")"),
     #linetype = "strata",
-    palette = "Dark2",
+    palette = ppbc_colors,
     ggtheme = theme_bw(),
     pval = T,
     risk.table = F,
@@ -1026,11 +980,12 @@ ggsurvplot(fit = .,
     title = paste0("DRS by time since weaning (n = ", nrow(inv_cox), ")"),
     pval = T,
     #palette = viridis::cividis(length(unique(inv_cox$involution))),
-    palette = "Dark2",
+    palette = inv_colors,
     ggtheme = theme_bw(),
     risk.table = F,
     cumevents = F, cumcensor = F,
-    test.for.trend = F)
+    test.for.trend = F,
+    legend.labs = names(inv_colors))
 
 km_drs_inv$plot
 
@@ -1063,11 +1018,12 @@ ggsurvplot(fit = .,
     ylab = "DRS probability",
     title = paste0("DRS by breastfeeding duration (n = ", nrow(inv_cox), ")"),
     pval = T,
-    palette = viridis::plasma(length(unique(inv_cox$breastfeeding))),
+    palette = bf_colors,
     ggtheme = theme_bw(),
     risk.table = F,
     cumevents = F, cumcensor = F,
-    test.for.trend = F)
+    test.for.trend = F,
+    legend.labs = names(bf_colors))
 
 drs_brf$plot
 
@@ -1092,7 +1048,6 @@ covariates <- c("age_at_diagnosis", "year_of_diagnosis","stage","grade",
                 "surgery", "radiotherapy", "hormonetherapy", "chemotherapy",
                 "herceptin")
 ```
-
 
 Of the remaining covariates, only stage and surgery are significant.
 
@@ -1200,8 +1155,8 @@ abline(h = coef(allcov.cox)[7], col = "red", lwd = 2, lty=2)
 
 ```
 
-In both cases, the trend appears to be largely driven by outliers.
-This makes sense as some patients will be more or less responsive to different treatments.
+For chemotherapy, the trend appears to be largely driven by outliers.
+For hormonetherapy, this is biologically logical, since hormonetherapy will be largely correlated with ER status.
 
 These covariates are stronger, albeit not significant, and in any case we cannot simply discard some interventions.
 
@@ -1212,38 +1167,21 @@ res.simple.univ %>%
   filter(covariate %in% c("chemotherapy", "hormonetherapy"))
 ```
 
-Can we render treatment interventions compliant with the proportional hazards assumption by collapsing it into a single factor?
+To quote an expert within the department:
 
-```{r}
-coxdata2 = coxdata %>% mutate(
-  surgery = if_else(surgery == 1, "surgeryYes", "surgeryNo"),
-  radiotherapy = if_else(radiotherapy == 1, "radiotherapyYes", "radiotherapyNo"),
-  hormonetherapy = if_else(hormonetherapy == 1, "hormonetherapyYes", "hormonetherapyNo"),
-  chemotherapy = if_else(chemotherapy == 1, "chemotherapyYes", "chemotherapyNo"),  
-  herceptin = if_else(herceptin == 1, "herceptinYes", "herceptinNo")
-) %>% mutate(
-  treatment = paste(surgery, radiotherapy, hormonetherapy,
-                    chemotherapy, herceptin, sep = ":"))#%>% select(-surgery:-herceptin)
+>The effect of ER status on survival is not constant over time. 
+ER-negative patients have a high risk of dying in the first five years after diagnosis, but then the risk levels off. 
+This is in contrast to ER-positive patients, where the risk is much lower initially, but continuous at a similar level for a much longer time.
+Based on its association with ER status I do believe that tamoxifen treatment violates the assumption, but perhaps only in breast cancer overall, not in ER-positive patients. 
+For chemotherapy, I believe I have seen people use it as a normal covariate (which is admittedly not a proof of it being right). 
+My remark about chemotherapy was mostly triggered by your observation that the trend over time could be caused by outliers. In that case, you could just include it as a covariate, I suppose.
 
-#table(coxdata2$treatment)
-
-coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + treatment + PAM50 + PPBC,
-  data = coxdata2) %>%
-  cox.zph()
-
-
-```
-
-No, because the groups are too small.
-
-If we stratify these variables, we remove the problem.
+We will stratify HT but not CT.
 
 ```{r}
 coxph(
   Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + strata(chemotherapy) + herceptin + PAM50 + PPBC,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC,
   data = coxdata) %>%
   cox.zph()
 
@@ -1266,7 +1204,6 @@ It's too strong a signal in breast cancer to ignore.
 
 ```{r}
 coxph(Surv(time=months_overall_survival, event=overall_survival) ~ PAM50, data = coxdata)
-
 ```
 
 Since we aren't interested in assessing the individual effect of PAM50 on survival, we can simply stratify it.
@@ -1274,7 +1211,7 @@ Since we aren't interested in assessing the individual effect of PAM50 on surviv
 ```{r}
 coxph(
   Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + strata(chemotherapy) + herceptin + strata(PAM50) + PPBC,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC,
   data = coxdata) %>%
   cox.zph()
 ```
@@ -1290,6 +1227,7 @@ Stage is just barely not sigificant when looking at Schoenfeld residuals.
 #abline(h = coef(allcov.cox)[4], col = "red", lwd = 2, lty=2)
 ggcoxzph(test.ph.os, var="stage")[[1]]
 ```
+
 However, the Schoenfeld individual test is no logner significant after the other problem covariates have been stratified, as we saw in the previous section.
 No further action is taken here.
 
@@ -1303,7 +1241,7 @@ This cannot be corrected for without discarding some samples, which is not warra
 ```{r, fig.width=7, fig.height=10}
 coxph(
   Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + PPBC,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + strata(PPBC),
   data = coxdata) %>%
 ggcoxdiagnostics(., type = "dfbeta",
                  linear.predictions = FALSE, ggtheme = theme_bw())
@@ -1335,7 +1273,7 @@ clin.cov.cox <- coxph(
     surgery +
     radiotherapy +
     strata(hormonetherapy) +
-    strata(chemotherapy) +
+    chemotherapy +
     herceptin +
     strata(PAM50) +
     PPBC,
@@ -1352,7 +1290,8 @@ table(coxdata$surgery)
 ### KM adjusted overall survival
 
 Stratifying treatment prior to ggadjusted curves results in several strata with zero non-NA points. 
-We'll remove the stratification from this analysis.
+Arguably stratifying PAM50 accounts for ER status by itself.
+We'll remove the stratification for HT from this analysis.
 
 ```{r}
 fit1 = coxph(
@@ -1415,7 +1354,7 @@ drs.clin.cov.cox <- coxph(
     surgery +
     radiotherapy +
     strata(hormonetherapy) +
-    strata(chemotherapy) +
+    chemotherapy +
     herceptin +
     strata(PAM50) +
     PPBC,
@@ -1488,7 +1427,7 @@ coxph(
     surgery +
     radiotherapy +
     strata(hormonetherapy) +
-    strata(chemotherapy) +
+    chemotherapy +
     herceptin +
     strata(PAM50) +
     PPBC +
@@ -1504,7 +1443,7 @@ coxph(
     surgery +
     radiotherapy +
     strata(hormonetherapy) +
-    strata(chemotherapy) +
+    chemotherapy +
     herceptin +
     strata(PAM50) +
     PPBC +
@@ -1632,7 +1571,7 @@ coxph(
     surgery +
     radiotherapy +
     strata(hormonetherapy) +
-    strata(chemotherapy) +
+    chemotherapy +
     herceptin +
     strata(PAM50) +
     months_involution_breastfeeding +
@@ -1647,7 +1586,7 @@ coxph(
     surgery +
     radiotherapy +
     strata(hormonetherapy) +
-    strata(chemotherapy) +
+    chemotherapy +
     herceptin +
     strata(PAM50) +
     months_involution_breastfeeding +
@@ -1655,8 +1594,8 @@ coxph(
   data = inv_cox) %>% summary()
 ```
 
-As categorical variables, a shorter time in involution (< 2 months) or breastfeeding (1 < month) is significantly worse than a longer duration in either.
-Interestingly, this is ONLY true for DRS.
+As categorical variables, a shorter time in involution (< 6 months) or breastfeeding (1 < month) is significantly worse than a longer duration in either.
+
 
 ```{r}
 coxph(
@@ -1667,7 +1606,7 @@ coxph(
     surgery +
     radiotherapy +
     strata(hormonetherapy) +
-    strata(chemotherapy) +
+    chemotherapy +
     herceptin +
     strata(PAM50) +
     involution +
@@ -1682,7 +1621,7 @@ coxph(
     surgery +
     radiotherapy +
     strata(hormonetherapy) +
-    strata(chemotherapy) +
+    chemotherapy +
     herceptin +
     strata(PAM50) +
     involution +
@@ -1751,25 +1690,26 @@ dds$stromal_tertile = dplyr::ntile(as.data.frame(colData(dds))$stromal_score, 3)
 cd = as.data.frame(colData(dds))
 cd = cd %>%
   mutate(involution = case_when(
-    months_involution_breastfeeding < 2 ~ "< 2 months",
-    months_involution_breastfeeding >= 2 ~ "> 2 months"
+    months_involution_breastfeeding <= 6 ~ "<= 6 months",
+    months_involution_breastfeeding > 6 ~ "> 6 months"
     )) %>% 
   mutate(involution = factor(involution,
-                             levels = c("< 2 months", "> 2 months"))) %>%
+                             levels = c("<= 6 months", "> 6 months"))) %>%
   mutate(breastfeeding = case_when(
-    breastfeeding_months < 1 & study_group == "ppbc_inv" ~ "< 1 month",
-    between(breastfeeding_months, 1, 4) & study_group == "ppbc_inv" ~ "1-4 months",
-    between(breastfeeding_months, 5, 29) & study_group == "ppbc_inv" ~ "5-29 months"
+    breastfeeding_months <= 1 & study_group == "ppbc_inv" ~ "<= 1 month",
+    breastfeeding_months > 1 & study_group == "ppbc_inv" ~ "> 1 month"
   )) %>%
   select(sample_name, months_involution_breastfeeding, involution,
          breastfeeding_months, breastfeeding, everything()) %>%
   mutate(breastfeeding = factor(breastfeeding,
-                                levels = c("< 1 month", "1-4 months",
-                                           "5-25 months")))
+                                levels = c("<= 1 month", "> 1 month")))
 stopifnot(identical(cd$sample_name, colData(dds)$sample_name))
 
 dds$involution_duration = cd$involution
 dds$breastfeeding_duration = cd$breastfeeding
+
+table(dds$involution_duration)
+table(dds$breastfeeding_duration)
 ```
 
 Write both the coldata and the new dds object
