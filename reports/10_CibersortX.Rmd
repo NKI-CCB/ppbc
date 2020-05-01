@@ -1,0 +1,1844 @@
+---
+title: "10_CibersortX"
+Author: Kat Moore
+date: "`r Sys.Date()`"
+output: 
+  pdf_document: 
+    toc: true
+    toc_depth: 4
+    fig_width: 7
+    fig_height: 6
+    df_print: tibble
+---
+
+Visualizations and statistical test on CibersortX deconvolution of immune cells between PPBC study groups.
+
+Note: At this time (30/4/20), some of the elements in box plots are overlapping.
+
+```{r, include=F}
+rm(list = ls())
+```
+
+```{r, include =F}
+library(here)
+library(ggbeeswarm)
+library(RColorBrewer)
+library(circlize)
+library(ComplexHeatmap)
+library(scales)
+library(scrime)
+library(effsize)
+library(ggpubr)
+library(tidyverse)
+
+```
+
+```{r, include=F}
+theme_set(theme_bw())
+```
+
+
+# Input and parameters 
+
+Sample metadata:
+
+```{r}
+meta = read_csv(here("data","metadata", "05_sample_annot_filtered.csv"))
+```
+
+## Colors
+
+```{r}
+cp = readRDS(here("data", "Rds", "color_palettes.Rds"))
+study_colors = cp$study_colors
+pam_colors = cp$pam_colors
+gene_colors = cp$gene_colors
+ppbc_colors = cp$ppbc_colors
+
+sp = readRDS(here("data/Rds/survival_colors.Rds"))
+```
+
+
+CibersortX can be found at https://cibersortx.stanford.edu/
+
+As input, it takes a mixture file with samples as column names and genes as row names within the first column. The values should be normalized by library size or (better) lib size and transcript length (tpm/fpkm). CibersortX can add unique identifiers to duplicate gene names, but ideally the duplicates are already handled by the user. We have already produced such a matrix in notebook 4 (04_tumor_purity.Rmd) for running ESTIMATE, using fpkm.
+
+```{r}
+hugo_mat = read_tsv(here("data", "RNA-seq", "hugo_fpkm.txt"))
+hugo_mat[1:4, 1:4]
+```
+
+## Load Cibersort results
+
+Job Parameters used for this run:
+
+    Date: 2020-04-28 07:35:19
+    Job type: Impute Cell Fractions
+    Signature matrix file: LM22.update-gene-symbols.txt
+    Mixture file: hugo_fpkm_1.txt
+    Batch correction: enabled
+    Batch correction mode: B-mode
+    Disable quantile normalization: true
+    Run mode (relative or absolute): relative
+    Permutations: 100
+
+CibersortX takes a signature matrix as well as a mixture matrix to perform deconvolution. It is possible to generate a unique signature matrix, but this requires single cell RNAseq data, which the PPBC project lacks. As such, we use the default version on the website: the LM22 matrix, which contains 22 functionally defined human immune subsets. 
+
+LM22 was generated based on microarray data. The documentation recommends applying batch correction when the signature matrix and mixture matrix are profiled on different platforms. Batch correction was run in B-mode ("bulk", as opposed to "s" mode for single cell) using the optional GEP file provided for LM22 on the website. Disabling quantile normalization is recommended for RNA-Seq data. As we are working with RNA-Seq data in this tutorial, we leave this box checked. 
+
+
+```{r}
+ciber_input = read_csv(here("results", "cibersortX", "CIBERSORTx_Job3_Results.csv"))
+abs_ciber_input = read_csv(here("results", "cibersortX", "CIBERSORTx_Job4_Results.csv"))
+head(ciber_input)
+```
+
+All results are reported as relative fractions normalized to 1 across all cell subsets.
+The following metrics are provided for each mixture sample:
+
+    P-value: Statistical significance of the deconvolution result across all cell subsets; useful for filtering out results with a poor "goodness of fit." Increase the number of permutations (input page) to increase the number of significant digits.
+    
+    Correlation: Pearson's correlation coefficient (R), generated from comparing the original mixture with the estimated mixture, the latter of which is calculated using imputed cell fractions and corresponding expression profiles from the signature genes file. Of note, the correlation is restricted to signature genes.
+    
+    RMSE: Root mean squared error between the original mixture and the imputed mixture, restricted to genes in the signature gene file.
+
+Melt data frame to long format and add metadata:
+
+```{r}
+ciberdf = ciber_input %>%
+  gather(key = "type", value = "ciberval", -Mixture) %>%
+  select(sample_name = Mixture, everything()) %>%
+  left_join(., select(meta, sample_name, study_group, PPBC,
+                      PAM50, molecular_subtype,tumor_purity, batch,
+                      stage=stage_short_integer, grade,
+                      involution_duration, breastfeeding_duration), by = "sample_name")
+abs_ciberdf = abs_ciber_input %>%
+  gather(key = "type", value = "ciberval", -Mixture) %>%
+  select(sample_name = Mixture, everything()) %>%
+  left_join(., select(meta, sample_name, study_group, PPBC,
+                      PAM50, molecular_subtype,tumor_purity, batch,
+                      stage=stage_short_integer, grade,
+                      involution_duration, breastfeeding_duration), by = "sample_name")
+head(ciberdf)  
+```
+
+# Goodness of fit
+
+Start with the quality control metrics that come from cibersort.
+
+```{r}
+ciberdf %>% filter(type %in% c("P-value", "Correlation", "RMSE")) %>%
+  ggplot(aes(x = type, y = ciberval)) +
+  geom_jitter(aes(color = PPBC), width = 0.2) + geom_boxplot(alpha = 0) +
+  ggtitle("Goodness of fit metrics from CibersortX") +
+  ylab("Value") + xlab("Metric") +
+  scale_color_manual(values=ppbc_colors,na.value = "grey50")
+```
+
+Looks like the P value is flat 0 for almost every sample.
+
+```{r}
+ciberdf %>% filter(type == "P-value" & ciberval != 0)
+```
+
+```{r}
+ciberdf %>% filter(type %in% c("Correlation", "RMSE")) %>%
+  spread(key = type, value = ciberval) %>%
+  ggplot(aes(x = RMSE, y = Correlation)) + geom_point(aes(color = PPBC)) +
+  ggtitle("Relationship between CibersortX correlation and RMSE: possible filters") +
+  geom_segment(x = 0.9, y = 0.45, xend = 0.9, yend = 1, color = "blue", linetype = "dashed") +
+  geom_segment(x = 0, y = 0.45, xend = 0.9, yend = 0.45, color = "red", linetype = "dashed")+
+  scale_color_manual(values=ppbc_colors,na.value = "grey50")
+```
+
+How many would we lose if we applied this filter?
+
+```{r}
+passthresh = ciberdf %>% filter(type %in% c("Correlation", "RMSE")) %>%
+  spread(key = type, value = ciberval) %>%
+  mutate(fithresh = (Correlation >= 0.45 & RMSE <= 0.9)) %>%
+  filter(fithresh == T) %>% pull(sample_name)
+
+ciberdf = ciberdf %>%
+  mutate(passthresh = sample_name %in% passthresh)
+
+ciberdf %>%
+  select(sample_name, study_group, passthresh) %>% distinct() %>%
+  select(-sample_name) %>% table()
+
+```
+
+For now, no filter, since P-value is universally below 0.05.
+
+# Cell groups
+
+```{r}
+#ciberdf %>% filter(!(type %in% c("P-value", "Correlation", "RMSE"))) %>% select(type) %>% unique()
+
+ciberdf = ciberdf %>% mutate(cellgroup = case_when(
+  type %in% c("B cells naive", "B cells memory", "Plasma cells") ~ "B cell",
+  str_detect(type, "T cells") ~ "T cell",
+  type %in% c("Monocytes", "Macrophages M0", "Macrophages M1", "Macrophages M2") ~ "Macrophage",
+  type %in% c("P-value", "Correlation", "RMSE") ~ "metric",
+  TRUE ~ "other"
+))
+
+cibermetrics = ciberdf %>% filter(cellgroup == "metric")
+ciberdf = ciberdf %>% filter(cellgroup != "metric")
+
+abs_ciberdf = abs_ciberdf %>% mutate(cellgroup = case_when(
+  type %in% c("B cells naive", "B cells memory", "Plasma cells") ~ "B cell",
+  str_detect(type, "T cells") ~ "T cell",
+  type %in% c("Monocytes", "Macrophages M0", "Macrophages M1", "Macrophages M2") ~ "Macrophage",
+  type %in% c("P-value", "Correlation", "RMSE") ~ "metric",
+  TRUE ~ "other"
+))
+
+abs_cibermetrics = abs_ciberdf %>% filter(cellgroup == "metric")
+abs_ciberdf = abs_ciberdf %>% filter(cellgroup != "metric")
+
+
+cellgroups = ciberdf %>% select(cellgroup, type) %>% distinct
+cellgroups
+```
+
+```{r}
+#unique(ciberdf$type)
+
+ciberdf = ciberdf %>% mutate(cellgroup2 = case_when(
+  type %in% c("Dendritic cells resting", "Dendritic cells activated") ~ "Dendritic cells",
+  type %in% c("Mast cells resting", "Mast cells activated") ~ "Mast cells",
+  TRUE ~ type
+))
+
+abs_ciberdf = abs_ciberdf %>% mutate(cellgroup2 = case_when(
+  type %in% c("Dendritic cells resting", "Dendritic cells activated") ~ "Dendritic cells",
+  type %in% c("Mast cells resting", "Mast cells activated") ~ "Mast cells",
+  TRUE ~ type
+))
+
+cellgroup2 = ciberdf %>% select(cellgroup2, type) %>% distinct()
+cellgroup2
+```
+
+
+# Heatmaps 
+
+## General overview
+
+```{r, fig.width=12}
+#Matrix from df
+hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%
+  column_to_rownames("Mixture") %>% as.matrix %>% t()
+
+# Top column annotation
+ann_top = select(meta, sample_name, PPBC, PAM50) %>%
+  #mutate(study_group = factor(study_group, levels=c("non_prbc", "ppbc_inv", "ppbc_lac", "prbc"))) %>%
+  column_to_rownames("sample_name")
+
+
+colTop <- HeatmapAnnotation(df = ann_top, which="col",
+                            col = list(PPBC=ppbc_colors, PAM50 = pam_colors))
+
+Heatmap(hmat, top_annotation = colTop, show_column_names = F,
+        col = colorRamp2(c(0, 0.5, 1), c("white", "orange", "red")),
+        column_title = "Overview CibersortX", heatmap_legend_param = list(title="Relative cell fraction"))
+```
+
+```{r, fig.width=12}
+#Matrix from df
+hmat = abs_ciber_input %>% select(-`P-value`, -Correlation, -RMSE, -`Absolute score (sig.score)`) %>%
+  column_to_rownames("Mixture") %>% as.matrix %>% t()
+
+# Top column annotation
+ann_top = select(meta, sample_name, PPBC, PAM50) %>%
+  #mutate(study_group = factor(study_group, levels=c("non_prbc", "ppbc_inv", "ppbc_lac", "prbc"))) %>%
+  column_to_rownames("sample_name")
+
+
+colTop <- HeatmapAnnotation(df = ann_top, which="col",
+                            col = list(PPBC=ppbc_colors, PAM50 = pam_colors))
+
+Heatmap(hmat, top_annotation = colTop, show_column_names = F,
+        col = colorRamp2(c(0, 0.5, 1), c("white", "orange", "red")),
+        column_title = "Overview CibersortX", heatmap_legend_param = list(title="Absolute cell fraction"))
+```
+
+
+
+## K-means overview
+
+Row-scaled. Exclude Tregs since there's hardly anything there.
+
+```{r, fig.width=12}
+set.seed(1)
+
+#Matrix from df
+hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%column_to_rownames("Mixture") %>% as.matrix %>% t()
+hmat = rowScales(hmat)
+
+hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
+        column_title = "Overview CibersortX, k-means clustering",
+        heatmap_legend_param = list(title="Row-scaled relative fraction", legend_direction = "horizontal"),
+        column_km = 3, row_km = 3, column_km_repeats = 10, row_km_repeats = 10)
+
+draw(hm,  heatmap_legend_side = "bottom")
+```
+
+```{r, fig.width=12}
+set.seed(1)
+
+#Matrix from df
+hmat = abs_ciber_input %>% select(-`P-value`, -Correlation, -RMSE, -`Absolute score (sig.score)`) %>%
+  column_to_rownames("Mixture") %>% as.matrix %>% t()
+hmat = rowScales(hmat)
+
+hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
+        column_title = "Overview CibersortX, k-means clustering",
+        heatmap_legend_param = list(title="Row-scaled absolute fraction", legend_direction = "horizontal"),
+        column_km = 3, row_km = 3, column_km_repeats = 10, row_km_repeats = 10)
+
+draw(hm,  heatmap_legend_side = "bottom")
+```
+
+```{r, include=F}
+set.seed(1)
+
+#Matrix from df
+hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%
+  column_to_rownames("Mixture") %>% as.matrix %>% t()
+
+#Select cell group
+hmat = hmat[rownames(hmat) %in% cellgroups[cellgroups$cellgroup=="B cell","type", drop=T], ]
+
+hmat = rowScales(hmat)
+
+# Top column annotation
+ann_top = select(meta, sample_name, PPBC, PAM50) %>%
+  #mutate(study_group = factor(study_group, levels=c("non_prbc", "ppbc_inv", "ppbc_lac", "prbc"))) %>%
+  column_to_rownames("sample_name")
+
+
+
+hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
+        column_title = "B-cells CibersortX",
+        heatmap_legend_param = list(title="Row-scaled relative fraction",legend_direction = "horizontal")
+        )
+
+draw(hm,  heatmap_legend_side = "bottom")
+```
+
+```{r, include=F}
+set.seed(1)
+
+#Matrix from df
+hmat = abs_ciber_input %>% select(-`P-value`, -Correlation, -RMSE, -`Absolute score (sig.score)`) %>%
+  column_to_rownames("Mixture") %>% as.matrix %>% t()
+
+#Select cell group
+hmat = hmat[rownames(hmat) %in% cellgroups[cellgroups$cellgroup=="B cell","type", drop=T], ]
+
+hmat = rowScales(hmat)
+
+# Top column annotation
+ann_top = select(meta, sample_name, PPBC, PAM50) %>%
+  #mutate(study_group = factor(study_group, levels=c("non_prbc", "ppbc_inv", "ppbc_lac", "prbc"))) %>%
+  column_to_rownames("sample_name")
+
+
+
+hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
+        column_title = "B-cells CibersortX",
+        heatmap_legend_param = list(title="Row-scaled absolute fraction",legend_direction = "horizontal")
+        )
+
+draw(hm,  heatmap_legend_side = "bottom")
+```
+
+```{r, include=F}
+set.seed(1)
+
+#Matrix from df
+hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%
+  column_to_rownames("Mixture") %>% as.matrix %>% t()
+
+#Select cell group
+hmat = hmat[rownames(hmat) %in% cellgroups[cellgroups$cellgroup=="T cell","type", drop=T], ]
+
+hmat = rowScales(hmat)
+
+# 
+
+hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
+        column_title = "T-cells CibersortX",
+        heatmap_legend_param = list(title="Row-scaled relative fraction",legend_direction = "horizontal")
+        )
+
+draw(hm,  heatmap_legend_side = "bottom")
+```
+
+```{r, include=F}
+set.seed(1)
+
+#Matrix from df
+hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%
+  column_to_rownames("Mixture") %>% as.matrix %>% t()
+
+#Select cell group
+hmat = hmat[rownames(hmat) %in% cellgroups[cellgroups$cellgroup=="Macrophage","type", drop=T], ]
+hmat = rowScales(hmat)
+
+
+hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
+        column_title = "Macrophages CibersortX",
+        heatmap_legend_param = list(title="Row-scaled relative fraction",legend_direction = "horizontal")
+        )
+
+draw(hm,  heatmap_legend_side = "bottom")
+```
+
+# Bar plots 
+
+Stacked groupwise overview:
+
+```{r}
+ciberdf %>%
+  ggplot(aes(x = PPBC, y = ciberval, fill=cellgroup2)) +
+  geom_bar(stat="identity", position = "fill") +
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative cell abundance by sample") +
+  scale_fill_viridis_d()
+```
+
+```{r}
+ciberdf %>%
+  ggplot(aes(x = PPBC, y = ciberval, fill=cellgroup)) +
+  geom_bar(stat="identity", position = "fill") +
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative cell abundance by study group") +
+  scale_fill_viridis_d()
+```
+
+No major benefit when looking at absolute cell estimates instead of relative.
+
+```{r}
+abs_ciberdf %>%
+  ggplot(aes(x = PPBC, y = ciberval, fill=cellgroup)) +
+  geom_bar(stat="identity", position = "fill") +
+  ylab("absolute fraction") +
+  ggtitle("CibersortX absolute cell abundance by study group") +
+  scale_fill_viridis_d()
+```
+
+# B cells 
+
+## Bar plot
+
+Enrichment of B cells in the involution group not as intense as the preponderance of IG genes from differential expression analysis would suggest.
+
+```{r, fig.width=10}
+ciberdf %>% filter(cellgroup == "B cell") %>%
+  ggplot(aes(x = sample_name, y = ciberval, fill=PPBC)) + geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative B cell fractions") +
+  scale_fill_manual(values = ppbc_colors)
+```
+
+```{r, fig.width=10, include=F}
+#Applying a goodness of fit filter doesn't help.
+ciberdf %>% filter(cellgroup == "B cell" & passthresh == T) %>%
+  ggplot(aes(x = sample_name, y = ciberval, fill=PPBC)) + geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative B cell fractions, RMSE < 0.9 & cor > 0.45")+
+  scale_fill_manual(values = ppbc_colors)
+```
+
+## Box plot
+
+```{r}
+comps <- list( c("nulliparous", "involuting"),
+               c("lactating", "involuting"),
+               c("pregnant", "involuting") )
+
+ciberdf %>%
+  mutate(PPBC = factor(PPBC,
+                       levels = c("nulliparous", "pregnant",
+                                  "involuting", "lactating"))) %>%
+  filter(cellgroup == "B cell") %>%
+  group_by(PPBC, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  ggboxplot(x="PPBC", y="sum_celltype", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative B cell (all subtypes) abundance by study group") + 
+  stat_compare_means(comparisons = comps)+ 
+  stat_compare_means(label.y = 0.55) +
+  scale_color_manual(values = cp$ppbc_colors) +
+  scale_fill_manual(values = cp$ppbc_colors) +
+  ylab("Sum abundance B cell subtypes")
+```
+
+```{r, fig.height=8, fig.width=4}
+comps <- list( c("nulliparous", "involuting"),
+               c("lactating", "involuting"),
+               c("pregnant", "involuting") )
+
+ciberdf %>%
+    filter(cellgroup == "B cell") %>%
+    #group_by(involution_duration, sample_name) %>%
+    #summarise(sum_celltype = sum(ciberval)) %>%
+    ggboxplot(x="PPBC", y="ciberval", add="dotplot", 
+              color = "PPBC", notch = F) +
+    facet_wrap(~type, scales = "free_y", strip.position = "left", ncol = 1) +
+    ggtitle("B cell subtypes") + 
+    stat_compare_means(comparisons = comps,
+                       label = "p.format", #Choose "p.signif" or "p.format"
+                       hide.ns = T#,
+                       #symnum.args = list(
+                         #cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                         #symbols = c("****", "***", "**", "*", "ns")
+                         #)
+                       ) + 
+    stat_compare_means(label.y = 0.4) +
+    scale_color_manual(values = cp$ppbc_colors) +
+    scale_fill_manual(values = cp$ppbc_colors) +
+    ylab("Relative abundance") +
+    xlab("PPBC") +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+
+## Involution duration
+
+```{r}
+comps <- list( c("<= 6 months", "> 6 months"))
+
+ciberdf %>%
+  filter(cellgroup == "B cell" & PPBC == "involuting" & !is.na(involution_duration)) %>%
+  group_by(involution_duration, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  ggboxplot(x="involution_duration", y="sum_celltype", add="dotplot", 
+          color = "involution_duration", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative B cell (all subtypes) abundance by involution duration") + 
+  stat_compare_means(comparisons = comps) + 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = sp$involution_duration) +
+  scale_fill_manual(values = sp$involution_duration)+
+  ylab("Sum abundance B cell subtypes")
+
+inv_cols = c(sp$involution_duration, cp$ppbc_colors)
+
+comps = list(
+  #c("<= 6 months", "> 6 months"),
+  #c("<= 6 months", "lactating"),
+  c("<= 6 months", "nulliparous"),
+  c("lactating", "> 6 months"),
+  #c("<= 6 months", "pregnant"),
+  c("nulliparous", "> 6 months")
+  #c("pregnant", "> 6 months")
+)
+
+ciberdf %>%
+  filter(cellgroup == "B cell") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", involution_duration, PPBC)) %>%
+  group_by(PPBC, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="sum_celltype", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative B cell (all subtypes) abundance by involution duration") + 
+  stat_compare_means(comparisons = comps) + 
+  stat_compare_means(label.y = 0.55) +
+  scale_color_manual(values = inv_cols) +
+  scale_fill_manual(values = inv_cols)+
+  ylab("Sum abundance B cell subtypes")
+
+
+```
+
+```{r, fig.height=8, fig.width=5}
+comps = list(
+  c("<= 6 months", "> 6 months"),
+  c("<= 6 months", "lactating"),
+  c("<= 6 months", "nulliparous"),
+  #c("lactating", "> 6 months"),
+  c("<= 6 months", "pregnant"),
+  c("nulliparous", "> 6 months")#,
+  #c("pregnant", "> 6 months")
+)
+
+ciberdf %>%
+  filter(cellgroup == "B cell") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", involution_duration, PPBC)) %>%
+  mutate(PPBC = factor(PPBC, levels=c("pregnant",
+                                       "lactating",
+                                      "<= 6 months",
+                                       "> 6 months",
+                                       "nulliparous"
+                                       ))) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="ciberval", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("B cell subtypes by involution duration") + 
+  facet_wrap(~type, scales = "free_y", strip.position = "left", ncol = 1) +
+  stat_compare_means(comparisons = comps, label = "p.signif") + 
+  stat_compare_means(label.y = 0.5) +
+  scale_color_manual(values = inv_cols) +
+  scale_fill_manual(values = inv_cols)+
+  ylab("Relative abundance")+
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+
+
+## Breastfeeding duration
+
+```{r}
+comps <- list( c(names(sp$breastfeeding_duration)))
+
+ciberdf %>%
+  filter(cellgroup == "B cell" & PPBC == "involuting" & !is.na(breastfeeding_duration)) %>%
+  group_by(breastfeeding_duration, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  ggboxplot(x="breastfeeding_duration", y="sum_celltype", add="dotplot", 
+          color = "breastfeeding_duration", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative B cell (all subtypes) abundance by breastfeeding duration") + 
+  stat_compare_means(comparisons = comps) + 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = sp$breastfeeding_duration) +
+  scale_fill_manual(values = sp$breastfeeding_duration)+
+  ylab("Sum abundance B cell subtypes")
+
+bf_cols = c(sp$breastfeeding_duration, cp$ppbc_colors)
+
+comps = list(c("<= 1 month", "> 1 month"),
+             c("<= 1 month", "lactating"),
+             c("<= 1 month", "nulliparous"),
+             c("<= 1 month", "pregnant"),
+             #c("lactating", "> 1 month"),
+             c("nulliparous", "> 1 month")#,
+             #c("pregnant", "> 1 month")
+             )
+
+ciberdf %>%
+  filter(cellgroup == "B cell") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", breastfeeding_duration, PPBC)) %>%
+  group_by(PPBC, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="sum_celltype", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative B cell (all subtypes) abundance by breastfeeding duration") + 
+  stat_compare_means(comparisons = comps) + # 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = bf_cols) +
+  scale_fill_manual(values = bf_cols)+
+  ylab("Sum abundance B cell subtypes")
+```
+
+```{r, fig.height=8, fig.width=5}
+comps = list(c("<= 1 month", "> 1 month"),
+             c("<= 1 month", "lactating"),
+             c("<= 1 month", "nulliparous"),
+             c("<= 1 month", "pregnant"),
+             #c("lactating", "> 1 month"),
+             c("nulliparous", "> 1 month")#,
+             #c("pregnant", "> 1 month")
+             )
+
+
+ciberdf %>%
+  filter(cellgroup == "B cell") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", breastfeeding_duration, PPBC)) %>%
+  mutate(PPBC = factor(PPBC, levels=c("pregnant",
+                                       "lactating",
+                                      "<= 1 month",
+                                       "> 1 month",
+                                       "nulliparous"
+                                       ))) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="ciberval", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("B cell subtypes by breastfeeding duration") + 
+  facet_wrap(~type, scales = "free_y", strip.position = "left", ncol = 1) +
+  stat_compare_means(comparisons = comps, label = "p.signif") + 
+  stat_compare_means(label.y = 0.45) +
+  scale_color_manual(values = bf_cols) +
+  scale_fill_manual(values = bf_cols)+
+  ylab("Relative abundance")+
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+# T cells 
+
+## Bar plot
+
+Surprising number of CD8 cells in the involution group. CD8 cells are normally positively associated with prognosis, but the involution group has the worst prognosis.
+
+```{r, fig.width=10, fig.height=10}
+ciberdf %>% filter(cellgroup == "T cell") %>%
+  ggplot(aes(x = sample_name, y = ciberval, fill=PPBC)) +
+  geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative T cell fractions") +
+  scale_fill_manual(values = ppbc_colors)
+```
+
+## Box plot
+
+```{r}
+comps <- list( c("nulliparous", "involuting"),
+               c("lactating", "involuting"),
+               c("pregnant", "involuting") )
+
+ciberdf %>%
+  mutate(PPBC = factor(PPBC,
+                       levels = c("nulliparous", "pregnant",
+                                  "involuting", "lactating"))) %>%
+  filter(cellgroup == "T cell") %>%
+  group_by(PPBC, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  ggboxplot(x="PPBC", y="sum_celltype", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative T cell (all subtypes) abundance by study group") + 
+  stat_compare_means(comparisons = comps)+ 
+  stat_compare_means(label.y = 0.75) +
+  scale_color_manual(values = cp$ppbc_colors) +
+  scale_fill_manual(values = cp$ppbc_colors) +
+  ylab("Sum abundance T cell subtypes")
+```
+
+Hardly any Tregs to speak of: Exclude from facet plots.
+
+```{r, fig.height=8, fig.width=7}
+comps <- list( c("nulliparous", "involuting"),
+               c("lactating", "involuting"),
+               c("pregnant", "involuting") )
+
+ciberdf %>%
+    filter(cellgroup == "T cell" & type !="T cells regulatory (Tregs)") %>%
+    #group_by(involution_duration, sample_name) %>%
+    #summarise(sum_celltype = sum(ciberval)) %>%
+    ggboxplot(x="PPBC", y="ciberval", add="dotplot", 
+              color = "PPBC", notch = F) +
+    facet_wrap(~type, scales = "free_y", strip.position = "left", ncol =2) +
+    ggtitle("T cell subtypes") + 
+    stat_compare_means(comparisons = comps,
+                       label = "p.format", #Choose "p.signif" or "p.format"
+                       hide.ns = T#,
+                       #symnum.args = list(
+                         #cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                         #symbols = c("****", "***", "**", "*", "ns")
+                         #)
+                       ) + 
+    stat_compare_means(label.y = 0.55) +
+    scale_color_manual(values = cp$ppbc_colors) +
+    scale_fill_manual(values = cp$ppbc_colors) +
+    ylab("Relative abundance") +
+    xlab("PPBC") +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+## Involution duration
+
+```{r}
+comps <- list( c("<= 6 months", "> 6 months"))
+
+ciberdf %>%
+  filter(cellgroup == "T cell" & PPBC == "involuting" & !is.na(involution_duration)) %>%
+  group_by(involution_duration, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  ggboxplot(x="involution_duration", y="sum_celltype", add="dotplot", 
+          color = "involution_duration", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative T cell (all subtypes) abundance by involution duration") + 
+  stat_compare_means(comparisons = comps) + 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = sp$involution_duration) +
+  scale_fill_manual(values = sp$involution_duration)+
+  ylab("Sum abundance T cell subtypes")
+
+inv_cols = c(sp$involution_duration, cp$ppbc_colors)
+
+comps = list(c("<= 6 months", "> 6 months"),
+             c("<= 6 months", "lactating"),
+             c("<= 6 months", "nulliparous"),
+             c("<= 6 months", "pregnant"),
+             c("lactating", "> 6 months"),
+             c("nulliparous", "> 6 months"),
+             c("pregnant", "> 6 months"))
+
+ciberdf %>%
+  filter(cellgroup == "T cell") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", involution_duration, PPBC)) %>%
+  group_by(PPBC, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="sum_celltype", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative T cell (all subtypes) abundance by involution duration") + 
+  stat_compare_means(comparisons = comps) + 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = inv_cols) +
+  scale_fill_manual(values = inv_cols)+
+  ylab("Sum abundance T cell subtypes")
+```
+
+```{r, fig.height=8, fig.width=7}
+comps = list(
+  c("<= 6 months", "> 6 months"),
+  c("<= 6 months", "lactating"),
+  c("<= 6 months", "nulliparous"),
+  #c("lactating", "> 6 months"),
+  c("<= 6 months", "pregnant"),
+  c("nulliparous", "> 6 months")#,
+  #c("pregnant", "> 6 months")
+)
+
+ciberdf %>%
+  filter(cellgroup == "T cell"& type !="T cells regulatory (Tregs)") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", involution_duration, PPBC)) %>%
+  mutate(PPBC = factor(PPBC, levels=c("pregnant",
+                                       "lactating",
+                                      "<= 6 months",
+                                       "> 6 months",
+                                       "nulliparous"
+                                       ))) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="ciberval", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("T cell subtypes by involution duration") + 
+  facet_wrap(~type, scales = "free_y", strip.position = "left", ncol=2) +
+  stat_compare_means(comparisons = comps, label = "p.signif") + 
+  stat_compare_means(label.y = 0.5) +
+  scale_color_manual(values = inv_cols) +
+  scale_fill_manual(values = inv_cols)+
+  ylab("Relative abundance")+
+  theme_bw() +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90))
+```
+
+## Breastfeeding duration:
+
+```{r}
+comps <- list( c(names(sp$breastfeeding_duration)))
+
+ciberdf %>%
+  filter(cellgroup == "T cell" & PPBC == "involuting" & !is.na(breastfeeding_duration)) %>%
+  group_by(breastfeeding_duration, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  ggboxplot(x="breastfeeding_duration", y="sum_celltype", add="dotplot", 
+          color = "breastfeeding_duration", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative T cell (all subtypes) abundance by breastfeeding duration") + 
+  stat_compare_means(comparisons = comps) + 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = sp$breastfeeding_duration) +
+  scale_fill_manual(values = sp$breastfeeding_duration)+
+  ylab("Sum abundance T cell subtypes") +
+  xlab("Breastfeeding duration")
+
+bf_cols = c(sp$breastfeeding_duration, cp$ppbc_colors)
+
+comps = list(c("<= 1 month", "> 1 month"),
+             c("<= 1 month", "lactating"),
+             c("<= 1 month", "nulliparous"),
+             c("<= 1 month", "pregnant"),
+             #c("lactating", "> 1 month"),
+             c("nulliparous", "> 1 month")#,
+             #c("pregnant", "> 1 month")
+             )
+
+ciberdf %>%
+  filter(cellgroup == "T cell") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", breastfeeding_duration, PPBC)) %>%
+  group_by(PPBC, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="sum_celltype", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative T cell (all subtypes) abundance by breastfeeding duration") + 
+  stat_compare_means(comparisons = comps) + # 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = bf_cols) +
+  scale_fill_manual(values = bf_cols)+
+  ylab("Sum abundance T cell subtypes") +
+  xlab("Breastfeeding duration")
+```
+
+```{r, fig.height=8, fig.width=7}
+comps = list(c("<= 1 month", "> 1 month"),
+             c("<= 1 month", "lactating"),
+             c("<= 1 month", "nulliparous"),
+             c("<= 1 month", "pregnant"),
+             #c("lactating", "> 1 month"),
+             c("nulliparous", "> 1 month")#,
+             #c("pregnant", "> 1 month")
+             )
+
+ciberdf %>%
+  filter(cellgroup == "T cell"& type !="T cells regulatory (Tregs)") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", breastfeeding_duration, PPBC)) %>%
+  mutate(PPBC = factor(PPBC, levels=c("pregnant",
+                                       "lactating",
+                                      "<= 1 month",
+                                       "> 1 month",
+                                       "nulliparous"
+                                       ))) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="ciberval", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("T cell subtypes by breastfeeding duration") + 
+  facet_wrap(~type, scales = "free_y", strip.position = "left", ncol=2) +
+  stat_compare_means(comparisons = comps, label = "p.signif") + 
+  stat_compare_means(label.y = 0.5) +
+  scale_color_manual(values = bf_cols) +
+  scale_fill_manual(values = bf_cols)+
+  ylab("Relative abundance")+
+  theme_bw() +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90))
+```
+
+# Macrophages
+
+## Bar plot
+
+More M1 (pro-inflammatory) macrophages in the involution group vs pregnancy, less M2 (wound-healing) macrophages in the involution group vs pregnancy.
+
+```{r, fig.width=10}
+ciberdf %>% filter(cellgroup == "Macrophage") %>%
+  ggplot(aes(x = sample_name, y = ciberval, fill=PPBC)) + geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative Macrophage fractions")+
+  scale_fill_manual(values = ppbc_colors)
+```
+
+## Box plots
+
+```{r}
+comps <- list( c("nulliparous", "involuting"),
+               c("lactating", "involuting"),
+               c("pregnant", "involuting") )
+
+ciberdf %>%
+  mutate(PPBC = factor(PPBC,
+                       levels = c("nulliparous", "pregnant",
+                                  "involuting", "lactating"))) %>%
+  filter(cellgroup == "Macrophage") %>%
+  group_by(PPBC, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  ggboxplot(x="PPBC", y="sum_celltype", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative Macrophage (all subtypes) abundance by study group") + 
+  stat_compare_means(comparisons = comps)+ 
+  stat_compare_means(label.y = 0.65) +
+  scale_color_manual(values = cp$ppbc_colors) +
+  scale_fill_manual(values = cp$ppbc_colors) +
+  ylab("Sum abundance Macrophage subtypes")
+```
+
+```{r, fig.height=7, fig.width=9}
+comps <- list( c("nulliparous", "involuting"),
+               c("lactating", "involuting"),
+               c("pregnant", "involuting") )
+
+ciberdf %>%
+    filter(cellgroup == "Macrophage") %>%
+    #group_by(involution_duration, sample_name) %>%
+    #summarise(sum_celltype = sum(ciberval)) %>%
+    ggboxplot(x="PPBC", y="ciberval", add="dotplot", 
+              color = "PPBC", notch = F) +
+    facet_wrap(~type, scales = "free_y", strip.position = "left", ncol =2) +
+    ggtitle("Macrophage subtypes") + 
+    stat_compare_means(comparisons = comps,
+                       label = "p.format", #Choose "p.signif" or "p.format"
+                       hide.ns = T#,
+                       #symnum.args = list(
+                         #cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                         #symbols = c("****", "***", "**", "*", "ns")
+                         #)
+                       ) + 
+    stat_compare_means(label.y = 0.3) +
+    scale_color_manual(values = cp$ppbc_colors) +
+    scale_fill_manual(values = cp$ppbc_colors) +
+    ylab("Relative abundance") +
+    xlab("PPBC") +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+## Involution duration
+
+```{r}
+comps <- list( c("<= 6 months", "> 6 months"))
+
+ciberdf %>%
+  filter(cellgroup == "Macrophage" & PPBC == "involuting" & !is.na(involution_duration)) %>%
+  group_by(involution_duration, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  ggboxplot(x="involution_duration", y="sum_celltype", add="dotplot", 
+          color = "involution_duration", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative Macrophage (all subtypes) abundance by involution duration") + 
+  stat_compare_means(comparisons = comps) + 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = sp$involution_duration) +
+  scale_fill_manual(values = sp$involution_duration)+
+  ylab("Sum abundance macrophage subtypes")
+
+inv_cols = c(sp$involution_duration, cp$ppbc_colors)
+
+comps = list(c("<= 6 months", "> 6 months"),
+             c("<= 6 months", "lactating"),
+             #c("<= 6 months", "nulliparous"),
+             c("<= 6 months", "pregnant"),
+             c("lactating", "> 6 months"),
+             c("nulliparous", "> 6 months"),
+             c("pregnant", "> 6 months"))
+
+ciberdf %>%
+  filter(cellgroup == "Macrophage") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", involution_duration, PPBC)) %>%
+  group_by(PPBC, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="sum_celltype", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative macrophage (all subtypes) abundance by involution duration") + 
+  stat_compare_means(comparisons = comps) + 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = inv_cols) +
+  scale_fill_manual(values = inv_cols)+
+  ylab("Sum abundance macrophage subtypes")
+```
+
+
+
+```{r, fig.height=8, fig.width=7}
+comps = list(c("<= 6 months", "> 6 months"),
+             c("<= 6 months", "lactating"),
+             #c("<= 6 months", "nulliparous"),
+             c("<= 6 months", "pregnant"),
+             c("lactating", "> 6 months"),
+             c("nulliparous", "> 6 months"),
+             c("pregnant", "> 6 months"))
+
+
+ciberdf %>%
+  filter(cellgroup == "Macrophage") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", involution_duration, PPBC)) %>%
+  mutate(PPBC = factor(PPBC, levels=c("pregnant",
+                                       "lactating",
+                                      "<= 6 months",
+                                       "> 6 months",
+                                       "nulliparous"
+                                       ))) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="ciberval", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Macrophage subtypes by involution duration") + 
+  facet_wrap(~type, scales = "free_y", strip.position = "left", ncol=2) +
+  stat_compare_means(comparisons = comps, label = "p.signif") + 
+  stat_compare_means(label.y = 0.4) +
+  scale_color_manual(values = inv_cols) +
+  scale_fill_manual(values = inv_cols)+
+  ylab("Relative abundance")+
+  theme_bw() +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90))
+```
+
+## Breastfeeding duration:
+
+```{r}
+comps <- list( c(names(sp$breastfeeding_duration)))
+
+ciberdf %>%
+  filter(cellgroup == "Macrophage" & PPBC == "involuting" & !is.na(breastfeeding_duration)) %>%
+  group_by(breastfeeding_duration, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  ggboxplot(x="breastfeeding_duration", y="sum_celltype", add="dotplot", 
+          color = "breastfeeding_duration", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative macrophage (all subtypes) abundance by breastfeeding duration") + 
+  stat_compare_means(comparisons = comps) + 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = sp$breastfeeding_duration) +
+  scale_fill_manual(values = sp$breastfeeding_duration)+
+  ylab("Sum abundance macrophage subtypes") +
+  xlab("Breastfeeding duration")
+
+bf_cols = c(sp$breastfeeding_duration, cp$ppbc_colors)
+
+comps = list(c("<= 1 month", "> 1 month"),
+             c("<= 1 month", "lactating"),
+             c("<= 1 month", "nulliparous"),
+             c("<= 1 month", "pregnant"),
+             #c("lactating", "> 1 month"),
+             c("nulliparous", "> 1 month")#,
+             #c("pregnant", "> 1 month")
+             )
+
+ciberdf %>%
+  filter(cellgroup == "Macrophage") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", breastfeeding_duration, PPBC)) %>%
+  group_by(PPBC, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="sum_celltype", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative Macrophage (all subtypes) abundance by breastfeeding duration") + 
+  stat_compare_means(comparisons = comps) + # 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = bf_cols) +
+  scale_fill_manual(values = bf_cols)+
+  ylab("Sum abundance Macrophage subtypes") +
+  xlab("Breastfeeding duration")
+```
+
+
+```{r, fig.height=8, fig.width=7}
+comps = list(c("<= 1 month", "> 1 month"),
+             c("<= 1 month", "lactating"),
+             c("<= 1 month", "nulliparous"),
+             c("<= 1 month", "pregnant"),
+             #c("lactating", "> 1 month"),
+             c("nulliparous", "> 1 month")#,
+             #c("pregnant", "> 1 month")
+             )
+
+ciberdf %>%
+  filter(cellgroup == "Macrophage") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", breastfeeding_duration, PPBC)) %>%
+  mutate(PPBC = factor(PPBC, levels=c("pregnant",
+                                       "lactating",
+                                      "<= 1 month",
+                                       "> 1 month",
+                                       "nulliparous"
+                                       ))) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="ciberval", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Macrophage subtypes by breastfeeding duration") + 
+  facet_wrap(~type, scales = "free_y", strip.position = "left", ncol=2) +
+  stat_compare_means(comparisons = comps, label = "p.signif") + 
+  stat_compare_means(label.y = 0.5) +
+  scale_color_manual(values = bf_cols) +
+  scale_fill_manual(values = bf_cols)+
+  ylab("Relative abundance")+
+  theme_bw() +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90))
+```
+
+# Other immune cells 
+
+## Bar plots
+
+```{r, fig.width=10, fig.height=10}
+ciberdf %>% filter(cellgroup == "other") %>%
+  ggplot(aes(x = sample_name, y = ciberval, fill=PPBC)) +
+  geom_bar(stat="identity") +
+  facet_wrap(~type, ncol=1, scales = "free_y") +
+  theme(axis.text.x = element_blank()) +
+  xlab("samples")+
+  ylab("relative fraction") +
+  ggtitle("CibersortX relative other immune cell fractions")+
+  scale_fill_manual(values = ppbc_colors)
+```
+
+## Box plots
+
+```{r}
+comps <- list( c("nulliparous", "involuting"),
+               c("lactating", "involuting"),
+               c("pregnant", "involuting") )
+
+ciberdf %>%
+  mutate(PPBC = factor(PPBC,
+                       levels = c("nulliparous", "pregnant",
+                                  "involuting", "lactating"))) %>%
+  filter(cellgroup == "other") %>%
+  group_by(PPBC, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  ggboxplot(x="PPBC", y="sum_celltype", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative abundance of non-B/T/M immune cells by study group") + 
+  stat_compare_means(comparisons = comps)+ 
+  stat_compare_means(label.y = 0.65) +
+  scale_color_manual(values = cp$ppbc_colors) +
+  scale_fill_manual(values = cp$ppbc_colors) +
+  ylab("Sum abundance other immune subtypes")
+```
+
+```{r, fig.height=8, fig.width=7}
+comps <- list( c("nulliparous", "involuting"),
+               c("lactating", "involuting"),
+               c("pregnant", "involuting") )
+
+ciberdf %>%
+    filter(cellgroup == "other") %>%
+    #group_by(involution_duration, sample_name) %>%
+    #summarise(sum_celltype = sum(ciberval)) %>%
+    ggboxplot(x="PPBC", y="ciberval", add="dotplot", 
+              color = "PPBC", notch = F) +
+    facet_wrap(~type, scales = "free_y", strip.position = "left", ncol =2) +
+    ggtitle("Other immune cell subtypes") + 
+    stat_compare_means(comparisons = comps,
+                       label = "p.format", #Choose "p.signif" or "p.format"
+                       hide.ns = T#,
+                       #symnum.args = list(
+                         #cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
+                         #symbols = c("****", "***", "**", "*", "ns")
+                         #)
+                       ) + 
+    stat_compare_means(label.y = 0.3) +
+    scale_color_manual(values = cp$ppbc_colors) +
+    scale_fill_manual(values = cp$ppbc_colors) +
+    ylab("Relative abundance") +
+    xlab("PPBC") +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+## Involution duration
+
+```{r}
+comps <- list( c("<= 6 months", "> 6 months"))
+
+ciberdf %>%
+  filter(cellgroup == "other" & PPBC == "involuting" & !is.na(involution_duration)) %>%
+  group_by(involution_duration, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  ggboxplot(x="involution_duration", y="sum_celltype", add="dotplot", 
+          color = "involution_duration", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative other immune cell (all subtypes) abundance by involution duration") + 
+  stat_compare_means(comparisons = comps) + 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = sp$involution_duration) +
+  scale_fill_manual(values = sp$involution_duration)+
+  ylab("Sum abundance other immune subtypes")
+
+inv_cols = c(sp$involution_duration, cp$ppbc_colors)
+
+comps = list(c("<= 6 months", "> 6 months"),
+             c("<= 6 months", "lactating"),
+             #c("<= 6 months", "nulliparous"),
+             c("<= 6 months", "pregnant"),
+             c("lactating", "> 6 months"),
+             c("nulliparous", "> 6 months"),
+             c("pregnant", "> 6 months"))
+
+ciberdf %>%
+  filter(cellgroup == "other") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", involution_duration, PPBC)) %>%
+  group_by(PPBC, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="sum_celltype", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative other immune cell (all subtypes) abundance by involution duration") + 
+  stat_compare_means(comparisons = comps) + 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = inv_cols) +
+  scale_fill_manual(values = inv_cols)+
+  ylab("Sum abundance other immune subtypes")
+```
+
+```{r, fig.height=8, fig.width=7}
+comps = list(c("<= 6 months", "> 6 months"),
+             c("<= 6 months", "lactating"),
+             #c("<= 6 months", "nulliparous"),
+             c("<= 6 months", "pregnant"),
+             c("lactating", "> 6 months"),
+             c("nulliparous", "> 6 months"),
+             c("pregnant", "> 6 months"))
+
+
+ciberdf %>%
+  filter(cellgroup == "other") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", involution_duration, PPBC)) %>%
+  mutate(PPBC = factor(PPBC, levels=c("pregnant",
+                                       "lactating",
+                                      "<= 6 months",
+                                       "> 6 months",
+                                       "nulliparous"
+                                       ))) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="ciberval", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Other immune cell subtypes by involution duration") + 
+  facet_wrap(~type, scales = "free_y", strip.position = "left", ncol=2) +
+  stat_compare_means(comparisons = comps, label = "p.signif") + 
+  stat_compare_means(label.y = 0.4) +
+  scale_color_manual(values = inv_cols) +
+  scale_fill_manual(values = inv_cols)+
+  ylab("Relative abundance")+
+  theme_bw() +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90))
+```
+
+## Breastfeeding duration:
+
+```{r}
+comps <- list( c(names(sp$breastfeeding_duration)))
+
+ciberdf %>%
+  filter(cellgroup == "other" & !is.na(breastfeeding_duration)) %>%
+  group_by(breastfeeding_duration, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  ggboxplot(x="breastfeeding_duration", y="sum_celltype", add="dotplot", 
+          color = "breastfeeding_duration", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative other immune cell (all subtypes) abundance by breastfeeding duration") + 
+  stat_compare_means(comparisons = comps) + 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = sp$breastfeeding_duration) +
+  scale_fill_manual(values = sp$breastfeeding_duration)+
+  ylab("Sum abundance other immune cell subtypes") +
+  xlab("Breastfeeding duration")
+
+bf_cols = c(sp$breastfeeding_duration, cp$ppbc_colors)
+
+comps = list(c("<= 1 month", "> 1 month"),
+             c("<= 1 month", "lactating"),
+             c("<= 1 month", "nulliparous"),
+             c("<= 1 month", "pregnant"),
+             #c("lactating", "> 1 month"),
+             c("nulliparous", "> 1 month")#,
+             #c("pregnant", "> 1 month")
+             )
+
+ciberdf %>%
+  filter(cellgroup == "other") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", breastfeeding_duration, PPBC)) %>%
+  group_by(PPBC, sample_name) %>%
+  summarise(sum_celltype = sum(ciberval)) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="sum_celltype", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Relative other immune cell (all subtypes) abundance by breastfeeding duration") + 
+  stat_compare_means(comparisons = comps) + # 
+  #stat_compare_means(label.y = 0.35) +
+  scale_color_manual(values = bf_cols) +
+  scale_fill_manual(values = bf_cols)+
+  ylab("Sum abundance other immune cell subtypes") +
+  xlab("Breastfeeding duration")
+```
+
+
+```{r, fig.height=8, fig.width=7}
+comps = list(c("<= 1 month", "> 1 month"),
+             c("<= 1 month", "lactating"),
+             c("<= 1 month", "nulliparous"),
+             c("<= 1 month", "pregnant"),
+             #c("lactating", "> 1 month"),
+             c("nulliparous", "> 1 month")#,
+             #c("pregnant", "> 1 month")
+             )
+
+ciberdf %>%
+  filter(cellgroup == "other") %>%
+  mutate(orig.PPBC = PPBC,
+         PPBC = if_else(study_group == "ppbc_inv", breastfeeding_duration, PPBC)) %>%
+  mutate(PPBC = factor(PPBC, levels=c("pregnant",
+                                       "lactating",
+                                      "<= 1 month",
+                                       "> 1 month",
+                                       "nulliparous"
+                                       ))) %>%
+  filter(!is.na(PPBC)) %>%
+  ggboxplot(x="PPBC", y="ciberval", add="dotplot", 
+          color = "PPBC", notch = F) +
+  theme(legend.position = "none") +
+  ggtitle("Other immune cell subtypes by breastfeeding duration") + 
+  facet_wrap(~type, scales = "free_y", strip.position = "left", ncol=2) +
+  stat_compare_means(comparisons = comps, label = "p.signif") + 
+  stat_compare_means(label.y = 0.3) +
+  scale_color_manual(values = bf_cols) +
+  scale_fill_manual(values = bf_cols)+
+  ylab("Relative abundance")+
+  theme_bw() +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90))
+```
+
+
+# Relationship CD8 and M1/M2 macrophages
+
+Speculated that M2 macrophages in particular would be positively correlated with higher CD8 levels, effectively "suppressing" the CD8 activity and explaining why a normally beneficial cell group would be enriched in the group with the worst prognosis. Does not appear to be the case.
+
+```{r}
+inner_join(ciberdf %>% filter(type == "T cells CD8") %>%
+             spread(key = type, value = ciberval) %>%
+             select(sample_name, PPBC, `T cells CD8`),
+           ciberdf %>% filter(type == "Macrophages M1") %>%
+             spread(key = type, value = ciberval) %>%
+             select(sample_name,  `Macrophages M1`), by="sample_name") %>%
+  ggplot(aes(x = `T cells CD8`, y = `Macrophages M1`)) +
+  geom_point(aes(color = PPBC)) +
+  scale_color_manual(values = ppbc_colors) +
+  ggtitle("Relative fraction CD8 T cells vs M1 Macrophages") +
+  geom_smooth(method="lm") +
+  theme_bw()
+```
+
+```{r}
+inner_join(ciberdf %>% filter(type == "T cells CD8") %>%
+             spread(key = type, value = ciberval) %>%
+             select(sample_name, PPBC, `T cells CD8`),
+           ciberdf %>% filter(type == "Macrophages M2") %>%
+             spread(key = type, value = ciberval) %>%
+             select(sample_name,  `Macrophages M2`), by="sample_name") %>%
+  ggplot(aes(x = `T cells CD8`, y = `Macrophages M2`)) +
+  geom_point(aes(color = PPBC)) +
+  scale_color_manual(values = ppbc_colors) +
+  ggtitle("Relative fraction CD8 T cells vs M1 Macrophages") +
+  geom_smooth(method="lm") +
+  theme_bw()
+```
+
+```{r}
+inner_join(ciberdf %>% filter(type == "Plasma cells") %>%
+             spread(key = type, value = ciberval) %>%
+             select(sample_name, PPBC, `Plasma cells`),
+           ciberdf %>% filter(type =="T cells follicular helper") %>%
+             spread(key = type, value = ciberval) %>%
+             select(sample_name, `T cells follicular helper`), by="sample_name") %>%
+  ggplot(aes(x = `Plasma cells`, y = `T cells follicular helper`)) +
+  geom_point(aes(color = PPBC)) +
+  scale_color_manual(values = ppbc_colors) +
+  ggtitle("Relative fraction Plasma Cells vs follicular T cells") +
+  geom_smooth(method="lm") +
+  theme_bw()
+
+```
+
+# Wilcoxon pairwise tests
+
+Generate a matrix of all possible comparisons and reorder so involution is always x (when present) and non_prbc is always y (when present).
+
+```{r}
+comparison = t(combn(unique(ciberdf$study_group), 2))
+colnames(comparison) = c("x", "y")
+for (i in 1:nrow(comparison)){
+  if (comparison[i,"y"]=="ppbc_inv"){
+    oldx = comparison[i,"x"]
+    oldy = comparison[i,"y"]
+    comparison[i,"y"] = oldx
+    comparison[i,"x"] = oldy
+  } else if (comparison[i,"x"]=="non_prbc"){
+    oldx = comparison[i,"x"]
+    oldy = comparison[i,"y"]
+    comparison[i,"y"] = oldx
+    comparison[i,"x"] = oldy
+  }
+}
+
+comparison
+```
+
+## Calculate nom.p and fdr for pairwise comparisons
+
+```{r, warning=F}
+
+wil_res = matrix(ncol=6, nrow=0)
+
+for (i in 1:length(unique(ciberdf$type))){ 
+  celltype = unique(ciberdf$type)[i]
+  subdf = ciberdf %>% filter(type == celltype)
+  for (i in 1:nrow(comparison)){ 
+    x = comparison[i, "x"] 
+    y = comparison[i, "y"] 
+    xdata = filter(subdf, study_group == x)$ciberval
+    ydata = filter(subdf, study_group == y)$ciberval
+
+    #print(xdata)
+    #print(ydata)
+    wil = wilcox.test(x = xdata,
+                      y = ydata,
+                      paired = F)
+    wil = enframe(unlist(wil), "stat", "value")[1:2,]
+    
+    
+    wil = wil %>% mutate(cell = celltype,
+                         x = x, y = y,
+                         comparison = paste(x, y, sep = " vs "))
+    wil = as.matrix(wil)
+    #print(wil)
+    wil_res = rbind(wil_res, wil)
+  }
+}
+
+wil_res = as.data.frame(wil_res)
+wil_res = wil_res %>%
+  mutate(value= as.numeric(as.character(value))) %>%
+  spread(key="stat", value="value")
+wil_res = wil_res %>% mutate(fdr = p.adjust(p.value, method = "BH"))
+
+wil_res %>% filter(fdr < 0.05)
+
+```
+
+Spread into matrix and make heat map.
+
+```{r}
+#Exclude Tregs because there's so little data that the p-value is misleading
+pmat = wil_res %>% filter(!str_detect(cell, "Tregs")) %>%
+  select(comparison,cell,fdr) %>% spread(key = comparison, value = fdr) %>% column_to_rownames("cell") %>%
+  as.matrix()
+
+pmat
+```
+
+Adjust so that the directionality is shown. 
+
+## Calculate pairwise fold change
+
+Create separate fold change matrix.
+
+```{r}
+fc_res = matrix(ncol=5, nrow=0)
+
+for (i in 1:length(unique(ciberdf$type))){ 
+  celltype = unique(ciberdf$type)[i]
+  subdf = ciberdf %>% filter(type == celltype)
+  for (i in 1:nrow(comparison)){ 
+    x = comparison[i, "x"] 
+    y = comparison[i, "y"] 
+    xdata = filter(subdf, study_group == x)$ciberval
+    ydata = filter(subdf, study_group == y)$ciberval
+
+    #print(xdata)
+    #print(ydata)
+
+    Fc = tibble(foldchange = if_else(mean(xdata) > mean(ydata),
+                                     mean(xdata)/mean(ydata),
+                                     -mean(ydata)/mean(xdata)),
+                cell = celltype, 
+                x = x, y = y, comparison = paste(x, y, sep = " vs "))
+    
+    Fc = as.matrix(Fc)
+    #print(Fc)
+    fc_res = rbind(fc_res, Fc)
+  }
+}
+
+fc_res = as.data.frame(fc_res) %>% mutate(foldchange = as.numeric(as.character(foldchange)))
+
+head(fc_res)
+```
+
+Ensure the dimensions, row and column names are the same as the p value matrix.
+
+```{r}
+fcmat = fc_res %>% filter(!str_detect(cell, "Tregs")) %>%
+  select(comparison,cell,foldchange) %>% spread(key = comparison, value = foldchange) %>% column_to_rownames("cell") %>%
+  as.matrix()
+
+fcmat
+stopifnot(identical(colnames(fcmat),colnames(pmat)))
+stopifnot(identical(rownames(fcmat), rownames(pmat)))
+```
+
+## FDR heatmap
+
+```{r, fig.width=10}
+Heatmap(pmat, col=colorRamp2(c(0, 0.05, 0.5, 1), c("red", "orange","gold", "white")),
+        column_title = "Wilcoxon rank sum test by cell group (+ pos fc, - neg fc)",
+        cell_fun = function(j, i, x, y, width, height, fill) 
+        {
+          if (fcmat[i,j] > 0){
+            grid.text(paste0(sprintf("%.2f", pmat[i, j]),"+"), x, y, gp = gpar(fontsize = 12))
+          } else {
+            grid.text(paste0(sprintf("%.2f", pmat[i, j]),"-"), x, y, gp = gpar(fontsize = 12))
+          }
+          
+        },
+        heatmap_legend_param = list(title="BH adj. pval"), column_names_rot = 45,
+        column_labels = str_replace_all(str_replace_all(str_replace_all(colnames(pmat), " vs ", ":"), "ppbc_", ""),"non_prbc", "nullpar"))
+
+
+```
+
+## Fold change heatmap
+
+Be aware that outliers may be misleading due to missing values.
+
+```{r, fig.width=10}
+Heatmap(fcmat, #col=colorRamp2(c(0, 0.05, 0.5, 1), c("red", "orange","gold", "white")),
+        column_title = "Fold change by by cell group (* sig fdr)",
+        cell_fun = function(j, i, x, y, width, height, fill) 
+        {
+          if (pmat[i,j] <= 0.05){
+            grid.text(paste0(sprintf("%.2f", fcmat[i, j]),"*"), x, y, gp = gpar(fontsize = 12))
+          } else {
+            grid.text(sprintf("%.2f", fcmat[i, j]), x, y, gp = gpar(fontsize = 12))
+          }
+          
+        },
+        heatmap_legend_param = list(title="Fold change"), column_names_rot = 45,
+        column_labels = str_replace_all(
+          str_replace_all(
+            str_replace_all(colnames(pmat), " vs ", ":"), 
+            "ppbc_", ""),
+          "non_prbc", "nullpar"))
+
+
+```
+
+# Cohen's d effect size
+
+Similar to fold change, except that with [Cohen's d](https://www.statisticshowto.datasciencecentral.com/cohens-d/), the standard deviation is taken into account. Formula:
+
+`d = (meanx - meany)/sqrt((sdx**2 + sdy**2)/2))`
+
+...where the denominator represents the pooled standard deviance between the two groups.
+
+When the group size's are different, it is recommended to computer [Hedge's g](https://www.polyu.edu.hk/mm/effectsizefaqs/effect_size_equations2.html) instead.
+
+Both are implemented in the `effsize` package.
+
+Compute Cohen's d for each comparison per cell.
+
+```{r}
+d_res = matrix(ncol=5, nrow=0)
+
+for (i in 1:length(unique(ciberdf$type))){ 
+  celltype = unique(ciberdf$type)[i]
+  subdf = ciberdf %>% filter(type == celltype)
+  for (i in 1:nrow(comparison)){ 
+    x = comparison[i, "x"] 
+    y = comparison[i, "y"] 
+    xdata = filter(subdf, study_group == x)$ciberval
+    ydata = filter(subdf, study_group == y)$ciberval
+
+    #print(xdata)
+    #print(ydata)
+    
+    cd = effsize::cohen.d(d = xdata, f = ydata, hedges.correction=FALSE)
+    #str(cd)
+    #print(cd)
+
+    d = tibble(cohen_d = cd$estimate,
+                cell = celltype, 
+                x = x, y = y, comparison = paste(x, y, sep = " vs "))
+    
+    d = as.matrix(d)
+    #print(d)
+    d_res = rbind(d_res, d)
+  }
+}
+
+d_res = as.data.frame(d_res) %>% mutate(cohen_d = as.numeric(as.character(cohen_d)))
+
+#head(d_res)
+
+dmat = d_res %>% filter(!str_detect(cell, "Tregs")) %>%
+  select(comparison,cell,cohen_d) %>% spread(key = comparison, value = cohen_d) %>% column_to_rownames("cell") %>%
+  as.matrix()
+
+dmat
+stopifnot(identical(colnames(dmat),colnames(pmat)))
+stopifnot(identical(rownames(dmat), rownames(pmat)))
+#If fold change is negative, cohen d should also be negative
+stopifnot(identical(sapply(dmat, function(x) x<0), sapply(fcmat, function(x) x<0)))
+```
+
+## Cohen's d heatmap
+
+Excluding Tregs because only 2 samples have them.
+```{r, fig.width=10}
+Heatmap(dmat, #col=colorRamp2(c(0, 0.05, 0.5, 1), c("red", "orange","gold", "white")),
+        column_title = "Cohen's d effect size by by cell group (*sig fdr)",
+        cell_fun = function(j, i, x, y, width, height, fill) 
+        {
+          if (pmat[i,j] <= 0.05){
+            grid.text(paste0(sprintf("%.2f", dmat[i, j]),"*"), x, y, gp = gpar(fontsize = 12))
+          } else {
+            grid.text(sprintf("%.2f", dmat[i, j]), x, y, gp = gpar(fontsize = 12))
+          }
+          
+        },
+        heatmap_legend_param = list(title="Cohen's d"), column_names_rot = 45,
+        column_labels = str_replace_all(str_replace_all(str_replace_all(colnames(pmat), " vs ", ":"), "ppbc_", ""),"non_prbc", "nullpar"))
+
+#draw(hm, Legend(labels = c("+"), title="Significant"))
+```
+
+
+# Cell fractions over time
+
+```{r}
+ciberdf = ciberdf %>% mutate(
+  invPPBC = if_else(study_group == "ppbc_inv", involution_duration, PPBC)) %>%
+  mutate(
+    invPPBC = factor(invPPBC, levels = c(
+      "nulliparous", "pregnant", "lactating", "<= 6 months", "> 6 months", NA 
+    ))
+  )
+
+levels(ciberdf$invPPBC)
+```
+
+Calculate sem and use that for error bars.
+
+```{r}
+cibermean = ciberdf %>% filter(!is.na(invPPBC)) %>%
+  group_by(type, invPPBC) %>%
+  summarise(mean = mean(ciberval), sd = sd(ciberval), n = n()) %>%
+  mutate(sem = sd/sqrt(n))
+```
+
+## B cells
+
+```{r}
+cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "B cell")$type) %>%
+  ggplot(aes(x = invPPBC, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem),
+                position = position_dodge(width = 0.1)) +
+  ggtitle("Time arc B cells PPBC, short vs longterm involution") +
+  xlab("PPBC")
+```
+
+```{r}
+ciberdf %>% filter(!is.na(invPPBC)) %>%
+  group_by(type, PPBC) %>% summarise(mean = mean(ciberval), sd = sd(ciberval), n = n()) %>%
+  mutate(sem = sd/sqrt(n)) %>%
+  filter(type %in% filter(cellgroups, cellgroup == "B cell")$type) %>%
+  ggplot(aes(x = factor(PPBC, levels = c("nulliparous", "pregnant", "lactating", "involuting")),
+             #factor(study_group, levels=c("non_prbc", "prbc","ppbc_lac", "ppbc_inv")),
+             y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.1)) +
+  ggtitle("Time arc B cells PPBC") + xlab("study group")
+```
+
+## T cells
+
+```{r}
+cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "T cell")$type) %>%
+  ggplot(aes(x = invPPBC, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.0)) +
+  ggtitle("Time arc T cells PPBC") + xlab("study group")
+```
+
+Exclude Tregs and CD4 memory resting so we can zoom in on the others
+
+```{r}
+cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "T cell")$type) %>%
+  filter(!type %in% c("T cells CD4 memory resting", "T cells regulatory (Tregs)")) %>%
+  ggplot(aes(x = invPPBC, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.15)) +
+  ggtitle("Time arc T cells PPBC, excluding Tmemrest and Tregs") + xlab("study group")
+```
+
+## Macrophages
+
+```{r}
+cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "Macrophage")$type) %>%
+  ggplot(aes(x = invPPBC, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.1)) +
+  ggtitle("Time arc macrophages PPBC") + xlab("study group")
+```
+
+## Other immune
+
+```{r}
+cibermean %>% filter(type %in% filter(cellgroups, cellgroup == "other")$type) %>%
+  ggplot(aes(x = invPPBC, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.15)) +
+  ggtitle("Time arc other immune cells PPBC") + xlab("study group")
+```
+
+## Most interesting changes
+
+```{r}
+wil_res %>% filter(fdr < 0.05) %>% pull(cell) %>% as.character() %>% unique()
+```
+
+Plot significant comparisons if the mean fraction is at least 0.02 (excludes NK resting and neutrophils).
+
+```{r}
+cibermean %>% filter(type %in% (wil_res %>% filter(fdr < 0.05) %>% pull(cell) %>% as.character() %>% unique())) %>%
+  filter(mean > 0.02) %>%
+  ggplot(aes(x = invPPBC, y = mean, color = type, group = type)) +
+  geom_point() +
+  geom_line() +
+  geom_errorbar(aes(ymin=mean-sem, ymax=mean+sem), position = position_dodge(width = 0.15)) +
+  ggtitle("Time arc : significant comparisons") + xlab("study group") +
+  scale_color_viridis_d()
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+
+
+
+```{r}
+save.image(here("reports", "10_CibersortX.RData"))
+```
+

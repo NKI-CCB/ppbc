@@ -380,7 +380,20 @@ rule genewise_diffex_reports:
     html="reports/09_genewise_diffex_reports.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-  
+    
+rule cibersortX:
+  input:
+    #Results obtained by uploading hugo_fpkm.txt to the cibersort website with the enumerated parameters
+    ciber_res="results/cibersortX/CIBERSORTx_Job3_Results.csv",
+    geneEx="data/RNA-seq/hugo_fpkm.txt",
+    metadata="data/metadata/05_sample_annot_filtered.csv",
+    rmd="reports/10_CibersortX.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    pdf="reports/10_CibersortX.pdf"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
+    
 rule workflow_diagram:
   conda:
     "envs/environment.yml"
