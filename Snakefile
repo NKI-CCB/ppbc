@@ -393,6 +393,59 @@ rule cibersortX:
     pdf="reports/10_CibersortX.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
+
+#Only those results which include an inv vs something comparison
+inv_comps = [
+  "07_pairwise_comparisons_allgenes",
+  "07_pairwise_comparisons_sig_genes",
+  "08_one_vs_rest_allgenes",
+  "08_one_vs_rest_sig_genes"
+]
+
+rule inv_clustering:
+  input:
+    expand("results/diffex/{inv_comp}.xlsx", inv_comp=inv_comps),
+    rmd="reports/11_clustering_involution.Rmd",
+    script="src/rmarkdown.R",
+    cp="data/Rds/color_palettes.Rds",
+    sp="data/Rds/survival_colors.Rds",
+    tools="src/deseq_report_functions.R",
+    vsd="data/Rds/08_vsd_ovr.Rds",
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    surv="data/Rds/04_survdata.Rds"
+  output:
+    "results/clustering/11_hm_clust_DEG_inv_vs_rest.pdf",
+    "results/clustering/11_barplots_ig_clusters.pdf",
+    "results/clustering/11_inv_clusters.xlsx",
+    "data/Rds/11_ig_clusters.Rds",
+    "data/Rds/11_ig_survdata.Rds",
+    "results/survival/11_IG_clusters_by_study_group.pdf"
+    "results/clustering/11_hm_involution_only_heatmaps.pdf",
+    html="reports/11_clustering_involution.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
+
+genewise_cox =[
+  "multi_genewise_os", "uni_genewise_os",
+  "multi_genewise_drs", "uni_genewise_drs",
+  "inv_multi_genewise_os", "inv_uni_genewise_os",
+  "inv_multi_genewise_drs", "inv_uni_genewise_drs"
+  ]
+
+rule genewise_survival:
+  input:
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    survdata="data/Rds/04_survdata.Rds",
+    dds = "data/Rds/08_dds_ovr_inv_vs_rest.Rds",
+  output:
+    expand("data/Rds/12_{res}.Rds", res=genewise_cox),
+    coxdata="data/Rds/12_coxdata.Rds",
+    invcoxdata="data/Rds/12_invdata.Rds"
+  shell:
+    """
+    Rscript src/12_genewise_survival.R
+    """
+    
     
 rule workflow_diagram:
   conda:
