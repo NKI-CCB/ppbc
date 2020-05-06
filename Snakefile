@@ -445,7 +445,32 @@ rule genewise_survival:
     """
     Rscript src/12_genewise_survival.R
     """
-    
+
+rule report_genewise_survival:
+  input:
+    "src/general_R_tools.R",
+    rds=expand("data/Rds/12_{c}.Rds", c=genewise_cox),
+    #cox=genewise_cox,
+    cp="data/Rds/color_palettes.Rds",
+    sp="data/Rds/survival_colors.Rds",
+    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
+    script="src/12_batch_survival_reports.R",
+    rmd="reports/12_genewise_survival.Rmd",
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    coxdata="data/Rds/12_coxdata.Rds",
+    tools="src/enrichment-analysis-functions.R",
+    pw="results/diffex/07_pairwise_comparisons_allgenes.xlsx",
+    ovr="results/diffex/08_one_vs_rest_allgenes.xlsx"
+  output:
+    html=expand("reports/12_{rep}.html", rep=genewise_cox),
+    csv=expand("results/survival/12_{rep}.csv", rep=genewise_cox)
+  shell:
+    """
+    Rscript {input.script}
+    """
+
+
+
     
 rule workflow_diagram:
   conda:

@@ -9,6 +9,7 @@ sshfs harris:/DATA/share/postpartumbc ~/mnt/postpartumbc
 #Html reports
 cd ~/mnt/postpartumbc/reports
 for REPORT in `ls *.html`; do echo $REPORT; rclone sync -P $REPORT remote:ppbc/reports; done
+for REPORT in `ls *.pdf`; do echo $REPORT; rclone sync -P $REPORT remote:ppbc/reports; done
 
 #Metadata
 cd ~/mnt/postpartumbc/data/metadata

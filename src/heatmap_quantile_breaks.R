@@ -9,6 +9,9 @@ quantile_breaks <- function(xs, n = 10) {
 #pheatmap(
 #  mat               = mat,
 #  color             = inferno(length(mat_breaks) - 1),
+# OR
+#  color              = colorRampPalette(rev(brewer.pal(n = 11,
+                                        #name = "RdYlBu")))(length(mat_breaks) - 1),
 #  breaks            = mat_breaks,
 #  border_color      = NA,
 #  show_colnames     = FALSE,
