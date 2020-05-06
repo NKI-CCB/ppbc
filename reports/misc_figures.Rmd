@@ -1,0 +1,363 @@
+---
+title: "Miscellaneous figures"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    toc: yes
+    toc_depth: 4
+    highlight: tango
+    df_print: tibble
+---
+
+```{r, include=F}
+library(DESeq2)
+library(ComplexHeatmap)
+library(here)
+library(tidyverse)
+library("chisq.posthoc.test")
+theme_set(theme_bw())
+```
+
+# Heatmap with involution split
+
+Request: DEG heatmap inv versus rest also subdifferentiate inv in <6 months and >6months involution
+
+## Gene expression and annotation
+
+```{r}
+dds = readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
+vsd = readRDS(here("data", "Rds", "08_vsd_ovr.Rds"))
+gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+#head(gx_annot)
+gx_annot = gx_annot %>%
+  select(ensembl_gene_id = gene_id, gene_name, hgnc_symbol,
+         gene_type, description = gene_description) %>%
+  distinct()
+```
+
+## ID conversion and deduplication
+
+```{r}
+source(here("src/general_R_tools.R"))
+geneEx = rownames_to_column(as.data.frame(assay(vsd)), "ensembl_gene_id")
+geneEx = right_join(select(gx_annot, gene_name, ensembl_gene_id),
+                    geneEx, by = "ensembl_gene_id") %>%
+    select(-ensembl_gene_id)
+geneEx = summarize_expression_duplicate_ids(geneEx, id_column = "gene_name")
+rownames(geneEx) = NULL
+geneEx = column_to_rownames(geneEx, "GeneSymbol")
+geneEx = as.matrix(geneEx)
+geneEx[1:3, 1:3]
+```
+
+## Diffex results
+
+```{r}
+readxl::excel_sheets(here("results/diffex/08_one_vs_rest_sig_genes.xlsx"))
+res_invr = openxlsx::read.xlsx(here("results", "diffex", "08_one_vs_rest_sig_genes.xlsx"), sheet="sig_rep_inv_rest")
+
+dim(res_invr)
+```
+
+## Colors
+
+```{r}
+cp = readRDS(here("data", "Rds", "color_palettes.Rds"))
+study_colors = cp$study_colors
+pam_colors = cp$pam_colors
+gene_colors = cp$gene_colors
+ppbc_colors = cp$ppbc_colors
+
+sp = readRDS(here("data/Rds/survival_colors.Rds"))
+```
+
+## Heatmaps
+
+Row scaling
+
+```{r}
+mat = scrime::rowScales(geneEx)
+mat[1:4, 1:4]
+```
+
+```{r}
+sig_results = res_invr
+maxn_genes = 1000
+
+#Reduce genes to significant only
+sig_results = sig_results %>% arrange(padj)
+genestoplot = sig_results$gene_name[1:maxn_genes]
+mat = mat[rownames(mat) %in% genestoplot, ]
+
+dim(mat)
+```
+
+Top column annotation
+
+```{r}
+sampledata = as.data.frame(colData(dds))
+
+#inv_nas = sampledata %>%
+#  filter(is.na(involution_duration) & PPBC == "involuting")
+#sampledata$involution_duration
+ann_top = 
+sampledata %>%
+  mutate(involution_duration = as.character(involution_duration),
+         PPBC = as.character(PPBC),
+         overall_survival = as.character(overall_survival)) %>%
+  mutate(PPBC.old = PPBC,
+         PPBC = case_when(
+           PPBC.old == "involuting" & is.na(involution_duration) ~ "inv unknown",
+           PPBC.old == "involuting" & involution_duration == "<= 6 months" ~ "inv <= 6 months",
+           PPBC.old == "involuting" & involution_duration == "> 6 months" ~ "inv > 6 months",
+           TRUE ~ PPBC
+         )) %>% select(PPBC, death = overall_survival)
+
+newcols = c(ppbc_colors[-5], sp$involution_duration)
+names(newcols)[1] = "inv unknown"
+names(newcols)[5:6] = paste("inv", names(newcols)[5:6])
+#Top column annotation
+colTop <- HeatmapAnnotation(df=ann_top, which="col",
+                            col = list(PPBC = newcols,
+                                       death = sp$overall_survival)
+)
+
+```
+
+Bottom column annotation
+
+```{r}
+ann_bottom = sampledata[,"PAM50", drop=F]
+colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = list(PAM50 = pam_colors))
+
+```
+
+Row annotation
+
+```{r}
+anno_rows = sig_results %>%
+  select(gene_name, Type) %>%
+  distinct() %>%
+  filter(!duplicated(gene_name)) %>%
+  column_to_rownames("gene_name")
+
+#Essential that the order be the same!
+anno_rows = anno_rows[match(rownames(mat),rownames(anno_rows)), ,drop=F]
+
+rowAnno = HeatmapAnnotation(df=anno_rows, which="row",
+                            col=list(Type = cp$gene_colors)
+)
+
+```
+
+Draw heatmap
+
+```{r, fig.height=7, fig.width=10}
+hlp = list(title="rowscaled vst")
+
+Heatmap(mat,
+        top_annotation = colTop,
+        bottom_annotation = colBottom,
+        left_annotation = rowAnno,
+        heatmap_legend_param = hlp,
+        show_row_names = T,
+        show_column_names = F,
+        cluster_rows = T,
+        row_names_gp = gpar(fontsize = 8),
+        column_names_gp = gpar(fontsize = 8),
+        column_title = "DEGs: Involution vs rest")
+```
+Top column annotation, tweaked
+
+```{r}
+sampledata = as.data.frame(colData(dds))
+
+#inv_nas = sampledata %>%
+#  filter(is.na(involution_duration) & PPBC == "involuting")
+#sampledata$involution_duration
+ann_top = 
+sampledata %>%
+  mutate(involution_duration = as.character(involution_duration),
+         PPBC = as.character(PPBC),
+         overall_survival = as.character(overall_survival)) %>%
+  mutate(PPBC.old = PPBC,
+         PPBC = case_when(
+           PPBC.old == "involuting" & is.na(involution_duration) ~ "inv unknown",
+           PPBC.old == "involuting" & involution_duration == "<= 6 months" ~ "inv <= 6 months",
+           PPBC.old == "involuting" & involution_duration == "> 6 months" ~ "inv > 6 months",
+           TRUE ~ "rest"
+         )) %>% select(PPBC, death = overall_survival)
+
+newcols = c(ppbc_colors[-2:-4], sp$involution_duration)
+names(newcols)[1] = "inv unknown"
+names(newcols)[3:4] = paste("inv", names(newcols)[3:4])
+#Top column annotation
+colTop <- HeatmapAnnotation(df=ann_top, which="col",
+                            col = list(PPBC = newcols,
+                                       death = sp$overall_survival)
+)
+
+```
+
+```{r}
+scales::show_col(newcols)
+```
+
+
+```{r, fig.height=7, fig.width=10}
+hlp = list(title="rowscaled vst")
+
+Heatmap(mat,
+        top_annotation = colTop,
+        bottom_annotation = colBottom,
+        left_annotation = rowAnno,
+        heatmap_legend_param = hlp,
+        show_row_names = T,
+        show_column_names = F,
+        cluster_rows = T,
+        row_names_gp = gpar(fontsize = 8),
+        column_names_gp = gpar(fontsize = 8),
+        column_title = "DEGs: Involution vs rest")
+```
+
+## With k-means
+
+```{r, fig.height=7, fig.width=10}
+set.seed(1)
+
+ann_top = 
+sampledata %>%
+  mutate(involution_duration = as.character(involution_duration),
+         PPBC = as.character(PPBC),
+         overall_survival = as.character(overall_survival)) %>%
+  mutate(PPBC.old = PPBC,
+         PPBC = case_when(
+           PPBC.old == "involuting" & is.na(involution_duration) ~ "inv unknown",
+           PPBC.old == "involuting" & involution_duration == "<= 6 months" ~ "inv <= 6 months",
+           PPBC.old == "involuting" & involution_duration == "> 6 months" ~ "inv > 6 months",
+           TRUE ~ PPBC
+         )) %>% select(PPBC, death = overall_survival)
+
+newcols = c(ppbc_colors[-5], sp$involution_duration)
+names(newcols)[1] = "inv unknown"
+names(newcols)[5:6] = paste("inv", names(newcols)[5:6])
+#Top column annotation
+colTop <- HeatmapAnnotation(df=ann_top, which="col",
+                            col = list(PPBC = newcols,
+                                       death = sp$overall_survival)
+)
+
+
+
+Heatmap(mat,
+        top_annotation = colTop,
+        bottom_annotation = colBottom,
+        left_annotation = rowAnno,
+        heatmap_legend_param = hlp,
+        show_row_names = T,
+        show_column_names = F,
+        cluster_rows = T,
+        row_names_gp = gpar(fontsize = 8),
+        column_names_gp = gpar(fontsize = 8),
+        column_title = "DEGs: Involution vs rest",
+        column_km=3, row_km = 3)
+```
+
+
+```{r, fig.height=7, fig.width=10}
+set.seed(1)
+
+ann_top = 
+sampledata %>%
+  mutate(involution_duration = as.character(involution_duration),
+         PPBC = as.character(PPBC),
+         overall_survival = as.character(overall_survival)) %>%
+  mutate(PPBC.old = PPBC,
+         PPBC = case_when(
+           PPBC.old == "involuting" & is.na(involution_duration) ~ "inv unknown",
+           PPBC.old == "involuting" & involution_duration == "<= 6 months" ~ "inv <= 6 months",
+           PPBC.old == "involuting" & involution_duration == "> 6 months" ~ "inv > 6 months",
+           TRUE ~ "rest"
+         )) %>% select(PPBC, death = overall_survival)
+
+newcols = c(ppbc_colors[-2:-4], sp$involution_duration)
+names(newcols)[1] = "inv unknown"
+names(newcols)[3:4] = paste("inv", names(newcols)[3:4])
+#Top column annotation
+colTop <- HeatmapAnnotation(df=ann_top, which="col",
+                            col = list(PPBC = newcols,
+                                       death = sp$overall_survival)
+)
+
+Heatmap(mat,
+        top_annotation = colTop,
+        bottom_annotation = colBottom,
+        left_annotation = rowAnno,
+        heatmap_legend_param = hlp,
+        show_row_names = T,
+        show_column_names = F,
+        cluster_rows = T,
+        row_names_gp = gpar(fontsize = 8),
+        column_names_gp = gpar(fontsize = 8),
+        column_title = "DEGs: Involution vs rest",
+        column_km=3, row_km = 3)
+```
+
+# Sig test involution duration vs IG clusters
+
+With IG as integer:
+
+```{r}
+ig_clusts = readRDS(here("data", "Rds", "11_ig_clusters.Rds"))
+
+sd = sampledata %>%
+  mutate(involution_duration = as.character(involution_duration),
+         PPBC = as.character(PPBC),
+         overall_survival = as.character(overall_survival)) %>%
+  mutate(PPBC.old = PPBC,
+         PPBC = case_when(
+           PPBC.old == "involuting" & is.na(involution_duration) ~ "inv unknown",
+           PPBC.old == "involuting" & involution_duration == "<= 6 months" ~ "inv <= 6 months",
+           PPBC.old == "involuting" & involution_duration == "> 6 months" ~ "inv > 6 months",
+           TRUE ~ "rest"
+         )) %>%
+  right_join(select(ig_clusts$col_clust, sample_name, IG_fctr = IG_col_cluster, IG_int = col_cluster), .,
+             by = "sample_name")
+
+  kruskal.test(x = sd$PPBC, 
+             g = sd$IG_int)  
+```
+
+With IG as factor:
+
+```{r}
+kruskal.test(x = sd$PPBC, 
+             g = sd$IG_fctr)  
+
+```
+
+Chi square:
+
+Individual contributions:
+
+```{r}
+ct = chisq.test(sd$PPBC, sd$IG_fctr)
+  
+
+ct
+```
+
+
+```{r}
+ct$stdres
+```
+
+
+
+```{r}
+chisq.posthoc.test::chisq.posthoc.test(table(sd$PPBC, sd$IG_fctr)) %>%
+  filter(Value == "p values")
+```
+
+

@@ -29,6 +29,8 @@ library(scales)
 library(scrime)
 library(effsize)
 library(ggpubr)
+library(survival)
+library(survminer)
 library(tidyverse)
 
 ```
@@ -1829,6 +1831,172 @@ cibermean %>% filter(type %in% (wil_res %>% filter(fdr < 0.05) %>% pull(cell) %>
   ggtitle("Time arc : significant comparisons") + xlab("study group") +
   scale_color_viridis_d()
 ```
+
+# Survival with cell types
+
+Read in survival data
+
+```{r}
+surv <- readRDS(here("data/Rds/04_survdata.Rds"))
+head(surv)
+```
+
+```{r}
+surv_type =
+select(ciberdf, sample_name, type, ciberval,
+       involution_duration, breastfeeding_duration) %>%
+  spread(key = type, value = ciberval) %>%
+  select(-`T cells regulatory (Tregs)`) %>%#too few
+  right_join(surv, ., by = "sample_name")
+
+colnames(surv_type)
+
+surv_type = surv_type %>% select(plasmaB =`Plasma cells`, everything())
+
+surv_type = surv_type %>%
+  mutate(involution_duration = as.character(involution_duration),
+         PPBC = as.character(PPBC),
+         overall_survival = as.character(overall_survival)) %>%
+  mutate(PPBC.old = PPBC,
+         PPBC = case_when(
+           PPBC.old == "involuting" & is.na(involution_duration) ~ "inv unknown",
+           PPBC.old == "involuting" & involution_duration == "<= 6 months" ~ "inv <= 6 months",
+           PPBC.old == "involuting" & involution_duration == "> 6 months" ~ "inv > 6 months",
+           TRUE ~ PPBC.old
+         )) %>% filter(PPBC != "inv unknown") %>%
+  mutate(PPBC = factor(PPBC, levels = c(
+    "nulliparous", "pregnant", "lactating", "inv <= 6 months", "inv > 6 months"
+  ))) %>% mutate(overall_survival = as.integer(overall_survival))
+
+
+```
+
+
+Cibersort: link with plasma cell expression (high-low) and prognosis - also for within the subgroups (<6mo inv, > 6mo inv, lac, pregnant and nulliparous)
+
+Plasma cells as continuous variable
+
+```{r}
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + plasmaB,
+  data = surv_type) %>%
+
+summary()
+```
+
+Recode plasma B expression as a tertile.
+
+```{r}
+#surv_type %>% mutate(plasmaBfctr,)
+surv_type$plasmaB_tertile = dplyr::ntile(surv_type$plasmaB, 3)
+surv_type$plasmaB_exp = surv_type$plasmaB
+
+surv_type$plasmaB = dplyr::recode(surv_type$plasmaB_tertile,
+              `1` = "low", `2` = "medium", `3` ="high")
+surv_type$plasmaB = factor(surv_type$plasmaB, levels = c("low", "medium", "high"))
+
+select(surv_type, plasmaB, plasmaB_tertile) %>% table()
+```
+
+```{r}
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + plasmaB,
+  data = surv_type) %>%
+
+summary()
+```
+
+
+### KM Plasma B
+
+```{r}
+bcolors = cp$tertile_colors
+names(bcolors) = paste0("plasmaB=", names(cp$tertile_colors))
+
+  ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ plasmaB, data = surv_type), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "Plasma B tertiles",
+    palette = bcolors,
+    pval = T,
+    ggtheme = theme_bw())
+
+
+```
+
+There's a bug somewhere deep in ggplot2 right now that messes up a traditional facet.by arguments.
+
+```{r, eval=F}
+bcolors = cp$tertile_colors
+names(bcolors) = paste0("plasmaB=", names(cp$tertile_colors))
+
+p =  ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PPBC + plasmaB, data = as.data.frame(surv_type)), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "Plasma B tertiles",
+    #palette = bcolors,
+    pval = T,
+    ggtheme = theme_bw())
+
+p$plot +
+    facet_wrap(~PPBC)
+  
+    ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ plasmaB, data = as.data.frame(surv_type)), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "Plasma B tertiles",
+    palette = bcolors,
+    pval = T,
+    ggtheme = theme_bw(),
+    facet.by = "PPBC")
+
+
+class(surv_type$PPBC)
+class(surv_type$plasmaB)
+```
+
+Fix it with a for loop.
+
+```{r, fig.height = 10, fig.width= 8}
+plist = list()
+
+for(sg in unique(surv_type$PPBC)){
+  p = ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ plasmaB, data = surv_type[surv_type$PPBC == sg, , drop=F]), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = paste0("PPBC:", sg),
+    palette = bcolors,
+    pval = T,
+    ggtheme = theme_bw())
+  #print(p)
+  plist[[length(plist) + 1]] = p
+}
+
+arrange_ggsurvplots(plist, ncol = 2, nrow = 3)
+
+```
+
+Can't stratify PAM50 here or there's too few points.
+
+```{r}
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC + plasmaB,
+  data = surv_type) %>%
+  
+  ggadjustedcurves(., variable = "plasmaB", data = as.data.frame(surv_type), method="conditional",     
+                 palette = cp$tertile_colors,
+    ggtheme = theme_bw()) +
+  ggtitle("Plasma B OS curve adjusted for clinical covariates: Balanced")
+
+```
+
 
 # Session info
 

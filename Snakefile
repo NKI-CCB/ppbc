@@ -386,6 +386,7 @@ rule cibersortX:
     #Results obtained by uploading hugo_fpkm.txt to the cibersort website with the enumerated parameters
     ciber_res="results/cibersortX/CIBERSORTx_Job3_Results.csv",
     geneEx="data/RNA-seq/hugo_fpkm.txt",
+    surv="data/Rds/04_survdata.Rds",
     metadata="data/metadata/05_sample_annot_filtered.csv",
     rmd="reports/10_CibersortX.Rmd",
     script="src/rmarkdown.R"
