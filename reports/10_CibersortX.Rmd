@@ -1871,10 +1871,11 @@ surv_type = surv_type %>%
 
 ```
 
+## CoxPH Plasma
 
 Cibersort: link with plasma cell expression (high-low) and prognosis - also for within the subgroups (<6mo inv, > 6mo inv, lac, pregnant and nulliparous)
 
-Plasma cells as continuous variable
+Separate inv group
 
 ```{r}
 coxph(
@@ -1884,6 +1885,7 @@ coxph(
 
 summary()
 ```
+
 
 Recode plasma B expression as a tertile.
 
@@ -1908,8 +1910,27 @@ coxph(
 summary()
 ```
 
+Upon request, also as a single inv group
 
-### KM Plasma B
+
+```{r}
+st2 = surv_type %>% dplyr::rename(PPBC2 = PPBC) %>%
+  dplyr::rename(PPBC = PPBC.old) %>%
+  mutate(PPBC = factor(PPBC, levels = c(
+    "nulliparous", "pregnant",
+    "lactating", "involuting"
+  )))
+
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + plasmaB,
+  data = st2) %>%
+
+summary()
+```
+
+
+## KM Plasma B - inv duration
 
 ```{r}
 bcolors = cp$tertile_colors
@@ -1926,6 +1947,22 @@ names(bcolors) = paste0("plasmaB=", names(cp$tertile_colors))
 
 
 ```
+
+```{r}
+bcolors = cp$tertile_colors
+names(bcolors) = paste0("plasmaB=", names(cp$tertile_colors))
+
+  ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ plasmaB, data = st2), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "Plasma B tertiles",
+    palette = bcolors,
+    pval = T,
+    ggtheme = theme_bw())
+
+```
+
 
 There's a bug somewhere deep in ggplot2 right now that messes up a traditional facet.by arguments.
 
@@ -1982,6 +2019,28 @@ arrange_ggsurvplots(plist, ncol = 2, nrow = 3)
 
 ```
 
+And again with a single inv group upon request
+
+```{r, fig.height = 10, fig.width= 10}
+plist = list()
+
+for(sg in unique(st2$PPBC)){
+  p = ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ plasmaB, data = st2[st2$PPBC == sg, , drop=F]), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = paste0("PPBC:", sg),
+    palette = bcolors,
+    pval = T,
+    ggtheme = theme_bw())
+  #print(p)
+  plist[[length(plist) + 1]] = p
+}
+
+arrange_ggsurvplots(plist, ncol = 2, nrow = 2)
+
+```
+
 Can't stratify PAM50 here or there's too few points.
 
 ```{r}
@@ -1997,6 +2056,220 @@ coxph(
 
 ```
 
+And again with a single inv group upon request
+
+```{r}
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC + plasmaB,
+  data = st2) %>%
+  
+  ggadjustedcurves(., variable = "plasmaB", data = as.data.frame(st2), method="conditional",     
+                 palette = cp$tertile_colors,
+    ggtheme = theme_bw()) +
+  ggtitle("Plasma B OS curve adjusted for clinical covariates: Balanced")
+
+```
+
+## CoxPH CD8 T
+
+CD8 as continuous variable
+
+```{r}
+#surv_type %>% colnames()
+surv_type = surv_type %>%
+  select(CD8_exp = "T cells CD8", everything())
+head(surv_type[,1:4])
+```
+
+
+```{r}
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + CD8_exp,
+  data = surv_type) %>%
+
+summary()
+```
+
+Recode CD8 expression as a tertile.
+
+```{r}
+#surv_type %>% mutate(plasmaBfctr,)
+surv_type$CD8_tertile = dplyr::ntile(surv_type$CD8_exp, 3)
+
+surv_type$CD8 = dplyr::recode(surv_type$CD8_tertile,
+              `1` = "low", `2` = "medium", `3` ="high")
+surv_type$CD8 = factor(surv_type$CD8, levels = c("low", "medium", "high"))
+
+select(surv_type, CD8, CD8_tertile) %>% table()
+```
+
+```{r}
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + CD8,
+  data = surv_type) %>%
+
+summary()
+```
+
+
+## KM CD8
+
+```{r}
+tcolors = cp$tertile_colors
+names(tcolors) = paste0("CD8=", names(cp$tertile_colors))
+
+  ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ CD8, data = surv_type), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "CD8 T cell tertiles",
+    palette = tcolors,
+    pval = T,
+    ggtheme = theme_bw())
+
+
+```
+
+There's a bug somewhere deep in ggplot2 right now that messes up a traditional facet.by arguments.
+
+Fix it with a for loop.
+
+```{r, fig.height = 10, fig.width= 8}
+tlist = list()
+
+for(sg in unique(surv_type$PPBC)){
+  p = ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ CD8, data = surv_type[surv_type$PPBC == sg, , drop=F]), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = paste0("PPBC:", sg),
+    palette = tcolors,
+    pval = T,
+    ggtheme = theme_bw())
+  #print(p)
+  tlist[[length(tlist) + 1]] = p
+}
+
+arrange_ggsurvplots(tlist, ncol = 2, nrow = 3)
+
+```
+
+Can't stratify PAM50 here or there's too few points.
+
+```{r}
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC + CD8,
+  data = surv_type) %>%
+  
+  ggadjustedcurves(., variable = "CD8", data = as.data.frame(surv_type), method="conditional",     
+                 palette = cp$tertile_colors,
+    ggtheme = theme_bw()) +
+  ggtitle("CD8 OS curve adjusted for clinical covariates: Balanced")
+
+```
+
+## CoxPH M2 Macrophages
+
+M2 as continuous variable
+
+```{r}
+#surv_type %>% colnames()
+surv_type = surv_type %>%
+  select(M2_exp = `Macrophages M2`, everything())
+head(surv_type[,1:4])
+```
+
+```{r}
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + M2_exp,
+  data = surv_type) %>%
+
+summary()
+```
+
+Recode M2 expression as a tertile.
+
+```{r}
+#surv_type %>% mutate(plasmaBfctr,)
+surv_type$M2_tertile = dplyr::ntile(surv_type$M2_exp, 3)
+
+surv_type$M2 = dplyr::recode(surv_type$M2_tertile,
+              `1` = "low", `2` = "medium", `3` ="high")
+surv_type$M2 = factor(surv_type$M2, levels = c("low", "medium", "high"))
+
+select(surv_type, M2, M2_tertile) %>% table()
+```
+
+```{r}
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + M2,
+  data = surv_type) %>%
+
+summary()
+```
+
+## KM M2 macrophages
+
+```{r}
+tcolors = cp$tertile_colors
+names(tcolors) = paste0("M2=", names(cp$tertile_colors))
+
+  ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ M2, data = surv_type), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "M2 macrophage tertiles",
+    palette = tcolors,
+    pval = T,
+    ggtheme = theme_bw())
+
+
+```
+
+There's a bug somewhere deep in ggplot2 right now that messes up a traditional facet.by arguments.
+
+Fix it with a for loop.
+
+```{r, fig.height = 10, fig.width= 8}
+tlist = list()
+
+for(sg in unique(surv_type$PPBC)){
+  p = ggsurvplot(
+    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ M2, data = surv_type[surv_type$PPBC == sg, , drop=F]), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = paste0("PPBC:", sg),
+    palette = tcolors,
+    pval = T,
+    ggtheme = theme_bw())
+  #print(p)
+  tlist[[length(tlist) + 1]] = p
+}
+
+arrange_ggsurvplots(tlist, ncol = 2, nrow = 3)
+
+```
+
+Can't stratify PAM50 here or there's too few points.
+
+```{r}
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC + M2,
+  data = surv_type) %>%
+  
+  ggadjustedcurves(., variable = "M2", data = as.data.frame(surv_type), method="conditional",     
+                 palette = cp$tertile_colors,
+    ggtheme = theme_bw()) +
+  ggtitle("M2 OS curve adjusted for clinical covariates: Balanced")
+
+```
 
 # Session info
 

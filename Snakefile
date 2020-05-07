@@ -470,6 +470,31 @@ rule report_genewise_survival:
     Rscript {input.script}
     """
 
+rule aggregate_genewise_survival:
+  input:
+    csv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
+    script="src/rmarkdown.R",
+    rmd="reports/12b_aggregate_genewise_survival.Rmd"
+  output:
+    html="reports/12b_aggregate_genewise_survival.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+interaction_models = [
+  "multi_interaction_os",
+  "multi_interaction_drs"
+]    
+    
+rule surv_inv_int:
+  input:
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    coxdata="data/Rds/12_coxdata.Rds"
+  output:
+    expand("data/Rds/13_{m}.Rds", m=interaction_models)
+  shell:
+    """
+    Rscript src/13_survival_involution_interaction.R
+    """
 
 
     
