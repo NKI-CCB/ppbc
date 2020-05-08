@@ -448,7 +448,7 @@ mat_breaks <- quantile_breaks(mat, n = 11)
 
 pheatmap::pheatmap(mat, show_colnames = F,
                    scale="row", annotation_col = ann_df,
-         cluster_cols = F, drop_levels = T,
+         cluster_cols = T, drop_levels = T,
          breaks =  mat_breaks,
          color = colorRampPalette(rev(brewer.pal(n = 11,
                                       name = "RdYlBu")))(length(mat_breaks) - 1),
