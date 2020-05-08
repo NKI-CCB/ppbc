@@ -496,7 +496,27 @@ rule surv_inv_int:
     Rscript src/13_survival_involution_interaction.R
     """
 
-
+rule report_interaction_survival:
+  input:
+    "src/general_R_tools.R",
+    rds=expand("data/Rds/13_{c}.Rds", c=interaction_models),
+    cp="data/Rds/color_palettes.Rds",
+    sp="data/Rds/survival_colors.Rds",
+    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
+    #script="src/13_batch_interaction_reports.R",
+    rmd="reports/13_involutionxgene_interaction_models.Rmd",
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    coxdata="data/Rds/12_coxdata.Rds",
+    tools="src/enrichment-analysis-functions.R",
+    pw="results/diffex/07_pairwise_comparisons_allgenes.xlsx",
+    ovr="results/diffex/08_one_vs_rest_allgenes.xlsx"
+  output:
+    html=expand("reports/13_{rep}.html", rep=genewise_cox),
+    csv=expand("results/survival/13_{rep}.csv", rep=genewise_cox)
+  shell:
+    """
+    Rscript {input.script}
+    """
     
 rule workflow_diagram:
   conda:
