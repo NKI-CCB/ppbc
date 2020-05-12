@@ -503,7 +503,7 @@ rule report_interaction_survival:
     cp="data/Rds/color_palettes.Rds",
     sp="data/Rds/survival_colors.Rds",
     sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    #script="src/13_batch_interaction_reports.R",
+    script="src/13_batch_involution_interaction_reports.R",
     rmd="reports/13_involutionxgene_interaction_models.Rmd",
     gx_annot="data/metadata/01_tx_annot.tsv",
     coxdata="data/Rds/12_coxdata.Rds",
@@ -511,10 +511,55 @@ rule report_interaction_survival:
     pw="results/diffex/07_pairwise_comparisons_allgenes.xlsx",
     ovr="results/diffex/08_one_vs_rest_allgenes.xlsx"
   output:
-    html=expand("reports/13_{rep}.html", rep=genewise_cox),
-    csv=expand("results/survival/13_{rep}.csv", rep=genewise_cox)
+    html=expand("reports/13_{rep}.html", rep=interaction_models),
+    csv=expand("results/survival/13_{rep}.csv", rep=interaction_models)
   shell:
     """
+    Rscript {input.script}
+    """
+
+rule app_setup:
+  input:
+    "data/metadata/01_tx_annot.tsv",
+    "data/external/ensembl_universal_ids_v94.txt",
+    "results/survival/12_cox_allgenes.xlsx",
+    "results/survival/13_multi_interaction_os.csv",
+    "results/survival/13_multi_interaction_drs.csv",
+    expand("results/diffex/{result}.xlsx", result=diffex_results),
+    "data/Rds/12_coxdata.Rds"
+  output:
+    "shinyApp/VisualizePPBCgene/data/app_gx_annot.Rds",
+    "shinyApp/VisualizePPBCgene/data/12_cox_allgenes.xlsx",
+    "shinyApp/VisualizePPBCgene/data/13_multi_interaction_os.csv",
+    "shinyApp/VisualizePPBCgene/data/13_multi_interaction_drs.csv",
+    "shinyApp/VisualizePPBCgene/data/app_diffex_res_list.Rds",
+    "shinyApp/VisualizePPBCgene/data/app_survival_sample_data.Rds",
+    "shinyApp/VisualizePPBCgene/data/app_ensembl_tmmnorm_genesxsample.Rds",
+    "shinyApp/VisualizePPBCgene/data/app_symbol_tmmnorm_genesxsample.Rds"
+  shell:
+    """
+    Rscript shinyApp/VisualizePPBCgene/data_setup.R
+    """
+
+subgroups=["Basal", "Her2", "LumA", "LumB"]
+sub_diffex=[
+  "ppbc_inv_vs_non_prbc",
+  "ppbc_inv_vs_prbc",
+  "ppbc_inv_vs_rest"
+]
+
+rds_dir="/DATA/share/postpartumbc/data/Rds"
+
+rule subgroup_diffex:
+  input:
+    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
+    script="src/14_subgroup_diffex.R"
+  output:
+    dds_res=expand("{dir}/subgroup_diffex/14_dds_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
+    ape_res=expand("{dir}/subgroup_diffex/14_ape_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir)
+  shell:
+    """
+    export OMP_NUM_THREADS=1 
     Rscript {input.script}
     """
     
