@@ -1,0 +1,548 @@
+---
+title: "14_integrating_results"
+author: "Kat Moore"
+date: "5/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Integrating results
+
+There are two types of events being examined:
+
+* Overall survival (OS)
+* Distant recurrence (DRS)/metastasis
+
+We have two major groups of results for both types of events:
+
+* Genewise Cox models, which fit a Cox model to each gene separately
+* Elastic net Cox models, which uses all genes as features and applies regularization to select the most relevant genes
+
+For each of these, we have two types of design formulas: One which includes the clinical covariates and one which does not.
+
+```{r}
+covariates
+```
+
+## Define survival/metastasis groups
+
+For heatmap annotations.
+
+```{r}
+#Surv(time = sd$months_overall_survival, event = sd$overall_survival) %>% as.character()
+sd = sd %>% mutate(survival_group = case_when(
+  overall_survival == 1 & months_overall_survival < 50 ~ "death_50mo",
+  overall_survival == 1 & months_overall_survival < 100 ~ "death_100mo",  
+  overall_survival == 1 & months_overall_survival < 150 ~ "death_150mo",
+  overall_survival == 1 & months_overall_survival < 200 ~ "death_200mo",
+  overall_survival == 1 & months_overall_survival < 250 ~ "death_200mo",
+  overall_survival == 0 ~ "survived",
+  TRUE ~ "no_data"
+)) %>% select(sample_name, survival_group, months_overall_survival, overall_survival, everything())
+
+rownames(sd) = sd$sample_name
+
+head(sd)
+```
+
+```{r}
+sd = sd %>% mutate(drs_group = case_when(
+  distant_recurrence == 1 & months_to_drs < 50 ~ "met_50mo",
+  distant_recurrence == 1 & months_to_drs < 100 ~ "met_100mo",  
+  distant_recurrence == 1 & months_to_drs < 150 ~ "met_150mo",
+  distant_recurrence == 1 & months_to_drs < 200 ~ "met_200mo",
+  distant_recurrence == 1 & months_to_drs < 250 ~ "met_200mo",
+  distant_recurrence == 0 ~ "no_metastasis",
+  TRUE ~ "no_data"
+)) %>% select(sample_name, drs_group, months_to_drs, distant_recurrence, everything())
+
+rownames(sd) = sd$sample_name
+
+head(sd)
+```
+
+
+## Overall survival
+
+We have many hits in the multivariate analysis and none in the univariate analysis for overall survival.
+
+```{r}
+filter(res_allgenes_multivar_surv, fdr<0.1)
+filter(res_allgenes_univ_surv, fdr<0.1)
+```
+
+### Plot features x fdr
+
+Plot features from multivariate elastic net Cox if they occur more than once vs the fdr of that gene from the genewise multivariate Cox model. Label those genes that are either fdr significant at <0.1 or occur in at least half of the 50 models.
+
+```{r}
+glm.os.features %>% filter(n > 1) %>%
+  left_join(., select(res_allgenes_multivar_surv,fdr:ensembl_gene_id), by = c("name"="ensembl_gene_id")) %>%
+  select(gene_name, n, fdr, everything()) %>%
+  ggplot(aes(x = n, y = -log10(fdr), color = if_else(beta > 0, "beta > 0", "beta < 0"))) +
+  geom_jitter(height = 0, width = 0.1, show.legend = F) +
+  labs(color="Direction") +
+  xlab("Feature selected out of 10 penalized elastic Cox models") +
+  ylab("-log10(FDR) from genewise Cox model") +
+  ggrepel::geom_text_repel(aes(label = ifelse(n > 25 | fdr < 0.1, gene_name, "")), show.legend = F) +
+  geom_hline(yintercept=-log10(0.05), linetype="dashed", color="red") +
+  geom_text(aes(0,-log10(0.05),label = "fdr 0.05", vjust = 1)) +
+  geom_hline(yintercept=-log10(0.1), linetype="dashed", color="blue") +
+  geom_text(aes(0,-log10(0.1),label = "fdr 0.1", vjust = 1)) +
+  ggtitle("Genes associated with overall survival") 
+```
+
+```{r, include=F}
+ggsave(here("results", "survival", "12_enet.vs.fdr_survival_genes.pdf"), height = 6, width = 8)
+```
+
+
+### Heatmaps
+
+Define colors for survival groups
+
+```{r}
+ann_df = sd[,c("study_group", "survival_group"), drop=F]
+os_colors = viridis::viridis(length(unique(sd$survival_group)))
+#unique(sd$survival_group) %>% paste(collapse=", ")
+
+names(os_colors) = c("survived","death_200mo", "death_150mo" , "death_100mo", "death_50mo")
+color_grid(os_colors)
+```
+
+Per request, order samples to be able to turn off column clustering.
+
+```{r}
+#ORder from best to worst
+ann_df$survival_group = factor(ann_df$survival_group,
+                               levels = c("survived","death_200mo", "death_150mo" , "death_100mo", "death_50mo"))
+
+#Sort by survival group
+ann_df = ann_df[order(ann_df$survival_group),]
+
+#Match
+ovsd = vsd[,colnames(vsd)[match(rownames(ann_df), colnames(vsd))]]
+
+```
+
+
+
+Limit plot to those features that occur in at least 30 out of 50 models.
+
+```{r, fig.width=8}
+pheatmap::pheatmap(ovsd[rownames(ovsd) %in% filter(glm.os.features, n > 30)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         cluster_cols = T,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  survival_group = os_colors),
+         main = "Genes associated with survival (min 30/50 models)") 
+```
+
+```{r, include=F}
+pheatmap(vsd[rownames(vsd) %in% filter(glm.os.features, n > 30)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  survival_group = os_colors),
+         main = "Genes associated with survival (min 30/50 models)", 
+         filename = here("results", "survival", "12_hm_enet_surv_genes.pdf")) 
+```
+
+Limit plots to those genes with an fdr of < 0.05 from the genewise regression. 
+
+```{r, fig.width=8}
+pheatmap::pheatmap(ovsd[rownames(ovsd) %in% filter(res_allgenes_multivar_surv, fdr < 0.05 )$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         cluster_cols = F,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  survival_group = os_colors),
+         main = "Genes associated with survival: genewise fdr <0.05") 
+```
+
+
+```{r, include=F}
+pheatmap::pheatmap(ovsd[rownames(ovsd) %in% filter(res_allgenes_multivar_surv, fdr < 0.05)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         cluster_cols = T,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  survival_group = os_colors),
+         main = "Genes associated with survival: genewise fdr <0.05",
+         filename = here("results", "survival", "12_hm_genewisecox_surv_genes.pdf")) 
+```
+
+
+The comparison seems to show that the genewise model does a better job than the elastic net where overall survival is concerned. That said, the low numbers of features selected and comparatively poor prognosis vs the clinical variable-only model indicates that survival is not strongly associated with any given gene signature.
+
+## DRS/metastasis
+
+Huge differences between multivariate and univariate genewise Cox models.
+
+```{r, collapse=T}
+filter(res_allgenes_multivar_dr, fdr<0.1) %>% nrow()
+filter(res_allgenes_univ_dr, fdr<0.1) %>% nrow()
+```
+
+### Plot features x fdr
+
+For the sake of exploration, we plot the fdr from the univariate drs analysis, given that there's so many more significant hits compared to the multivariate analysis.
+
+Note that genes like FOXP3 and CD27 will be excluded from this list because they were not among the top 1000 most variant genes.
+
+```{r}
+"ENSG00000049768" %in% top1000var #FOXP3
+"ENSG00000139193" %in% top1000var #CD27
+"ENSG00000173762" %in% top1000var #CD7
+
+```
+
+
+
+```{r}
+glm.drs.features %>% filter(n > 1) %>%
+  left_join(., select(res_allgenes_multivar_dr,fdr:ensembl_gene_id), by = c("name"="ensembl_gene_id")) %>%
+  select(gene_name, n, fdr, everything()) %>%
+  ggplot(aes(x = n, y = -log10(fdr), color = if_else(beta > 0, "beta > 0", "beta < 0"))) +
+  geom_jitter(height = 0, width = 0.1, show.legend = F) +
+  labs(color="Direction") +
+  xlab("Feature selected out of 10 penalized elastic Cox models") +
+  ylab("-log10(FDR) from genewise Cox model") +
+  ggrepel::geom_text_repel(aes(label = ifelse(n > 25 | fdr < 0.1, gene_name, "")), show.legend = T) +
+  geom_hline(yintercept=-log10(0.05), linetype="dashed", color="red") +
+  geom_text(aes(0,-log10(0.05),label = "fdr 0.05", vjust = -1)) +
+  geom_hline(yintercept=-log10(0.1), linetype="dashed", color="blue") +
+  geom_text(aes(0,-log10(0.1),label = "fdr 0.1", vjust = -1)) +
+  ggtitle("Genes associated with metastasis") 
+```
+
+```{r, include=F}
+ggsave(here("results", "survival", "12_enet.vs.fdr_metastasis_genes.pdf"), height = 6, width = 8)
+```
+
+
+### Heatmap
+
+Limit plot to those features that occur in at least 40 out of 50 models.
+
+```{r}
+ann_df = sd[,c("study_group", "drs_group"), drop=F]
+drs_colors = viridis::viridis(length(unique(sd$drs_group))) 
+#paste(unique(sd$drs_group), collapse=", ")
+#Ordered from best to worst
+names(drs_colors) =  c("no_metastasis","no_data" ,"met_200mo","met_150mo","met_100mo", "met_50mo")
+color_grid(drs_colors)
+
+```
+
+Per request, order samples to be able to turn off column clustering.
+
+```{r}
+#Order from best to worst
+ann_df$drs_group = factor(ann_df$drs_group,
+                               levels = c("no_metastasis","no_data" ,"met_200mo","met_150mo","met_100mo", "met_50mo"))
+
+#Sort by survival group
+ann_df = ann_df[order(ann_df$drs_group),]
+
+#Match
+dvsd = vsd[,colnames(vsd)[match(rownames(ann_df), colnames(vsd))]]
+
+```
+
+```{r, fig.width=8}
+
+pheatmap::pheatmap(dvsd[rownames(dvsd) %in% filter(glm.drs.features, n > 40)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  drs_group = drs_colors
+                                  ),
+         main = "Genes associated with metastasis (min 40/50 models)") 
+```
+
+```{r, include=F}
+pheatmap::pheatmap(dvsd[rownames(dvsd) %in% filter(glm.drs.features, n > 40)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  drs_group = drs_colors
+                                  ),
+         main = "Genes associated with metastasis (min 40/50 models)",
+         filename = here("results", "survival", "12_hm_enet_drs_genes.pdf")) 
+```
+
+Limit plots to those genes with an fdr of < 0.1 from the genewise regression. 
+
+```{r, fig.width=8}
+pheatmap::pheatmap(dvsd[rownames(dvsd) %in% filter(res_allgenes_multivar_dr, fdr < 0.1)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         cluster_cols = T,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  drs_group = drs_colors),
+         main = "Genes associated with metastasis: genewise fdr <0.1") 
+```
+
+```{r, include=F}
+pheatmap::pheatmap(dvsd[rownames(dvsd) %in% filter(res_allgenes_multivar_dr, fdr < 0.1)$gene_name,],
+         show_colnames = F, scale="row", annotation_col = ann_df,
+         annotation_colors = list(study_group = study_colors[-5],
+                                  drs_group = drs_colors),
+         main = "Genes associated with metastasis: genewise fdr <0.1", 
+         filename = here("results", "survival", "12_hm_genewisecox_drs_genes.pdf")) 
+```
+
+
+Similar to overall survival, the genewise Cox model does a better job of clustering events than the elastic net Cox model. However the clustering is better for metastasis than for overall survival.
+
+# Select genes of interest
+
+Load the LRT results for plotting.
+
+```{r}
+#readxl::excel_sheets(here("results", "diffex", "06_LRT_allgenes.xlsx"))
+
+lrt = readxl::read_excel(here("results", "diffex", "06_LRT_allgenes.xlsx"), sheet="repLRT_all")
+head(lrt)
+```
+
+Modify beehive function for Cox results. Use fdr from multivariate genewise metastasis, since that's the analysis that appears to do the best job of clustering events on the heatmap.
+
+```{r, include=F}
+filter(res_allgenes_multivar_dr, fdr<0.1)
+```
+
+
+```{r}
+plot_cox_beehive <- function(dds, description, ensembl_id, res_df, cox_df,intgroup = "study_group", colorby="PAM50"){
+  p <- plot_gene_beehive(dds, res_df[res_df$ensembl_gene_id == ensembl_id,,drop=F],
+                         intgroup = intgroup, colorby = colorby)
+  lrt_padj <- res_df[res_df$ensembl_gene_id == ensembl_id,]$padj
+  cox <- cox_df[cox_df$ensembl_gene_id == ensembl_id, , drop=F]
+  cox_padj = cox$fdr
+  beta <- cox$beta
+  gene <- cox$gene_name
+  p <- p + ggtitle(paste0(gene, ", ", description, ", Cox fdr: ", round(cox_padj, 2),
+                          ", beta: ", round(beta, 2), ", LRT padj: ", round(lrt_padj, 2)))
+  return(p)
+}
+```
+
+
+## [CD27](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CD27)
+
+>The protein encoded by this gene is a member of the TNF-receptor superfamily. This receptor is required for generation and long-term maintenance of T cell immunity. It binds to ligand CD70, and plays a key role in regulating B-cell activation and immunoglobulin synthesis. This receptor transduces signals that lead to the activation of NF-kappaB and MAPK8/JNK. Adaptor proteins TRAF2 and TRAF5 have been shown to mediate the signaling process of this receptor. CD27-binding protein (SIVA), a proapoptotic protein, can bind to this receptor and is thought to play an important role in the apoptosis induced by this receptor. [provided by RefSeq, Jul 2008]
+
+Associated with both survival and DR:
+
+```{r}
+print(paste("FDR from multivariate overall survival Cox model",
+            (res_allgenes_multivar_surv %>% filter(gene_name == "CD27") %>%
+               pull(fdr) %>% round(3))))
+
+print(paste("FDR from multivariate distant recurrence Cox model",
+            (res_allgenes_multivar_dr %>% filter(gene_name == "CD27") %>%
+               pull(fdr) %>% round(3))))
+
+```
+
+
+```{r}
+plot_cox_beehive(dds, description = "Multivariate DR", ensembl_id = "ENSG00000139193",
+                 res_df = lrt, cox_df = res_allgenes_multivar_dr)
+
+```
+
+## [CD7](https://www.genecards.org/cgi-bin/carddisp.pl?gene=CD7&keywords=CD7)
+
+>This gene encodes a transmembrane protein which is a member of the immunoglobulin superfamily. This protein is found on thymocytes and mature T cells. It plays an essential role in T-cell interactions and also in T-cell/B-cell interaction during early lymphoid development. 
+
+Associated with overall survival.
+
+```{r}
+print(paste("FDR from multivariate overall survival Cox model",
+            (res_allgenes_multivar_surv %>% filter(gene_name == "CD7") %>%
+               pull(fdr) %>% round(3))))
+
+print(paste("FDR from multivariate distant recurrence Cox model",
+            (res_allgenes_multivar_dr %>% filter(gene_name == "CD7") %>%
+               pull(fdr) %>% round(3))))
+
+```
+
+
+```{r}
+plot_cox_beehive(dds, description = "Multivariate OS", ensembl_id = "ENSG00000173762",
+                 res_df = lrt, cox_df = res_allgenes_multivar_surv)
+
+```
+
+## [FOXP3](https://www.genecards.org/cgi-bin/carddisp.pl?gene=FOXP3&keywords=foxp3)
+
+>Transcriptional regulator which is crucial for the development and inhibitory function of regulatory T-cells (Treg). Plays an essential role in maintaining homeostasis of the immune system by allowing the acquisition of full suppressive function and stability of the Treg lineage, and by directly modulating the expansion and function of conventional T-cells. Can act either as a transcriptional repressor or a transcriptional activator depending on its interactions with other transcription factors, histone acetylases and deacetylases. The suppressive activity of Treg involves the coordinate activation of many genes, including CTLA4 and TNFRSF18 by FOXP3 along with repression of genes encoding cytokines such as interleukin-2 (IL2) and interferon-gamma (IFNG). Inhibits cytokine production and T-cell effector function by repressing the activity of two key transcription factors, RELA and NFATC2 (PubMed:15790681). Mediates transcriptional repression of IL2 via its association with histone acetylase KAT5 and histone deacetylase HDAC7 (PubMed:17360565). Can activate the expression of TNFRSF18, IL2RA and CTLA4 and repress the expression of IL2 and IFNG via its association with transcription factor RUNX1 (PubMed:17377532). Inhibits the differentiation of IL17 producing helper T-cells (Th17) by antagonizing RORC function, leading to down-regulation of IL17 expression, favoring Treg development (PubMed:18368049). Inhibits the transcriptional activator activity of RORA (PubMed:18354202). Can repress the expression of IL2 and IFNG via its association with transcription factor IKZF4 (By similarity).
+
+Associated with both OS and DR.
+
+```{r}
+print(paste("FDR from multivariate overall survival Cox model",
+            (res_allgenes_multivar_surv %>% filter(gene_name == "FOXP3") %>%
+               pull(fdr) %>% round(3))))
+
+print(paste("FDR from multivariate distant recurrence Cox model",
+            (res_allgenes_multivar_dr %>% filter(gene_name == "FOXP3") %>%
+               pull(fdr) %>% round(3))))
+
+```
+
+
+```{r}
+plot_cox_beehive(dds, description = "Multivariate OS", ensembl_id = "ENSG00000049768",
+                 res_df = lrt, cox_df = res_allgenes_multivar_surv)
+
+```
+
+##[TCEAL3](https://www.genecards.org/cgi-bin/carddisp.pl?gene=TCEAL3&keywords=TCEAL3)
+
+>This gene encodes a member of the transcription elongation factor A (SII)-like (TCEAL) gene family. Members of this family contain TFA domains and may function as nuclear phosphoproteins that modulate transcription in a promoter context-dependent manner. Multiple family members are located on the X chromosome. Alternative splicing results in multiple transcript variants encoding a single isoform.
+
+Several TCEAL family members had beta > 0 and fdr <0.1 in the multivariate OS analysis. Known to be highly expressed in [breast cancer](https://www.proteinatlas.org/ENSG00000196507-TCEAL3/pathology).
+
+Associated with survival and near significant for DR.
+
+```{r}
+print(paste("FDR from multivariate overall survival Cox model",
+            (res_allgenes_multivar_surv %>% filter(gene_name == "TCEAL3") %>%
+               pull(fdr) %>% round(3))))
+
+print(paste("FDR from multivariate distant recurrence Cox model",
+            (res_allgenes_multivar_dr %>% filter(gene_name == "TCEAL3") %>%
+               pull(fdr) %>% round(3))))
+
+```
+
+
+```{r}
+plot_cox_beehive(dds, description = "Multivariate OS", ensembl_id = "ENSG00000196507",
+                 res_df = lrt, cox_df = res_allgenes_multivar_surv)
+
+```
+
+## [IL1R2](https://www.genecards.org/cgi-bin/carddisp.pl?gene=IL1R2)
+
+
+ 
+```{r}
+print(paste("FDR from multivariate overall survival Cox model",
+            (res_allgenes_multivar_surv %>% filter(gene_name == "IL1R2") %>%
+               pull(fdr) %>% round(3))))
+
+print(paste("FDR from multivariate distant recurrence Cox model",
+            (res_allgenes_multivar_dr %>% filter(gene_name == "IL1R2") %>%
+               pull(fdr) %>% round(3))))
+
+```
+
+
+```{r}
+plot_cox_beehive(dds, description = "Multivariate OS", ensembl_id = "ENSG00000115590",
+                 res_df = lrt, cox_df = res_allgenes_multivar_surv)
+
+```
+
+## More to come
+
+More genes of interest: Both significant in the drs multivariate model and have an fdr of under 0.2 in the lrt:
+
+```{r}
+goi = filter(res_allgenes_multivar_dr, fdr<0.1) %>%
+  #filter(gene_type == "protein_coding" & gene_name != "ALOX12B") %>%
+  #filter(gene_name != "ALOX12B") %>%
+  pull(ensembl_gene_id)
+filter(lrt, ensembl_gene_id %in% goi & padj < 0.2)
+```
+
+
+
+```{r}
+print(paste("FDR from multivariate overall survival Cox model",
+            (res_allgenes_multivar_surv %>% filter(gene_name == "CXCL12") %>%
+               pull(fdr) %>% round(3))))
+
+print(paste("FDR from multivariate distant recurrence Cox model",
+            (res_allgenes_multivar_dr %>% filter(gene_name == "CXCL12") %>%
+               pull(fdr) %>% round(3))))
+
+```
+
+
+```{r}
+plot_cox_beehive(dds, description = "Multivariate OS", ensembl_id = "ENSG00000121966",
+                 res_df = lrt, cox_df = res_allgenes_multivar_surv)
+
+```
+
+
+## Genes of interest
+
+### [NEBL](https://www.genecards.org/cgi-bin/carddisp.pl?gene=NEBL)
+
+>This gene encodes a nebulin like protein that is abundantly expressed in cardiac muscle. The encoded protein binds actin and interacts with thin filaments and Z-line associated proteins in striated muscle. This protein may be involved in cardiac myofibril assembly. A shorter isoform of this protein termed LIM nebulette is expressed in non-muscle cells and may function as a component of focal adhesion complexes. Alternate splicing results in multiple transcript variants. [provided by RefSeq, Mar 2010]
+
+Positively prognostic with colon cancer
+Negatively prognostic with lung cancer
+
+```{r}
+print(paste("FDR from multivariate overall survival Cox model",
+            (res_allgenes_multivar_surv %>% filter(gene_name == "NEBL") %>%
+               pull(fdr) %>% round(3))))
+print(paste("FDR from involution-only multivariate overall survival Cox model",
+            (res_inv_os %>% filter(gene_name == "NEBL") %>%
+               pull(fdr) %>% round(3))))
+
+print(paste("FDR from multivariate distant recurrence Cox model",
+            (res_allgenes_multivar_dr %>% filter(gene_name == "NEBL") %>%
+               pull(fdr) %>% round(3))))
+print(paste("FDR from multivariate involution-only distant recurrence Cox model",
+            (res_inv_drs %>% filter(gene_name == "NEBL") %>%
+               pull(fdr) %>% round(3))))
+
+```
+
+Expression widely divergent. Possibly driven by outliers?
+
+```{r}
+dds$overall_survival <- factor(dds$overall_survival, levels = c(0,1))
+
+plot_cox_beehive(dds, description = "Multivariate OS, inv only", ensembl_id = "ENSG00000078114",
+                 res_df = lrt, cox_df = res_inv_os, colorby="overall_survival")
+
+```
+
+### [YTHDF3](https://www.genecards.org/cgi-bin/carddisp.pl?gene=YTHDF3&keywords=YTHDF3)
+
+> Specifically recognizes and binds N6-methyladenosine (m6A)-containing RNAs and promotes RNA translation efficiency (PubMed:28106072, PubMed:28106076, PubMed:28281539). M6A is a modification present at internal sites of mRNAs and some non-coding RNAs and plays a role in the efficiency of mRNA splicing, processing and stability (PubMed:22575960, PubMed:24284625, PubMed:28106072, PubMed:28106076, PubMed:28281539). Shares m6A-containing mRNAs targets with YTHDF1 and YTHDF2, and regulates different processes depending on the context (PubMed:28106072, PubMed:28106076). Facilitates the translation of targeted mRNAs in cooperation with YTHDF1 by binding to m6A-containing mRNAs and interacting with 40S and 60S ribosome subunits (PubMed:28106072, PubMed:28106076). Acts as a negative regulator of type I interferon response by down-regulating interferon-stimulated genes (ISGs) expression: acts by binding to FOXO3 mRNAs and promoting their translation. Binds to FOXO3 mRNAs independently of METTL3-mediated m6A modification (By similarity). Can also act as a regulator of mRNA stability in cooperation with YTHDF2 by binding to m6A-containing mRNA and promoting their degradation (PubMed:28106072). Recognizes and binds m6A-containing circular RNAs (circRNAs) and promotes their translation (PubMed:28281539). circRNAs are generated through back-splicing of pre-mRNAs, a non-canonical splicing process promoted by dsRNA structures across circularizing exons (PubMed:28281539).
+
+```{r}
+print(paste("FDR from multivariate overall survival Cox model",
+            (res_allgenes_multivar_surv %>% filter(gene_name == "YTHDF3") %>%
+               pull(fdr) %>% round(3))))
+print(paste("FDR from involution-only multivariate overall survival Cox model",
+            (res_inv_os %>% filter(gene_name == "YTHDF3") %>%
+               pull(fdr) %>% round(3))))
+
+print(paste("FDR from multivariate distant recurrence Cox model",
+            (res_allgenes_multivar_dr %>% filter(gene_name == "YTHDF3") %>%
+               pull(fdr) %>% round(3))))
+print(paste("FDR from multivariate involution-only distant recurrence Cox model",
+            (res_inv_drs %>% filter(gene_name == "YTHDF3") %>%
+               pull(fdr) %>% round(3))))
+
+```
+
+Expression widely divergent. Possibly driven by outliers?
+
+```{r}
+plot_cox_beehive(dds, description = "Multivariate OS, inv only", ensembl_id = "ENSG00000185728",
+                 res_df = lrt, cox_df = res_inv_os, colorby="overall_survival")
+
+```
+
