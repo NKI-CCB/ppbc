@@ -24,30 +24,33 @@ appDir <- "/DATA/share/postpartumbc/shinyApp/VisualizePPBCgene"
 dataDir <- file.path(appDir, "data")
 
 #Gene annotation data
-gx_annot <- readRDS(file.path(dataDir,"12e_gx_annot.Rds"))
+gx_annot <- readRDS(file.path(dataDir,"app_gx_annot.Rds"))
 
 #Genewise overall survival
 os <- readxl::read_excel(path = file.path(dataDir, "12_cox_allgenes.xlsx"),
                          sheet = "multi_cox_surv")
+
 #Genewise distant recurrence
 drs <- readxl::read_excel(path = file.path(dataDir, "12_cox_allgenes.xlsx"),
                           sheet = "multi_cox_dr")
 
+
 #Interaction model overall survival
-inv_int_os <- readxl::read_excel(file.path(dataDir, "12d_os_gene:inv_newformula.xlsx"))
+inv_int_os <- read_csv(file.path(dataDir, "13_multi_interaction_os.csv"))
 
 #Interaction model distant recurrence
-inv_int_drs <- readxl::read_excel(file.path(dataDir, "12d_drs_gene:inv_newformula.xlsx"))
+inv_int_drs <- read_csv(file.path(dataDir, "13_multi_interaction_drs.csv"))
 
 #Differential expression results
-res_list <- readRDS(file.path(dataDir, "12e_diffex_res_list.Rds"))
+res_list <- readRDS(file.path(dataDir, "app_diffex_res_list.Rds"))
+#names(res_list)
 
 #Sample metadata
-sample_data <- readRDS(file.path(dataDir,"12e_survival_sample_data.Rds"))
+sample_data <- readRDS(file.path(dataDir,"app_survival_sample_data.Rds"))
 
 #TMM/log normalized gene expression matrices, with ensembl ids and gene symbols
-sym_mat <- readRDS(file.path(dataDir, "12e_symbol_tmmnorm_genesxsample.Rds"))
-ens_mat <- readRDS(file.path(dataDir, "12e_ensembl_tmmnorm_genesxsample.Rds"))
+sym_mat <- readRDS(file.path(dataDir, "app_symbol_tmmnorm_genesxsample.Rds"))
+ens_mat <- readRDS(file.path(dataDir, "app_ensembl_tmmnorm_genesxsample.Rds"))
 }
 
 #Functions for plotting
@@ -128,7 +131,9 @@ ui <- fluidPage(
                        br(),
                        "For adjusted curves, the p value is calculated via an anova that compares the formula",
                        tags$code("survival ~ clinical covariate + gene ntile"),
-                       "to the reduced formula", tags$code("survival ~ clinical covariates"), "."
+                       "to the reduced formula", tags$code("survival ~ clinical covariates"), ".",
+                       br(),
+                       "Hormonetherapy is stratified to account for ER status, but PAM50 is not, as doing so introduces too many NA points."
                        
                      ),
                      selectInput("ntile", label = "Select Ntiles:", 

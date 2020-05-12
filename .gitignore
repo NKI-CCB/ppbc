@@ -40,6 +40,7 @@ src/dec2018_samples/
 src/NMF.R
 
 shinyApp/*/data
+shinyApp/*/data_old
 shinyApp/*/*.pdf
 shinyApp/*/reports
 covid19.Rmd

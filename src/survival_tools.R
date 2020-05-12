@@ -110,8 +110,8 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
     type <- "Distant recurrence"
   }
   
-  covariates <- c("age_at_diagnosis", "year_of_diagnosis", "grade",
-                  "stage", "surgery", "radiotherapy", "hormonetherapy",
+  covariates <- c("age_at_diagnosis", "grade",
+                  "stage", "surgery", "radiotherapy", "strata(hormonetherapy)",
                   "chemotherapy", "herceptin", "PAM50", "study_group")
   
   cov <- paste(covariates, collapse = "+")
@@ -224,8 +224,8 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
     type <- "Distant recurrence"
   }
   
-  covariates <- c("age_at_diagnosis", "year_of_diagnosis", "grade",
-                  "stage", "surgery", "radiotherapy", "hormonetherapy",
+  covariates <- c("age_at_diagnosis", "grade",
+                  "stage", "surgery", "radiotherapy", "strata(hormonetherapy)",
                   "chemotherapy", "herceptin", "PAM50")
   
   cov_legend <- c("age", "year of diagnosis", "grade",
@@ -449,10 +449,14 @@ gene_survival <- function(id, id_type = "symbol", s = os, d = drs, ios = inv_int
   
   g_os <- s[s$ensembl_gene_id == ens_id, , drop=F]
   g_os <- g_os %>% mutate(type = "overall survival") %>%
+    select(-baseMean,	-padj.inv_vs_rest,	-padj.inv_vs_nonprbc, #TODO put these columns in the app text?
+           -l2fc.inv_vs_rest, -l2fc.inv_vs_nonprbc,	-analysis) %>%
     select(type, everything())
   
   g_drs <- d[d$ensembl_gene_id == ens_id, , drop=F]
   g_drs <- g_drs %>% mutate(type = "distant recurrence") %>%
+    select(-baseMean,	-padj.inv_vs_rest,	-padj.inv_vs_nonprbc,
+           -l2fc.inv_vs_rest, -l2fc.inv_vs_nonprbc,	-analysis) %>%
     select(type, everything())
   
   g_int_os <- ios[ios$ensembl_gene_id == ens_id, , drop=F]
@@ -597,7 +601,7 @@ tmm_plots <- function(id, id_type = "symbol", ensembl_mat = ens_mat, symbol_mat 
   #names(os_colors) =unique(df$survival)
   
   bh <- df %>%
-    ggplot(aes(x = factor(PPBC, levels = c("nulliparous", "pregnant", "lactation", "involution")), y = tmm_log)) +
+    ggplot(aes(x = factor(PPBC, levels = c("nulliparous", "pregnant", "lactating", "involuting")), y = tmm_log)) +
     geom_jitter(aes(color = get(colorby)), height = 0, width = 0.2) +
     geom_boxplot(alpha = 0) +
     xlab("PPBC") +
