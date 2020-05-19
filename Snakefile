@@ -562,6 +562,31 @@ rule subgroup_diffex:
     export OMP_NUM_THREADS=1 
     Rscript {input.script}
     """
+
+diffex_dir="/DATA/share/postpartumbc/results/diffex"
+    
+rule report_subgroup_comp:
+  input:
+    dds_res=expand("{dir}/subgroup_diffex/14_dds_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
+    ape_res=expand("{dir}/subgroup_diffex/14_ape_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
+    rmd="reports/14_subgroup_diffex_by_comparison.Rmd",
+    script="src/14_batch_subgroup_diffex_reports.R"
+  output:
+    allgenes=expand("{dir}/14_subgroup_diffex_{comp}_allgenes.xlsx", comp=sub_diffex, dir=diffex_dir),
+    siggenes=expand("{dir}/14_subgroup_diffex_{comp}_sig_genes.xlsx", comp=sub_diffex, dir=diffex_dir),
+    reports=expand("/DATA/share/postpartumbc/reports/14_subgroup_diffex_{comp}.html",comp=sub_diffex)
+  params:
+    comp=[
+      "ppbc_inv_vs_non_prbc",
+      "ppbc_inv_vs_prbc",
+      "ppbc_inv_vs_rest"
+      ]
+  shell:
+    """
+    Rscript {input.script}
+    """
+#Should work but doesn't
+#Rscript -e rmarkdown::render(input = "{input.rmd}", output_file = "/DATA/share/postpartumbc/reports/14_subgroup_diffex_{params.comp}.html", params = params.comp)
     
 rule workflow_diagram:
   conda:
