@@ -34,6 +34,11 @@ ALTERNATE THRESHOLD possibility:
 Performs a filtering pass on the dataset to remove any features (rows) without at least 1 read per million in n of the samples, where n is the size of the smallest group of replicates. Recommended in:
 Anders S, McCarthy DJ, Chen Y, Okoniewski M, Smyth GK, Huber W, Robinson MD (2013). " [Count-based differential expression analysis of RNA sequencing data using R and Bioconductor." Nat. Protocols, 8, 1765-1786.](https://www.nature.com/articles/nprot.2013.099)
 
+## Theories
 
-
+HLA-DMB and other antigen presenting molecules are often selected in Cox elastic net models for OS / DRS.
+Different haplotypes may switch between positive and negative beta.
+To do: Look at expression levels and p values from genewise cox models for these genes.
+Could it be that different haplotypes trigger a different response?
+Ask someone: Do different HLA haplotypes select different peptides for antigen presentation?
 

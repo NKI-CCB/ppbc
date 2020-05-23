@@ -587,6 +587,101 @@ rule report_subgroup_comp:
     """
 #Should work but doesn't
 #Rscript -e rmarkdown::render(input = "{input.rmd}", output_file = "/DATA/share/postpartumbc/reports/14_subgroup_diffex_{params.comp}.html", params = params.comp)
+
+
+rule cox_glm:
+  input:
+    coxdata="data/Rds/12_coxdata.Rds",
+    script="src/15_cox_elastic_net.R"
+  output:
+    "data/Rds/15_glm_os_1000.Rds",
+    "data/Rds/15_glm_os_5000.Rds",
+    "data/Rds/15_glm_drs_1000.Rds",
+    "data/Rds/15_glm_drs_5000.Rds"
+  shell:
+    """
+    Rscript {input.script}
+    """
+
+#As above, but include only involution samples
+rule inv_cox_glm:
+  input:
+    coxdata="data/Rds/12_invdata.Rds",
+    script="src/15b_inv_cox_elastic_net.R"
+  output:
+    "data/Rds/15b_inv_glm_os_1000.Rds",
+    "data/Rds/15b_inv_glm_os_5000.Rds",
+    "data/Rds/15b_inv_glm_drs_1000.Rds",
+    "data/Rds/15b_inv_glm_drs_5000.Rds"
+  shell:
+    """
+    Rscript {input.script}
+    """
+
+#As above, but use all genes as input
+rule all_inv_cox_glm:
+  input:
+    coxdata="data/Rds/12_invdata.Rds",
+    script="src/15c_inv_cox_elastic_net.R"
+  output:
+    "data/Rds/15c_inv_glm_os_all.Rds",
+    "data/Rds/15c_inv_glm_drs_all.Rds"
+  shell:
+    """
+    Rscript {input.script}
+    """
+
+rule report_cox_glm:
+  input:
+    "data/Rds/15_glm_os_1000.Rds",
+    "data/Rds/15_glm_os_5000.Rds",
+    "data/Rds/15_glm_drs_1000.Rds",
+    "data/Rds/15_glm_drs_5000.Rds",
+    diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
+    gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
+    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    rmd="reports/15_cox_elastic_net.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    "results/survival/15_elastic_cox_features.xlsx",
+    html="reports/15_cox_elastic_net.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    
+rule report_inv_cox_glm:
+  input:
+    "data/Rds/15b_inv_glm_os_1000.Rds",
+    "data/Rds/15b_inv_glm_os_5000.Rds",
+    "data/Rds/15b_inv_glm_drs_1000.Rds",
+    "data/Rds/15b_inv_glm_drs_5000.Rds",
+    diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
+    gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
+    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    rmd="reports/15b_inv_cox_elastic_net.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    "results/survival/15b_inv_elastic_cox_features.xlsx",
+    html="reports/15b_inv_cox_elastic_net.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"    
+
+rule report_all_inv_cox_glm:
+  input:
+    "data/Rds/15c_inv_glm_os_all.Rds",
+    "data/Rds/15c_inv_glm_drs_all.Rds",
+    diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
+    gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
+    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    rmd="reports/15c_inv_cox_elastic_net.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    "results/survival/15c_all_inv_elastic_cox_features.xlsx",
+    html="reports/15c_all_inv_cox_elastic_net.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"    
     
 rule workflow_diagram:
   conda:
