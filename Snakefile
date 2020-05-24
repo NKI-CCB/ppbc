@@ -10,7 +10,7 @@ configfile: "config.yaml"
 
 rule all:
   input:
-    "reports/09_genewise_diffex_reports.html"
+    "reports/16_gene_unity_report.html"
     #"dag.svg"
     #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
 
@@ -681,7 +681,30 @@ rule report_all_inv_cox_glm:
     "results/survival/15c_all_inv_elastic_cox_features.xlsx",
     html="reports/15c_all_inv_cox_elastic_net.html"
   shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"    
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}" 
+    
+enet_features=[
+  "15_elastic_cox_features",
+  "15b_inv_elastic_cox_features",
+  "15c_all_inv_elastic_cox_features"
+]
+
+rule gene_unity_report:
+  input:
+    script="src/rmarkdown.R",
+    rmd="reports/16_gene_unity_report.Rmd",
+    diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
+    gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
+    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
+    efeat=expand("results/survival/{feat}.xlsx", feat=enet_features),
+    subdiffex=expand("{dir}/14_subgroup_diffex_{comp}_allgenes.xlsx", comp=sub_diffex, dir=diffex_dir),
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    coxdata="data/Rds/12_coxdata.Rds",
+    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds"
+  output:
+    html="reports/16_gene_unity_report.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"   
     
 rule workflow_diagram:
   conda:
