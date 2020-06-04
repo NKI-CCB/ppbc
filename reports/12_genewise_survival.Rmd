@@ -11,7 +11,7 @@ output:
     df_print: paged
 params:
   survival_results:  
-    value: "/DATA/share/postpartumbc/data/Rds/12_inv_multi_genewise_os.Rds"
+    value: "/DATA/share/postpartumbc/data/Rds/12_inv_multi_genewise_drs.Rds"
 
 ---
 
@@ -59,11 +59,11 @@ print(s)
 Analysis type:
 
 ```{r}
-call = if_else(str_detect(params$survival_results, "multi"),
+call = if_else(str_detect(params$survival_results, "_multi_"),
                "Multivariate", "Univariate")
-event = if_else(str_detect(params$survival_results, "os"),
+event = if_else(str_detect(params$survival_results, "os.Rds"),
                "overall survival", "distant recurrence")
-input = if_else(str_detect(params$survival_results, "inv"),
+input = if_else(str_detect(params$survival_results, "_inv_"),
                 "involution only", "all samples")
 analysis_type = paste(call, event, paste0("(", input ,")"))
 print(paste(s, ":", analysis_type))
