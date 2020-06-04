@@ -2,30 +2,17 @@
 title: "To do"
 output: html_document
 ---
-**Rerun survival analysis with new metadata:**
-```{r}
-new_metadata <- here("data", "external", "Hercoderingslijst_v09032020_KM.xlsx")
 
-#From Hanne:
-#Forget the previous version I send you. 
-#Here the final update of today (09/03/2020)! In this excel file it is important to look at the sheet labelled: Recoding_Book_v09032020_R.
-#Everything that changed to the previous file is highlighted in red! 
-#If I am correct, the only change to the previous version you have now (29/07/2019), is that there are 4 extra columns which are also indicated in red. 
-```
-
-
-* Make report from Flexgsea results (done except for mountain plots)
-* Clustering with other comparisons (not just inv vs rest, low priority)
-* Variable influence factor (VIF) - Maybe
-* Diffex and KM short vs long-term inv
+* Fix the "analysis" column for genewise reports (notebook 12)
+* Better handling of multiple ensembl IDs with gene reports
+* Update app to include new analyses
+* Add univariate interaction models and diffex involution/breastfeeding duration to genewise reports
 * Look at clonality in combination with mortality (TRUST algorithm) [Clonality had a much stronger association with survival: the combination of high immunoglobulin expression (that is, numerous plasma cells at the site) and low clonality, which could be interpreted as absence of a distinct antigen-specific response, resulted in an equally poor prognosis as low immunoglobulin expression, while low immunoglobulin expression and high clonality resulted in an average prognosis.](https://www.nature.com/articles/s41577-019-0257-x#Tab2)
+(Requires bam files in original version, can we skip with TRUST4? Difficulty installing so far - check Singularity distro)
 * Look at MCP with survival
-* Make new percentage bar visualizations of cibersort and dwls
-* Dot plot of interaction os genes in IG clusters (as ordinal variable) with correlation
-* Compare PAM50 between involution and nulliparous
-  -LumA np vs LumA inv, etc
-* Rerun analysis with new metadata
-* Duration of breastfeeding? Not just time since weaning?
+* Mountain plots for Flexgsea (low priority)
+* CLIC2
+
 
 ## Odds & ends
 
@@ -33,12 +20,4 @@ ALTERNATE THRESHOLD possibility:
 
 Performs a filtering pass on the dataset to remove any features (rows) without at least 1 read per million in n of the samples, where n is the size of the smallest group of replicates. Recommended in:
 Anders S, McCarthy DJ, Chen Y, Okoniewski M, Smyth GK, Huber W, Robinson MD (2013). " [Count-based differential expression analysis of RNA sequencing data using R and Bioconductor." Nat. Protocols, 8, 1765-1786.](https://www.nature.com/articles/nprot.2013.099)
-
-## Theories
-
-HLA-DMB and other antigen presenting molecules are often selected in Cox elastic net models for OS / DRS.
-Different haplotypes may switch between positive and negative beta.
-To do: Look at expression levels and p values from genewise cox models for these genes.
-Could it be that different haplotypes trigger a different response?
-Ask someone: Do different HLA haplotypes select different peptides for antigen presentation?
 

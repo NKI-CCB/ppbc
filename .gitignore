@@ -33,6 +33,7 @@ reports/unused
 reports/*.tar.xy
 reports/includes_tumorpurity_design
 reports/Iamtest.Rmd
+reports/gene_reports
 src/*test*
 src/lambda_score_example.R
 *scratch*

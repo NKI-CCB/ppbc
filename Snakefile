@@ -54,6 +54,50 @@ rule salmon_quant:
     bash {input}
     """
 
+rule star_index:
+  input:
+    script="src/01-build-STAR-index.sh"
+  output:
+    directory("data/external/index/STAR_grch38_index")
+  params:
+    genomeDir="data/external/index/STAR_grch38_index/",
+    genomeFastaFiles="data/external/index/Homo_sapiens.GRCh38.dna.primary_assembly.fa",
+    sjdbGTFfile="data/external/index/Homo_sapiens.GRCh38.94.gtf",
+    sjdbOverhang=50 #Read length is 51, ideal value is length - 1
+  conda:
+    "envs/environment.yml"
+  shell:
+    """
+    mkdir {params.genomeDir}
+    bash {input.script}
+    """
+
+rule star_align:
+  input:
+    smpls=expand("data/RAW/{sample}.fastq.gz", sample=config['samples']),
+    gtf="data/external/index/Homo_sapiens.GRCh38.94.gtf",
+    script="src/01-STAR_align.sh"
+  output:
+    expand("data/RNA-seq/star/{sample}/Aligned.sortedByCoord.out.bam", sample=config['samples'])
+  conda:
+    "envs/environment.yml"
+  threads: 16
+  params:
+    genomedir="data/external/index/STAR_grch38_index/",
+    outfile=expand("data/RNA-seq/star/{sample}", sample=config['samples']),
+    #max number of multiple alignments allowed for a read: if exceeded, the read is considered unmapped
+    multimapnmax=20, #default 10
+    #maximum number of mismatches per pair, large number switches off this filter
+    mismatchnmax=1, #default 10
+    #int: max number of multiple alignments for a read that will be output to the
+    #SAM/BAM files. Note that if this value is not equal to -1, the top scoring
+    #alignment will be output first
+    sammultnmax=1
+  shell:
+    """
+    {input.script}
+    """
+
 rule multiqc:
   input:
     fastqc = "results/fastqc/",
@@ -481,6 +525,8 @@ rule aggregate_genewise_survival:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
 interaction_models = [
+  "uni_interaction_os",
+  "uni_interaction_drs"
   "multi_interaction_os",
   "multi_interaction_drs"
 ]    
@@ -488,12 +534,13 @@ interaction_models = [
 rule surv_inv_int:
   input:
     gx_annot="data/metadata/01_tx_annot.tsv",
-    coxdata="data/Rds/12_coxdata.Rds"
+    coxdata="data/Rds/12_coxdata.Rds",
+    script="src/13_survival_involution_interaction.R"
   output:
     expand("data/Rds/13_{m}.Rds", m=interaction_models)
   shell:
     """
-    Rscript src/13_survival_involution_interaction.R
+    Rscript {input.script}
     """
 
 rule report_interaction_survival:
@@ -689,10 +736,38 @@ enet_features=[
   "15c_all_inv_elastic_cox_features"
 ]
 
-rule gene_unity_report:
+rule diffex_involution:
   input:
     script="src/rmarkdown.R",
-    rmd="reports/16_gene_unity_report.Rmd",
+    rmd="reports/09_diffex_time_involution.Rmd",
+  output:
+    html="reports/09_diffex_time_involution.html",
+    dds="data/Rds/09_dds_involution_duration.Rds",
+    ape="data/Rds/09_ape_involution_duration.Rds",
+    genes="results/diffex/09_diffex_involution_duration.xlsx",
+    heatmap="results/diffex/figs/09_involution_duration/09_hm_involution_duration.pdf",
+    volcano="results/diffex/figs/09_involution_duration/09_volcano_involution_duration.jpeg"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    
+rule diffex_breastfeeding:
+  input:
+    script="src/rmarkdown.R",
+    rmd="reports/09_diffex_breastfeeding_duration.Rmd",
+  output:
+    html="reports/09_diffex_time_breastfeeding.html",
+    dds="data/Rds/09_dds_breastfeeding_duration.Rds",
+    ape="data/Rds/09_ape_breastfeeding_duration.Rds",
+    genes="results/diffex/09_diffex_breastfeeding_duration.xlsx",
+    heatmap="results/diffex/figs/09_breastfeeding_duration/09_hm_breastfeeding_duration.pdf",
+    volcano="results/diffex/figs/09_breastfeeding_duration/09_volcano_breastfeeding_duration.jpeg"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"    
+
+rule gene_unity_setup:
+  input:
+    script="src/rmarkdown.R",
+    rmd="reports/16_gene_unity_setup.Rmd",
     diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
     gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
     int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
@@ -702,9 +777,21 @@ rule gene_unity_report:
     coxdata="data/Rds/12_coxdata.Rds",
     dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds"
   output:
-    html="reports/16_gene_unity_report.html"
+    html="reports/16_gene_unity_setup.html",
+    aggdata="data/Rds/16_gene_report_environment.RData"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"   
+
+
+rule gene_reports:
+  input:
+    aggdata="data/Rds/16_gene_report_environment.RData",
+    script="src/17_batch_gene_reports.R",
+    genes=ancient("reports/genes_to_report")
+  output:
+    directory("reports/gene_reports")
+  shell:
+    "Rscript {input.script}"
     
 rule workflow_diagram:
   conda:

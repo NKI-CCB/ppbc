@@ -10,7 +10,7 @@
 
 STAR --runThreadN 32 \
 --runMode genomeGenerate \
---genomeDir /DATA/share/postpartumbc/data/external/index/STAR_grch38_index/ \
+--genomeDir /DATA/share/postpartumbc/data/external/index/STAR_grch38_index \
  --genomeFastaFiles /DATA/share/postpartumbc/data/external/index/Homo_sapiens.GRCh38.dna.primary_assembly.fa \
  --sjdbGTFfile /DATA/share/postpartumbc/data/external/index/Homo_sapiens.GRCh38.94.gtf \
  --sjdbOverhang 50 #Read length is 51, ideal value is length - 1
