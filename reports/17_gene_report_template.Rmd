@@ -11,8 +11,8 @@ output:
     df_print: paged
 params:
   gene:
-    value: "NOTCH4"
-    label: "Gene name: "
+    value: "ENSG00000234876"
+    label: "Gene ID (ensembl or symbol): "
     input: "text"
   show_functions:
     value: FALSE
@@ -74,8 +74,8 @@ gene_lookup <- function(gene, dict=bx_annot){
     stop("Provided gene is not a valid ensembl id or gene name")
   }
   
-  uni=unique(dict[dict$ensembl_gene_id == ensembl_gene_id,]$uniprot_id)
-  ent=unique(dict[dict$ensembl_gene_id == ensembl_gene_id,]$entrez_id)
+  uni=unique(dict[dict$ensembl_gene_id == ensembl_gene_id[1],]$uniprot_id)
+  ent=unique(dict[dict$ensembl_gene_id == ensembl_gene_id[1],]$entrez_id)
   
   list(gene_name=gene_name,
        ensembl_gene_id = ensembl_gene_id,
@@ -83,8 +83,9 @@ gene_lookup <- function(gene, dict=bx_annot){
        entrez_id=ent)
 }
 
-gene_lookup("ENSG00000156738")
-gene_lookup("MARVELD2")
+#gene_lookup("ENSG00000156738")
+#gene_lookup("MARVELD2")
+#gene_lookup("NOTCH4")
 #gene_lookup("Steve")
 ```
 
@@ -96,7 +97,9 @@ If more than one ensembl id is found and return_first is F, will combine all ens
 Otherwise, only the results from the first ensembl id is shown.
 
 ```{r fun , include=params$show_functions}
-genewise_survival_results <- function(id, df = gw_surv, return_first = F){
+genewise_survival_results <- function(id, df = gw_surv,
+                                      genes_passing_filter=rownames(dds),
+                                      return_first = F){
   
   i = gene_lookup(id)$ensembl_gene_id
   
@@ -110,6 +113,7 @@ genewise_survival_results <- function(id, df = gw_surv, return_first = F){
   }
   
   if (length(i > 1) & return_first == T){
+    i = i[i %in% genes_passing_filter][1]
     i = i[1]
     warning(paste0("Multiple ensembl IDs found for ",
                    id, "returning first in series: ", i))
@@ -126,13 +130,13 @@ genewise_survival_results <- function(id, df = gw_surv, return_first = F){
   
 }
 
-genewise_survival_results("MARVELD2", return_first = T)
-genewise_survival_results("MARVELD2", return_first = F)
+#genewise_survival_results("NOTCH4", return_first = T)
+#genewise_survival_results("NOTCH4", return_first = F)
 #genewise_survival_results("MS4A1", return_first = F)
 #genewise_survival_results("Steve", return_first = F)
 
 #Can also be use to extract interaction results:
-genewise_survival_results("MARVELD2", df = int_surv, return_first = F)
+#genewise_survival_results("MARVELD2", df = int_surv, return_first = F)
 ```
 
 Because the genewise models run on involution samples only yielded no fdr-signifcant results, only those run on all samples are included.
@@ -142,6 +146,7 @@ Available genewise models:
 ```{r}
 #TODO fix the "analysis" column - incorrect regex in notebook 12
 #gw_surv$analysis %>% unique()
+#Formula plus outcome gives correct result
 paste(gw_surv$formula, gw_surv$outcome) %>% unique()
 ```
 
@@ -159,16 +164,17 @@ If subgroup = T, will show the subgroup analysis instead.
 ```{r, include=params$show_functions}
 #TODO: Option to return all results when multiple ensembl ids are found
 diffex_report = function(id, subgroup = F, list_reports = res_list, subgroup_reports = sub_reslist,
-                         pthresh = 0.05, abslogfcthresh = 0.5){
+                         pthresh = 0.05, abslogfcthresh = 0.5, genes_passing_filter=rownames(dds)){
   
   #print(paste("Adjusted p value threshold:", pthresh, ", abs(log2FoldChange) threshold:", abslogfcthresh))
   
   ensembl_id = gene_lookup(id)$ensembl_gene_id
   
   if(length(ensembl_id) > 1){
+    ensembl_id = ensembl_id[ensembl_id %in% genes_passing_filter][1]
     ensembl_id = ensembl_id[1]
     warning(paste0("Multiple ensembl IDs found for ",
-                   id, "returning first in series: ", ensembl_id))
+                   id, ". Returning first in series: ", ensembl_id))
   }
   
   if(subgroup == T){
@@ -205,8 +211,8 @@ diffex_report = function(id, subgroup = F, list_reports = res_list, subgroup_rep
   
   comp  
 }
-diffex_report("MS4A1", subgroup = F)
-diffex_report("MARVELD2", subgroup = T)
+#diffex_report("MS4A1", subgroup = F)
+#diffex_report("MARVELD2", subgroup = T)
 ```
 
 Available diffex comparisons:
@@ -235,9 +241,14 @@ box_plots <- function(id, gEx = geneEx, d=dds, s = sample_data){
   #stopifnot(norm_type %in% c("size factor", "log2 TMM"))
   
   ensembl_id <- gene_lookup(id)$ensembl_gene_id
+  gn <- gene_lookup(id)$gene_name
   
   if(length(ensembl_id) > 1){
-    ensembl_id = ensembl_id[1]
+    #ensembl_id = ensembl_id[1] #May cause a crash if first ID is below filter
+    
+    #Ensure that the ensembl ID returned has not been removed by the low count filter
+    ensembl_id = ensembl_id[ensembl_id %in% rownames(d)][1]
+    
     warning(paste0("Multiple ensembl IDs found for ",
                    id, ", returning first in series: ", ensembl_id))
   }
@@ -265,7 +276,7 @@ box_plots <- function(id, gEx = geneEx, d=dds, s = sample_data){
     facet_wrap(~outcome) +
     scale_color_colorblind() +
     ylab(paste0("TMM-log2 normalized expression")) +
-    ggtitle(id)
+    ggtitle(paste(gn, ensembl_id, sep=":"))
   
   #size factor
   df <- plotCounts(d, gene = ensembl_id,
@@ -294,12 +305,13 @@ box_plots <- function(id, gEx = geneEx, d=dds, s = sample_data){
     facet_wrap(~outcome) +
     scale_color_colorblind() +
     ylab(paste0("Size-factor normalized counts")) +
-    ggtitle(id)
+    ggtitle(paste(gn, ensembl_id, sep=":"))
 
   list(tmm = tmm, sf = sf)
 }
 
-box_plots("MARVELD2")
+#box_plots("MARVELD2")
+box_plots(params$gene)
 ```
 
 ## Gene quantile
@@ -312,8 +324,14 @@ gene_ntile <- function(gene_id, gEx = geneEx, gene_dict = gx_annot,
   
   stopifnot(n %in% c(2,3,4))
   
-  #TODO update gene_lookup this wya
   id <- gene_lookup(gene_id)$ensembl_gene_id
+  if(length(id) > 1){
+    id = id[id %in% colnames(gEx)][1]
+    warning(paste0("Multiple ensembl IDs found for ",
+                   gene_id, ", returning first in series: ",
+                   id))    
+  }
+  
   name <- gene_lookup(gene_id)$gene_name
   
 
@@ -323,7 +341,7 @@ gene_ntile <- function(gene_id, gEx = geneEx, gene_dict = gx_annot,
                   "4" = c("Q1", "Q2", "Q3", "Q4")
   )
   samples <- geneEx[,"sample_name"]
-  g <- geneEx[, colnames(gEx) %in% id , drop = F]
+  g <- gEx[, colnames(gEx) %in% id , drop = F]
   g <- as.matrix(g)
   rownames(g) <- samples
   #return(g)
@@ -358,9 +376,8 @@ gene_ntile <- function(gene_id, gEx = geneEx, gene_dict = gx_annot,
 
 }
 
-gene_ntile("MARVELD2")%>%head()
-gene_ntile("MS4A1")%>%head()
-
+#gene_ntile("NOTCH4")%>%head()
+#gene_ntile("MS4A1")%>%head()
 ```
 
 ## Involution vs rest Kaplan Meiers
@@ -396,7 +413,18 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
   stopifnot(p_method %in% c("anova", "coef"))
   stopifnot(ovr_column %in% colnames(sampledata))
   
-  ntiles <- gene_ntile(gene_id = gene_id, gene_dict = gene_dict,
+  id <- gene_lookup(gene_id)$ensembl_gene_id
+  
+  if(length(id) > 1){
+    id = id[id %in% colnames(gEX)][1]
+    warning(paste0("Multiple ensembl IDs found for ",
+                   gene_id, ", returning first in series: ",
+                   id))    
+  }
+  
+  gn <- gene_lookup(gene_id)$gene_name
+  
+  ntiles <- gene_ntile(gene_id = id, gene_dict = gene_dict,
                        gEx = gEX, n = n)
   
   sd <- dplyr::left_join(ntiles, sampledata, by = "sample_name")
@@ -433,7 +461,7 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
   formula = as.formula(paste0(svf, paste0(cov, "+ntile")))
   
   reslist <- list()
-  gn <- unique(sd$gene_symbol)
+  #gn <- unique(sd$gene_symbol)
   
   #Split sample data into those samples belonging to the group of interest (or not)
   sd1 = sd[sd[[ovr_column]] == 1,]
@@ -486,7 +514,7 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
   #return(reslist)
   
   #Cox models for involution group, adjusted for all covariates and ntile gene expression
-  c <- survival::coxph(formula, data = sd1)
+  c <- suppressWarnings(survival::coxph(formula, data = sd1))
   #print(c)
   
   #Store p value associated with the coefficient of the ntile
@@ -498,7 +526,7 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
   
   #print(p_ntile)
   #Anova p value vs reduced model
-  d <- survival::coxph(reduced, data = as.data.frame(sd1))
+  d <- suppressWarnings(survival::coxph(reduced, data = as.data.frame(sd1)))
   aod <- anova(d,c) #Conventional to list models from smallest to largest but order does not matter
   aod_p <- signif(aod[4][2,], 2)
   if (aod_p < 0.001){
@@ -537,7 +565,7 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
   reslist$adj_curv1 <- adj_curv1
   
   #Cox models for rest group, adjusted for all covariates and ntile gene expression
-  c <- survival::coxph(formula, data = sd0)
+  c <- suppressWarnings(survival::coxph(formula, data = sd0))
   #print(c)
   
   #Store p value associated with the coefficient of the ntile
@@ -548,7 +576,7 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
   }
   
   #Anova p value vs reduced model
-  d <- survival::coxph(reduced, data = as.data.frame(sd0))
+  d <- suppressWarnings(survival::coxph(reduced, data = as.data.frame(sd0)))
   aod <- anova(d,c) #Conventional to list models from smallest to largest but order does not matter
   aod_p <- signif(aod[4][2,], 2)
   if (aod_p < 0.001){
@@ -594,7 +622,7 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
   arplot <- ggpubr::ggarrange(plotlist = reslist, nrow = 2, ncol = 2)
   
   arplot <- annotate_figure(arplot,
-                  top = text_grob(paste(type, "for gene", gn), face = "bold", size = 14),
+                  top = text_grob(paste(type, "for", paste(gn, id, sep=":")), face = "bold", size = 14),
                   #bottom = text_grob("Time (Months)", size = 12),
                   bottom = text_grob(paste0("Time (Months)\n\nClinical covariates: ",
                                             paste(cov_legend, collapse=", ")),
@@ -608,7 +636,7 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
   
 }
 
-km_ntiles_ovr("MARVELD2")
+#km_ntiles_ovr("NOTCH4")
 
 ```
 
@@ -617,9 +645,12 @@ km_ntiles_ovr("MARVELD2")
 Webscrape the entrez and uniprot summaries for a gene.
 
 ```{r, include=params$show_functions}
-get_entrez_summary <- function(id, dict){
+get_entrez_summary <- function(gene_id, dict=bx_annot,
+                               ids_passing_filter=rownames(dds)){
   
-  ent <- unique(bx_annot[bx_annot$gene_name == id, ]$entrez_id)
+  gn <- gene_lookup(gene_id)$gene_name
+  
+  ent <- unique(dict[dict$gene_name == gn, ]$entrez_id)
   
   if(length(ent) == 0){
     print("No ID found")
@@ -638,7 +669,8 @@ get_entrez_summary <- function(id, dict){
   return(res)
 }
 
-get_entrez_summary("MARVELD2")
+#get_entrez_summary("MARVELD2")
+#get_entrez_summary(params$gene)
 ```
 
 Alternative for uniprot: Use proteinatlas.org.
@@ -647,9 +679,10 @@ Also shows known prognostics.
 ```{r, include=params$show_functions}
 #TODO Make html_text work better somehow, or maybe use proteinatlas.org instead
 
-get_uniprot_summary <- function(id){
+get_uniprot_summary <- function(id, dict=bx_annot){
   
-  uni <- unique(bx_annot[bx_annot$gene_name == id, ]$uniprot_id)
+  gn <- gene_lookup(id)$gene_name
+  uni <- unique(dict[dict$gene_name == gn, ]$uniprot_id)
   
   if(length(uni) == 0){
     print("No ID found")
@@ -671,7 +704,8 @@ get_uniprot_summary <- function(id){
   return(uniprot_summary)
 }
 
-get_uniprot_summary("MS4A1")
+#get_uniprot_summary("MS4A1")
+#get_uniprot_summary(params$gene)
 ```
 
 ## Elastic net Cox features
@@ -698,8 +732,8 @@ gene_enet_candidate <- function(id){
   return(cand)
   
 }
-gene_enet_candidate("MS4A1")
-gene_enet_candidate("MARVELD2")
+#gene_enet_candidate("MS4A1")
+#gene_enet_candidate("MARVELD2")
 ```
 
 If a gene has been selected as a feature, show the stability and effect size.
@@ -724,8 +758,8 @@ gene_enet_feature <- function(id){
     select(-description:-gene_input)
 }
 
-gene_enet_feature("MS4A1")
-gene_enet_feature("MARVELD2")
+#gene_enet_feature("MS4A1")
+#gene_enet_feature("MARVELD2")
 ```
 
 

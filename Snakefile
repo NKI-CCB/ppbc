@@ -526,7 +526,7 @@ rule aggregate_genewise_survival:
 
 interaction_models = [
   "uni_interaction_os",
-  "uni_interaction_drs"
+  "uni_interaction_drs",
   "multi_interaction_os",
   "multi_interaction_drs"
 ]    
@@ -546,6 +546,7 @@ rule surv_inv_int:
 rule report_interaction_survival:
   input:
     "src/general_R_tools.R",
+    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
     rds=expand("data/Rds/13_{c}.Rds", c=interaction_models),
     cp="data/Rds/color_palettes.Rds",
     sp="data/Rds/survival_colors.Rds",
