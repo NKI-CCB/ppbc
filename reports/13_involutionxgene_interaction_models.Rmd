@@ -11,7 +11,7 @@ output:
     df_print: paged
 params:
   survival_results:  
-    value: "/DATA/share/postpartumbc/data/Rds/13_multi_interaction_drs.Rds"
+    value: "/DATA/share/postpartumbc/data/Rds/13_uni_interaction_os.Rds"
 ---
 
 ```{r setup, include=FALSE}
@@ -28,6 +28,7 @@ library(RColorBrewer)
 library(openxlsx)
 library(here)
 library(ggpubr)
+library(ggthemes)
 library(tidyverse)
 
 theme_set(theme_bw())
@@ -41,6 +42,12 @@ Auto detection of analysis type:
 ```{r test}
 params$survival_results
 ```
+Raw counts:
+
+```{r}
+dds = readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
+```
+
 Results from copxh analysis:  
 
 ```{r survres}
@@ -150,7 +157,6 @@ geneEx = right_join(select(gx_annot, gene_name, ensembl_gene_id),
   select(-ensembl_gene_id)
 geneEx = summarize_expression_duplicate_ids(geneEx, id_column = "gene_name")
 ```
-
 Format for pheatmap:
 
 ```{r}
@@ -159,6 +165,17 @@ geneEx = column_to_rownames(geneEx, "GeneSymbol")
 geneEx = as.matrix(geneEx)
 geneEx[1:4,1:4]
 ```
+
+Ensembl df for box plots:
+
+```{r}
+ensEx = select(coxdata, ENSG00000000003:ncol(coxdata))
+ensEx = rownames_to_column(as.data.frame(t(ensEx)), "ensembl_gene_id")
+ensEx = ensEx %>%
+  gather(key = "sample_name", -ensembl_gene_id, value = "logTMM")
+head(ensEx)
+```
+
 
 
 ## Diffex results
@@ -353,37 +370,52 @@ bind_rows(paths, .id = "gene_set") %>%
 
 ## Pathways for deleterious genes
 
+Skip if less than 30 genes significant at given threshold:
+
 ```{r}
-delpaths = fisher_pathways(
-  sig_genes = pull(filter(res, fdr < !!pthresh & beta > 0), gene_name),
-      background_genes = res$gene_name,
-      list_signatures = gene_sets,
-      fdr_cutoff = 0.1,
-      verbose = F,
-      collapse_rows=F)
+if(nrow(filter(res, fdr < !!pthresh & beta > 0)) < 30){
+  delpaths = NULL
+  print("Fewer than 30 significant genes, skipping pathway analysis")
+} else {
+  delpaths = fisher_pathways(
+    sig_genes = pull(filter(res, fdr < !!pthresh & beta > 0), gene_name),
+    background_genes = res$gene_name,
+    list_signatures = gene_sets,
+    fdr_cutoff = 0.1,
+    verbose = F,
+    collapse_rows=F)
+  
+  print("Sig pathways fdr < 0.1: ")
+  
+  lapply(delpaths, nrow)
+}
 
-print("Sig pathways fdr < 0.1: ")
-
-lapply(delpaths, nrow)
 ```
 
 Show the top 20 paths (if available)
 
 ```{r}
-bind_rows(delpaths, .id = "gene_set") %>%
+if(!is.null(delpaths)){
+  bind_rows(delpaths, .id = "gene_set") %>%
   arrange(fdr, pval, fold_enrichment) %>% 
   select( - gene_set) %>%
   select(pathway, fdr, pval, fold_enrichment,
          members_in_sample,
          path_in_sample, path_in_pop, everything()) %>%
   head(20)
-
+}
 ```
 
 ## Pathways for protective genes
 
+Skip if less than 30 DEGs:
+
 ```{r}
-goodpaths = fisher_pathways(
+if(nrow(filter(res, fdr < !!pthresh & beta > 0)) < 30){
+  goodpaths = NULL
+  print("Fewer than 30 significant genes, skipping pathway analysis")
+} else {
+  goodpaths = fisher_pathways(
   sig_genes = pull(filter(res, fdr < !!pthresh & beta < 0), gene_name),
       background_genes = res$gene_name,
       list_signatures = gene_sets,
@@ -394,19 +426,24 @@ goodpaths = fisher_pathways(
 print("Sig pathways fdr < 0.1: ")
 
 lapply(goodpaths, nrow)
+}
+
+
+
 ```
 
 Show the top 20 paths (if available)
 
 ```{r}
-bind_rows(goodpaths, .id = "gene_set") %>%
+if(!is.null(goodpaths)){
+  bind_rows(goodpaths, .id = "gene_set") %>%
   arrange(fdr, pval, fold_enrichment) %>% 
   select( - gene_set) %>%
   select(pathway, fdr, pval, fold_enrichment,
          members_in_sample,
          path_in_sample, path_in_pop, everything()) %>%
   head(20)
-
+}
 ```
 
 # Heatmap
@@ -477,6 +514,99 @@ pheatmap::pheatmap(mat, show_colnames = F,
          ) 
 ```
 
+# Boxplot top 5
+
+Show the boxplots of gene expression for the top 5 hits.
+Should show if significance is driven by an outlier.
+
+```{r}
+genecol = which(colnames(coxdata)=="ENSG00000000003")
+sample_data = coxdata[,1:(genecol - 1)]
+gene_data = rownames_to_column(coxdata[,genecol:ncol(coxdata)], "sample_name")
+#head(sample_data)
+
+box_plots <- function(id, gEx = gene_data, d=dds, s = sample_data, cox_res = res){
+  
+  gene_res = cox_res %>% filter(ensembl_gene_id == !!id)
+  gn = gene_res$gene_name 
+  fdr = gene_res$fdr
+  beta = gene_res$beta
+  title = paste0(gn, ":", id,
+                 ", fdr: ", signif(fdr,2),
+                 ", beta: ", signif(beta,2)
+                 )
+  
+  #ensembl_id <- gene_lookup(id)$ensembl_gene_id
+  #Always start with ensembl id
+  ensembl_id <- id
+  
+  if(length(ensembl_id) > 1){
+    ensembl_id = ensembl_id[1]
+    warning(paste0("Multiple ensembl IDs found for ",
+                   id, ", returning first in series: ", ensembl_id))
+  }
+  
+  #TMM
+  df <- gEx[,c("sample_name",  ensembl_id)]
+    colnames(df)[2] <- "geneEx"
+  
+  df <- left_join(df, s, by = "sample_name") %>%
+    mutate(id = id, ensembl_id = ensembl_id)
+  
+  #return(df)
+  
+  df = df %>%
+  select(sample_name, id, ensembl_id, geneEx, PPBC, PAM50,
+         death = overall_survival,
+         metastasis = distant_recurrence) %>%
+  gather(key = "outcome", value = "value", death, metastasis) %>%
+    mutate(value = as.factor(value))
+  
+  tmm = df %>%
+    ggplot(aes(x = PPBC, y = geneEx)) +
+    geom_boxplot(alpha=0, notch=F) +
+    geom_jitter(width = 0.1, aes(color = value)) +
+    facet_wrap(~outcome) +
+    scale_color_colorblind() +
+    ylab(paste0("TMM-log2 normalized expression")) +
+    ggtitle(title)
+  
+  #size factor
+  df <- plotCounts(d, gene = ensembl_id,
+                   intgroup=c("PPBC", "PAM50",
+                              "overall_survival",
+                              "distant_recurrence"),
+                   returnData = T, normalized = T)
+  
+  colnames(df)[colnames(df)=="count"] <- "geneEx"
+  df <- rownames_to_column(df, "sample_name") %>%
+    mutate(id = id, ensembl_id = ensembl_id)
+
+  df = df %>%
+  select(sample_name, id, ensembl_id, geneEx, PPBC, PAM50,
+         death = overall_survival,
+         metastasis = distant_recurrence) 
+  df = df %>%
+  gather(key = "outcome", value = "value", death, metastasis) %>%
+    mutate(value = as.factor(value)) %>%
+    na.omit()
+  #return(df)
+  sf = df %>%
+    ggplot(aes(x = PPBC, y = geneEx)) +
+    geom_boxplot(alpha=0, notch=F) +
+    geom_jitter(width = 0.1, aes(color = value)) +
+    facet_wrap(~outcome) +
+    scale_color_colorblind() +
+    ylab(paste0("Size-factor normalized counts")) +
+    ggtitle(title)
+
+  list(tmm = tmm, sf = sf)
+}
+
+#box_plots("ENSG00000111653")
+#head(ensEx)
+```
+
 
 # Overlap with diffex
 
@@ -536,7 +666,7 @@ write_csv(res,
           )
 ```
 
-```{r, echo=F}
+```{r}
 sessionInfo()
 ```
 
