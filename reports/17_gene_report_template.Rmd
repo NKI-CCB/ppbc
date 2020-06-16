@@ -32,6 +32,7 @@ library(survival)
 library(ggthemes)
 library(survminer)
 library(RColorBrewer)
+library(rentrez)
 library(openxlsx)
 library(here)
 library(ggpubr)
@@ -159,33 +160,84 @@ paste(int_surv$formula, int_surv$outcome) %>% unique()
 ## Diffex report
 
 Creates a data frame displaying differential expression results for a given gene.
-If subgroup = T, will show the subgroup analysis instead.
+If return_all = T, all ensembl ids mapping to a gene name will be returned.
+If false, the first ensembl gene id that passes the low count threshold will be returned with a warning.
+
+### Main PPBC diffex
 
 ```{r, include=params$show_functions}
-#TODO: Option to return all results when multiple ensembl ids are found
-diffex_report = function(id, subgroup = F, list_reports = res_list, subgroup_reports = sub_reslist,
-                         pthresh = 0.05, abslogfcthresh = 0.5, genes_passing_filter=rownames(dds)){
+diffex_report = function(id, lr = res_list, return_all = T,
+                         pthresh = 0.05, abslogfcthresh = 0.5,
+                         genes_passing_filter=rownames(dds)){
   
   #print(paste("Adjusted p value threshold:", pthresh, ", abs(log2FoldChange) threshold:", abslogfcthresh))
   
   ensembl_id = gene_lookup(id)$ensembl_gene_id
   
-  if(length(ensembl_id) > 1){
+  if(length(ensembl_id) > 1 & return_all == F){
     ensembl_id = ensembl_id[ensembl_id %in% genes_passing_filter][1]
     ensembl_id = ensembl_id[1]
     warning(paste0("Multiple ensembl IDs found for ",
                    id, ". Returning first in series: ", ensembl_id))
   }
   
-  if(subgroup == T){
-    lr = subgroup_reports
-  } else {
-    lr = list_reports  
-    }
   
-
   comp = lapply(lr,
-                function(x) x[x$ensembl_gene_id==ensembl_id,]) %>%
+                function(x) x[x$ensembl_gene_id %in% ensembl_id,]) %>%
+    bind_rows(.id = "comparison")
+  
+  comp = comp %>% mutate(
+    padj = signif(padj, 2),
+    #pval = signif(pvalue, 2),
+    log2FoldChange = round(log2FoldChange, 3),
+    baseMean = round(baseMean, 1),
+    sig = (padj <= !!pthresh & abs(log2FoldChange) > !!abslogfcthresh)
+  ) %>% arrange(padj)
+  
+  comp = comp %>% select(comparison, sig,
+                         padj, #pval, 
+                         log2FoldChange, baseMean,
+                         gene_name, ensembl_gene_id, gene_type)  
+  
+  #L2fc threshold not meaningful for LRT
+  comp[comp$comparison == "LRT", "sig"] <- comp$padj[comp$comparison == "LRT"] <= 0.05
+  
+  
+  comp  
+}
+#diffex_report("MS4A1", subgroup = F)
+diffex_report("NOTCH4", return_all = T)
+```
+
+Available diffex comparisons:
+
+```{r}
+names(res_list)
+```
+
+### PAM50 subgroup diffex
+
+Separate function to produce a diffex report from the subgroup analysis, as the column names differ vs the primary analysis.
+`return_all` functions as before.
+
+```{r, include=params$show_functions}
+sub_diffex_report = function(id, return_all = T, lr = sub_reslist, 
+                         pthresh = 0.05, abslogfcthresh = 0.5,
+                         genes_passing_filter=rownames(dds)){
+  
+  #print(paste("Adjusted p value threshold:", pthresh, ", abs(log2FoldChange) threshold:", abslogfcthresh))
+  
+  ensembl_id = gene_lookup(id)$ensembl_gene_id
+  
+  if(length(ensembl_id) > 1 & return_all == F){
+    ensembl_id = ensembl_id[ensembl_id %in% genes_passing_filter][1]
+    ensembl_id = ensembl_id[1]
+    warning(paste0("Multiple ensembl IDs found for ",
+                   id, ". Returning first in series: ", ensembl_id))
+  }
+  
+  comp = lapply(lr,
+                function(x) x[x$ensembl_gene_id %in% ensembl_id,]) %>%
     bind_rows(.id = "comparison")
   
   comp = comp %>% mutate(
@@ -196,29 +248,14 @@ diffex_report = function(id, subgroup = F, list_reports = res_list, subgroup_rep
   ) %>% arrange(padj)
 
   
-  if (subgroup == T){
-    comp = comp %>% select(comparison, subgroup, sig,
-                           padj, log2FoldChange, baseMean,
-                           gene_name, ensembl_gene_id, gene_type)
-  } else {
-    comp = comp %>% select(comparison, sig,
-                           padj, log2FoldChange, baseMean,
-                           gene_name, ensembl_gene_id, gene_type)
-    
-    #L2fc threshold not meaningful for LRT
-    comp[comp$comparison == "LRT", "sig"] <- comp$padj[comp$comparison == "LRT"] <= 0.05
-  }
+  comp = comp %>% select(comparison, subgroup, sig,
+                         padj, log2FoldChange, baseMean,
+                         gene_name, ensembl_gene_id, gene_type) 
   
   comp  
 }
-#diffex_report("MS4A1", subgroup = F)
-#diffex_report("MARVELD2", subgroup = T)
-```
-
-Available diffex comparisons:
-
-```{r}
-names(res_list)
+sub_diffex_report("NOTCH4", return_all = T)
+#di
 ```
 
 Available subgroup comparisons:
@@ -229,6 +266,58 @@ sapply(names(sub_reslist),
 )
 ```
 
+### Involution and breastfeeding duration diffex
+
+Separate function for duration diffex analyses for the same reason.
+All arguments function as above.
+
+```{r, include=params$show_functions}
+invbf_diffex_report = function(id, lr = invbf_reslist, return_all = T,
+                               pthresh = 0.05, abslogfcthresh = 0.5,
+                               genes_passing_filter=rownames(dds)){
+  
+  #print(paste("Adjusted p value threshold:", pthresh, ", abs(log2FoldChange) threshold:", abslogfcthresh))
+  
+  ensembl_id = gene_lookup(id)$ensembl_gene_id
+  
+  if(length(ensembl_id) > 1 & return_all == F){
+    ensembl_id = ensembl_id[ensembl_id %in% genes_passing_filter][1]
+    ensembl_id = ensembl_id[1]
+    warning(paste0("Multiple ensembl IDs found for ",
+                   id, ". Returning first in series: ", ensembl_id))
+  }
+  
+  lr = lr %>% filter(ensembl_gene_id %in% !!ensembl_id)
+  
+  comp = lr %>% mutate(
+    padj = signif(padj, 2),
+    #pval = signif(pvalue, 2),
+    log2FoldChange = round(log2FoldChange, 3),
+    baseMean = round(baseMean, 1),
+    sig = (padj <= !!pthresh & abs(log2FoldChange) > !!abslogfcthresh)
+  ) %>% arrange(padj)
+  
+  comp = comp %>% select(diffex_duration, sig,
+                         padj, #pval, 
+                         log2FoldChange, baseMean,
+                         gene_name, ensembl_gene_id,
+                         group, ref, gene_type,
+                         )  
+  
+  
+  comp  
+}
+
+#invbf_diffex_report("NOTCH4", return_all = T)
+
+```
+
+Available duration comparisons:
+
+```{r}
+select(invbf_reslist, diffex_duration, ref, group) %>%
+  distinct()
+```
 
 ## Boxplot expression
 
@@ -311,7 +400,7 @@ box_plots <- function(id, gEx = geneEx, d=dds, s = sample_data){
 }
 
 #box_plots("MARVELD2")
-box_plots(params$gene)
+#box_plots(params$gene)
 ```
 
 ## Gene quantile
@@ -657,21 +746,33 @@ get_entrez_summary <- function(gene_id, dict=bx_annot,
     return(NA)
   }
   
-  gene_summary <- rentrez::entrez_summary(db = "gene", id = ent)
+  gene_summary <- tryCatch(rentrez::entrez_summary(db = "gene", id = ent),
+                            error = function(e){NA})
   
   res <- list()
   
-  res$name <- rentrez::extract_from_esummary(gene_summary, "name")
-  res$description <- rentrez::extract_from_esummary(gene_summary, "description")
-  res$otheraliases <- rentrez::extract_from_esummary(gene_summary, "otheraliases")
+  res$name <- tryCatch(rentrez::extract_from_esummary(gene_summary, "name"),
+                       error = function(e){NA})
+  res$description <- tryCatch(rentrez::extract_from_esummary(gene_summary, "description"),
+                               error = function(e){NA})
+  res$otheraliases <- tryCatch(rentrez::extract_from_esummary(gene_summary, "otheraliases"),
+                                error = function(e){NA})
   #res$otherdesignations <- rentrez::extract_from_esummary(gene_summary, "otherdesignations")
-  res$entrez_summary <- rentrez::extract_from_esummary(gene_summary, "summary")
+  res$entrez_summary <- tryCatch(rentrez::extract_from_esummary(gene_summary, "summary"),
+                                  error = function(e){NA})
   return(res)
 }
 
 #get_entrez_summary("MARVELD2")
 #get_entrez_summary(params$gene)
 ```
+
+tryCatch(
+  xml2::read_html(url) %>%
+    rvest::html_node(xpath='/html/body/main/div/div[3]/div[3]/div[1]') %>%
+    rvest::html_text(),
+    error = function(e){NA} 
+  )
 
 Alternative for uniprot: Use proteinatlas.org.
 Also shows known prognostics.
@@ -766,6 +867,18 @@ gene_enet_feature <- function(id){
 
 # Gene biology
 
+Show ensembl gene haplotypes for provided input `r Gene`, and other id mappings.
+Only those haplotypes that pass the minimum count threshold are shown.
+
+```{r}
+gene_dict <- bx_annot %>%
+  filter(gene_name == gene_lookup(Gene)$gene_name) %>%
+  filter(ensembl_gene_id %in% rownames(dds))
+
+gene_dict
+```
+
+
 Entrez gene summary:
 Text wrapping is WIP.
 
@@ -811,16 +924,38 @@ genewise_survival_results(Gene, df = int_surv, return_first = F)
 
 # Differential expression
 
-Likelihood ratio test, pairwise comparisons, and one vs rest comparisons:
+Divided into three sections:
+
+* PPBC primary diffex (Likelihood ratio test, pairwise comparisons, and one vs rest comparisons)
+* Involution duration (<6mo vs >6mo) 
+* Breastfeeding duration (<1 mo vs >1 mo)
+* Subgroup (Involution vs rest, involution vs nulliparous and involution vs pregnant for Basal, Her2, and LumA/B samples)
+
+## PPBC diffex
 
 ```{r}
-diffex_report(Gene, subgroup = F)
+diffex_report(Gene, return_all = T)
 ```
 
-Subgroup analysis:
+## Involution duration diffex
 
 ```{r}
-diffex_report(Gene, subgroup = T)
+invbf_diffex_report(Gene, return_all = T) %>%
+  filter(diffex_duration == "involution")
+```
+
+## Breastfeeding duration diffex
+
+```{r}
+invbf_diffex_report(Gene, return_all = T) %>%
+  filter(diffex_duration == "breastfeeding")
+```
+
+
+## Subgroup diffex
+
+```{r}
+sub_diffex_report(Gene, return_all = T)
 ```
 
 
@@ -830,13 +965,26 @@ diffex_report(Gene, subgroup = T)
 Log2-TMM normalized
 
 ```{r, fig.width=8}
-box_plots(Gene)$tmm
+if(Gene %in% bx_annot$ensembl_gene_id){
+  print(box_plots(Gene)$tmm)
+} else {
+  for(id in gene_dict$ensembl_gene_id){
+  print(box_plots(id)$tmm)
+}
+}
 ```
 
 Size-factor normalized:
 
 ```{r, fig.width=8}
-box_plots(Gene)$sf
+if(Gene %in% bx_annot$ensembl_gene_id){
+  print(box_plots(Gene)$sf)
+} else {
+  for(id in gene_dict$ensembl_gene_id){
+  print(box_plots(id)$sf)
+}
+
+}
 ```
 
 
@@ -848,13 +996,26 @@ Involution vs rest survival depictions
 ## Overall survival
 
 ```{r, warning=F, fig.height=7, fig.width=10}
-km_ntiles_ovr(Gene, ovr_column = "involution", survival_type = "os")
+if(Gene %in% bx_annot$ensembl_gene_id){
+  print(km_ntiles_ovr(Gene, ovr_column = "involution", survival_type = "os"))
+} else {
+  for(id in gene_dict$ensembl_gene_id){
+  print(km_ntiles_ovr(id, ovr_column = "involution", survival_type = "os"))
+}
+}
+
 ```
 
 ## Distant recurrence
 
 ```{r, warning=F, fig.height=7, fig.width=10}
-km_ntiles_ovr(Gene, ovr_column = "involution", survival_type = "drs")
+if(Gene %in% bx_annot$ensembl_gene_id){
+  print(km_ntiles_ovr(Gene, ovr_column = "involution", survival_type = "drs"))
+} else {
+ for(id in gene_dict$ensembl_gene_id){
+  print(km_ntiles_ovr(id, ovr_column = "involution", survival_type = "drs"))
+} 
+}
 ```
 
 
