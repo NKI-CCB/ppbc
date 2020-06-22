@@ -11,6 +11,11 @@ cd ~/mnt/postpartumbc/reports
 for REPORT in `ls *.html`; do echo $REPORT; rclone sync -P $REPORT remote:ppbc/reports; done
 for REPORT in `ls *.pdf`; do echo $REPORT; rclone sync -P $REPORT remote:ppbc/reports; done
 
+#Gene reports
+cd ~/mnt/postpartumbc/reports
+rclone sync -P gene_reports remote:ppbc/gene_reports
+rclone sync genes_to_report.txt remote:ppbc/gene_reports
+
 #Metadata
 cd ~/mnt/postpartumbc/data/metadata
 for f in `ls | grep -E ".tsv|.csv|.txt|.pdf|.xlsx"`; do echo $f; rclone sync -P $f remote:ppbc/reports; done
