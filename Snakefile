@@ -10,7 +10,9 @@ configfile: "config.yaml"
 
 rule all:
   input:
-    "reports/16_gene_unity_report.html"
+    "reports/16_gene_unity_report.html",
+    #expand("data/RAW/{sample}.fastq.gz", sample=config['samples']),
+    expand("data/TRUST/TRUST_{sample}_report.tsv", sample=config['samples']),
     #"dag.svg"
     #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
 
@@ -789,10 +791,43 @@ rule gene_reports:
     aggdata="data/Rds/16_gene_report_environment.RData",
     script="src/17_batch_gene_reports.R",
     genes=ancient("reports/genes_to_report")
-  output:
-    directory("reports/gene_reports")
+  #output:
+  #  directory("reports/gene_reports")
   shell:
     "Rscript {input.script}"
+    
+rule trust_setup:
+  output:
+    bcrtcrfa="bin/TRUST4/hg38_bcrtcr.fa",
+    imgt="bin/TRUST4/human_IMGT+C.fa",
+    trust="bin/TRUST4/run-trust4"
+  shell:
+    """
+    git clone https://github.com/liulab-dfci/TRUST4.git
+    mkdir -p bin
+    mv -v TRUST4 ./bin
+    """
+
+rule trust:
+  input:
+    fq=expand("data/RAW/{sample}.fastq.gz", sample=config["samples"]),
+    bcrtcrfa=ancient("bin/TRUST4/hg38_bcrtcr.fa"),
+    imgt=ancient("bin/TRUST4/human_IMGT+C.fa"),
+    trust=ancient("bin/TRUST4/run-trust4")
+  params:
+    threads=16,
+    outdir="data/TRUST/"
+  shell:
+    """
+    mkdir -p {params.outdir} &&
+     #for f in `ls $PROJDIR/data/RAW/*.R1.fastq.gz`
+    for f in `ls data/RAW/*.R1.fastq.gz`; do basefile="$(basename -- $f)"; {input.trust} -u $f -t {params.threads} -f {input.bcrtcrfa} --ref {input.imgt} -o {params.outdir}$basefile; done
+    """
+
+#Why doesn't this work???
+#fq=lambda wildcards: config["samples"][wildcards.sample],
+#{input.trust} -u {input.fq} -t {params.threads} -f {input.bcrtcrfa} --ref {input.imgt} -o {params.outdir}{input.fq}    
+
     
 rule workflow_diagram:
   conda:

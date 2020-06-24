@@ -24,3 +24,8 @@
 "IGHV3-64", "Overlap enet and genewise cox"
 "IGHV3-64D", "Overlap enet and genewise cox"
 "IGHV4-34", "Overlap enet and genewise cox"
+"IGKC", "Prognostic marker"
+"IGHD", "Diffex"
+"IGHA1", "Diffex"
+"IGHA2", "Diffex"
+"IGHG3", "TRUST"
