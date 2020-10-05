@@ -828,6 +828,24 @@ rule trust:
 #fq=lambda wildcards: config["samples"][wildcards.sample],
 #{input.trust} -u {input.fq} -t {params.threads} -f {input.bcrtcrfa} --ref {input.imgt} -o {params.outdir}{input.fq}    
 
+rule trust_report:
+  input:
+    #directory("data/TRUST"),
+    fqdata="data/metadata/01_sample_annot.tsv",
+    sampledata="data/metadata/05_sample_annot_filtered.csv",
+    survdata="data/Rds/04_survdata.Rds",
+    preexcluded_samples="data/metadata/01_pre_excluded_samples.csv",
+    discarded_samples="data/metadata/02_discarded_samples.csv",
+    ihc_outliers="data/metadata/03_removed_pam50_outliers.csv",
+    rmd="reports/18_BCR_clonality.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    alltrust="data/Rds/18_alltrust.Rds",
+    trustdata="data/Rds/18_trustdata.Rds",
+    trustexcel="results/TRUST/18_TRUST_results.xlsx",
+    html="reports/18_BCR_clonality.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"  
     
 rule workflow_diagram:
   conda:

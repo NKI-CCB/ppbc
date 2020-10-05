@@ -30,6 +30,7 @@ cd ~/mnt/postpartumbc/results/
 rclone sync -P cibersortX remote:ppbc/results/cibersortX
 rclone sync -P clustering remote:ppbc/results/clustering
 rclone sync -P survival remote:ppbc/results/survival
+rclone sync -P TRUST remote:ppbc/results/trust
 
 cd ~/mnt/postpartumbc/results/flexgsea/deseq
 rclone sync -P *.xlsx remote:ppbc/results/flexgsea

@@ -1,0 +1,927 @@
+---
+title: "BCR clonaity in PPBC"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    fig_width: 7
+    fig_height: 6
+    df_print: paged
+
+---
+
+In this notebook, we process the output of the TRUST algorithm for analyzing BCR clonarity in PBBC.
+[TRUST BCR publication](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6773274/)
+[TRUST original publication](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5298896/)
+[TRUST solid tissue TCR publicaiton](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6959004/)
+[TRUST4 source code](https://github.com/liulab-dfci/TRUST4)
+
+From the original publication:
+
+>In brief, this method first maps the reads to the human genome and searches for read pairs with one mate properly mapped to a TCR gene and the other mate unmappable to the genome, potentially due to V(D)J recombination. 
+It then initiates pairwise comparison of the unmapped reads and constructs a read-overlap matrix, represented by an undirected graph, with each node representing a read and an edge for partial sequence overlap between two connected reads.
+This graph is further divided into disjoint cliques to represent potentially different CDR3 sequences. Finally, the method assembles all the reads in each clique to obtain contigs of DNA sequences and annotates them with information such as amino acid sequence, associated variable (V) and joining (J) genes.
+Contigs not annotated as CDR3 regions were discarded to reduce false positive calls (Methods).
+
+The most recent version, TRUST4, allows the tool to be run directly on fastq files, as we have done here.
+There is no publication assoicated with TRUST4.
+
+From the TRUST4 readme:
+
+>Tcr Receptor Utilities for Solid Tissue (TRUST) is a computational tool to analyze TCR and BCR sequences using unselected RNA sequencing data, profiled from solid tissues, including tumors. TRUST4 performs de novo assembly on V, J, C genes including the hypervariable complementarity-determining region 3 (CDR3) and reports consensus of BCR/TCR sequences. TRUST4 then realigns the contigs to IMGT reference gene sequences to report the corresponding information. TRUST4 supports both single-end and paired-end sequencing data with any read length.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=F}
+library(here)
+library(ggpubr)
+library(DESeq2)
+library(survival)
+library(survminer)
+library(ggthemes)
+library(ggsci)
+library(tidyverse)
+
+theme_set(theme_bw())
+```
+
+#Sample metadata
+
+Sample metadata pre replicate merging:
+
+```{r}
+fqdata = read_tsv(here("data/metadata/01_sample_annot.tsv"))
+
+head(fqdata)
+```
+
+
+Sample metadata post replicate merging:
+
+```{r}
+sampledata = read.csv(here("data/metadata/05_sample_annot_filtered.csv"))
+sampledata$PPBC <- factor(sampledata$PPBC,
+                          levels=c("nulliparous", "pregnant", "lactating", "involuting"))
+head(sampledata)
+```
+
+Pre-filtered clinical covariates for survival analyses:
+
+```{r}
+survdata <- readRDS(here("data/Rds/04_survdata.Rds"))
+
+head(survdata)
+```
+
+
+## Excluded samples
+
+Pre-excluded samples (sequencing errors, too old, had neo-CT):
+
+```{r}
+preexcluded_samples <- read.csv(here("data/metadata/01_pre_excluded_samples.csv"))
+head(preexcluded_samples)
+```
+
+Samples which were discarded for QC reasons.
+
+```{r}
+discarded_samples <- read.csv(here("data/metadata/02_discarded_samples.csv"))
+head(discarded_samples)
+```
+
+Samples dicarded because IHC drastically mismatched with PAM50
+
+```{r}
+removed_outliers <- read.csv(here("data/metadata/03_removed_pam50_outliers.csv"))
+removed_outliers
+```
+
+# Process TRUST data
+
+This section consists of 4 segments:
+
+* TRUST output overview
+* Loading TRUST output
+* Filtering out removed samples
+* Duplicate merging
+
+
+## TRUST output overview
+
+File structure:
+
+*toassembl.fq* is a very large file with extracted reads from the fastq file:
+
+>@K00335:272:H23NTBBXY:7:1102:7090:2211
+GGCACGGTCACCACGCTGCTGAGGGAGTAGAGTCCTGAGGACTGTAGGACA
++
+AAFFFJJFJJJJJJJJJJJJJJAJJFJJJJJJFJJJJAJJJJJJJFFJJJ
+
+*assembled_reads.fa* is a large file with aggregated candidate reads in fasta format:
+
+>K00335:272:H23NTBBXY:7:2217:32268:4831 -1 20723 29054
+TGCTCTGTGACACTCTCCTGGGAGTTACCCGATTGGA
+
+*annot.fa* is a much smaller fast file with read annotation information in the header:
+
+>assemble0 326 7710.79 IGKV1-39\*01(287):(0-37):(246-283):100.00,IGKV1D-39\*01(287):(0-37):(246-283):100.00 * IGKJ1\*01(38):(38-75):(0-37):92.11,IGKJ3*01(38):(45-75):(7-37):96.77 IGKC(523):(76-325):(0-249):100.00 CDR1(0-0):0.00=null CDR2(0-0):0.00=null CDR3(15-47):100.00=TGTCAACAGAGTTACAGTACCCCGTGGACGTTC
+TTTGCAACTTACTACTGTCAACAGAGTTACAGTACCCCGTGGACGTTCGGCCATGGGACCAAAGTGGATATCAAACGAACTGTGGCTGCACCATCTGTCTTCATCTTCCCGCCATCTGATGAGCAGTTGAAATCTGGAACTGCCTCTGTTGTGTGCCTGCTGAATAACTTCTATCCCAGAGAGGCCAAAGTACAGTGGAAGGTGGATAACGCCCTCCAATCGGGTAACTCCCAGGAGAGTGTCACAGAGCAGGACAGCAAGGACAGCACCTACAGCCTCAGCAGCACCCTGACGCTGAGCAAAGCAGACTACGAGAAACACAAAGT
+
+*raw.out* and *final.out* are both fasta-like files, typically of equal size, with this crytpic annotation:
+>assemble1 IGLC2
+GTGACAGTGGCCTGGAAGGCAGATAGCAGCCCCGTCAAGGCGGGAGTGGAGACCACCACACCCTCCAAACAAAGCAACAACAAGTACGCGGCCAGCAGCTATCTGAGCCTGACGCCTGAGCAGTGGAAGTCCCACA
+0 0 0 82 0 299 0 0 0 0 0 0 0 0 0 2379 2427 1 0 0 2987 3 3142 3 6911 0 2 15688 0 0 3 0 1 4 0 2 18185 18743 1 4 8 7 7 0 28326 11 0 5 2 28755 5 28770 12 14 28689 13 8 28680 22 28215 9 8 6 12 3 11 27000 26967 26946 0 26483 26469 26436 0 7 22544 22063 5 13804 13630 2 13268 13244 2 0 11894 0 0 0 0 1 0 0 2043 1 6 1034 8 0 0 745 0 0 0 1 687 1 1 0 0 1 157 0 0 1 0 0 0 104 0 0 61 0 0 0 0 24 23 0 0 0 0 0 9 0 1 
+0 0 0 0 89 0 0 0 0 0 1459 1578 0 0 0 2 10 0 0 2967 0 0 1 1 0 1 7513 0 41 15856 16202 16250 16271 3 0 17628 0 6 2 1 23494 2 0 3 2 0 5 5 3 2 3 8 28700 28698 9 28637 28542 10 28743 37 28134 27819 27713 12 27484 27346 0 2 2 26953 1 0 4 0 23980 4 4 21923 1 4 13576 2 3 0 0 0 11822 0 10740 0 0 5891 2923 0 0 1126 0 1 926 0 0 63 724 5 2 0 0 567 427 1 0 0 156 0 137 133 0 0 0 0 67 0 0 0 0 0 0 0 0 0 22 22 21 0 8 0 
+
+*cdr3 out* has a processed tsv format, with no headers. The headers can be found in the readme:
+>consensus_id	index_within_consensus	V_gene	D_gene	J_gene	C_gene	CDR1	CDR2	CDR3	CDR3_score	read_fragment_count CDR3_germline_similarity
+assemble0       0       IGKV1-39\*01,IGKV1D-39\*01        *       IGKJ1\*01        IGKC    *       *       TGTCAACAGAGTTACAGTACCCCGTGGACGTTC       1.00    5.00    100.00
+assemble0       1       IGKV1-39\*01,IGKV1D-39\*01        *       IGKJ1\*01        IGKC    *       *       TGTCAACAGAGTTACAGTACCCCCTGGACGTTC       1.00    4.00    96.77
+assemble0       2       IGKV1-39\*01,IGKV1D-39\*01        *       IGKJ1\*01        IGKC    *       *       TGTCAACAGAGTTACAATGCCCCGTGGACGTTC       1.00    1.00    93.55
+assemble0       3       IGKV1-39\*01,IGKV1D-39\*01        *       IGKJ1\*01        IGKC    *       *       TGTCAACAGAGTTACAGTACTCCGTGGACGTTC       1.00    1.00    96.77
+assemble2       0       *       *       IGHJ4\*02        IGHG1   *       *       GACAGTAGTGGGGTTGACTACTTTGACTACTGG       0.00    801.00  0.00
+assemble3       0       IGLV2-8\*01      *       IGLJ2\*01,IGLJ3\*01       *       AGCAGTGACGTTGGTGGTTATAACTAT     GAGGTCAGT       TGCAGCTCATATGCAGGCAGCAACAATTTAGGATTC    1.00    1172.71 100.00
+
+*report.tsv* has a human-readable compilation of nucleotide/aa contigs, the corresponding V, D, J and C genes, the count and the frequency.
+>count  frequency       CDR3nt  CDR3aa  V       D       J       C
+4771    6.529550e-02    TGTCTACAGCATAATAGTTACCCGTGGACGTTC       CLQHNSYPWTF     IGKV1-17*01     *       IGKJ1*01        IGKC
+3398    4.650642e-02    TGCCAACAGTATAATACTTACTTCACTTTC  CQQYNTYFTF      IGKV1-17*01     *       IGKJ3*01        IGKC
+2708    3.706679e-02    TGTCAACAGTTTAATAGTTACCCTCAGACGTTC       CQQFNSYPQTF     IGKV1-9*01      *       IGKJ1*01        IGKC
+2522    3.451518e-02    TGTCAGCAGTATGGTAGCTCACCTCAGATCACCTTC    CQQYGSSPQITF    IGKV3-20*01     *       IGKJ5*01        IGKC
+2510    3.434632e-02    TGTGCGGCAGATGCGACTACATTTCTTTCTTCTGACTACTGG      CAADATTFLSSDYW  IGHV1-58*01     IGHD2-21*02     IGHJ4*02        *
+
+This is the file we will be working with.
+
+Frequency here appears to be defined as the number of reads belonging to that contig divided by the total number of CD3R reads.
+BCR and TCR frequency are normalized separately.
+
+## Load TRUST output
+
+TRUST report files:
+
+```{r}
+trustdir <- here("data/TRUST")
+trustfiles = list.files(trustdir, pattern="report.tsv") 
+trustfiles %>% head(20)
+```
+
+Ensure there are no duplicates
+
+```{r}
+stopifnot(length(unique(trustfiles)) == length(trustfiles))
+```
+
+Read in the files into a single df:
+
+```{r}
+alltrust <- file.path(trustdir, trustfiles) %>%
+  set_names(str_remove(trustfiles, ".fastq.gz_report.tsv")) %>%
+  map_df(~read.delim(., header=T, stringsAsFactors = F), .id="trustfile")
+
+saveRDS(alltrust, here("data/Rds/18_alltrust.Rds"))
+```
+
+
+```{r}
+head(alltrust)
+```
+
+## Filter out removed samples
+
+Unique sample identifiers prior to excluding removed samples:
+
+```{r}
+unique(alltrust$trustfile) %>% length()
+```
+
+Set aside TRUST reports from the pre-excluded samples list.
+
+```{r}
+length(unique(alltrust$trustfile)[unique(alltrust$trustfile) %in% preexcluded_samples$fastq_file])
+
+removed_trust <- alltrust %>% filter(trustfile %in% preexcluded_samples$fastq_file)
+
+removed_trust <- removed_trust %>%
+  mutate(reason = "pre-excluded")
+```
+
+Set aside QC-discarded samples:
+
+```{r}
+length(unique(alltrust$trustfile)[unique(alltrust$trustfile) %in% discarded_samples$sample_id])
+
+removed_trust <- bind_rows(removed_trust,
+                       mutate(filter(alltrust, trustfile %in% discarded_samples$sample_id),
+                              reason="failed QC")) 
+```
+
+Number of IHC-outliers to filter out:
+
+```{r}
+#Need the sample id first
+removed_outliers = left_join(removed_outliers, select(fqdata, sample_name, sample_id), by="sample_name")
+
+length(unique(alltrust$trustfile)[unique(alltrust$trustfile) %in% removed_outliers$sample_id])
+
+removed_trust <- bind_rows(removed_trust,
+                       mutate(filter(alltrust, trustfile %in% removed_outliers$sample_id),
+                              reason="IHC outlier")) 
+
+```
+
+Total samples to remove:
+
+```{r}
+length(unique(removed_trust$trustfile))
+```
+
+Filter them out:
+
+```{r}
+trustdf <- alltrust %>%
+  filter(!trustfile %in% removed_trust$trustfile)
+
+stopifnot(all(trustdf$trustfile %in% fqdata$sample_id))
+```
+
+## Merge duplicates
+
+Samples with more than one fastq file that passed all QC filters were merged.
+We can see which ones by looking at the `duplicate` column in the merged sample data.
+From there, we can use the patient_ref to retrieve the ids of merged fastq files in the unmerged sample data.
+
+```{r}
+fq_dups <- fqdata %>%
+  filter(patient_ref %in% filter(sampledata, duplicate == T)$patient_ref) %>%
+  arrange(patient_ref)
+
+fq_dups
+```
+
+Set those samples with duplicates aside:
+
+```{r}
+trustdf_dup <- trustdf %>%
+  filter(trustfile %in% fq_dups$sample_id)
+
+trustdf <- trustdf %>%
+  filter(!trustfile %in% fq_dups$sample_id)
+```
+
+Add the patient refs for aggregation of duplicates, then group by the relevant variables to sum up the count and frequency.
+
+```{r}
+trust <- trustdf_dup %>%
+  left_join(., select(fq_dups, sample_id, patient_ref),
+            by=c("trustfile"="sample_id")) %>%
+  group_by(
+    patient_ref, CDR3nt, CDR3aa,V,D,J,C
+           ) %>%
+  summarise(X.count=sum(X.count), frequency=sum(frequency))
+
+trust %>% head()
+```
+
+Add patient refs to the non-duplicates
+
+```{r}
+trustdf <- left_join(trustdf, select(fqdata, sample_id, patient_ref),
+                    by=c("trustfile"="sample_id")) %>%
+  select(-trustfile)
+
+
+```
+
+Combine into single df 
+
+```{r}
+trust = bind_rows(trust, trustdf) %>%
+  select(patient_ref, count = X.count, frequency, everything())
+head(trust)
+
+```
+
+Sanity checks, merge remaining metadata.
+
+```{r}
+stopifnot(all(trust$patient_ref %in% sampledata$patient_ref))
+stopifnot(length(unique(trust$patient_ref)) == length(unique(sampledata$patient_ref)))
+
+trustdata = left_join(trust,
+                      select(sampledata, patient_ref, sample_name, PPBC, PAM50,
+                             grade = grade_integer, stage = stage_short_integer,
+                             months_of_followup, age_at_diagnosis = age_diagnosis,
+                             metastasis_at_diagnosis,
+                             overall_survival, months_overall_survival,
+                             distant_recurrence, months_to_drs, surgery,
+                             radiotherapy = RT, hormonetherapy = HT,
+                             chemotherapy = CT, herceptin = HERC,
+                             immune_score:batch),
+                      by="patient_ref") %>%
+  select(sample_name, everything())
+
+#Moved below
+#saveRDS(trustdata, here("data/Rds/18_trustdata.Rds"))
+```
+
+```{r}
+head(trustdata)
+```
+
+```{r}
+colnames(trustdata)
+```
+
+
+# Size factor normalization
+
+Frequency here appears to be defined as the number of reads belonging to that contig divided by the total number of CD3R reads.
+BCR and TCR frequency are normalized separately.
+
+However, no correction is apparently made for the overall library size. Update: Confirmed by author on github.
+We therefore do not know whether a lower frequency is directly related to proportion/abundancy of CD3R reads in a sample, or to the total number of reads in the sample.
+This is not a problem when comparing relative percentages, but will be a problem when comparing relative abundance.
+
+We can use the DESeq2 size factors to correct for this.
+
+```{r}
+dds = readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
+```
+
+As genewise normalization factors preempt samplewise size factors, we call this on the matrix:
+
+```{r}
+sf <- enframe(estimateSizeFactorsForMatrix(counts(dds)),
+              "sample_name", "size_factor")
+head(sf)
+```
+
+Merge with trustdata, and multiply frequency by size factor:
+
+```{r}
+trustdata <- left_join(trustdata, sf, by = "sample_name")
+
+trustdata$norm_count <- trustdata$size_factor * trustdata$count
+
+trustdata <- trustdata %>%
+  select(sample_name:frequency,size_factor, norm_count,
+         everything())
+
+head(trustdata)
+saveRDS(trustdata, here("data/Rds/18_trustdata.Rds"))
+```
+
+
+# Class switching
+
+Note: Results generally do not resemble diffex. Repeat with complete matches only?
+
+IgM or IgD are the default antibody isotypes.
+We can see the isotype in the constant region.
+
+```{r}
+trustdata$C %>% unique() %>%
+  paste(collapse = ", ")
+```
+
+Filter out the light lambda chain [IGLC](https://pubmed.ncbi.nlm.nih.gov/21396928/) and light kappa chain [IGKC](https://clincancerres.aacrjournals.org/content/18/9/2695.long), the latter of which may later be of interest as a prognostic marker.
+Also remove TCR components.
+
+
+```{r}
+c_trust <-
+trustdata %>%
+  filter(C %in% c("IGHG4", "IGHG2", "IGHA1", "IGHE", "IGHM", "IGHG1", "IGHG3", "IGHA2", "IGHD"))
+
+c_trust$PPBC <- factor(c_trust$PPBC, levels = c("nulliparous", "pregnant", "lactating", "involuting"))
+
+head(c_trust)
+```
+
+Aggregate by sample
+
+```{r}
+ctrust_sample <- c_trust %>%
+  group_by(sample_name, C, PPBC) %>%
+  summarise(sum_count = sum(count),
+            sum_normcount = sum(norm_count),
+            sum_frequency = sum(frequency))
+
+#ctrust_sample %>% head(10)
+
+ctrust_sample = ctrust_sample %>% group_by(sample_name) %>%
+       mutate(per=sum_normcount/sum(sum_normcount)*100) %>%
+  ungroup()
+
+#Sanity check: Do percentages add up to 100?
+ctrust_sample %>%
+  group_by(sample_name) %>%
+  summarise(sanity = sum(per)) %>% 
+  head(10)
+```
+
+Aggregate by study group
+
+```{r}
+ctrust_group <- c_trust %>%
+  group_by(C, PPBC) %>%
+  summarise(sum_count = sum(count),
+            sum_normcount = round(sum(norm_count),2),
+            mean_frequency = mean(frequency))
+
+ctrust_group = ctrust_group %>% group_by(PPBC) %>%
+       mutate(per=sum_normcount/sum(sum_normcount)*100) %>%
+  ungroup()
+
+#Sanity check: Do percentages add up to 100?
+ctrust_group %>%
+  group_by(PPBC) %>%
+  summarise(sanity = sum(per))
+```
+
+```{r eval=F, fig.height=10}
+#Pie chart
+#This just looks irredeemably awful
+
+ctrust_group %>%
+  arrange(PPBC) %>%
+  ggplot(aes(x="", y=per, fill=C)) +
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  theme_void() + 
+  #theme(legend.position="none") +
+  geom_text(aes(#y = ypos,
+                label = C),
+            color = "white", size=6) +
+  scale_fill_brewer(palette="Set1") +
+  facet_wrap(~PPBC)
+```
+
+
+## Stacked Bar plot 
+
+Normalized counts by antibody isotype:
+
+
+```{r}
+ggbarplot(ctrust_group, x = "PPBC", y = "sum_normcount",
+  fill = "C", color = "C", palette = "Paired",
+  label = F, lab.col = "white", lab.pos = "in")
+```
+
+Percentage of antibodies by isotype
+
+```{r}
+ggbarplot(ctrust_group, x = "PPBC", y = "per",
+  fill = "C", color = "C", palette = "Paired",
+  label = F, lab.col = "white", lab.pos = "in")
+```
+
+## Box plots
+
+By normalized count
+
+```{r, fig.height=12, fig.width=10}
+comp = list(c("involuting", "nulliparous"),
+            c("involuting", "pregnant"))
+
+ctrust_sample %>%
+  ggboxplot(x="PPBC", y = "sum_normcount", color = "C", add="jitter") +
+  scale_y_log10() +
+  stat_compare_means(comparison = comp) +
+  #stat_compare_means(label.y = 4) +
+  facet_wrap(~C, strip.position = "top") +
+  theme(legend.position = "none") +
+  theme_bw() +
+  ggtitle("Isotypes by normalized count")
+
+#ctrust_sample %>%
+ # ggplot(aes(x = PPBC, y = sum_normcount, color = C)) +
+  #geom_jitter(height=0, width = 0.1) +
+  #geom_boxplot(alpha=0) +
+  #facet_wrap(~C, scales = "free_y") +
+  #scale_y_log10() +
+  #ggtitle("By normalized count via TRUST")
+
+```
+
+By percentage
+
+```{r, fig.height=12, fig.width=10}
+comp = list(c("involuting", "nulliparous"),
+            c("involuting", "pregnant"))
+
+ctrust_sample %>%
+  ggboxplot(x="PPBC", y = "per", color = "C", add="jitter") +
+  scale_y_log10() +
+  stat_compare_means(comparison = comp) +
+  #stat_compare_means(label.y = 4) +
+  facet_wrap(~C, strip.position = "top") +
+  theme(legend.position = "none") +
+  theme_bw() +
+  ggtitle("Isotypes by percent")
+
+```
+
+By frequency
+
+```{r, fig.height=12, fig.width=10}
+comp = list(c("involuting", "nulliparous"),
+            c("involuting", "pregnant"))
+
+ctrust_sample %>%
+  ggboxplot(x="PPBC", y = "sum_frequency", color = "C", add="jitter") +
+  scale_y_log10() +
+  stat_compare_means(comparison = comp) +
+  #stat_compare_means(label.y = 4) +
+  facet_wrap(~C, strip.position = "top") +
+  theme(legend.position = "none") +
+  theme_bw() +
+  ggtitle("Isotypes by frequency")
+
+```
+
+
+# Clonal diversity
+
+Clonotype diversity in the TRUST manuscript is defined as:
+>the number of unique CDR3 calls in each sample normalized by the total read count in the TCR region, which we called clonotypes per kilo-reads (CPK)
+
+Calculate the equivalent for BCR.
+
+First filter out the TCR reads
+
+```{r}
+#unique(trustdata$V)
+#unique(trustdata$D)
+#unique(trustdata$J)
+#unique(trustdata$C)
+
+bcr_reads <- trustdata %>%
+  filter(str_detect(V, "^IG") |
+           str_detect(D, "^IG") |
+           str_detect(J, "^IG") |
+           str_detect(C, "^IG")
+         )
+
+bcr_reads %>% head(20)
+```
+
+Unique BCR reads per sample
+
+```{r}
+unique_bcr_by_sample <- bcr_reads %>%
+  group_by(sample_name) %>%
+  summarise(unique_bcr_reads = n()
+            #sample_normcount = sum(norm_count)
+            )
+
+head(unique_bcr_by_sample)
+```
+
+Tota BCR reads per sample:
+
+```{r}
+total_bcr_reads_by_sample <- bcr_reads %>%
+  group_by(sample_name) %>%
+  summarise(total_bcr_reads = sum(count))
+
+head(total_bcr_reads_by_sample)
+```
+
+```{r}
+stopifnot(all(unique_bcr_by_sample$sample_name == total_bcr_reads_by_sample$sample_name))
+cpk_df <- cbind(unique_bcr_by_sample, total_bcr_reads_by_sample[,2])
+
+cpk_df <- cpk_df %>%
+  mutate(cpk = unique_bcr_reads/total_bcr_reads)
+
+head(cpk_df)
+```
+
+## Box plot
+
+By PAM50:
+
+```{r}
+comp = list(
+  c("involuting", "nulliparous"),
+  c("involuting", "pregnant"),
+  c("involuting", "lactating")
+)
+
+cpk_df %>%
+  left_join(., sampledata, by = "sample_name") %>%
+  ggboxplot(x="PPBC", y = "cpk", palette = "jco",
+            color = "black", add="jitter",
+            add.params=list(color = "PAM50")) +
+  #scale_y_log10() +
+  stat_compare_means(comparison = comp) +
+  #stat_compare_means(label.y = 4) +
+  #facet_wrap(~C, strip.position = "top") +
+  #theme(legend.position = "none") +
+  theme_bw() +
+  ggtitle("Clonal diversity: Clonotypes per kilo-reads")
+```
+
+By OS/DRS:
+
+```{r}
+comp = list(
+  c("involuting", "nulliparous"),
+  c("involuting", "pregnant"),
+  c("involuting", "lactating")
+)
+
+cpk_df %>%
+  left_join(., sampledata, by = "sample_name") %>%
+  mutate(overall_survival = as.factor(overall_survival)) %>%
+  ggboxplot(x="PPBC", y = "cpk", palette = "jco",
+            color = "black", add="jitter",
+            add.params=list(color = "overall_survival")) +
+  #scale_y_log10() +
+  stat_compare_means(comparison = comp) +
+  #stat_compare_means(label.y = 4) +
+  #facet_wrap(~C, strip.position = "top") +
+  #theme(legend.position = "none") +
+  theme_bw() +
+  ggtitle("Clonal diversity: Clonotypes per kilo-reads (OS)")
+
+cpk_df %>%
+  left_join(., sampledata, by = "sample_name") %>%
+  filter(!is.na(distant_recurrence)) %>%
+  mutate(distant_recurrence = as.factor(distant_recurrence)) %>%
+  ggboxplot(x="PPBC", y = "cpk", palette = "jco",
+            color = "black", add="jitter",
+            add.params=list(color = "distant_recurrence")) +
+  #scale_y_log10() +
+  stat_compare_means(comparison = comp) +
+  #stat_compare_means(label.y = 4) +
+  #facet_wrap(~C, strip.position = "top") +
+  #theme(legend.position = "none") +
+  theme_bw() +
+  ggtitle("Clonal diversity: Clonotypes per kilo-reads (DRS)")
+```
+
+## Tertiles and survival setup
+
+```{r}
+survdata <- right_join(cpk_df, survdata, by = "sample_name")
+survdata
+```
+
+Set up tertiles for kaplan meier plots:
+
+```{r}
+survdata$cpk_tertile = dplyr::ntile(survdata$cpk, 3)
+
+#tertile_colors = color_palettes$tertile_colors
+#names(tertile_colors) = c(1,2,3)
+
+survdata %>%
+  ggplot(aes(x = cpk, y = as.factor(cpk_tertile),
+             color = PPBC)) +
+  geom_jitter() +
+  #geom_boxplot(alpha = 0) +
+  xlab("") +
+  labs(color = "tertile") +
+  ggtitle("Distribution of cpk by tertile") +
+  scale_color_jco()
+```
+
+## Univariate Kaplan Meiers
+
+Overall survival
+
+```{r}
+survfit(Surv(time=months_overall_survival, event=overall_survival) ~ cpk_tertile, data = survdata) %>% 
+ggsurvplot(fit = ., 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = paste0("Clonal diversity and survival"),
+    #palette = ppbc_colors,
+    #palette = "Dark2",
+    #linetype = "strata",
+    #conf.int = T,
+    pval = T,
+    ggtheme = theme_bw(),
+    risk.table = F,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F)
+```
+
+Distant recurrence
+
+```{r}
+survfit(Surv(time=months_to_drs, event=distant_recurrence) ~ cpk_tertile, data = survdata) %>% 
+ggsurvplot(fit = ., 
+    xlab = "Months", 
+    ylab = "DRS probability",
+    title = paste0("Clonal diversity and DRS"),
+    #palette = ppbc_colors,
+    #palette = "Dark2",
+    #linetype = "strata",
+    #conf.int = T,
+    pval = T,
+    ggtheme = theme_bw(),
+    risk.table = F,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F)
+```
+
+PPBC faceted plots:
+
+```{r}
+survfit(Surv(time=months_overall_survival, event=overall_survival) ~ cpk_tertile, data = survdata) %>% 
+ggsurvplot(fit = ., facet.by = "PPBC", 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = paste0("Clonal diversity and survival"),
+    #palette = ppbc_colors,
+    #palette = "Dark2",
+    #linetype = "strata",
+    #conf.int = T,
+    pval = T,
+    ggtheme = theme_bw(),
+    risk.table = F,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F)
+
+survfit(Surv(time=months_to_drs, event=distant_recurrence) ~ cpk_tertile, data = survdata) %>% 
+ggsurvplot(fit = ., facet.by = "PPBC", 
+    xlab = "Months", 
+    ylab = "DRS probability",
+    title = paste0("Clonal diversity and DRS"),
+    #palette = ppbc_colors,
+    #palette = "Dark2",
+    #linetype = "strata",
+    #conf.int = T,
+    pval = T,
+    ggtheme = theme_bw(),
+    risk.table = F,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F)
+```
+
+## CoxPH OS
+
+Clonal diversity (multivariate OS)
+
+```{r}
+coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    PPBC +
+    cpk_tertile,
+  data = survdata) %>%
+  summary()
+```
+
+## CoxPH DRS
+
+Clonal diversity (multivariate DrS)
+
+```{r}
+coxph(
+  Surv(time=months_to_drs,
+       event=distant_recurrence) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    PPBC +
+    cpk_tertile,
+  data = survdata) %>%
+  summary()
+```
+
+## Multivariate Kaplan Meiers
+
+Overall survival
+
+```{r}
+fit1 = coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    hormonetherapy +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    #PAM50 +
+    PPBC +
+    cpk_tertile,
+  data = survdata)
+
+fit0 = coxph(
+  Surv(time=months_overall_survival,
+       event=overall_survival) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    hormonetherapy +
+    chemotherapy +
+    herceptin +
+    strata(PAM50)+
+    PPBC,
+  data = survdata)
+
+km_os_adj = ggadjustedcurves(fit1, variable = "cpk_tertile",
+                                  data = survdata, method="conditional",
+                                  #palette = color_palettes$ppbc_colors,
+                                  ggtheme = theme_bw()) +
+  ggtitle("Clonal diversity OS, adjusted for clinical covariates") +
+  annotate(geom = "text",
+           label = paste("p =", signif(anova(fit1, fit0)[4][2,], 2)),
+           x= 25, y =0.1)
+
+km_os_adj
+```
+
+Distant recurrence
+
+```{r}
+fit1 = coxph(
+  Surv(time=months_to_drs,
+       event=distant_recurrence) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    hormonetherapy +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    #PAM50 +
+    PPBC +
+    cpk_tertile,
+  data = survdata)
+
+fit0 = coxph(
+  Surv(time=months_to_drs,
+       event=distant_recurrence) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    hormonetherapy +
+    chemotherapy +
+    herceptin +
+    strata(PAM50)+
+    PPBC,
+  data = survdata)
+
+km_drs_adj = ggadjustedcurves(fit1, variable = "cpk_tertile",
+                                  data = survdata, method="conditional",
+                                  #palette = color_palettes$ppbc_colors,
+                                  ggtheme = theme_bw()) +
+  ggtitle("Clonal diversity DRS, adjusted for clinical covariates") +
+  annotate(geom = "text",
+           label = paste("p =", signif(anova(fit1, fit0)[4][2,], 2)),
+           x= 25, y =0.1)
+
+km_drs_adj
+```
+
+# Save data
+
+```{r}
+resdir = here("results","TRUST")
+dir.create(resdir, showWarnings = F)
+
+openxlsx::write.xlsx(x = list(
+  "raw_trust" = trustdata,
+  "constat_regions" = c_trust,
+  "clonotype_per_kb" = cpk_df
+), file = file.path(resdir, "18_TRUST_results.xlsx")
+)
+```
+
+
+```{r}
+sessionInfo()
+```
+
+
+
