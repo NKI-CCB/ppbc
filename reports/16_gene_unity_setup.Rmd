@@ -27,6 +27,8 @@ library(openxlsx)
 library(here)
 library(ggpubr)
 library(tidyverse)
+
+theme_set(theme_bw())
 ```
 
 We aggregate all of the previous results for summary and print the number of significant hits per analysis (where applicable).
@@ -353,6 +355,15 @@ sapply(unique(int_surv$analysis), function(x){
   set_colnames(seq(0.05, 0.3, by = 0.05))
 ```
 
+Most hits in multivariate drs:
+
+```{r}
+int_surv %>%
+  filter(model == "multiDRS_Inv:Gene") %>%
+  arrange(fdr) %>% filter(fdr <= 0.2)  
+```
+
+
 # Elastic net Cox
 
 We have several versions of this analysis, predicting outcome in:
@@ -499,7 +510,7 @@ glm_df %>%
       filter(n > 30)
     ) +
   facet_wrap(~outcome, ncol=1, nrow = 2) +
-  xlim(c(-0.2, 0.2))+
+  #xlim(c(-0.2, 0.2))+
   geom_vline(xintercept = 0, linetype = "dashed", color = "gray")
 ```
 
@@ -517,7 +528,7 @@ glm_df %>%
       filter(n > 30)
     ) +
   facet_wrap(~outcome, ncol=1, nrow = 2)+
-  xlim(c(-0.2, 0.2))+
+  #xlim(c(-0.2, 0.2))+
   geom_vline(xintercept = 0, linetype = "dashed", color = "gray")
 ```
 
@@ -535,7 +546,7 @@ glm_df %>%
       filter(n > 30)
     ) +
   facet_wrap(~outcome, ncol=1, nrow = 2) +
-  xlim(c(-0.2, 0.25))+
+  #xlim(c(-0.2, 0.25))+
   geom_vline(xintercept = 0, linetype = "dashed", color = "gray")
 ```
 

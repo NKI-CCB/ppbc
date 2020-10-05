@@ -11,7 +11,7 @@ output:
     df_print: paged
 params:
   gene:
-    value: "ENSG00000234876"
+    value: "ENSG00000277219"
     label: "Gene ID (ensembl or symbol): "
     input: "text"
   show_functions:
