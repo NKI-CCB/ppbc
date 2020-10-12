@@ -9,7 +9,7 @@
     ]
   },
   "Bioconductor": {
-    "Version": "3.5"
+    "Version": "3.6"
   },
   "Packages": {
     "AIMS": {
@@ -42,6 +42,12 @@
       "Version": "0.24.0",
       "Source": "Bioconductor",
       "Hash": "108ff3e3233e79aef825decc9fa87ee3"
+    },
+    "BiocInstaller": {
+      "Package": "BiocInstaller",
+      "Version": "1.28.0",
+      "Source": "Bioconductor",
+      "Hash": "ee02868b8bd3657a3463d8bc3a64d831"
     },
     "BiocParallel": {
       "Package": "BiocParallel",
@@ -1419,10 +1425,10 @@
     },
     "survminer": {
       "Package": "survminer",
-      "Version": "0.4.6",
+      "Version": "0.4.8",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "d09359eef6adc7550093e3e9d3709bdf"
+      "Hash": "7ac6bc85f8759d17b9a6ecc6b8bc5c18"
     },
     "sys": {
       "Package": "sys",
