@@ -17,7 +17,7 @@ rm(list = ls())
 #### Setup ----
 
 #Whether to overwrite existing results
-overwrite <- F
+overwrite <- T
 
 #Results directory
 resDir = here::here("data", "Rds")
@@ -53,17 +53,8 @@ shrinkRes <- function(dds, contrast, type="apeglm"){
 #### Load data ----
 
 #dds with filtering and one vs rest groups pre-defined, see notebook 8
-dds <- readRDS(here("data","Rds","05_dds_PAM50_batch.Rds"))
+dds <- readRDS(here("data/Rds/05b_dds_filtered.Rds"))
 print(paste(nrow(dds), "genes in dataset"))
-
-# Filtering
-#Minimum threshold is a nonzero count in at least a 3rd of all samples
-
-keep <- rowSums(counts(dds)!=0) >= ceiling(ncol(dds)/3)
-table(keep)
-
-#Keep the rest
-dds <- dds[keep,]
 
 #### One vs rest comparisons ----
 

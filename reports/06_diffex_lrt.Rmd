@@ -6,9 +6,10 @@ output:
   html_document:
     toc: yes
     toc_float: yes
-    toc_depth: 4
-    highlight: tango
     df_print: paged
+    theme: darkly
+    highlight: breezedark
+    canon: true
 ---
 
 ```{r, include=F}
@@ -39,7 +40,7 @@ In this notebook, we enact differential expression as a fourway comparison betwe
 ## Gene and sample data
 
 ```{r}
-dds <- readRDS(file = here("data/Rds/05_dds_PAM50_batch.Rds"))
+dds <- readRDS(file = here("data/Rds/05b_dds_filtered.Rds"))
 gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
 gx_annot = gx_annot %>%
   select(ensembl_gene_id = gene_id, gene_name,
@@ -58,21 +59,6 @@ gene_sets = list(
 )
 ```
 
-## Filtering
-
-Require non-zero counts in 1/3 of the dataset.
-
-```{r}
-keep <- rowSums(counts(dds)!=0) >= ceiling(ncol(dds)/3)
-table(keep)
-
-#Keep the rest
-dds <- dds[keep,]
-```
-
-```{r}
-table(dds$study_group)
-```
 
 ## Retrieve immune genes
 

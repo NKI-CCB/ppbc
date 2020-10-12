@@ -3,12 +3,13 @@ title: "Aggregation genewise survival"
 author: "Kat Moore"
 date: "`r Sys.Date()`"
 output: 
-   html_document:
+  html_document:
     toc: yes
     toc_float: yes
-    toc_depth: 4
-    highlight: tango
     df_print: paged
+    theme: darkly
+    highlight: breezedark
+    canon: true
 ---
 
 Create an overlap file of miscellaneous genewise survival analyses.
@@ -81,6 +82,12 @@ res = bind_rows(res_list,) %>%
 head(res)
 ```
 
+Sanity check: Number of genes in each comparison (should be the same as the minimum count filter set in notebook 5b).
+
+```{r}
+unique(sapply(res_list, nrow))
+```
+
 # Global overview
 
 What global significance level should we choose?
@@ -91,7 +98,7 @@ Models run on involution samples only have hardly any hits, probably due to insu
 ```{r}
 pt = list()
 for (i in seq(0.05, 0.3, by = 0.05)){
-  td = enframe(unlist(lapply(res_list, function(x) nrow(dplyr::filter(x, fdr <= i)))))
+  td = enframe(sapply(res_list, function(x) nrow(dplyr::filter(x, fdr <= i))))
   td = td[, "value", drop=F]
   colnames(td)[1] = as.character(i)
   pt[[length(pt)+1]] = td
@@ -134,26 +141,46 @@ pheatmap(pt, annotation_col = ann_df,
 
 # Upset plots
 
-Show overlap between hits at fdr cutoffs 0.1, 0.15 and 0.2.
+Show overlap between hits at fdr cutoffs 0.05, 0.1, 0.15 and 0.2.
+
+```{r}
+pt
+```
+
 
 ```{r, fig.width=8}
-for(i in seq(0.1, 0.2, by = 0.05)){
+for(i in seq(0.05, 0.2, by = 0.05)){
  sig_genes = lapply(res_list, function(x) x[x$fdr <= i,]$ensembl_gene_id)
+ 
+ #In a few cases, genes for which p value or fdr was NA will return NA
+ #Remove these
+ sig_genes <- lapply(sig_genes, function(x) x[!is.na(x)])
  names(sig_genes) = str_remove(names(sig_genes), "genewise_")
 
+ #Remove items for which nothing is significant at the current threshold
+ sig_genes <- sig_genes[unlist(lapply(sig_genes, function(x) length(x) > 0))]
+ 
+ #We need at least 2 left in order to make an upset plot.
+ if(length(sig_genes) < 2){next}
+ 
  print(upset(fromList(sig_genes), order.by = "freq", 
        #empty.intersections = "on",
        #nsets = length(sig_genes), 
        set_size.show = TRUE,
        mainbar.y.label = paste("Cox FDR cutoff", i),
-       sets.bar.color = "blue", 
-       main.bar.color = "black", 
-       set_size.scale_max = 1200,
+       #sets.bar.color = "blue", 
+       #main.bar.color = "black", 
+       set_size.scale_max = max(unlist(lapply(sig_genes, length))) + 125,
        sets.x.label = "Sig genes one vs rest comparisons") )
 }
-
-
 ```
+
+# Top 20 for every list:
+
+```{r}
+lapply(res_list, function(x) head(dplyr::select(x, gene_name:type), 20))
+```
+
 
 ```{r}
 sessionInfo()

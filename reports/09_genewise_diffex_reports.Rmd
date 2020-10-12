@@ -6,9 +6,10 @@ output:
   html_document:
     toc: yes
     toc_float: yes
-    toc_depth: 4
-    highlight: tango
     df_print: paged
+    theme: darkly
+    highlight: breezedark
+    canon: true
 ---
 
 ```{r, include=F}

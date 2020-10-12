@@ -3,12 +3,13 @@ title: "Gene unity setup"
 author: "Kat Moore"
 date: "`r Sys.Date()`"
 output: 
-   html_document:
+  html_document:
     toc: yes
     toc_float: yes
-    toc_depth: 4
-    highlight: tango
     df_print: paged
+    theme: darkly
+    highlight: breezedark
+    canon: true
 ---
 
 This notebook will unify the various differential expression and survival analyses to identify a list of interesting genes for discussion in the manuscript.
@@ -72,9 +73,12 @@ names(res_list)
 Number of hits per group:
 
 ```{r}
-lapply(res_list, function(x){
-  nrow(x[x$padj <= 0.05 & abs(x$log2FoldChange) > 0.5,])
-}) %>% unlist() %>% enframe("comparison", "significant genes")
+sapply(res_list, function(x){
+  x %>%
+    filter(padj <= 0.05 & abs(log2FoldChange) > 0.5) %>%
+    nrow()
+  #nrow(x[(x$padj <= 0.05 & abs(x$log2FoldChange) > 0.5),])
+}) %>% enframe("comparison", "significant genes")
 ```
 
 ### Important comparisons

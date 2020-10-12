@@ -13,7 +13,7 @@ library(tictoc)
 
 #sink("testingparalellel.txt")
 rm(list = ls())
-dds <- readRDS(file = here("data/Rds/05_dds_PAM50_batch.Rds"))
+dds <- readRDS(file = here("data/Rds/05b_dds_filtered.Rds"))
 
 print(design(dds))
 
@@ -30,14 +30,7 @@ blind_vst = function(dds){
 }
 
 #Whether to overwrite pre-existing results files
-overwrite <- F
-
-## Filtering
-
-#Require non-zero counts in 1/3 of the dataset.
-keep <- rowSums(counts(dds)!=0) >= ceiling(ncol(dds)/3)
-table(keep)
-dds <- dds[keep,]
+overwrite <- T
 
 #Create a version without the lactation group, as it has very few samples compared to the rest
 dds.nolac = dds[,colnames(dds)[colData(dds)$study_group != "ppbc_lac"]]

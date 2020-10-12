@@ -252,11 +252,22 @@ rule batch_effects:
     html="reports/05_batch_effects.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    
+rule min_count_threshold:
+  input:
+    script = "src/rmarkdown.R",
+    rmd = "reports/05b_minimum_count_threshold.Rmd",
+    dds = "data/Rds/05_dds_PAM50_batch.Rds"
+  output:
+    dds = "data/Rds/05b_dds_filtered.Rds",
+    html = "reports/05b_minimum_count_threshold.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
 #Setting the number of threads prevents unwanted parallelization    
 rule lrt_diffex:
   input:
-    dds="data/Rds/05_dds_PAM50_batch.Rds"
+    dds="data/Rds/05b_dds_filtered.Rds"
   output:
     "data/Rds/06_vsd.Rds",
     "data/Rds/06_vsd_nolac.Rds",
@@ -292,7 +303,7 @@ rule lrt_report:
   input:
     expand("data/Rds/06_{dds}.Rds", dds=dds_lrt),
     expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    dds="data/Rds/05_dds_PAM50_batch.Rds",
+    dds="data/Rds/05b_dds_filtered.Rds",
     #ImmPort database: https://www.innatedb.com/redirect.do?go=resourcesGeneLists
     immune_genes="data/external/gene-sets/InnateDB_genes.csv",
     gx_annot="data/metadata/01_tx_annot.tsv",
@@ -322,7 +333,7 @@ pairwise_apeglm = [
     
 rule diffex_pairwise:
   input:
-    dds="data/Rds/05_dds_PAM50_batch.Rds"
+    dds="data/Rds/05b_dds_filtered.Rds"
   output:
     pairwise_dds=expand("data/Rds/07_dds_pairwise_ref_{pw}.Rds", pw=pairwise_refs),
     apeglm_results=expand("data/Rds/07_ape_{pw}.Rds", pw=pairwise_apeglm)
@@ -368,7 +379,7 @@ ovr_comps = ["inv_vs_rest", "prbc_vs_rest", "lac_vs_rest", "nonprbc_vs_rest"]
      
 rule diffex_one_vs_rest:
   input:
-    dds="data/Rds/05_dds_PAM50_batch.Rds"
+    dds="data/Rds/05b_dds_filtered.Rds"
   output:
     dds_ovr=expand("data/Rds/08_dds_ovr_{comp}.Rds", comp=ovr_comps),
     ape_ovr=expand("data/Rds/08_ape_ovr_{comp}.Rds", comp=ovr_comps)
@@ -522,7 +533,8 @@ rule aggregate_genewise_survival:
     script="src/rmarkdown.R",
     rmd="reports/12b_aggregate_genewise_survival.Rmd"
   output:
-    html="reports/12b_aggregate_genewise_survival.html"
+    html="reports/12b_aggregate_genewise_survival.html",
+    coxres="results/survival/12_cox_allgenes.xlsx"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
@@ -739,10 +751,21 @@ enet_features=[
   "15c_all_inv_elastic_cox_features"
 ]
 
+inv_bf = [
+  "breastfeeding",
+  "involution"
+]
+
 rule diffex_involution:
   input:
     script="src/rmarkdown.R",
     rmd="reports/09_diffex_time_involution.Rmd",
+    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
+    vsd="data/Rds/08_vsd_ovr.Rds",
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
+    cp="data/Rds/color_palettes.Rds",
+    sp="data/Rds/survival_colors.Rds"
   output:
     html="reports/09_diffex_time_involution.html",
     dds="data/Rds/09_dds_involution_duration.Rds",
@@ -757,6 +780,12 @@ rule diffex_breastfeeding:
   input:
     script="src/rmarkdown.R",
     rmd="reports/09_diffex_breastfeeding_duration.Rmd",
+    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
+    vsd="data/Rds/08_vsd_ovr.Rds",
+    gx_annot="data/metadata/01_tx_annot.tsv",
+    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
+    cp="data/Rds/color_palettes.Rds",
+    sp="data/Rds/survival_colors.Rds"
   output:
     html="reports/09_diffex_time_breastfeeding.html",
     dds="data/Rds/09_dds_breastfeeding_duration.Rds",
@@ -772,7 +801,9 @@ rule gene_unity_setup:
     script="src/rmarkdown.R",
     rmd="reports/16_gene_unity_setup.Rmd",
     diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
-    gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
+    invbf_diffex=expand("results/diffex/09_diffex_{result}_duration.xlsx", result=inv_bf),
+    #gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
+    gw_surv="results/survival/12_cox_allgenes.xlsx",
     int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
     efeat=expand("results/survival/{feat}.xlsx", feat=enet_features),
     subdiffex=expand("{dir}/14_subgroup_diffex_{comp}_allgenes.xlsx", comp=sub_diffex, dir=diffex_dir),

@@ -53,22 +53,13 @@ shrinkRes <- function(dds, contrast, type="apeglm"){
 #### Load data ----
 
 #dds with filtering and one vs rest groups pre-defined, see notebook 8
-dds <- readRDS(here("data","Rds","05_dds_PAM50_batch.Rds"))
+dds <- readRDS(here("data/Rds/05b_dds_filtered.Rds"))
 print(paste(nrow(dds), "genes in dataset"))
 
 design(dds) <- ~batch + PAM50 + study_group
 
 print("Design formula:")
 print(design(dds))
-
-# Filtering
-#Minimum threshold is a nonzero count in at least a 3rd of all samples
-
-keep <- rowSums(counts(dds)!=0) >= ceiling(ncol(dds)/3)
-table(keep)
-
-#Keep the rest
-dds <- dds[keep,]
 
 #### Pairwise comparisons ----
 
@@ -87,7 +78,7 @@ dds <- dds[keep,]
 #either change the levels of dds$condition or replace the design using design(dds)<-,
 #then run nbinomWaldTest followed by lfcShrink.
 
-overwrite <- F
+overwrite <- T
 
 #Set up the possible comparisons
 combos <- t(combn(levels(dds$study_group), 2))

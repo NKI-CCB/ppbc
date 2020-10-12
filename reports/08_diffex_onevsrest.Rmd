@@ -6,9 +6,10 @@ output:
   html_document:
     toc: yes
     toc_float: yes
-    toc_depth: 4
-    highlight: tango
     df_print: paged
+    theme: darkly
+    highlight: breezedark
+    canon: true
 ---
 
 ```{r, include=F}
@@ -157,13 +158,11 @@ A log2 fold change cutoff of 0.5 is equivalent to 1.414.
 #vsd$PPBC = recode(vsd$inv_vs_rest,"ppbc_inv" = "involuting" )
 ```
 
-TODO:
-This should give the heatmap we want, but it is instead incorrectly mapping colors to the PPBC scheme (and only that scheme)
-
-Colors that get passed to complex heatmap:
-involuting = "#46CDCF", rest = "#F73859" 
-Colors that complex heatmap is actually plotting:
-involuting ="#46CDCFFF", rest = "#F73859FF" 
+```{r, include=F, eval=F}
+#Colors that get passed to complex heatmap:
+#involuting = "#46CDCF", rest = "#F73859" 
+#Colors that complex heatmap is actually plotting:
+#involuting ="#46CDCFFF", rest = "#F73859FF" 
 
 rep_inv_rest = deseq_report(ape_inv_rest, dds=dds, absl2fc = 0.5, 
                             variance_stabilized_dds = vsd,
@@ -175,7 +174,8 @@ rep_inv_rest = deseq_report(ape_inv_rest, dds=dds, absl2fc = 0.5,
                             beehive_groups = "comparison",
                             title = "Involution vs rest")
 
-For now, we use an alternate call that prints all of the levels of PPBC in the heatmap.
+#For now, we use an alternate call that prints all of the levels of PPBC in the heatmap.
+```
 
 ```{r}
 dds$death <- dds$overall_survival

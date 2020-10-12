@@ -6,9 +6,10 @@ output:
   html_document:
     toc: yes
     toc_float: yes
-    toc_depth: 4
-    highlight: tango
     df_print: paged
+    theme: darkly
+    highlight: breezedark
+    canon: true
 ---
 
 ```{r}
@@ -201,7 +202,7 @@ deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = study_group_or
 
 ## K-means
 
-```{r, fig.height=6, fig.width=10}
+```{r, fig.height=8, fig.width=10}
 set.seed(1)
 
 deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = study_group_orig),
@@ -211,11 +212,12 @@ deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = study_group_or
 
 ```
 
-```{r, fig.height=7, fig.width=10}
+```{r, fig.height=8, fig.width=10}
 set.seed(1)
 
 inv.hm = deseq_heatmap(mat = geneEx, sampledata = sd,#mutate(sd, study_group = inv_vs_rest),
               sig_results = sig.invr, title = "Significant DEGs from involution vs rest, K-means clustering",
+              maxn_rownames = Inf,
               #groups_to_plot =c("ppbc_inv", "rest"),
               column_km=3, row_km = 3)
 
@@ -696,6 +698,8 @@ surv <- right_join(surv,
            by = "sample_name") %>%
   filter(!is.na(patient_ref))
 
+surv <- as.data.frame(surv)
+
 saveRDS(surv, here("data/Rds/11_ig_survdata.Rds"))
 ```
 
@@ -730,24 +734,32 @@ Basal and Her2 are spread among them, but Lum A and B are almost universally low
 table(sd$PAM50, sd$IG_cluster)
 ```
 
-```{r, fig.width=10}
-
-  ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PAM50 + IG, data = surv), 
+```{r}
+for (i in unique(surv$PAM50)){
+  j <- surv[surv$PAM50 == i, ]
+  f <- survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PAM50 + IG, data = j)
+  colors <- cp$tertile_colors
+  names(colors) <- names(f$strata)
+  
+  p <- ggsurvplot(
+    fit = f, 
     xlab = "Months", 
     ylab = "Overall survival probability",
-    title = "IG clusters faceted by PAM50",
-    palette = cp$tertile_colors,
+    title = paste("IG clusters faceted by PAM50:",i),
+    palette = colors,
     pval = T,
     ggtheme = theme_bw(), 
-    facet.by = "PAM50")
-
+    #facet.by = "PPBC" #No longer working
+    )
+  print(p)
+}
 
 ```
 
 ### KM IG clusters, facet by study group
 
 ```{r, fig.width=8}
+#No longer works
 sg_ig <-  ggsurvplot(
     fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PPBC + IG, data = surv), 
     xlab = "Months", 
@@ -759,11 +771,31 @@ sg_ig <-  ggsurvplot(
     facet.by = "PPBC")
 
 sg_ig
+ggsave(file = here("results", "survival", "11_IG_clusters_by_study_group.pdf"), print(sg_ig), width = 8, height=6)
 ```
 
+```{r, eval=F, include=F}
+#Workaround for when facet.by breaks down
+for (i in unique(surv$PPBC)){
+  j <- surv[surv$PPBC == i, ]
+  f <- survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PPBC + IG, data = j)
+  colors <- cp$tertile_colors
+  names(colors) <- names(f$strata)
+  
+  p <- ggsurvplot(
+    fit = f, 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = paste("IG clusters faceted by PPBC:",i),
+    palette = colors,
+    pval = T,
+    ggtheme = theme_bw(), 
+    #facet.by = "PPBC" #No longer working
+    )
+  print(p)
+}
 
-```{r}
-ggsave(file = here("results", "survival", "11_IG_clusters_by_study_group.pdf"), print(sg_ig), width = 8, height=6)
+
 ```
 
 ### KM study group, faceted by IG cluster
@@ -781,6 +813,28 @@ ggsurvplot(
 
 
 ```
+
+```{r, fig.height = 5, fig.width=8, eval=F, include=F}
+#Workaround for when facet.by breaks down
+for (i in unique(surv$IG)){
+  j <- surv[surv$IG == i, ]
+  f <- survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PPBC + IG, data = j)
+  colors <- ppbc_colors
+  names(colors) <- names(f$strata)
+  
+  p <- ggsurvplot(
+    fit = f, 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = paste("Study group by IG cluster:",i),
+    palette = colors,
+    pval = T,
+    ggtheme = theme_bw()
+    )
+  print(p)
+}
+```
+
 
 ### Multivariate Cox
 

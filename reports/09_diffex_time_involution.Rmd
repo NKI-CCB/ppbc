@@ -6,9 +6,10 @@ output:
   html_document:
     toc: yes
     toc_float: yes
-    toc_depth: 4
-    highlight: tango
     df_print: paged
+    theme: darkly
+    highlight: breezedark
+    canon: true
 ---
 
 
@@ -145,7 +146,7 @@ design(dds) <- ~batch + PAM50 + involution_duration
 
 ```{r DESeq}
 ddsfile = here("data/Rds/09_dds_involution_duration.Rds")
-overwrite = F
+overwrite <- T
 
 if(file.exists(ddsfile) == F | overwrite == T){
   tic()

@@ -3,12 +3,13 @@ title: "Genewise survival report"
 author: "Kat Moore"
 date: "`r Sys.Date()`"
 output: 
-   html_document:
+  html_document:
     toc: yes
     toc_float: yes
-    toc_depth: 4
-    highlight: tango
     df_print: paged
+    theme: darkly
+    highlight: breezedark
+    canon: true
 params:
   survival_results:  
     value: "/DATA/share/postpartumbc/data/Rds/12_inv_multi_genewise_drs.Rds"
