@@ -9,7 +9,7 @@ gene = "UBD"
 projDir <- "/DATA/share/postpartumbc"
 Rmd <- file.path(projDir, "reports/17_gene_report_template.Rmd")
 stopifnot(file.exists(Rmd))
-overwrite = F
+overwrite = T
 
 outdir=here("reports/gene_reports")
 dir.create(outdir, showWarnings = F)

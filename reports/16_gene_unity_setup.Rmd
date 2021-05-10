@@ -35,6 +35,88 @@ theme_set(theme_bw())
 We aggregate all of the previous results for summary and print the number of significant hits per analysis (where applicable).
 The output can be used to produce individual gene reports.
 
+# Count and metadata {.tabset}
+
+In this tabset, raw results are loaded and processed for use elsewhere (shinyApp).
+Click on the tabs if you want to inspect the data.
+
+## Counts
+
+Raw counts:
+
+```{r}
+dds = readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
+```
+
+## Annotation
+
+Gene annotation:
+
+```{r}
+gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot = gx_annot %>%
+  select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>%
+  distinct() %>%
+  mutate(description = str_remove_all(description, " \\[.*\\]"))
+
+head(gx_annot)
+```
+
+A larger gene annotation data frame that includes uniprot and entrez ids, for webscraping:
+
+```{r}
+bx_annot <- readRDS(here("shinyApp","VisualizePPBCgene","data","app_gx_annot.Rds"))
+head(bx_annot)
+```
+
+## Transposed matrix for Cox regressions
+
+Also created in notebook 12. Gene expression columns are TMM-log2 normalized.
+
+```{r}
+coxdata = readRDS(here("data", "Rds", "12_coxdata.Rds"))
+colnames(coxdata)[1:30]
+```
+
+## Involution vs rest encoding
+
+```{r}
+coxdata$involution = as.numeric(coxdata$study_group == "ppbc_inv")
+
+coxdata = coxdata %>% select(sample_name:study_group, involution, everything())
+
+table(coxdata$involution, coxdata$PPBC)
+```
+
+## Sample data
+
+Separate data frame containing exclusively the sample data without gene expression.
+
+```{r}
+genecol = which(colnames(coxdata)=="ENSG00000000003")
+sample_data = coxdata[,1:(genecol - 1)]
+
+head(sample_data)
+```
+
+## Gene expression df
+
+For plotting
+
+```{r}
+geneEx = rownames_to_column(as.data.frame(coxdata[,genecol:ncol(coxdata)]),"sample_name")
+
+head(geneEx[,1:10])
+
+```
+In gene x sample format:
+
+```{r}
+ens_mat <- t(coxdata[,genecol:ncol(coxdata)])
+#dim(ens_mat)
+ens_mat[1:10,1:10]
+```
+
 # Diffex results
 
 Divided into three sections:
@@ -77,9 +159,28 @@ sapply(res_list, function(x){
   x %>%
     filter(padj <= 0.05 & abs(log2FoldChange) > 0.5) %>%
     nrow()
-  #nrow(x[(x$padj <= 0.05 & abs(x$log2FoldChange) > 0.5),])
+  #nrow(x[(x$padj <= 0.05 & abs(x$log2FoldChange) > 0.5 & !is.na(x$padj) & !is.na(x$log2FoldChange)),])
 }) %>% enframe("comparison", "significant genes")
 ```
+
+Sanity check: Ensure that the number of genes matches the minimum count filter.
+The "vs_rest" comparisons start with a few duplicates because we included an `hgnc_symbol` in those data frames.
+Some genes have more than one hgnc symbol per ensembl gene id, which results in duplicates.
+
+```{r}
+min.counts = nrow(dds)
+min.counts
+
+#Compute the results of vs_rest separately because they have an extra column
+stopifnot(unique(c(
+  sapply(res_list[!str_detect(names(res_list), "vs_rest")], nrow),
+  sapply(res_list[str_detect(names(res_list), "vs_rest")], function(x) {
+    x %>% select(-hgnc_symbol) %>%
+      distinct() %>% nrow()
+  })
+)) == min.counts)
+```
+
 
 ### Important comparisons
 
@@ -151,15 +252,16 @@ sub_reslist <- lapply(sub_reslist, function(x){
 })
 ```
 
-
 Hits per subgroup:
 
 ```{r}
-lapply(sub_reslist, function(y){
+sapply(sub_reslist, function(y){
   sapply(c("Basal", "Her2", "LumA", "LumB"),
          function(x) {
            sub = y[y$subgroup == x,]
-           nrow(sub[sub$padj <= 0.05 & abs(sub$log2FoldChange) > 0.5,])
+           sub %>% dplyr::filter(padj <= 0.05 & abs(log2FoldChange) > 0.5) %>% nrow()
+           #Will not discard NAs:
+           #nrow(sub[sub$padj <= 0.05 & abs(sub$log2FoldChange) > 0.5,])
          })
 })
 
@@ -195,6 +297,20 @@ invbf_reslist <- list.files(here("results/diffex"),
 invbf_reslist %>%
   select(diffex_duration, ref, group) %>% distinct()
 ```
+
+Count threshold sanity check:
+
+```{r}
+stopifnot(
+  unique(
+    pull(
+      count(group_by(
+        distinct(select(invbf_reslist, -hgnc_symbol)),
+        diffex_duration)),n)
+    ) == min.counts
+  ) 
+```
+
 
 Hits in each group (NAs are due to DESeq outlier handling:)
 
@@ -265,6 +381,13 @@ gw_surv = gw_surv %>%
   ))
 
 ```
+
+Count threshold sanity check:
+
+```{r}
+stopifnot(min.counts == length(unique(gw_surv$ensembl_gene_id)))
+```
+
 
 Top 50 hits on each model:
 
@@ -359,14 +482,21 @@ sapply(unique(int_surv$analysis), function(x){
   set_colnames(seq(0.05, 0.3, by = 0.05))
 ```
 
-Most hits in multivariate drs:
+We have a few hits below fdr 0.05:
 
 ```{r}
 int_surv %>%
-  filter(model == "multiDRS_Inv:Gene") %>%
-  arrange(fdr) %>% filter(fdr <= 0.2)  
+  filter(fdr <= 0.05) %>%
+  arrange(fdr)
 ```
 
+Quite a lot more for multiDRS below 0.1:
+
+```{r}
+int_surv %>%
+  filter(model == "multiDRS_Inv:Gene" & fdr <= 0.1) %>%
+  arrange(fdr)
+```
 
 # Elastic net Cox
 
@@ -398,31 +528,33 @@ enet.pvals =
   select(samples, outcome, input, everything()) %>%
   mutate(tstat = signif(tstat, 2))
 
-enet.pvals
+#enet.pvals
 ```
 
-Results for overall survival only:
+Results for overall survival:
 
 ```{r}
 enet.pvals %>% filter(outcome == "overall survival")
 ```
-Results for distant recurrence only:
+Results for distant recurrence:
 
 ```{r}
 enet.pvals %>% filter(outcome == "distant recurrence")
 ```
 
 Models predicting *distant recurrence* generally perform better than those predicting overall survival.
-We can see that the model performs better on *involution samples only* than it does on all samples.
-For os, limiting input to the top 5000 most variable genes improves performance.
-For drs, all genes perform almost as well as the top variable genes.
 
-Based on this, and because we are particular interested in genes that are responsible for the poor outcome in involution,
-the reporting here is limited to features from the involution-only analyses.
+We can see that the model performs substantially better when predicting *distant recurrence* on *involution samples only* than it does on all samples. Performance is roughly equivalent when using the top 1000 or the top 5000 genes.
 
-We also focus on reporting results from the model trained on the top 5000 most variable genes.
-For OS, the model is substantially better with top 5000 than with top 1000 or all genes.
-For DRS, the model is roughly equivalent in perforamnce regardless of input, so we lose nothing by focusing on top 5000.
+For *overall survival*, correlation is similar when using all samples as input vs involution only, but the p value when looking at involution samples only is not significant. By contrast, the p value is significant for DRS in involution samples, regardless of how many genes are use as input. Top 1000 is slightly better than top 5000, but not by much.
+
+It is perhaps strange that we can predict overall survival better in all samples that we can in involution samples specifically, whereas we can predict distant recurrence better in involution samples than we can in all samples...
+
+So which set of results should we focus on?
+The main problem with using the top1000 is that there are a lot of genes with large coefficients, i.e. large effect sizes, that simply aren't among the top most variant genes. These genes are highly predictive in spite of having a smaller variance and are more consistently selected in all of the folds, as we will see in the visualizations in the next section of this notebook.
+
+Since none of the overall survival models perform very well on involution samples, and the performance of distant recurrence models is roughly equivalent between top1000 and top5000, I suggest we *focus primarily upon the top5000 DRS*.
+
 
 ```{r}
 read_excel_tabs = function(path){
@@ -437,6 +569,8 @@ append(read_excel_tabs(here("results/survival", "15b_inv_elastic_cox_features.xl
        read_excel_tabs(here("results/survival", "15c_all_inv_elastic_cox_features.xlsx")))
 ```
 
+Overall survival features, selected in at least 30/50 models:
+
 ```{r}
 glm_df = glm_features %>%
   bind_rows(.id = "input") %>%
@@ -448,7 +582,27 @@ glm_df = glm_features %>%
     str_detect(input, "5000") ~ "5000",
     str_detect(input, "all") ~ "all",
   ))
-glm_df %>% filter(n > 40) %>%
+
+glm_df %>% filter(n > 30 & str_detect(input, "os")) %>%
+  arrange(desc(n), desc(abs(mean_beta)))
+```
+Distant recurrence features, selected in at least 30/50 models:
+
+```{r}
+glm_df %>% filter(n > 30 & str_detect(input, "drs")) %>%
+  arrange(desc(n), desc(abs(mean_beta)))
+```
+
+Clearly feature selection is much more stable in distant recurrence models.
+
+Which genes are good features but aren't in the top 5000 most variable genes?
+
+```{r}
+var5000 <- glm_df %>% filter(n > 30 & !str_detect(input, "all")) %>%
+  arrange(desc(n), desc(abs(mean_beta))) %>% pull(ensembl_gene_id)
+
+glm_df %>% filter(n > 30 & str_detect(input, "all")) %>%
+  filter(!ensembl_gene_id %in% var5000) %>%
   arrange(desc(n), desc(abs(mean_beta)))
 ```
 
@@ -518,6 +672,14 @@ glm_df %>%
   geom_vline(xintercept = 0, linetype = "dashed", color = "gray")
 ```
 
+OS:
+
+```{r}
+glm_df %>%
+  filter(input == "os1000")
+```
+
+
 ### Top 5000
 
 ```{r, fig.height = 8}
@@ -557,88 +719,15 @@ glm_df %>%
 ## Haplotype specificity
 
 Depending on the haplotype, MARVELD2 can be either protective or negative for DRS.
-This may be true for other genes as well
+This may be true for other genes as well.
+
+Bear in mind that the protective variant of MARVELD2 (ENSG00000274671) is not among the top 1000 most variant genes, although it is highly predictive of outcome in other models.
 
 ```{r}
 glm_df %>%
   #filter(outcome == "distant recurrence") %>%
   filter(feature == "MARVELD2") %>%
   arrange(desc(n))
-```
-
-# Count and metadata {.tabset}
-
-Raw counts:
-
-```{r}
-dds = readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
-```
-
-Gene annotation:
-
-```{r}
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
-gx_annot = gx_annot %>%
-  select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>%
-  distinct() %>%
-  mutate(description = str_remove_all(description, " \\[.*\\]"))
-
-head(gx_annot)
-```
-
-A larger gene annotation data frame that includes uniprot and entrez ids, for webscraping:
-
-```{r}
-bx_annot <- readRDS(here("shinyApp","VisualizePPBCgene","data","app_gx_annot.Rds"))
-head(bx_annot)
-```
-
-## Transposed matrix for Cox regressions
-
-Also created in notebook 12. Gene expression columns are TMM-log2 normalized.
-
-```{r}
-coxdata = readRDS(here("data", "Rds", "12_coxdata.Rds"))
-colnames(coxdata)[1:30]
-```
-
-## Involution vs rest encoding
-
-```{r}
-coxdata$involution = as.numeric(coxdata$study_group == "ppbc_inv")
-
-coxdata = coxdata %>% select(sample_name:study_group, involution, everything())
-
-table(coxdata$involution, coxdata$PPBC)
-```
-
-## Sample data
-
-Separate data frame containing exclusively the sample data without gene expression.
-
-```{r}
-genecol = which(colnames(coxdata)=="ENSG00000000003")
-sample_data = coxdata[,1:(genecol - 1)]
-
-head(sample_data)
-```
-
-## Gene expression df
-
-For plotting
-
-```{r}
-geneEx = rownames_to_column(as.data.frame(coxdata[,genecol:ncol(coxdata)]),"sample_name")
-
-head(geneEx[,1:10])
-
-```
-In gene x sample format:
-
-```{r}
-ens_mat <- t(coxdata[,genecol:ncol(coxdata)])
-#dim(ens_mat)
-ens_mat[1:10,1:10]
 ```
 
 ```{r}

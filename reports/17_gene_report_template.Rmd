@@ -148,9 +148,6 @@ Because the genewise models run on involution samples only yielded no fdr-signif
 Available genewise models:
 
 ```{r}
-#TODO fix the "analysis" column - incorrect regex in notebook 12
-#gw_surv$analysis %>% unique()
-#Formula plus outcome gives correct result
 paste(gw_surv$formula, gw_surv$outcome) %>% unique()
 ```
 

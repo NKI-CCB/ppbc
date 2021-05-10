@@ -3,15 +3,16 @@ title: "To do"
 output: html_document
 ---
 
-* Fix the "analysis" column for genewise reports (notebook 12)
+Change count threshold to higher one below:
+
+Will require changing all references to this file:
+readRDS(file = here("data/Rds/05_dds_PAM50_batch.Rds"))
+
+
 * Better handling of multiple ensembl IDs with gene reports
 * Update app to include new analyses
-* Add univariate interaction models and diffex involution/breastfeeding duration to genewise reports
-* Look at clonality in combination with mortality (TRUST algorithm) [Clonality had a much stronger association with survival: the combination of high immunoglobulin expression (that is, numerous plasma cells at the site) and low clonality, which could be interpreted as absence of a distinct antigen-specific response, resulted in an equally poor prognosis as low immunoglobulin expression, while low immunoglobulin expression and high clonality resulted in an average prognosis.](https://www.nature.com/articles/s41577-019-0257-x#Tab2)
-(Requires bam files in original version, can we skip with TRUST4? Difficulty installing so far - check Singularity distro)
-* Look at MCP with survival
+* Look at MCP/XCell with survival
 * Mountain plots for Flexgsea (low priority)
-* CLIC2
 
 
 ## Odds & ends

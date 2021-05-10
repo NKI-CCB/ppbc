@@ -95,7 +95,7 @@ ui <- fluidPage(
                             br(),
                             tags$code("survival ~ age + year of diagnosis + stage + grade + treatment + PAM50 + gene"),
                             br(),
-                            "Displayed is the p value for the gene covariate, corrected for multiple testing across the entire dataset (~31K genes).",
+                            "Displayed is the p value for the gene covariate, corrected for multiple testing across the entire dataset (~22K genes).",
                             br(),
                             br(),
                             "By contrast, interaction-type models seek to identify genes that behave differently in the involution patients",

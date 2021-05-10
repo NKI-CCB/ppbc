@@ -244,7 +244,7 @@ inv.hm = draw(inv.hm)
 ```
 
 
-```{r, collapse=T}
+```{r, collapse=F}
 #row_order(inv.hm)
 #column_order(inv.hm) #Shows that `3` is high, `2` is medium and `1` is low
 lapply(column_order(inv.hm), length)
