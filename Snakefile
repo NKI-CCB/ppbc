@@ -10,10 +10,7 @@ configfile: "config.yaml"
 
 rule all:
   input:
-    "reports/16_gene_unity_report.html",
-    #expand("data/RAW/{sample}.fastq.gz", sample=config['samples']),
-    expand("data/TRUST/TRUST_{sample}_report.tsv", sample=config['samples']),
-    #"dag.svg"
+    "reports/16_gene_unity_setup.html"
     #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
 
 rule fastqc:
