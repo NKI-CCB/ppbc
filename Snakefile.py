@@ -1,5 +1,13 @@
 configfile: "config.yaml"
 
+# general use:
+# -j designates thread number
+# -s indicates non-default Snakefile name
+# Use -np for dry run
+# snakemake {rule or file output} -s Snakefile.py -j 8
+# Example:
+# snakemake -np gene_reports -s Snakefile.py -j 8
+
 #### Conda and Snakemake ####
 #To activate conda environment, use: conda env create -f envs/environment.yml
 #If environment.yml has been updated, update the environment with: conda env update --prefix ./envs --file environment.yml  --prune
@@ -852,9 +860,6 @@ rule trust:
     for f in `ls data/RAW/*.R1.fastq.gz`; do basefile="$(basename -- $f)"; {input.trust} -u $f -t {params.threads} -f {input.bcrtcrfa} --ref {input.imgt} -o {params.outdir}$basefile; done
     """
 
-#Why doesn't this work???
-#fq=lambda wildcards: config["samples"][wildcards.sample],
-#{input.trust} -u {input.fq} -t {params.threads} -f {input.bcrtcrfa} --ref {input.imgt} -o {params.outdir}{input.fq}    
 
 rule trust_report:
   input:
