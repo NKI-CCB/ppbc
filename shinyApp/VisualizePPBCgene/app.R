@@ -176,8 +176,7 @@ ui <- fluidPage(
                        ),
                        br(),
                        "For all methods, the apeglm method was used for fold change shrinkage.",
-                       "Only genes which pass the minimum count threshold were considered.",
-                       "(Nonzero count in 1/3 of dataset.)"
+                       "Only genes which pass the minimum count threshold were considered."
                      ),
                      hr(),
                      tableOutput("diffex_report") %>% shinycssloaders::withSpinner(),
