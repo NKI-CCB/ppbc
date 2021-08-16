@@ -16,6 +16,7 @@ Rplots.pdf
 .Rhistory
 z
 to_do.nb.html
+to_do.Rmd
 
 *.RData
 *.Rdata
@@ -28,18 +29,16 @@ to_do.nb.html
 *.pdf
 
 renv/
-reports/dec2018
-reports/multiqc_data
-reports/unused
+reports/archive/
+reports/multiqc_data/
 reports/*.tar.xy
-reports/includes_tumorpurity_design
-reports/Iamtest.Rmd
-reports/gene_reports
+reports/gene_reports/
 src/*test*
 src/lambda_score_example.R
 *scratch*
 src/dec2018_samples/
 src/NMF.R
+spatial_example_code/
 
 shinyApp/*/data
 shinyApp/*/data_old
