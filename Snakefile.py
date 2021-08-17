@@ -1,5 +1,7 @@
 configfile: "config.yaml"
 
+# The Snakefile is given a .py extension so that we can see syntax highlighting in IDEs
+
 # general use:
 # -j designates thread number
 # -s indicates non-default Snakefile name
@@ -20,6 +22,8 @@ rule all:
   input:
     "reports/16_gene_unity_setup.html"
     #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
+
+### RNAseq analyses ###
 
 rule fastqc:
   input:
@@ -860,7 +864,6 @@ rule trust:
     for f in `ls data/RAW/*.R1.fastq.gz`; do basefile="$(basename -- $f)"; {input.trust} -u $f -t {params.threads} -f {input.bcrtcrfa} --ref {input.imgt} -o {params.outdir}$basefile; done
     """
 
-
 rule trust_report:
   input:
     #directory("data/TRUST"),
@@ -879,7 +882,8 @@ rule trust_report:
     html="reports/18_BCR_clonality.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"  
-    
+
+#Does not work as a rule but does work in shell directly, fixme    
 rule workflow_diagram:
   conda:
     "envs/environment.yml"
@@ -887,3 +891,23 @@ rule workflow_diagram:
     "snakemake --use-conda --dag | dot -Tsvg > dag.svg"
     #To view via shell: display dag.svg
     
+
+### Spatial analyses ###
+
+# The spatial analysis gets its own subdirectory in ./reports and within the data (sub)directories
+# Raw data is in ./data/vectra
+
+# Create a manageable data structure
+rule organize_vectra:
+  input:
+    #directory("data/vectra/Batch 3 Leuven (Batch 1 in HALO)"), #Raw data export
+    metadata="data/metadata/spatial/PPBC_sample_set.xlsx",
+    rmd="reports/spatial/00_organize_vectra_samples.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    #dir("data/vectra/symlinks"),
+    filedict="data/metadata/spatial/00_file_location_dictionary.csv",
+    html="reports/spatial/00_organize_vectra_samples.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+

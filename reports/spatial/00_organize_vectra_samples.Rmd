@@ -1,0 +1,516 @@
+---
+title: "Organize Vectra samples"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(tidyverse)
+library(XML)
+library(methods)
+```
+
+## Overview
+
+As of August 2021, there is only one batch "ready" to be processed. There are two panels.
+
+```{r}
+list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)"))
+```
+
+### Panel markers
+
+MPIF26 = CD3_CD20_CD27_FoxP3_PanCK
+MPIF27 = CD3_CD8_CD138_CD20_PanCK
+
+There are 21 samples in this batch, all of which are present in both panels. 
+
+```{r}
+list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26")) %>% length()
+all(list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26")) ==
+      list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF27")))
+```
+
+### Metadata
+
+All samples now have a T-number. The conversion back to the original sample names can be found here:
+
+```{r}
+meta <- readxl::read_excel(here("data/metadata/spatial/PPBC_sample_set.xlsx"))
+head(meta)
+```
+
+### Directory structure
+
+For every sample, the data is in a dated sub-directory.
+
+```{r}
+list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851"))
+```
+
+Basic stats are in `summary_results.csv`.
+
+```{r}
+read_csv(
+  here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851/summary_results.csv")
+)
+```
+
+Full results are in an `object_results.csv` file.
+
+```{r}
+read_csv(
+  here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851/T21-60303_I1_MPIF26_(CD3_CD20_CD27_FoxP3_PanCK)_LMS-5-7592052_Scan1_fuse.tif_208446_job113494.object_results.csv")
+) %>% head()
+
+
+```
+
+The image segmentations are in the Images directory with a .annotations extension: these are xml files. Unclear what the difference is between the two annotations files.
+
+```{r}
+list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851/Images"))
+```
+
+```{r, include=F}
+#The version without the job id:
+anno_ex <- here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851/Images/T21-60303_I1_MPIF26_(CD3_CD20_CD27_FoxP3_PanCK)_LMS-5-7592052_Scan1_fuse_208446.annotations")
+xmlParse(file = anno_ex) #%>%  xmlToList()
+
+#The two shapes seem to differ by the `NegativeROA` parameter.
+#NegativeROA = negative region of annotation, i.e. a polygon within a polygon that denotes a hole
+```
+
+```{r, include=F}
+#Parsing doesn't seem to work right with `xml2`.
+library(xml2)
+#read_xml(anno_ex) %>% xml_name()
+read_xml(anno_ex) %>% xml_children()
+
+#It goes a bit better as a list, but then we lose the name attributes
+anno_list <- read_xml(anno_ex) %>%
+  as_list()
+
+anno_list$Annotation$Annotation$Regions %>% length()
+#Maybe this is easier in python after all, come back to this later
+```
+
+## Potential problems
+
+After meeting with Iris Seignette in early Aug 2021, she highlighted a number of problems with these samples in the first batch.
+
+1) The sample numbering/nomenclature from Leuven is not what was expected. Some slides that are supposedly consecutive within the Z plane show radically different CD3+ cell abundance, more than expected from adjacent tissue (i.e 500% increase/decrease). These slides sometimes also do not stack visually when viewed in bright field (but sometimes they do; it depends). Leuven insist that consecutive numbers represent adjacent tissue, but sometimes there are multiple different slides with the same numbering, slides came out of order in the box, etc.
+
+2) PanCK+ bleedthrough into the CD20 channel due to unknown cause. It is NOT due to spectral overlap because of different cubes, yet there are nevertheless quite a few cells that are both CD20+ and PanCK+, which is biologically impossible. Incomplete washing/stripping is the most likely culprit, as PanCK was applied after all the other markers but before CD20. PanCK appears oversaturated throughout many slides. Iris' current solution has been to heuristically exclude double positive CD20+PanCK+ cells, but acknowledges that this approach is likely to result in many false negatives, i.e. real B cells that are incorrectly excluded because the PanCK has not completely washed off. She is not sure where to set the threshold exactly. To do: Examine CD20 and PanCK distributions via dotplot/histogram and look for a (hopefully bimodal) distribution that suggests a clear threshold.
+
+3) Apparently the Canadian batch came through with a bunch of weird stickers on them which has a residue that interfered with fluorescent intensity somehow. (No, I am not making this up.) Replacing the sticker with one of their standard stickers improved intensity for CD3 up to 300%. The Canadian slides also come on "mystery glass", which may or may not have an impact.
+
+## Process metadata
+
+```{r}
+meta <- readxl::read_excel(here("data/metadata/spatial/PPBC_sample_set.xlsx"), .name_repair = "universal")
+
+head(meta)
+```
+
+### Basic preprocessing
+
+Fix column names.
+
+```{r}
+colnames(meta) <- colnames(meta) %>%
+  tolower() %>%
+  str_replace_all("\\.", "_") %>%
+  str_replace("__", "_") %>%
+  str_replace("seg_", "seg")
+
+head(meta)
+```
+
+This Excel file was designed by humans for humans, with a bunch of colored fields and empty rows that contain only a header. These row headers can be found in the staining column.
+
+```{r}
+meta %>%
+  filter(!staining %in% c("MPIF26", "MPIF27"))
+
+#Remove these rows.
+
+meta <- meta %>%
+  filter(staining %in% c("MPIF26", "MPIF27"))
+```
+
+Most of the time, the T-number has only been filled in once for each panel. Sometimes a block ID has been filled into the empty space instead of NA. It's unclear why, but these samples clearly belong to the same ID.
+
+```{r}
+#Show the affected rows and the row that proceeds them
+meta[sort(c(which(str_detect(meta$extern_number, "Block")),
+  which(str_detect(meta$extern_number, "Block"))-1)),]
+
+#replace block with NA so we can fill in the correct IDs below
+meta$extern_number[which(str_detect(meta$extern_number, "Block"))] <- NA
+```
+
+Fix the NAs.
+
+```{r}
+meta <- meta %>%
+  fill(extern_batch, extern_number, t_number, .direction = "down")
+
+meta %>% head()
+```
+
+### Failed samples
+
+A number of analyses failed. These are marked with x.
+
+```{r}
+meta %>%
+  filter(annotations == "x") %>%
+  select(t_number, extern_number, batch_in_halo, annotations, comments) %>%
+  distinct()
+```
+
+### Duplicates
+
+We should have two samples per sample, but now we have more. These samples are mapped to more than two t-numbers.
+
+```{r}
+dups <- filter(count(group_by(meta, extern_number)), n!=2)$extern_number
+
+meta %>%
+  filter(extern_number %in% dups) %>%
+  arrange(extern_number) %>%
+  select(extern_number, t_number) %>%
+  distinct()
+```
+
+### Link to RNA data
+
+Link with RNAseq IDs and study_group etc. Note: the molecular subtypes as listed here are based on the clinical classification from Leuven. Also, some samples were later removed from the RNAseq analysis for QC reasons.
+
+```{r}
+combi_meta <- read_tsv(here("data/metadata/01_sample_annot.tsv")) %>%
+  select(sample_ref, patient_ref, sample_name, study_group, PPBC, country, clin_subtype = molecular_subtype,
+         stage=stage_short, grade, TIL_percent = TILprecent, age = age_diagnosis,
+         overall_survival, distant_recurrence, months_of_followup,
+         months_involution_breastfeeding, breastfeeding_months) %>%
+  left_join(meta, ., by = c("extern_number" = "sample_ref")) %>%
+  distinct()
+```
+
+There should be the same number of observations after joining with RNAseq data.
+
+```{r}
+stopifnot(nrow(combi_meta) == nrow(meta))
+```
+
+## File location dictionary
+
+The data structure is a mess. Let's look up the location of the relevant files so we can make symlinks later on.
+
+Reminder:
+
+MPIF26 = CD3_CD20_CD27_FoxP3_PanCK
+MPIF27 = CD3_CD8_CD138_CD20_PanCK
+
+First retrieve sample names
+
+```{r}
+filedict <- tibble(
+  t_number = list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26"))
+  )
+
+filedict %>% head()
+```
+
+### Object results
+
+MPIF26 object results.
+
+```{r}
+mainDir <- here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)")
+
+filedict <- sapply(filedict$t_number,
+       function(x){
+         list.files(file.path(mainDir, "MPIF26", x), recursive = T, full.names = T,
+                    pattern = ".object_results.csv")
+       }) %>%
+  enframe("t_number", "mpif26_object_results")
+```
+
+MPIF27 object results
+
+```{r}
+filedict <- sapply(filedict$t_number,
+       function(x){
+         list.files(file.path(mainDir, "MPIF27", x), recursive = T, full.names = T,
+                    pattern = ".object_results.csv")
+       }) %>%
+  enframe("t_number", "mpif27_object_results") %>%
+  left_join(filedict, ., by = "t_number")
+
+head(filedict)
+```
+
+### Summary results
+
+MPIF26
+
+```{r}
+filedict <- sapply(filedict$t_number,
+       function(x){
+         list.files(file.path(mainDir, "MPIF26", x), recursive = T, full.names = T,
+                    pattern = "summary_results.csv")
+       }) %>%
+  enframe("t_number", "mpif26_summary_results") %>%
+  left_join(filedict, ., by = "t_number")
+```
+
+MPIF27
+
+```{r}
+filedict <- sapply(filedict$t_number,
+       function(x){
+         list.files(file.path(mainDir, "MPIF27", x), recursive = T, full.names = T,
+                    pattern = "summary_results.csv")
+       }) %>%
+  enframe("t_number", "mpif27_summary_results") %>%
+  left_join(filedict, ., by = "t_number")
+```
+
+### Annotations files
+
+For every sample, two annotations files are present. One file has the job ID in the identifier, the other does not. For instance.
+
+```{r}
+lapply(filedict$t_number[1],
+       function(x){
+         list.files(file.path(mainDir, "MPIF26", x), recursive = T,
+                    pattern = ".annotations")
+       })
+```
+
+Unclear what the difference is. TODO: Fill in Iris' explanation once she responds to the email asking about it.
+
+MPIF26
+
+```{r}
+filedict <- sapply(filedict$t_number,
+       function(x){
+         list.files(file.path(mainDir, "MPIF26", x), recursive = T, full.names = T,
+                    pattern = ".annotations")[1]
+       }) %>%
+  enframe("t_number", "mpif26_job_annotations") %>%
+  left_join(., 
+            sapply(filedict$t_number,
+                   function(x){
+                     list.files(file.path(mainDir, "MPIF26", x), recursive = T, full.names = T,
+                                pattern = ".annotations")[2]
+                   }) %>%
+              enframe("t_number", "mpif26_annotations")
+  , by = "t_number") %>%
+  left_join(filedict, ., by = "t_number")
+
+head(filedict)
+```
+
+MPIF27
+
+```{r}
+filedict <- sapply(filedict$t_number,
+       function(x){
+         list.files(file.path(mainDir, "MPIF27", x), recursive = T, full.names = T,
+                    pattern = ".annotations")[1]
+       }) %>%
+  enframe("t_number", "mpif27_job_annotations") %>%
+  left_join(., 
+            sapply(filedict$t_number,
+                   function(x){
+                     list.files(file.path(mainDir, "MPIF27", x), recursive = T, full.names = T,
+                                pattern = ".annotations")[2]
+                   }) %>%
+              enframe("t_number", "mpif27_annotations")
+  , by = "t_number") %>%
+  left_join(filedict, ., by = "t_number")
+
+head(filedict)
+```
+
+### RNAseq sample names
+
+Also add sample name/patient ref for easier cross-referencing later.
+
+```{r}
+filedict <- filedict %>%
+  inner_join(., select(combi_meta, t_number, extern_number, sample_name), by = "t_number") %>%
+  relocate(extern_number:sample_name, .after = t_number) %>%
+  distinct()
+
+head(filedict)
+```
+
+
+## Create symlinks
+
+Create directory structure.
+
+```{r}
+dir.create(here("data/vectra/symlinks"), showWarnings = F)
+dir.create(here("data/vectra/symlinks/annotations"), showWarnings = F)
+dir.create(here("data/vectra/symlinks/objects"), showWarnings = F)
+dir.create(here("data/vectra/symlinks/summary"), showWarnings = F)
+```
+
+We'll be using the markers instead of the panel ID in the file name. This should allow selecting the panel via pattern searches.
+
+```{r}
+MPIF26 <- "CD3-CD20-CD27-FoxP3-PanCK"
+MPIF27 <- "CD3-CD8-CD138-CD20-PanCK"
+```
+
+### Object results
+
+Add symbolic links to file dictionary.
+
+```{r}
+symdir <- here("data/vectra/symlinks")
+
+filedict$sym_mpif26_object_results <- file.path(
+  symdir, "objects",
+  paste(filedict$t_number, MPIF26, "object_results.csv", sep = "_")
+)
+
+filedict$sym_mpif27_object_results <- file.path(
+  symdir, "objects", paste(filedict$t_number, MPIF27, "object_results.csv", sep = "_")
+  )
+```
+
+Create the symbolic links.
+
+```{r}
+#Will harmlessly give a "file exists" warning and return FALSE if already done
+suppressWarnings(file.symlink(
+  from = filedict$mpif26_object_results,
+  to = filedict$sym_mpif26_object_results
+))
+
+suppressWarnings(file.symlink(
+  from = filedict$mpif27_object_results,
+  to = filedict$sym_mpif27_object_results
+))
+```
+
+### Summary results
+
+Add symlinks to file dict.
+
+```{r}
+filedict$sym_mpif26_summary_results <- file.path(
+  symdir, "summary", paste(filedict$t_number, MPIF26, "summary_results.csv", sep = "_")
+  )
+
+filedict$sym_mpif27_summary_results <- file.path(
+  symdir, "summary", paste(filedict$t_number, MPIF27, "summary_results.csv", sep = "_")
+  )
+```
+
+
+Create the symlinks.
+
+```{r}
+#Will harmlessly give a "file exists" warning and return FALSE if already done
+suppressWarnings(file.symlink(
+  from = filedict$mpif26_summary_results,
+  to = filedict$sym_mpif26_summary_results
+))
+```
+
+```{r}
+suppressWarnings(file.symlink(
+  from = filedict$mpif27_summary_results,
+  to = filedict$sym_mpif27_summary_results
+))
+```
+
+### Annotations
+
+The annotation files that contain `job` in the file name appear to contain less info. Put these in their own subfolder. The files without that string go in the parent directory.
+
+```{r}
+dir.create(here(symdir, "annotations", "job_annotations"))
+```
+
+Add symlinks to file dict.
+
+```{r}
+filedict$sym_mpif26_annotations <- file.path(
+  symdir, "annotations", paste(filedict$t_number, MPIF26, "annotations.xml", sep = "_")
+  )
+
+filedict$sym_mpif27_annotations <- file.path(
+  symdir, "annotations", paste(filedict$t_number, MPIF27, "annotations.xml", sep = "_")
+  )
+```
+
+Create the symlinks
+
+```{r}
+#Will harmlessly give a "file exists" warning and return FALSE if already done
+suppressWarnings(file.symlink(
+  from = filedict$mpif26_annotations,
+  to = filedict$sym_mpif26_annotations
+))
+
+suppressWarnings(file.symlink(
+  from = filedict$mpif27_annotations,
+  to = filedict$sym_mpif27_annotations
+))
+```
+
+Now do the job annotations.
+
+```{r}
+filedict$sym_mpif26_job_annotations <- 
+file.path(
+  symdir, "annotations", "job_annotations", paste(filedict$t_number, MPIF26, "job_annotations.xml", sep = "_")
+  )
+
+filedict$sym_mpif27_job_annotations <- 
+file.path(
+  symdir, "annotations", "job_annotations", paste(filedict$t_number, MPIF27, "job_annotations.xml", sep = "_")
+  )
+```
+
+```{r}
+#Will harmlessly give a "file exists" warning and return FALSE if already done
+suppressWarnings(file.symlink(
+  from = filedict$mpif26_job_annotations,
+  to = filedict$sym_mpif26_job_annotations
+))
+
+suppressWarnings(file.symlink(
+  from = filedict$mpif27_job_annotations,
+  to = filedict$sym_mpif27_job_annotations
+))
+```
+
+## Write file dictionary
+
+Contains original file location and symlink path for all of the result types.
+
+```{r}
+write_csv(filedict, here("data/metadata/spatial/00_file_location_dictionary.csv"))
+```
+
+```{r}
+sessionInfo()
+```
