@@ -213,6 +213,13 @@ There should be the same number of observations after joining with RNAseq data.
 stopifnot(nrow(combi_meta) == nrow(meta))
 ```
 
+### Write metadata
+
+```{r}
+write_csv(combi_meta, here("data/metadata/spatial/00_vectra_metadata.csv"))
+```
+
+
 ## File location dictionary
 
 The data structure is a mess. Let's look up the location of the relevant files so we can make symlinks later on.
@@ -370,12 +377,6 @@ dir.create(here("data/vectra/symlinks/objects"), showWarnings = F)
 dir.create(here("data/vectra/symlinks/summary"), showWarnings = F)
 ```
 
-We'll be using the markers instead of the panel ID in the file name. This should allow selecting the panel via pattern searches.
-
-```{r}
-MPIF26 <- "CD3-CD20-CD27-FoxP3-PanCK"
-MPIF27 <- "CD3-CD8-CD138-CD20-PanCK"
-```
 
 ### Object results
 
@@ -386,11 +387,11 @@ symdir <- here("data/vectra/symlinks")
 
 filedict$sym_mpif26_object_results <- file.path(
   symdir, "objects",
-  paste(filedict$t_number, MPIF26, "object_results.csv", sep = "_")
+  paste(filedict$t_number, "MPIF26", "batch1", "object_results.csv", sep = "_")
 )
 
 filedict$sym_mpif27_object_results <- file.path(
-  symdir, "objects", paste(filedict$t_number, MPIF27, "object_results.csv", sep = "_")
+  symdir, "objects", paste(filedict$t_number, "MPIF27","batch1", "object_results.csv", sep = "_")
   )
 ```
 
@@ -415,11 +416,11 @@ Add symlinks to file dict.
 
 ```{r}
 filedict$sym_mpif26_summary_results <- file.path(
-  symdir, "summary", paste(filedict$t_number, MPIF26, "summary_results.csv", sep = "_")
+  symdir, "summary", paste(filedict$t_number, "MPIF26","batch1", "summary_results.csv", sep = "_")
   )
 
 filedict$sym_mpif27_summary_results <- file.path(
-  symdir, "summary", paste(filedict$t_number, MPIF27, "summary_results.csv", sep = "_")
+  symdir, "summary", paste(filedict$t_number, "MPIF27","batch1", "summary_results.csv", sep = "_")
   )
 ```
 
@@ -453,11 +454,11 @@ Add symlinks to file dict.
 
 ```{r}
 filedict$sym_mpif26_annotations <- file.path(
-  symdir, "annotations", paste(filedict$t_number, MPIF26, "annotations.xml", sep = "_")
+  symdir, "annotations", paste(filedict$t_number, "MPIF26","batch1", "annotations.xml", sep = "_")
   )
 
 filedict$sym_mpif27_annotations <- file.path(
-  symdir, "annotations", paste(filedict$t_number, MPIF27, "annotations.xml", sep = "_")
+  symdir, "annotations", paste(filedict$t_number, "MPIF27","batch1", "annotations.xml", sep = "_")
   )
 ```
 
@@ -481,12 +482,12 @@ Now do the job annotations.
 ```{r}
 filedict$sym_mpif26_job_annotations <- 
 file.path(
-  symdir, "annotations", "job_annotations", paste(filedict$t_number, MPIF26, "job_annotations.xml", sep = "_")
+  symdir, "annotations", "job_annotations", paste(filedict$t_number, "MPIF26","batch1", "job_annotations.xml", sep = "_")
   )
 
 filedict$sym_mpif27_job_annotations <- 
 file.path(
-  symdir, "annotations", "job_annotations", paste(filedict$t_number, MPIF27, "job_annotations.xml", sep = "_")
+  symdir, "annotations", "job_annotations", paste(filedict$t_number, "MPIF27","batch1", "job_annotations.xml", sep = "_")
   )
 ```
 
