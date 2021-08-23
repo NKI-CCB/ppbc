@@ -1,0 +1,203 @@
+---
+title: "QC Checks"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(tidyverse)
+library(car)
+library(ggpubr)
+
+theme_set(theme_bw())
+```
+
+```{r}
+filedict <- read_csv(here("data/metadata/spatial/00_file_location_dictionary.csv"))
+```
+
+## Summary files
+
+Combine all summary files together for each panel.
+
+MPIF26 = CD3_CD20_CD27_FoxP3_PanCK
+MPIF27 = CD3_CD8_CD138_CD20_PanCK
+
+```{r, echo =F}
+read_fn <- function(file, trim_string = here("data/vectra/symlinks/summary/")) {
+    read_csv(file) %>% 
+        mutate(filename = str_remove(file, trim_string))
+}
+
+summary1 <-
+    list.files(here("data/vectra/symlinks/summary"), 
+               full.names = T, pattern = "MPIF26") %>% 
+    map_df(~read_fn(.))
+
+summary2 <-
+    list.files(here("data/vectra/symlinks/summary"), 
+               full.names = T, pattern = "MPIF27") %>% 
+    map_df(~read_fn(.))
+```
+
+Markers unique to summary1: CD27 (early activation B and T cells), FOXP3
+Markers unique to summary2: CD138 (plasma B), CD8
+
+## Process summaries
+
+`rename_all(make.names)` will result in nonsensical output, we'll need to do this stepwise.
+
+```{r}
+summary_name_repair <- function(cols){
+  cols %>%
+    tolower() %>%
+    str_replace_all("\\%", "percent") %>%
+    str_remove("\\(opal.*\\) ") %>%
+    str_remove("\\:") %>%
+    str_replace("\\(μm²\\)", "um2") %>%
+    str_replace("\\(μm\\)", "um") %>%
+    str_replace("\\(mm²\\)", "mm2") %>%
+    str_replace_all(" ", "_")
+} 
+
+colnames(summary1) <- summary_name_repair(colnames(summary1))
+colnames(summary2) <- summary_name_repair(colnames(summary2))
+```
+
+Column names after cleaning (it's a lot)
+
+```{r}
+colnames(summary1)
+```
+
+Clean t-number column, remove unnecessary image locations etc.
+
+```{r}
+clean_summary <- function(df){
+  df %>%
+    separate(filename, into = c("t_number"), sep = "_", remove=F, extra = "drop") %>%
+    relocate(t_number, .before = everything()) %>%
+    select(-image_location:-start_time)
+} 
+
+summary1 <- clean_summary(summary1)
+summary2 <- clean_summary(summary2)
+```
+
+## Common fields
+
+Some fields, such as tumor area etc, should be pretty similar in both panels. Show Spearman correlation and R squared. Label samples that are outliers based on the Bonferroni outlier test. See `?car::outlierTest()` for details. (Alternatively, plot the highest Cook's distance?)
+
+## Tumor area
+
+```{r}
+plot_common_columns <- function(panel1 = summary1, panel2 = summary2,
+                                panel1_name = "MPIF26", panel2_name = "MPIF27",
+                                col, returndata = F, returnoutliers = F, ...){
+  
+  df <- inner_join(
+    select(panel1, t_number, all_of(col)),
+    select(panel2, t_number, all_of(col)),
+    by = "t_number"
+  )
+  
+  colnames(df)[2:3] <- c("x", "y")
+  
+  if(returndata){return(df)}
+  
+  #Make the basic ggplot
+  g <- df %>%
+    ggplot(aes(x, y)) +
+    #geom_text(aes(label = t_number)) +
+    geom_point() +
+    ggtitle(paste("Correlation:", str_replace_all(col, "_", " "))) +
+    xlab(paste("Panel 1:", panel1_name)) +
+    ylab(paste("Panel 2:", panel2_name)) +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..rr.label.., ..r.label.., sep = "~`,`~")))
+  
+  #Test for outliers
+  df <- as.data.frame(df)
+  rownames(df) <- df$t_number #necessary for proper labelling
+  fit <- lm(y ~ x, data = df)
+  outliers <- names(car::outlierTest(fit, cutoff = 0.05, n = Inf)$bonf.p)
+  if(returnoutliers){return(outliers)}
+  
+  #Label outliers, if any
+  g +
+    geom_label(data = filter(df, t_number %in% outliers),
+             aes(label = t_number), ...)
+}
+
+plot_common_columns(col = "tumor_area_mm2", nudge_x = 5)
+```
+
+## Stroma area
+
+```{r}
+plot_common_columns(col = "stroma_area_mm2", nudge_x = 12)
+```
+
+## Glass area
+
+Surely the glass area is the same between panels... right?
+
+```{r}
+plot_common_columns(col = "glass_area_mm2", nudge_x = 0.5, nudge_y = -0.5)
+```
+
+## Total cells
+
+```{r}
+plot_common_columns(col = "total_cells", nudge_x = 5e4, nudge_y = -0.5)
+```
+
+## DAPI positive cells
+
+Looks the same as total cells
+
+```{r}
+plot_common_columns(col = "dapi_positive_cells", nudge_x = 5e4, nudge_y = -0.5)
+```
+
+## PanCK +
+
+```{r}
+plot_common_columns(col = "panck_positive_cells", nudge_x = 0, nudge_y = 0) #+
+  #scale_x_log10() + scale_y_log10()
+```
+
+```{r}
+plot_common_columns(col = "cd3_positive_cells", nudge_x = -8e3, nudge_y = 0)
+```
+
+```{r}
+plot_common_columns(col = "cd20_positive_cells", nudge_x = 5e3, nudge_y = 0)
+```
+
+## Write summary aggregates
+
+MPIF26 = CD3-CD20-CD27-FoxP3-PanCK
+MPIF27 = CD3_CD8_CD138_CD20_PanCK
+
+```{r}
+dir.create(here("data/vectra/interim/summaries"), showWarnings = F)
+
+write_csv(summary1, file = here("data/vectra/interim/summaries/01_MPIF26_batch1_summaries.csv"))
+write_csv(summary2, file = here("data/vectra/interim/summaries/01_MPIF27_batch1_summaries.csv"))
+```
+
+                         
+
+
