@@ -907,7 +907,36 @@ rule organize_vectra:
   output:
     #dir("data/vectra/symlinks"),
     filedict="data/metadata/spatial/00_file_location_dictionary.csv",
+    meta="data/metadata/spatial/00_vectra_metadata.csv",
     html="reports/spatial/00_organize_vectra_samples.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
+#QC checks based on aggregated summary files
+rule summary_qc:
+  input:
+    filedict="data/metadata/spatial/00_file_location_dictionary.csv",
+    rmd="reports/spatial/01_summary_QC.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    mpif26_summary="data/vectra/interim/summaries/01_MPIF26_batch1_summaries.csv",
+    mpif27_summary="data/vectra/interim/summaries/01_MPIF27_batch1_summaries.csv",
+    html="reports/spatial/01_summary_QC.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+#Process object file column names to be syntactically valid
+#Later - add marker corrections here, or do downstream?
+#Todo: Add some kind of Snakemake expand() thing with metadata file - needs better batch typing
+import pandas as pd
+vectra_table = pd.read_csv("data/metadata/spatial/00_vectra_metadata.csv").set_index("t_number", drop=False)
+
+rule process_objects:
+  input:
+    script = "src/spatial/process_objects.R"
+  #output:
+    #expand()
+  shell:
+    "Rscript {input.script}"
+  
+  
