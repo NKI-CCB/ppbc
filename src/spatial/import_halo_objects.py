@@ -121,7 +121,7 @@ class NumericVariable(Variable):
     def __init__(self, halo_name, nc_type, name=None, **kwargs):
         super().__init__(halo_name, nc_type, name, **kwargs)
         if nc_type in ['u1', 'u2', 'u4', 'u8']:
-            self.fill_value = 2**(int(nc_type[1])*8)
+            self.fill_value = 2**(int(nc_type[1])*8)-1
             self.parser = partial(parse_uint, max_value=self.fill_value-1)
         elif nc_type in ['i1', 'i2', 'i4']:
             self.fill_value = 2**(int(nc_type[1])*8 - 1)
@@ -229,7 +229,7 @@ def write_rows(rows, start, ds, variables, dyes):
                 vn = f"{dye} {var.halo_name}"
                 if  vn in rows[0]:
                     ds[var.name][start:start+len(rows), dye_idx] = [var.parser(r[vn]) for r in rows]
-                #TODO: More efficiently encode missing dyes cell location combinations
+                # TODO: More efficiently encode missing dyes cell location combinations
 
 
 

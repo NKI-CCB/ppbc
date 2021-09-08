@@ -1,3 +1,6 @@
+import pandas as pd
+from pathlib import Path
+
 configfile: "config.yaml"
 
 # The Snakefile is given a .py extension so that we can see syntax highlighting in IDEs
@@ -925,18 +928,27 @@ rule summary_qc:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
-#Process object file column names to be syntactically valid
-#Later - add marker corrections here, or do downstream?
-#Todo: Add some kind of Snakemake expand() thing with metadata file - needs better batch typing
-import pandas as pd
-vectra_table = pd.read_csv("data/metadata/spatial/00_vectra_metadata.csv").set_index("t_number", drop=False)
+vectra_table_pth = Path("data/metadata/spatial/00_file_location_dictionary.csv")
+if vectra_table_pth.exists():
+    vectra_table = pd.read_csv(vectra_table_pth)
+    t_numbers = list(pd.unique(vectra_table['t_number']))
+else:
+    t_numbers = []
+
+rule all_objects:
+  input:
+    # FIXME: batch t / t_number association
+    expand("data/vectra/interim/objects/{t_number}_{panel}_batch1.nc",
+           t_number = t_numbers,
+           panel = ['MPIF27', 'MPIF27'])
+
 
 rule process_objects:
   input:
-    script = "src/spatial/process_objects.R"
-  #output:
-    #expand()
+    script = "src/spatial/import_halo_objects.py",
+    objects="data/vectra/symlinks/objects/{t_number}_{panel}_{batch}_object_results.csv",
+    summary="data/vectra/symlinks/summary/{t_number}_{panel}_{batch}_summary_results.csv",
+  output:
+    objects="data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
   shell:
-    "Rscript {input.script}"
-  
-  
+    "python {input.script} {input.summary} {input.objects} {output.objects}"
