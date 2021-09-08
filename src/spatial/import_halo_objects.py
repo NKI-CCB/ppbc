@@ -77,7 +77,14 @@ def read_sample_summary(summary_fn):
     analysis_inputs['Class List'] = analysis_inputs['Class List'].split(' | ')
     sample_summary['Analysis Inputs'] = analysis_inputs
     # Check that metadata in Analysis Inputs column matches column names
-    assert set(analysis_inputs['Class List']) - {'Glass'} == set(classes) - {'Glass'}
+    negative_classes = {'Glass', 'Necrosis'}
+    if set(analysis_inputs['Class List']) - negative_classes != set(classes) - negative_classes:
+        raise Exception(
+            "Classes do not match: [" +
+            ", ".join(set(analysis_inputs['Class List'])) +
+            "] versus ["
+            ", ".join(set(classes)) +
+            "]")
 
     return sample, sample_summary, dyes, classes
 

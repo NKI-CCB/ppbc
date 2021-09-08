@@ -371,10 +371,11 @@ head(filedict)
 Create directory structure.
 
 ```{r}
-dir.create(here("data/vectra/symlinks"), showWarnings = F)
-dir.create(here("data/vectra/symlinks/annotations"), showWarnings = F)
-dir.create(here("data/vectra/symlinks/objects"), showWarnings = F)
-dir.create(here("data/vectra/symlinks/summary"), showWarnings = F)
+symdir <- here("data/vectra/raw")
+dir.create(symdir, showWarnings = F)
+dir.create(file.path(symdir, "annotations"), showWarnings = F)
+dir.create(file.path(symdir, "objects"), showWarnings = F)
+dir.create(file.path(symdir, "summary"), showWarnings = F)
 ```
 
 
@@ -383,11 +384,10 @@ dir.create(here("data/vectra/symlinks/summary"), showWarnings = F)
 Add symbolic links to file dictionary.
 
 ```{r}
-symdir <- here("data/vectra/symlinks")
 
 filedict$sym_mpif26_object_results <- file.path(
   symdir, "objects",
-  paste(filedict$t_number, "MPIF26", "batch1", "object_results.csv", sep = "_")
+  paste(filedict$t_number, "MPIF26", "object_results.csv", sep = "_")
 )
 
 filedict$sym_mpif27_object_results <- file.path(
