@@ -37,7 +37,7 @@ nc_read_data_frame <- function(ds, dim) {
 
 # Read a matrix from a NetCDF4 dataset
 nc_read_matrix <- function(ds, var_name) {
-    mat <- ncvar_get(ds, var_name)
+    mat <- ncvar_get(ds, var_name, collapse_degen=FALSE)
 
     row_dim <- ds[["var"]][[var_name]][["dim"]][[1]]
     col_dim <- ds[["var"]][[var_name]][["dim"]][[2]]

@@ -1,0 +1,57 @@
+---
+title: "QC Checks of the object files"
+author: "Tycho Bismeijer"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+requireNamespace("ggplot2")
+ggplot2::theme_set(ggplot2::theme_bw())
+```
+
+```{r libraries}
+library(here)
+library(fs)
+library(tidyverse)
+
+source(here('src/spatial/read_cells.R'))
+```
+
+```{r}
+read_and_count_objects <- function(fn) {
+  ds <- ncdf4::nc_open(fn)
+  cell_df <- nc_read_data_frame(ds, "cell")
+  positive <- nc_read_matrix(ds, "positive_classification") > 0
+  dye <- str_split_fixed(ncvar_get(ds, 'dye'), ' ', 2)[,1]
+  nc_close(ds)
+  cell_df$marker_pos = apply(positive, 2, function (positive_mask) {
+    paste0(dye[positive_mask], '+', collapse='_')
+  })
+  cell_df %>%
+    group_by(marker_pos, classifier_label, .drop=F) %>%
+    summarize(n=n(), .groups="drop") %>%
+    pivot_wider(
+      names_from=classifier_label,
+      values_from=n)
+}
+cell_counts <- dir_ls(here("data/vectra/interim/objects/")) %>%
+  map_dfr(read_and_count_objects, .id="file") %>%
+  mutate(fn = path_file(file)) %>%
+  extract(fn, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)")
+```
+
+```{r}
+cell_counts %>%
+  group_by(marker_pos, panel) %>%
+  summarize(across(c(Tumor, Stroma), max), .groups="drop") %>%
+  arrange(desc(Tumor + Stroma)) %>%
+  print(n=100)
+```

@@ -915,6 +915,13 @@ rule organize_vectra:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
+vectra_table_pth = Path("data/metadata/spatial/00_file_location_dictionary.csv")
+if vectra_table_pth.exists():
+    vectra_table = pd.read_csv(vectra_table_pth)
+    t_numbers = list(pd.unique(vectra_table['t_number']))
+else:
+    t_numbers = []
+
 #QC checks based on aggregated summary files
 rule summary_qc:
   input:
@@ -928,19 +935,25 @@ rule summary_qc:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
-vectra_table_pth = Path("data/metadata/spatial/00_file_location_dictionary.csv")
-if vectra_table_pth.exists():
-    vectra_table = pd.read_csv(vectra_table_pth)
-    t_numbers = list(pd.unique(vectra_table['t_number']))
-else:
-    t_numbers = []
+rule object_QC:
+  input:
+    rmd="reports/spatial/02_object_QC.Rmd",
+    script="src/rmarkdown.R",
+    # FIXME: batch t / t_number association
+    objects=expand("data/vectra/interim/objects/{t_number}_{panel}_batch1.nc",
+           t_number = t_numbers,
+           panel = ['MPIF26', 'MPIF27'])
+  output:
+    html="reports/spatial/02_object_QC.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
 rule all_objects:
   input:
     # FIXME: batch t / t_number association
     expand("data/vectra/interim/objects/{t_number}_{panel}_batch1.nc",
            t_number = t_numbers,
-           panel = ['MPIF27', 'MPIF27'])
+           panel = ['MPIF26', 'MPIF27'])
 
 
 rule process_objects:

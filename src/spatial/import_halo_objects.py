@@ -104,6 +104,9 @@ class Variable:
         if self.units is not None:
             ds[self.name].units = self.units
 
+    def __str__(self):
+        return f"Variable({self.halo_name}, nc_type={self.nc_type})"
+
 def parse_uint(x, max_value = 2**32):
     x = int(x)
     assert x >= 0
@@ -125,7 +128,7 @@ class NumericVariable(Variable):
             self.parser = partial(parse_uint, max_value=self.fill_value-1)
         elif nc_type in ['i1', 'i2', 'i4']:
             self.fill_value = 2**(int(nc_type[1])*8 - 1)
-            self.parser = partial(parse_uint, max_value=self.fill_value-1)
+            self.parser = partial(parse_int, max_value=self.fill_value-1)
         elif nc_type in ['f4', 'f8']:
             self.parser = float
             self.fill_value = np.nan
