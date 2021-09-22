@@ -38,7 +38,6 @@ nc_read_data_frame <- function(ds, dim) {
 # Read a matrix from a NetCDF4 dataset
 nc_read_matrix <- function(ds, var_name) {
     mat <- ncvar_get(ds, var_name, collapse_degen=FALSE)
-
     row_dim <- ds[["var"]][[var_name]][["dim"]][[1]]
     col_dim <- ds[["var"]][[var_name]][["dim"]][[2]]
     mat_dim <- list(c(row_dim[["vals"]]), c(col_dim[["vals"]]))
@@ -48,10 +47,14 @@ nc_read_matrix <- function(ds, var_name) {
 }
 
 read_cells <- function(fn) {
-    ds <- ncdf4::nc_open(fn)
+    if (is.character(fn)) {
+      ds <- ncdf4::nc_open(fn)
+      on.exit(ncdf4::nc_close(ds), add=T)
+    } else {
+      ds <- fn
+    }
     df <- nc_read_data_frame(ds, "cell")
     positive <- nc_read_matrix(ds, "positive_classification") > 0
-    nc_close(ds)
 
     positive <- as_tibble(t(positive), rownames = "cell") %>%
         dplyr::rename_at(2:ncol(.), ~ paste0(stringr::str_extract(., "^[A-Za-z0-9]+"), "_positive")) %>%

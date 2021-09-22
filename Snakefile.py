@@ -935,26 +935,26 @@ rule summary_qc:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
+# FIXME: batch t / t_number association
+all_objects = expand(
+  "data/vectra/interim/objects/{t_number}_{panel}_batch1.nc",
+  t_number = t_numbers,
+  panel = ['MPIF26', 'MPIF27'])
+
+
+
 rule object_QC:
   input:
     rmd="reports/spatial/02_object_QC.Rmd",
     script="src/rmarkdown.R",
-    # FIXME: batch t / t_number association
-    objects=expand("data/vectra/interim/objects/{t_number}_{panel}_batch1.nc",
-           t_number = t_numbers,
-           panel = ['MPIF26', 'MPIF27'])
+    objects=all_objects,
   output:
     html="reports/spatial/02_object_QC.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
 rule all_objects:
-  input:
-    # FIXME: batch t / t_number association
-    expand("data/vectra/interim/objects/{t_number}_{panel}_batch1.nc",
-           t_number = t_numbers,
-           panel = ['MPIF26', 'MPIF27'])
-
+  input: all_objects
 
 rule process_objects:
   input:
@@ -965,3 +965,20 @@ rule process_objects:
     objects="data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
   shell:
     "python {input.script} {input.summary} {input.objects} {output.objects}"
+
+rule all_density:
+  input:
+    expand(
+      "results/spatial/density/{t_number}_{panel}_batch1.tsv",
+      t_number = t_numbers,
+      panel = ['MPIF26', 'MPIF27'])
+
+rule cell_type_density:
+  input:
+    script="src/spatial/model_density.R",
+    objects="data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
+  output:
+    tsv="results/spatial/density/{t_number}_{panel}_{batch}.tsv",
+  shell:
+    "mkdir -p results/spatial/density\n"
+    "Rscript {input.script} {input.objects} {output}"
