@@ -407,10 +407,10 @@
     },
     "car": {
       "Package": "car",
-      "Version": "3.0-10",
+      "Version": "3.0-11",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "12d8cdaf73c30b8c8cb7a22591a3f57d"
+      "Hash": "07f8d11b44999a3f36eee2ef0d86c975"
     },
     "carData": {
       "Package": "carData",
@@ -488,13 +488,6 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "0f22be39ec1d141fd03683c06f3a6e67"
-    },
-    "conflicted": {
-      "Package": "conflicted",
-      "Version": "1.0.4",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "43c5107cc96f47043a56736768ecc59d"
     },
     "conquer": {
       "Package": "conquer",
@@ -954,10 +947,10 @@
     },
     "lme4": {
       "Package": "lme4",
-      "Version": "1.1-26",
+      "Version": "1.1-27.1",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "5f2466f5127e0ce67e44bb381387eeca"
+      "Hash": "c995b0405ce0894d6fe52b3e08ea9085"
     },
     "locfit": {
       "Package": "locfit",
@@ -1325,17 +1318,17 @@
     },
     "rlang": {
       "Package": "rlang",
-      "Version": "0.4.9",
+      "Version": "0.4.11",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "9d7aba7bed9a79e2403b4777428a2b12"
+      "Hash": "515f341d3affe0de9e4a7f762efb0456"
     },
     "rmarkdown": {
       "Package": "rmarkdown",
-      "Version": "2.5",
+      "Version": "2.10",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "20a0a94af9e8f7040510447763aab3e9"
+      "Hash": "1fb097f233ee98968f8e5d0bcd42df6d"
     },
     "rmeta": {
       "Package": "rmeta",
@@ -1449,13 +1442,6 @@
       "Repository": "CRAN",
       "Hash": "e0485290545c0e768c2b50390114da1f"
     },
-    "statmod": {
-      "Package": "statmod",
-      "Version": "1.4.35",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "53c27113461e8abbe2dc7125e22b2a39"
-    },
     "stringi": {
       "Package": "stringi",
       "Version": "1.5.3",
@@ -1555,10 +1541,10 @@
     },
     "tinytex": {
       "Package": "tinytex",
-      "Version": "0.27",
+      "Version": "0.33",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "264b4a31d35bb6833566a7763356ab63"
+      "Hash": "6e0ad90ac5669e35d5456cb61b295acb"
     },
     "utf8": {
       "Package": "utf8",
@@ -1625,10 +1611,10 @@
     },
     "xfun": {
       "Package": "xfun",
-      "Version": "0.19",
+      "Version": "0.25",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "a42372606cb76f34da9d090326e9f955"
+      "Hash": "853d45ffff0a9af1e0af017cd359f75e"
     },
     "xml2": {
       "Package": "xml2",
