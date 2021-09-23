@@ -964,6 +964,7 @@ rule process_objects:
   output:
     objects="data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
   shell:
+    "export OMP_NUM_THREADS=1\n"
     "python {input.script} {input.summary} {input.objects} {output.objects}"
 
 rule all_density:
