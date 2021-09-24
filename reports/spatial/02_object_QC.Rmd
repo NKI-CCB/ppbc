@@ -42,7 +42,7 @@ read_and_count_objects <- function(fn) {
       names_from=classifier_label,
       values_from=n)
 }
-cell_counts <- dir_ls(here("data/vectra/interim/objects/")) %>%
+cell_counts <- dir_ls(here("data/vectra/interim/objects/"), regexp = "\\.nc") %>%
   map_dfr(read_and_count_objects, .id="file") %>%
   mutate(fn = path_file(file)) %>%
   extract(fn, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)")
