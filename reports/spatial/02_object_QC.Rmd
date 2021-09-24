@@ -25,6 +25,10 @@ library(tidyverse)
 source(here('src/spatial/read_cells.R'))
 ```
 
+## Marker combinations
+
+List all existing combinatinos of markers, their location (tumor vs stroma), by sample and by panel.
+
 ```{r}
 read_and_count_objects <- function(fn) {
   ds <- ncdf4::nc_open(fn)
@@ -55,3 +59,554 @@ cell_counts %>%
   arrange(desc(Tumor + Stroma)) %>%
   print(n=100)
 ```
+
+## Marker intensity by sample
+
+For every sample, check each marker to ensure that it's localized where it's supposed to be, and ensure that the classifier cutoffs look reasonable based on marker intensity. For markers common to both panels, ensure that both the cell counts and the marker intensities are reasonably well correlated between both panels. 
+
+(In the case of cell counts, this SHOULD be the same as the analysis performed on the summary QC files in the previous notebook. But, check to make sure that the reality within the data frame matches the summary.)
+
+```{r}
+read_object_intensity <- function(fn) {
+  ds <- ncdf4::nc_open(fn)
+  cell_df <- nc_read_data_frame(ds, "cell")
+  positive <- nc_read_matrix(ds, "positive_classification") > 0
+  nuc <- nc_read_matrix(ds, "nucleus_intensity")
+  cyt <- nc_read_matrix(ds, "cytoplasm_intensity")
+  mem <- nc_read_matrix(ds, "membrane_intensity")
+  nc_close(ds)
+  #return(cell_df)
+  rownames(positive) <- paste0(str_remove(rownames(positive), " \\(Opal .*\\)"),"_pos")
+  rownames(nuc) <- paste0(str_remove(rownames(nuc), " \\(Opal .*\\)"),"_nuclear")
+  rownames(cyt) <- paste0(str_remove(rownames(cyt), " \\(Opal .*\\)"),"_cytoplasm")
+  rownames(mem) <- paste0(str_remove(rownames(mem), " \\(Opal .*\\)"),"_membrane")
+  #Keeping cell area and xy coords should be enough?
+  cell_df <- cell_df %>% select(-`cytoplasm area`, -`nucleus area`, -cell,
+                    -`nucleus perimeter`, -nucleus_roundness) %>%
+    rename(cell_area = `cell area`)
+  cbind(cell_df, t(positive), t(nuc), t(cyt), t(mem))
+  
+}
+#testing
+#read_object_intensity(dir_ls(here("data/vectra/interim/objects/"), regexp = ".*MPIF26.*\\.nc")[1])
+```
+
+Produce separate dfs per panel.
+
+```{r}
+mpif26 <- dir_ls(here("data/vectra/interim/objects/"), regexp = ".*MPIF26.*\\.nc") %>%
+  map_dfr(read_object_intensity, .id="file") %>%
+  mutate(fn = path_file(file)) %>%
+  extract(fn, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)") %>%
+  relocate(t_number, panel, .before = everything()) %>%
+  relocate(file, .after = everything())
+
+head(mpif26)
+```
+
+```{r}
+mpif27 <- dir_ls(here("data/vectra/interim/objects/"), regexp = ".*MPIF27.*\\.nc") %>%
+  map_dfr(read_object_intensity, .id="file") %>%
+  mutate(fn = path_file(file)) %>%
+  extract(fn, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)") %>%
+  relocate(t_number, panel, .before = everything()) %>%
+  relocate(file, .after = everything())
+
+head(mpif27)
+```
+
+## DAPI
+
+All present cells are DAPI+.
+
+```{r}
+stopifnot(nrow(filter(mpif26, DAPI_pos == F))==0 &
+            nrow(filter(mpif27, DAPI_pos == F))==0)
+```
+
+### Localization
+
+DAPI should be nucleus only.
+
+```{r}
+summarise_marker <- function(marker, panel1=mpif26, panel2=mpif27, bysample = F){
+  pos <- paste0(marker, "_pos")
+  nuc <- paste0(marker, "_nuclear")
+  cyt <- paste0(marker, "_cytoplasm")
+  mem <- paste0(marker, "_membrane")
+  
+  if(pos %in% colnames(panel1) & pos %in% colnames(panel2)){
+    #print("marker in both")
+    df <- bind_rows(
+      select(panel1, t_number, panel, classifier_label, {{pos}}, {{nuc}}, {{cyt}}, {{mem}}),
+      select(panel2, t_number, panel, classifier_label, {{pos}}, {{nuc}}, {{cyt}}, {{mem}})
+    )
+  } else if (!pos %in% colnames(panel2)) {
+    #print("marker in panel1")
+    df <- select(panel1, t_number, panel, classifier_label, {{pos}}, {{nuc}}, {{cyt}}, {{mem}})
+  } else {
+    #print("marker in panel2")
+    df <- select(panel2, t_number, panel, classifier_label, {{pos}}, {{nuc}}, {{cyt}}, {{mem}})
+  }
+  #return(df)
+  if(bysample == F){
+    df %>%
+      group_by(panel, classifier_label, .data[[pos]]) %>%
+      summarise(
+        count = n(),
+        mean_cytoplasm = mean(.data[[cyt]], na.rm=T),
+        mean_nuclear = mean(.data[[nuc]], na.rm=T),
+        mean_membrane = mean(.data[[mem]], na.rm=T),
+        .groups="drop"
+        )
+  } else {
+    df %>%
+      group_by(panel,classifier_label, t_number, .data[[pos]]) %>%
+      summarise(
+        count = n(),
+        mean_cytoplasm = mean(.data[[cyt]], na.rm=T),
+        mean_nuclear = mean(.data[[nuc]], na.rm=T),
+        mean_membrane = mean(.data[[mem]], na.rm=T),
+        .groups="drop"
+        )
+  }
+}
+
+summarise_marker("DAPI")
+```
+
+### Samplewise summary
+
+```{r}
+summarise_marker("DAPI", bysample=T) %>%
+  select(-mean_cytoplasm, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel,classifier_label),
+              values_from = c(count, mean_nuclear),
+              names_glue = "{panel}_{classifier_label}_{.value}"
+              )
+```
+
+### Count dotplot
+
+```{r}
+summarise_marker("DAPI", bysample=T) %>%
+  select(-mean_cytoplasm, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel),
+              values_from = c(count, mean_nuclear),
+              names_glue = "{panel}_{.value}"
+  ) %>%
+  ggplot(aes(x = MPIF26_count, y = MPIF27_count, color = DAPI_pos)) +
+  geom_point() +
+  facet_wrap(~classifier_label) +
+  ggtitle("DAPI count by sample")
+  
+```
+
+### Average intensity
+
+```{r}
+summarise_marker("DAPI", bysample=T) %>%
+  select(-mean_cytoplasm, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel),
+              values_from = c(count, mean_nuclear),
+              names_glue = "{panel}_{.value}"
+  ) %>%
+  ggplot(aes(x = MPIF26_mean_nuclear, y = MPIF27_mean_nuclear, color = DAPI_pos)) +
+  geom_point() +
+  facet_wrap(~classifier_label) +
+  ggtitle("DAPI mean intensity by sample")
+  
+```
+
+```{r, fig.height=6, include=F, eval=F}
+##### Intensity histogram
+#Is this useful? Probably not when the marker is present in both panels
+mpif26 %>%
+  ggplot(aes(x = DAPI_nuclear, fill = DAPI_pos)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~t_number) +
+  ggtitle("MPIF26")
+
+mpif27 %>%
+  ggplot(aes(x = DAPI_nuclear, fill = DAPI_pos)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~t_number) +
+  ggtitle("MPIF27")
+```
+
+### Barplot positive cells
+
+```{r}
+summarise_marker("DAPI", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  filter(DAPI_pos == T) %>%
+  ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
+  geom_bar(stat = "identity") +
+  ggpubr::rotate_x_text(angle = 45) +
+  ggtitle("DAPI positive cells")
+```
+
+## PanCK
+
+### Localization
+
+PanCK is cytoplasm-only.
+
+```{r}
+summarise_marker(marker = "PanCK")
+```
+
+### Samplewise summary
+
+```{r}
+summarise_marker("PanCK", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel,classifier_label),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{classifier_label}_{.value}"
+              )
+```
+
+### Count dotplot
+
+```{r}
+summarise_marker("PanCK", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{.value}"
+  ) %>%
+  ggplot(aes(x = MPIF26_count, y = MPIF27_count, color = PanCK_pos)) +
+  geom_point() +
+  facet_wrap(~classifier_label) +
+  ggtitle("PanCK count by sample")
+  
+```
+
+### Average intensity
+
+```{r}
+summarise_marker("PanCK", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{.value}"
+  ) %>%
+  ggplot(aes(x = MPIF26_mean_cytoplasm, y = MPIF27_mean_cytoplasm, color = PanCK_pos)) +
+  geom_point() +
+  facet_wrap(~classifier_label) +
+  ggtitle("PanCK mean intensity by sample")
+  
+```
+
+### Barplot positive cells
+
+```{r}
+summarise_marker("PanCK", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  filter(PanCK_pos == T) %>%
+  ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
+  geom_bar(stat = "identity") +
+  ggpubr::rotate_x_text(angle = 45) +
+  ggtitle("PanCK positive cells")
+```
+
+## CD3
+
+### Localization
+
+CD3 is cytoplasm-only.
+
+```{r}
+summarise_marker(marker = "CD3")
+```
+
+### Samplewise summary
+
+```{r}
+summarise_marker("CD3", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel,classifier_label),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{classifier_label}_{.value}"
+              )
+```
+
+### Count dotplot
+
+```{r}
+summarise_marker("CD3", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{.value}"
+  ) %>%
+  ggplot(aes(x = MPIF26_count, y = MPIF27_count, color = CD3_pos)) +
+  geom_point() +
+  facet_wrap(~classifier_label) +
+  ggtitle("CD3 count by sample")
+  
+```
+
+### Average intensity
+
+```{r}
+summarise_marker("CD3", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{.value}"
+  ) %>%
+  ggplot(aes(x = MPIF26_mean_cytoplasm, y = MPIF27_mean_cytoplasm, color = CD3_pos)) +
+  geom_point() +
+  facet_wrap(~classifier_label) +
+  ggtitle("CD3 mean intensity by panel")
+  
+```
+
+### Barplot positive cells
+
+```{r}
+summarise_marker("CD3", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  filter(CD3_pos == T) %>%
+  ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
+  geom_bar(stat = "identity") +
+  ggpubr::rotate_x_text(angle = 45) +
+  ggtitle("CD3 positive cells")
+```
+
+## CD20
+
+### Localization
+
+CD20 is cytoplasm-only.
+
+```{r}
+summarise_marker(marker = "CD20")
+```
+
+### Samplewise summary
+
+```{r}
+summarise_marker("CD20", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel,classifier_label),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{classifier_label}_{.value}"
+              )
+```
+
+### Count dotplot
+
+```{r}
+summarise_marker("CD20", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{.value}"
+  ) %>%
+  ggplot(aes(x = MPIF26_count, y = MPIF27_count, color = CD20_pos)) +
+  geom_point() +
+  facet_wrap(~classifier_label) +
+  ggtitle("CD20 count by sample")
+  
+```
+
+### Average intensity
+
+```{r}
+summarise_marker("CD20", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{.value}"
+  ) %>%
+  ggplot(aes(x = MPIF26_mean_cytoplasm, y = MPIF27_mean_cytoplasm, color = CD20_pos)) +
+  geom_point() +
+  facet_wrap(~classifier_label) +
+  ggtitle("CD20 mean intensity by panel")
+  
+```
+
+### Barplot positive cells
+
+```{r}
+summarise_marker("CD20", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  filter(CD20_pos == T) %>%
+  ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
+  geom_bar(stat = "identity") +
+  ggpubr::rotate_x_text(angle = 45) +
+  ggtitle("CD20 positive cells")
+```
+
+## CD27
+
+### Localization
+
+CD27 is cytoplasm-only, and is exclusive to MPIF26.
+
+```{r}
+summarise_marker(marker = "CD27")
+```
+
+### Samplewise summary
+
+```{r}
+summarise_marker("CD27", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel,classifier_label),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{classifier_label}_{.value}"
+              )
+```
+
+### Barplot positive cells
+
+```{r}
+summarise_marker("CD27", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  filter(CD27_pos == T) %>%
+  ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
+  geom_bar(stat = "identity") +
+  ggpubr::rotate_x_text(angle = 45) +
+  ggtitle("CD27 positive cells")
+```
+
+```{r,include=F,eval=F}
+#...go to bed and try again
+summarise_marker("CD27", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{.value}"
+  ) %>%
+  ggplot(aes(x = MPIF26_count, y = MPIF26_mean_cytoplasm, color = CD27_pos)) +
+  geom_point() +
+  facet_wrap(~classifier_label) +
+  ggtitle("CD27 count by sample")
+  
+```
+
+## CD8
+
+### Localization
+
+CD8 is cytoplasm-only, and is exclusive to MPIF27.
+
+```{r}
+summarise_marker(marker = "CD8")
+```
+
+### Samplewise summary
+
+```{r}
+summarise_marker("CD8", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel,classifier_label),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{classifier_label}_{.value}"
+              )
+```
+
+### Barplot positive cells
+
+```{r}
+summarise_marker("CD8", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  filter(CD8_pos == T) %>%
+  ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
+  geom_bar(stat = "identity") +
+  ggpubr::rotate_x_text(angle = 45) +
+  ggtitle("CD8 positive cells")
+```
+
+## FoxP3
+
+### Localization
+
+CD27 is nucleus-only, and is exclusive to MPIF26.
+
+```{r}
+summarise_marker(marker = "FoxP3")
+```
+
+### Samplewise summary
+
+```{r}
+summarise_marker("FoxP3", bysample=T) %>%
+  select(-mean_cytoplasm, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel,classifier_label),
+              values_from = c(count, mean_nuclear),
+              names_glue = "{panel}_{classifier_label}_{.value}"
+              )
+```
+
+### Barplot positive cells
+
+```{r}
+summarise_marker("FoxP3", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  filter(FoxP3_pos == T) %>%
+  ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
+  geom_bar(stat = "identity") +
+  ggpubr::rotate_x_text(angle = 45) +
+  ggtitle("FoxP3 positive cells")
+```
+
+## CD138
+
+### Localization
+
+CD138 is cytoplasm-only, and is exclusive to MPIF27.
+
+```{r}
+summarise_marker(marker = "CD138")
+```
+
+### Samplewise summary
+
+```{r}
+summarise_marker("CD138", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  pivot_wider(names_from = c(panel,classifier_label),
+              values_from = c(count, mean_cytoplasm),
+              names_glue = "{panel}_{classifier_label}_{.value}"
+              )
+```
+
+### Barplot positive cells
+
+```{r}
+summarise_marker("CD138", bysample=T) %>%
+  select(-mean_nuclear, -mean_membrane) %>%
+  filter(CD138_pos == T) %>%
+  ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
+  geom_bar(stat = "identity") +
+  ggpubr::rotate_x_text(angle = 45) +
+  ggtitle("CD138 positive cells")
+```
+
+## Write data
+
+Having ascertained that the cutoffs largely make sense and there is no improper marker localization, we can now discard many unnecessary columns for downstream analysis.
+
+```{r}
+mpif26 %>%
+  #discard intensities, keeping logicals and spatial data
+  select(-CD20_nuclear:-PanCK_membrane) %>%
+  saveRDS(., here("data/vectra/interim/mpif26_df.Rds"))
+```
+
+```{r}
+mpif27 %>%
+  #discard intensities, keeping logicals and spatial data
+  select(-CD138_nuclear:-PanCK_membrane) %>%
+  saveRDS(., here("data/vectra/interim/mpif27_df.Rds"))
+```
+
+```{r}
+sessionInfo()
+```
+

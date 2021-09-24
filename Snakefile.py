@@ -949,7 +949,9 @@ rule object_QC:
     script="src/rmarkdown.R",
     objects=all_objects,
   output:
-    html="reports/spatial/02_object_QC.html"
+    html="reports/spatial/02_object_QC.html",
+    mpif26_df="data/vectra/interim/mpif26_df.Rds",
+    mpif27_df="data/vectra/interim/mpif27_df.Rds"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
