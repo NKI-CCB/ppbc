@@ -1,6 +1,6 @@
 ---
 title: "QC Checks of the object files"
-author: "Tycho Bismeijer"
+author: "Tycho Bismeijer & Kat Moore"
 date: "`r Sys.Date()`"
 output: 
   html_document:
@@ -24,6 +24,8 @@ library(tidyverse)
 
 source(here('src/spatial/read_cells.R'))
 ```
+
+In this notebook, we perform a variety of sample-wise sanity checks regarding marker positivity cutoffs, localization, and correlation.
 
 ## Marker combinations
 
@@ -50,6 +52,8 @@ cell_counts <- dir_ls(here("data/vectra/interim/objects/"), regexp = "\\.nc") %>
   map_dfr(read_and_count_objects, .id="file") %>%
   mutate(fn = path_file(file)) %>%
   extract(fn, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)")
+
+write_csv(cell_counts, here("results/spatial/cell_counts_by_marker.csv"))
 ```
 
 ```{r}
@@ -592,18 +596,20 @@ summarise_marker("CD138", bysample=T) %>%
 
 Having ascertained that the cutoffs largely make sense and there is no improper marker localization, we can now discard many unnecessary columns for downstream analysis.
 
+Each of the markers examined above is localized in a single compartment, and can be thusly summarized.
+
 ```{r}
-mpif26 %>%
-  #discard intensities, keeping logicals and spatial data
-  select(-CD20_nuclear:-PanCK_membrane) %>%
-  saveRDS(., here("data/vectra/interim/mpif26_df.Rds"))
+mpif26 <- mpif26[,sapply(mpif26, function(x) all(!is.nan(x)))]
+colnames(mpif26) <- str_replace(colnames(mpif26), "nuclear|cytoplasm|membrane", "intensity")
+
+saveRDS(mpif26, here("data/vectra/interim/mpif26_df.Rds"))
 ```
 
 ```{r}
-mpif27 %>%
-  #discard intensities, keeping logicals and spatial data
-  select(-CD138_nuclear:-PanCK_membrane) %>%
-  saveRDS(., here("data/vectra/interim/mpif27_df.Rds"))
+mpif27 <- mpif27[,sapply(mpif27, function(x) all(!is.nan(x)))]
+colnames(mpif27) <- str_replace(colnames(mpif27), "nuclear|cytoplasm|membrane", "intensity")
+
+saveRDS(mpif27, here("data/vectra/interim/mpif27_df.Rds"))
 ```
 
 ```{r}

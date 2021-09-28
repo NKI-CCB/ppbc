@@ -951,7 +951,8 @@ rule object_QC:
   output:
     html="reports/spatial/02_object_QC.html",
     mpif26_df="data/vectra/interim/mpif26_df.Rds",
-    mpif27_df="data/vectra/interim/mpif27_df.Rds"
+    mpif27_df="data/vectra/interim/mpif27_df.Rds",
+    cell_count_by_marker="results/spatial/cell_counts_by_marker.csv"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
