@@ -1,0 +1,309 @@
+---
+title: "Define cell types"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(here)
+library(fs)
+library(tidyverse)
+
+#source(here('src/spatial/read_cells.R'))
+theme_set(theme_bw())
+```
+
+Define cell types based on marker expression. Also, correct for impossible marker combinations.
+
+MPIF26 exclusive markers:  CD27, FoxP3
+MPIF27 exclusive markers: CD138, CD8 
+Shared markers: CD20, CD3, PanCK, DAPI
+
+DAPI is used to visualize nuclear DNA. We have already established that all objects exported in this analysis are DAPI positive.
+
+Worth noting is that although PanCk is broadly used as a "cancer marker", cytokeratins are also expressed on healthy epithelium (see: fibroblasts), PanCK double positivity on i.e. immune cells is a frequent problem due to the intensity of the adjacency between epithelial and immune cells. 
+
+Also notable is that while CD138 was included as a plasma B-cell marker, it is [also expressed on malignant cells](https://pubmed.ncbi.nlm.nih.gov/14983940/).
+
+We broadly define the following cell types:
+
+* Cytotoxic T-cell (CD8+, CD3+)
+* T-reg (CD3+, FoxP3+)
+* Helper T-cell (CD3+, CD8-, FoxP3-)
+* B-cell (CD20+, CD138-)
+* Plasma B-cell (CD20+, CD138+)
+* NK cell (CD8+, CD3-)
+* Epithelial cell (PanCK+ and negative for immune markers)
+
+Here we are assuming that CD3+CD8-FoxP3- are *probably* CD4+, since double-negative T-cells represent a [small (1-5%) populatoin of lymphocytes](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3269300/). One may also argue that not all CD8+ T-cells are by definition cytotoxic, but we lack the data to make such distinctions here.
+
+CD27 is an early immune activation marker and is highly associated with a positive outcome in the PPBC cohort, especially among involuting patients. We therefore consider it as an additional characteristic of immune cells. (TODO: What about cells that are CD27+ but negative for everything else?)
+
+## Load data
+
+We created a data frame for each panel within the previous notebook.
+
+```{r load df1}
+mpif26 <- readRDS(here("data/vectra/interim/mpif26_df.Rds"))
+colnames(mpif26)
+```
+
+```{r load df2}
+mpif27 <- readRDS(here("data/vectra/interim/mpif27_df.Rds"))
+colnames(mpif27)
+```
+
+## Problematic marker combinations
+
+We should not observe:
+
+CD3+ CD20+
+CD8+ CD20+
+FOXP3+ CD20+
+
+In principle, we should also not observe double positivity of PanCK and immune markers, nor CD138 and T cell markers, but these combinations may occur due to the high abundance of these markers, which causes spillover to adjacent cells.
+
+Abundance of these combinations:
+
+```{r count cells}
+cell_counts <- read_csv(here("results/spatial/cell_counts_by_marker.csv"))
+```
+
+Recall that:
+
+MPIF26 exclusive markers:  CD27, FoxP3
+MPIF27 exclusive markers: CD138, CD8 
+Shared markers: CD20, CD3, PanCK, DAPI
+
+```{r}
+panel_markers <- cell_counts %>%
+  mutate(count = Tumor + Stroma, .after=Stroma) %>%
+  group_by(marker_pos, panel) %>%
+  summarize(sum = sum(count), .groups="drop") %>%
+  pivot_wider(names_from = panel, values_from=sum, values_fill = 0) %>%
+  arrange(desc(MPIF27 + MPIF26))
+
+panel_markers
+```
+
+PanCK/immune marker combinations:
+
+```{r}
+panel_markers %>%
+  filter(str_detect(marker_pos, "PanCK") & str_detect(marker_pos, "CD"))
+```
+
+
+Also address:
+CD8+CD3- (MPIF27)
+CD27+CD3- (MPIF26)
+CD20+_CD3+_CD8+ (MPIF27)
+CD138+_CD8+ (MPIF27)
+CD20+_CD8+
+
+NK cells may sometimes express [CD8](https://journals.asm.org/doi/10.1128/JVI.01420-14) and [CD27](https://pubmed.ncbi.nlm.nih.gov/18326863/).
+
+```{r}
+panel_markers %>%
+  filter(marker_pos %in% c(
+    "CD20+_CD3+_DAPI+",
+    "CD8+_DAPI+",
+    "CD27+_DAPI+",
+    "CD20+_CD3+_CD8+_DAPI+",
+    "CD20+_CD8+_DAPI+"
+  )) %>%
+  mutate(marker_pos = str_remove(marker_pos, "_DAPI\\+"))
+```
+
+Additional impossible combinations exist within the data, but in relatively low numbers.
+
+```{r, include=F, eval=F}
+## CD3 Troubleshooting
+#Many of the most abundant problematic markers combinations involve either the unexpected presence or the unexpected absence of CD3. Plot CD3 expression alongside other markers.
+#...or at least that was the idea, but it doesn't actually show anything useful, and it takes a long time to run
+
+coexpression_plot <- function(marker, df1 = mpif26, df2 = mpif27){
+  
+  pos <- paste0(marker, "_pos")
+  intens <- paste0(marker, "_intensity")
+  
+  if(pos %in% colnames(df1) & pos %in% colnames(df2)){
+    #print("marker in both")
+    df <- bind_rows(
+      df1, df2
+    )
+  } else if (!pos %in% colnames(df2)) {
+    #print("marker in panel1")
+    df <- df1
+  } else {
+    #print("marker in panel2")
+    df <- df2
+  }
+  
+  #Don't plot DAPI
+  df <- df %>% select(-DAPI_intensity, -DAPI_pos)
+  
+  #Extract the relevant columns for plocolnames(df)[str_detect(colnames(df), "intensity")]tting
+  intensities <- colnames(df)[str_detect(colnames(df), "intensity")]
+  intensities <- intensities[-which(intensities==intens)]
+
+  #return(df)
+  
+  lapply(intensities, function(z){
+    p <- str_replace(z, "intensity", "pos")
+    m <- str_remove(z, "_intensity")
+    
+    df <- df %>%
+      select(object_id, panel, contains(marker), contains(m))
+    
+    #Convert positivity logicals into strings
+    df[,pos] <- if_else(df[,pos]==T, paste0(marker, "+"), paste0(marker, "-"))
+    df[,p] <- if_else(df[,p]==T, paste0(m, "+"), paste0(m, "-"))
+    df$markers <- paste(df[,pos], df[,p])
+    df <- df %>%
+      mutate(markers = str_remove(markers, " NA"))
+    df %>%
+      ggplot(aes_string(x = intens, y = z, 
+                        color = "markers", shape = "panel")) +
+      geom_point(alpha = 0.5) +
+      #scale_x_log10() +
+      #scale_y_log10() +
+      ggthemes::scale_color_fivethirtyeight() +
+      ggtitle(paste(marker, m, "expression"))
+  }
+  )
+}  
+
+coexpression_plot("CD3")
+```
+
+## Double positivity
+
+For "impossible" combinations of immune markers, consider the cell positive for the marker with the highest expression.
+
+CD3+ CD20+
+CD8+ CD20+
+FOXP3+ CD20+
+
+Although not canonical, FoxP3+CD8+ T-cells [do exist](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4397865/) (and these cells are often CD25+.
+
+```{r}
+disallowed_markers <- list(
+  c("CD3", "CD20"),
+  c("CD8", "CD20"),
+  c("FoxP3", "CD20")
+)
+```
+
+```{r}
+#Not the fastest code, perhaps there is a more efficient way?
+correct_double_positivity <- function(df, blacklist, verbose=T){
+  
+  marker1 <- blacklist[1]
+  marker2 <- blacklist[2]
+  if(verbose){print(paste("Correcting for:", paste0(marker1,"/", marker2), "double positivity"))}
+  
+  pos1 <- paste0(marker1,"_pos")
+  pos2 <- paste0(marker2,"_pos")
+  
+  if(!pos1 %in% colnames(df)){
+    stop(paste(pos1, "not in input"))
+  }
+  if(!pos2 %in% colnames(df)){
+    stop(paste(pos2, "not in input"))
+  }
+  
+  int1 <- paste0(marker1,"_intensity")
+  int2 <- paste0(marker2,"_intensity")
+  ind <- df[,paste0(marker1,"_pos")] & df[,paste0(marker2,"_pos")]
+ 
+  #Correct the double positive rows by marking the lower of the two markers as false
+  fixed <- df[ind,] %>%
+    mutate({{pos1}} := ifelse(
+      .data[[int1]] < .data[[int2]],
+      F, T)
+    ) 
+  
+  fixed <- fixed %>%
+    mutate({{pos2}} := ifelse(
+      .data[[int2]] < .data[[int1]],
+      F, T)
+    )
+
+  #Return corrected rows to data frame
+  res <- rbind(fixed, df[!ind,])
+  res <- res[order(as.numeric(row.names(res))),]
+  
+  #There should be no more double positives
+  stopifnot(nrow(filter(res, .data[[pos1]] & .data[[pos2]]))==0)
+  if(verbose){print(paste("Corrected", nrow(fixed), "double positives"))}
+  res
+  
+}
+
+#testing
+#correct_double_positivity(mpif26,disallowed_markers[[1]])
+#
+```
+
+Recall that:
+
+MPIF26 exclusive markers:  CD27, FoxP3
+MPIF27 exclusive markers: CD138, CD8 
+Shared markers: CD20, CD3, PanCK, DAPI
+
+MPIF26
+
+```{r}
+clean_mpif26 <- correct_double_positivity(mpif26,disallowed_markers[[1]])
+clean_mpif26 <- correct_double_positivity(clean_mpif26,disallowed_markers[[3]])
+```
+
+MPIF27
+
+```{r}
+clean_mpif27 <- correct_double_positivity(mpif27,disallowed_markers[[1]])
+clean_mpif27 <- correct_double_positivity(clean_mpif27,disallowed_markers[[2]])
+```
+
+Sanity checks
+
+```{r}
+for(i in 1:length(disallowed_markers)){
+  m1 <- paste0(disallowed_markers[[i]][1], "_pos")
+  m2 <- paste0(disallowed_markers[[i]][2], "_pos")
+    if(!m1 %in% colnames(mpif26) & m2 %in% colnames(mpif26)){
+      next
+    }
+  stopifnot(nrow(filter(clean_mpif26, .data[[m1]] & .data[[m2]]))==0)
+}
+#clean_mpif26 %>%
+#  filter(CD3_pos & CD20_pos)
+```
+
+```{r}
+for(i in 1:length(disallowed_markers)){
+  m1 <- paste0(disallowed_markers[[i]][1], "_pos")
+  m2 <- paste0(disallowed_markers[[i]][2], "_pos")
+    if(!m1 %in% colnames(mpif27) & m2 %in% colnames(mpif27)){
+      next
+    }
+  stopifnot(nrow(filter(clean_mpif27, .data[[m1]] & .data[[m2]]))==0)
+}
+```
+
+Todo: define cell types heuristically
+
+```{r}
+sessionInfo()
+```
+
