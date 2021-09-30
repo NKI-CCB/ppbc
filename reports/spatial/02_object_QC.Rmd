@@ -29,39 +29,20 @@ In this notebook, we perform a variety of sample-wise sanity checks regarding ma
 
 ## Marker combinations
 
-List all existing combinatinos of markers, their location (tumor vs stroma), by sample and by panel.
+List all existing combinations of markers, their location (tumor vs stroma), by sample and by panel.
 
-```{r}
-read_and_count_objects <- function(fn) {
-  ds <- ncdf4::nc_open(fn)
-  cell_df <- nc_read_data_frame(ds, "cell")
-  positive <- nc_read_matrix(ds, "positive_classification") > 0
-  dye <- str_split_fixed(ncvar_get(ds, 'dye'), ' ', 2)[,1]
-  nc_close(ds)
-  cell_df$marker_pos = apply(positive, 2, function (positive_mask) {
-    paste0(dye[positive_mask], '+', collapse='_')
-  })
-  cell_df %>%
-    group_by(marker_pos, classifier_label, .drop=F) %>%
-    summarize(n=n(), .groups="drop") %>%
-    pivot_wider(
-      names_from=classifier_label,
-      values_from=n)
-}
-cell_counts <- dir_ls(here("data/vectra/interim/objects/"), regexp = "\\.nc") %>%
-  map_dfr(read_and_count_objects, .id="file") %>%
-  mutate(fn = path_file(file)) %>%
-  extract(fn, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)")
-
-write_csv(cell_counts, here("results/spatial/cell_counts_by_marker.csv"))
-```
-
-```{r}
+```{r load-counts}
+cell_counts <- read_csv(here("results/spatial/cell_counts_by_marker.csv"))
 cell_counts %>%
-  group_by(marker_pos, panel) %>%
-  summarize(across(c(Tumor, Stroma), max), .groups="drop") %>%
-  arrange(desc(Tumor + Stroma)) %>%
-  print(n=100)
+  group_by(marker_pos, panel, classifier_label) %>%
+  summarise(max_n=max(n), .groups="drop") %>%
+  left_join(cell_counts, by=c("marker_pos", "panel", "classifier_label", max_n="n")) %>%
+  group_by(marker_pos, panel, classifier_label, max_n) %>%
+  summarise(t_number=paste0(t_number, collapse="/"), .groups='drop') %>%
+  pivot_wider(
+    names_from=classifier_label,
+    values_from=c(max_n, t_number)) %>%
+  arrange(desc(max_n_Stroma + max_n_Tumor))
 ```
 
 ## Marker intensity by sample
@@ -70,36 +51,11 @@ For every sample, check each marker to ensure that it's localized where it's sup
 
 (In the case of cell counts, this SHOULD be the same as the analysis performed on the summary QC files in the previous notebook. But, check to make sure that the reality within the data frame matches the summary.)
 
-```{r}
-read_object_intensity <- function(fn) {
-  ds <- ncdf4::nc_open(fn)
-  cell_df <- nc_read_data_frame(ds, "cell")
-  positive <- nc_read_matrix(ds, "positive_classification") > 0
-  nuc <- nc_read_matrix(ds, "nucleus_intensity")
-  cyt <- nc_read_matrix(ds, "cytoplasm_intensity")
-  mem <- nc_read_matrix(ds, "membrane_intensity")
-  nc_close(ds)
-  #return(cell_df)
-  rownames(positive) <- paste0(str_remove(rownames(positive), " \\(Opal .*\\)"),"_pos")
-  rownames(nuc) <- paste0(str_remove(rownames(nuc), " \\(Opal .*\\)"),"_nuclear")
-  rownames(cyt) <- paste0(str_remove(rownames(cyt), " \\(Opal .*\\)"),"_cytoplasm")
-  rownames(mem) <- paste0(str_remove(rownames(mem), " \\(Opal .*\\)"),"_membrane")
-  #Keeping cell area and xy coords should be enough?
-  cell_df <- cell_df %>% select(-`cytoplasm area`, -`nucleus area`, -cell,
-                    -`nucleus perimeter`, -nucleus_roundness) %>%
-    rename(cell_area = `cell area`)
-  cbind(cell_df, t(positive), t(nuc), t(cyt), t(mem))
-  
-}
-#testing
-#read_object_intensity(dir_ls(here("data/vectra/interim/objects/"), regexp = ".*MPIF26.*\\.nc")[1])
-```
-
 Produce separate dfs per panel.
 
-```{r}
+```{r read_mpif26}
 mpif26 <- dir_ls(here("data/vectra/interim/objects/"), regexp = ".*MPIF26.*\\.nc") %>%
-  map_dfr(read_object_intensity, .id="file") %>%
+  map_dfr(~ read_cells(., intensity=T), .id="file") %>%
   mutate(fn = path_file(file)) %>%
   extract(fn, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)") %>%
   relocate(t_number, panel, .before = everything()) %>%
@@ -108,9 +64,9 @@ mpif26 <- dir_ls(here("data/vectra/interim/objects/"), regexp = ".*MPIF26.*\\.nc
 head(mpif26)
 ```
 
-```{r}
+```{r read_mpif27}
 mpif27 <- dir_ls(here("data/vectra/interim/objects/"), regexp = ".*MPIF27.*\\.nc") %>%
-  map_dfr(read_object_intensity, .id="file") %>%
+  map_dfr(~ read_cells(., intensity=T), .id="file") %>%
   mutate(fn = path_file(file)) %>%
   extract(fn, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)") %>%
   relocate(t_number, panel, .before = everything()) %>%
@@ -124,20 +80,20 @@ head(mpif27)
 All present cells are DAPI+.
 
 ```{r}
-stopifnot(nrow(filter(mpif26, DAPI_pos == F))==0 &
-            nrow(filter(mpif27, DAPI_pos == F))==0)
+stopifnot(nrow(filter(mpif26, DAPI_positive == F))==0 &
+            nrow(filter(mpif27, DAPI_positive == F))==0)
 ```
 
 ### Localization
 
 DAPI should be nucleus only.
 
-```{r}
+```{r summarize_markers_fn}
 summarise_marker <- function(marker, panel1=mpif26, panel2=mpif27, bysample = F){
-  pos <- paste0(marker, "_pos")
-  nuc <- paste0(marker, "_nuclear")
-  cyt <- paste0(marker, "_cytoplasm")
-  mem <- paste0(marker, "_membrane")
+  pos <- paste0(marker, "_positive")
+  nuc <- paste0(marker, "_nucleus_intensity")
+  cyt <- paste0(marker, "_cytoplasm_intensity")
+  mem <- paste0(marker, "_membrane_intensity")
   
   if(pos %in% colnames(panel1) & pos %in% colnames(panel2)){
     #print("marker in both")
@@ -176,12 +132,13 @@ summarise_marker <- function(marker, panel1=mpif26, panel2=mpif27, bysample = F)
   }
 }
 
+```{r summarize_dapi}
 summarise_marker("DAPI")
 ```
 
 ### Samplewise summary
 
-```{r}
+```{r summarize_dapi_per_sample}
 summarise_marker("DAPI", bysample=T) %>%
   select(-mean_cytoplasm, -mean_membrane) %>%
   pivot_wider(names_from = c(panel,classifier_label),
@@ -190,16 +147,16 @@ summarise_marker("DAPI", bysample=T) %>%
               )
 ```
 
-### Count dotplot
+### Count scatterplot
 
-```{r}
+```{r plot_count}
 summarise_marker("DAPI", bysample=T) %>%
   select(-mean_cytoplasm, -mean_membrane) %>%
   pivot_wider(names_from = c(panel),
               values_from = c(count, mean_nuclear),
               names_glue = "{panel}_{.value}"
   ) %>%
-  ggplot(aes(x = MPIF26_count, y = MPIF27_count, color = DAPI_pos)) +
+  ggplot(aes(x = MPIF26_count, y = MPIF27_count, color = DAPI_positive)) +
   geom_point() +
   facet_wrap(~classifier_label) +
   ggtitle("DAPI count by sample")
@@ -208,31 +165,31 @@ summarise_marker("DAPI", bysample=T) %>%
 
 ### Average intensity
 
-```{r}
+```{r plot_intensity}
 summarise_marker("DAPI", bysample=T) %>%
   select(-mean_cytoplasm, -mean_membrane) %>%
   pivot_wider(names_from = c(panel),
               values_from = c(count, mean_nuclear),
               names_glue = "{panel}_{.value}"
   ) %>%
-  ggplot(aes(x = MPIF26_mean_nuclear, y = MPIF27_mean_nuclear, color = DAPI_pos)) +
+  ggplot(aes(x = MPIF26_mean_nuclear, y = MPIF27_mean_nuclear, color = DAPI_positive)) +
   geom_point() +
   facet_wrap(~classifier_label) +
   ggtitle("DAPI mean intensity by sample")
   
 ```
 
-```{r, fig.height=6, include=F, eval=F}
+```{r hist_intensity, fig.height=6, include=F, eval=F}
 ##### Intensity histogram
 #Is this useful? Probably not when the marker is present in both panels
 mpif26 %>%
-  ggplot(aes(x = DAPI_nuclear, fill = DAPI_pos)) +
+  ggplot(aes(x = DAPI_nucleus_intensity, fill = DAPI_positive)) +
   geom_histogram(bins = 30) +
   facet_wrap(~t_number) +
   ggtitle("MPIF26")
 
 mpif27 %>%
-  ggplot(aes(x = DAPI_nuclear, fill = DAPI_pos)) +
+  ggplot(aes(x = DAPI_nucleus_intensity, fill = DAPI_positive)) +
   geom_histogram(bins = 30) +
   facet_wrap(~t_number) +
   ggtitle("MPIF27")
@@ -240,10 +197,10 @@ mpif27 %>%
 
 ### Barplot positive cells
 
-```{r}
+```{r barplot_counts}
 summarise_marker("DAPI", bysample=T) %>%
   select(-mean_nuclear, -mean_membrane) %>%
-  filter(DAPI_pos == T) %>%
+  filter(DAPI_positive == T) %>%
   ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
   geom_bar(stat = "identity") +
   ggpubr::rotate_x_text(angle = 45) +
@@ -280,7 +237,7 @@ summarise_marker("PanCK", bysample=T) %>%
               values_from = c(count, mean_cytoplasm),
               names_glue = "{panel}_{.value}"
   ) %>%
-  ggplot(aes(x = MPIF26_count, y = MPIF27_count, color = PanCK_pos)) +
+  ggplot(aes(x = MPIF26_count, y = MPIF27_count, color = PanCK_positive)) +
   geom_point() +
   facet_wrap(~classifier_label) +
   ggtitle("PanCK count by sample")
@@ -296,7 +253,7 @@ summarise_marker("PanCK", bysample=T) %>%
               values_from = c(count, mean_cytoplasm),
               names_glue = "{panel}_{.value}"
   ) %>%
-  ggplot(aes(x = MPIF26_mean_cytoplasm, y = MPIF27_mean_cytoplasm, color = PanCK_pos)) +
+  ggplot(aes(x = MPIF26_mean_cytoplasm, y = MPIF27_mean_cytoplasm, color = PanCK_positive)) +
   geom_point() +
   facet_wrap(~classifier_label) +
   ggtitle("PanCK mean intensity by sample")
@@ -308,7 +265,7 @@ summarise_marker("PanCK", bysample=T) %>%
 ```{r}
 summarise_marker("PanCK", bysample=T) %>%
   select(-mean_nuclear, -mean_membrane) %>%
-  filter(PanCK_pos == T) %>%
+  filter(PanCK_positive == T) %>%
   ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
   geom_bar(stat = "identity") +
   ggpubr::rotate_x_text(angle = 45) +
@@ -345,7 +302,7 @@ summarise_marker("CD3", bysample=T) %>%
               values_from = c(count, mean_cytoplasm),
               names_glue = "{panel}_{.value}"
   ) %>%
-  ggplot(aes(x = MPIF26_count, y = MPIF27_count, color = CD3_pos)) +
+  ggplot(aes(x = MPIF26_count, y = MPIF27_count, color = CD3_positive)) +
   geom_point() +
   facet_wrap(~classifier_label) +
   ggtitle("CD3 count by sample")
@@ -361,7 +318,7 @@ summarise_marker("CD3", bysample=T) %>%
               values_from = c(count, mean_cytoplasm),
               names_glue = "{panel}_{.value}"
   ) %>%
-  ggplot(aes(x = MPIF26_mean_cytoplasm, y = MPIF27_mean_cytoplasm, color = CD3_pos)) +
+  ggplot(aes(x = MPIF26_mean_cytoplasm, y = MPIF27_mean_cytoplasm, color = CD3_positive)) +
   geom_point() +
   facet_wrap(~classifier_label) +
   ggtitle("CD3 mean intensity by panel")
@@ -373,7 +330,7 @@ summarise_marker("CD3", bysample=T) %>%
 ```{r}
 summarise_marker("CD3", bysample=T) %>%
   select(-mean_nuclear, -mean_membrane) %>%
-  filter(CD3_pos == T) %>%
+  filter(CD3_positive == T) %>%
   ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
   geom_bar(stat = "identity") +
   ggpubr::rotate_x_text(angle = 45) +
@@ -410,7 +367,7 @@ summarise_marker("CD20", bysample=T) %>%
               values_from = c(count, mean_cytoplasm),
               names_glue = "{panel}_{.value}"
   ) %>%
-  ggplot(aes(x = MPIF26_count, y = MPIF27_count, color = CD20_pos)) +
+  ggplot(aes(x = MPIF26_count, y = MPIF27_count, color = CD20_positive)) +
   geom_point() +
   facet_wrap(~classifier_label) +
   ggtitle("CD20 count by sample")
@@ -426,7 +383,7 @@ summarise_marker("CD20", bysample=T) %>%
               values_from = c(count, mean_cytoplasm),
               names_glue = "{panel}_{.value}"
   ) %>%
-  ggplot(aes(x = MPIF26_mean_cytoplasm, y = MPIF27_mean_cytoplasm, color = CD20_pos)) +
+  ggplot(aes(x = MPIF26_mean_cytoplasm, y = MPIF27_mean_cytoplasm, color = CD20_positive)) +
   geom_point() +
   facet_wrap(~classifier_label) +
   ggtitle("CD20 mean intensity by panel")
@@ -438,7 +395,7 @@ summarise_marker("CD20", bysample=T) %>%
 ```{r}
 summarise_marker("CD20", bysample=T) %>%
   select(-mean_nuclear, -mean_membrane) %>%
-  filter(CD20_pos == T) %>%
+  filter(CD20_positive == T) %>%
   ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
   geom_bar(stat = "identity") +
   ggpubr::rotate_x_text(angle = 45) +
@@ -471,7 +428,7 @@ summarise_marker("CD27", bysample=T) %>%
 ```{r}
 summarise_marker("CD27", bysample=T) %>%
   select(-mean_nuclear, -mean_membrane) %>%
-  filter(CD27_pos == T) %>%
+  filter(CD27_positive == T) %>%
   ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
   geom_bar(stat = "identity") +
   ggpubr::rotate_x_text(angle = 45) +
@@ -486,7 +443,7 @@ summarise_marker("CD27", bysample=T) %>%
               values_from = c(count, mean_cytoplasm),
               names_glue = "{panel}_{.value}"
   ) %>%
-  ggplot(aes(x = MPIF26_count, y = MPIF26_mean_cytoplasm, color = CD27_pos)) +
+  ggplot(aes(x = MPIF26_count, y = MPIF26_mean_cytoplasm, color = CD27_positive)) +
   geom_point() +
   facet_wrap(~classifier_label) +
   ggtitle("CD27 count by sample")
@@ -519,7 +476,7 @@ summarise_marker("CD8", bysample=T) %>%
 ```{r}
 summarise_marker("CD8", bysample=T) %>%
   select(-mean_nuclear, -mean_membrane) %>%
-  filter(CD8_pos == T) %>%
+  filter(CD8_positive == T) %>%
   ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
   geom_bar(stat = "identity") +
   ggpubr::rotate_x_text(angle = 45) +
@@ -552,7 +509,7 @@ summarise_marker("FoxP3", bysample=T) %>%
 ```{r}
 summarise_marker("FoxP3", bysample=T) %>%
   select(-mean_nuclear, -mean_membrane) %>%
-  filter(FoxP3_pos == T) %>%
+  filter(FoxP3_positive == T) %>%
   ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
   geom_bar(stat = "identity") +
   ggpubr::rotate_x_text(angle = 45) +
@@ -585,7 +542,7 @@ summarise_marker("CD138", bysample=T) %>%
 ```{r}
 summarise_marker("CD138", bysample=T) %>%
   select(-mean_nuclear, -mean_membrane) %>%
-  filter(CD138_pos == T) %>%
+  filter(CD138_positive == T) %>%
   ggplot(aes(x = t_number, y = count, fill = classifier_label)) +
   geom_bar(stat = "identity") +
   ggpubr::rotate_x_text(angle = 45) +
@@ -600,14 +557,14 @@ Each of the markers examined above is localized in a single compartment, and can
 
 ```{r}
 mpif26 <- mpif26[,sapply(mpif26, function(x) all(!is.nan(x)))]
-colnames(mpif26) <- str_replace(colnames(mpif26), "nuclear|cytoplasm|membrane", "intensity")
+colnames(mpif26) <- str_replace(colnames(mpif26), "_(nucleus|cytoplasm|membrane)_", "_")
 
 saveRDS(mpif26, here("data/vectra/interim/mpif26_df.Rds"))
 ```
 
 ```{r}
 mpif27 <- mpif27[,sapply(mpif27, function(x) all(!is.nan(x)))]
-colnames(mpif27) <- str_replace(colnames(mpif27), "nuclear|cytoplasm|membrane", "intensity")
+colnames(mpif27) <- str_replace(colnames(mpif27), "_(nucleus|cytoplasm|membrane)_", "_")
 
 saveRDS(mpif27, here("data/vectra/interim/mpif27_df.Rds"))
 ```

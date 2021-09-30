@@ -943,14 +943,15 @@ all_objects = expand(
 
 rule object_QC:
   input:
+    "src/spatial/read_cells.R",
     rmd="reports/spatial/02_object_QC.Rmd",
     script="src/rmarkdown.R",
     objects=all_objects,
+    cell_count_by_marker="results/spatial/cell_counts_by_marker.csv"
   output:
     html="reports/spatial/02_object_QC.html",
-    mpif26_df="data/vectra/interim/mpif26_df.Rds",
-    mpif27_df="data/vectra/interim/mpif27_df.Rds",
-    cell_count_by_marker="results/spatial/cell_counts_by_marker.csv"
+    #mpif26_df="data/vectra/interim/mpif26_df.Rds",
+    #mpif27_df="data/vectra/interim/mpif27_df.Rds",
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
@@ -984,6 +985,17 @@ rule cell_type_density:
   shell:
     "mkdir -p results/spatial/density\n"
     "Rscript {input.script} {input.objects} {output}"
+
+rule count_cells:
+  input:
+    all_objects,
+    "src/spatial/read_cells.R",
+    script="src/spatial/counts_cells.R",
+  output:
+    csv="results/spatial/cell_counts_by_marker.csv",
+  shell:
+    "mkdir -p results/spatial/\n"
+    "Rscript {input.script} data/vectra/interim/objects/ {output.csv}"
 
 rule define_cell_types:
   input:

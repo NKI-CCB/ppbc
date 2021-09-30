@@ -46,25 +46,34 @@ nc_read_matrix <- function(ds, var_name) {
     mat
 }
 
-read_cells <- function(fn) {
+read_cells <- function(fn, intensity=F) {
     if (is.character(fn)) {
       ds <- ncdf4::nc_open(fn)
       on.exit(ncdf4::nc_close(ds), add=T)
     } else {
       ds <- fn
     }
-    df <- nc_read_data_frame(ds, "cell")
-    positive <- nc_read_matrix(ds, "positive_classification") > 0
+    cell_df <- nc_read_data_frame(ds, "cell")
+    cell_matrices <- list()
+    cell_matrices[['positive']] <- t(nc_read_matrix(ds, "positive_classification") > 0)
+    if (intensity) {
+      for (m in c('nucleus_intensity', 'cytoplasm_intensity', 'membrane_intensity')) {
+        cell_matrices[[m]] <- t(nc_read_matrix(ds, m))
+        stopifnot(nrow(cell_matrices[[m]]) == nrow(cell_df))
+      }
 
-    positive <- as_tibble(t(positive), rownames = "cell") %>%
-        dplyr::rename_at(2:ncol(.), ~ paste0(stringr::str_extract(., "^[A-Za-z0-9]+"), "_positive")) %>%
-        dplyr::mutate(cell = as.integer(cell))
-    df <- df %>%
+    }
+    cell_df <- cell_df %>%
         dplyr::mutate(
             x = pixel_size * (xmin + xmax) / 2,
             y = pixel_size * (ymin + ymax) / 2) %>%
-        dplyr::distinct()
-    df <- dplyr::left_join(df, positive, by = "cell")
+        dplyr::distinct() %>%
+        dplyr::rename_with(~ stringr::str_replace(., stringr::fixed(' '), '_'))
+    for (m in names(cell_matrices)) {
+      colnames(cell_matrices[[m]]) <- colnames(cell_matrices[[m]]) %>%
+        stringr::str_remove(" \\(Opal .*\\)") %>%
+        paste0("_", m)
+    }
 
-    df
+    do.call(cbind, c(list(cell_df), unname(cell_matrices)))
 }
