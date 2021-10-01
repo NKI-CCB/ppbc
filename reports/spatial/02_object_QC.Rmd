@@ -131,6 +131,7 @@ summarise_marker <- function(marker, panel1=mpif26, panel2=mpif27, bysample = F)
         )
   }
 }
+```
 
 ```{r summarize_dapi}
 summarise_marker("DAPI")
