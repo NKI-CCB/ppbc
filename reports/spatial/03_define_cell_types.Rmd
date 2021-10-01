@@ -41,7 +41,7 @@ We broadly define the following cell types:
 * Helper T-cell (CD3+, CD8-, FoxP3-)
 * B-cell (CD20+, CD138-)
 * Plasma B-cell (CD20+, CD138+)
-* NK cell (CD8+, CD3-)
+* NK cell (CD8+, CD3- or CD27+, CD3-)
 * Epithelial cell (PanCK+ and negative for immune markers)
 
 Here we are assuming that CD3+CD8-FoxP3- are *probably* CD4+, since double-negative T-cells represent a [small (1-5%) populatoin of lymphocytes](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3269300/). One may also argue that not all CD8+ T-cells are by definition cytotoxic, but we lack the data to make such distinctions here.
@@ -127,67 +127,123 @@ panel_markers %>%
 
 Additional impossible combinations exist within the data, but in relatively low numbers.
 
-```{r, include=F, eval=F}
-## CD3 Troubleshooting
-#Many of the most abundant problematic markers combinations involve either the unexpected presence or the unexpected absence of CD3. Plot CD3 expression alongside other markers.
-#...or at least that was the idea, but it doesn't actually show anything useful, and it takes a long time to run
+## Marker coexpression
 
-coexpression_plot <- function(marker, df1 = mpif26, df2 = mpif27){
+Because we are plotting a few million points, this does take a few minutes to run, and it will only get worse as new samples come in. We therefore exclude the double negatives for each marker combo to reduce the total number of points.
+
+```{r, coexpression_fn}
+coexpression_plot <- function(marker1, marker2, df1 = mpif26, df2 = mpif27){
   
-  pos <- paste0(marker, "_positive")
-  intens <- paste0(marker, "_intensity")
+  pos1 <- paste0(marker1, "_positive")
+  pos2 <- paste0(marker2, "_positive")
+  intens1 <- paste0(marker1, "_intensity")
+  intens2 <- paste0(marker2, "_intensity")
   
-  if(pos %in% colnames(df1) & pos %in% colnames(df2)){
-    #print("marker in both")
+  if(pos1 %in% colnames(df1) & pos2 %in% colnames(df1) &
+     pos1 %in% colnames(df2) & pos2 %in% colnames(df2)){
+    #print("markers in both")
     df <- bind_rows(
       df1, df2
     )
-  } else if (!pos %in% colnames(df2)) {
-    #print("marker in panel1")
+  } else if (pos1 %in% colnames(df1) & pos2 %in% colnames(df1)) {
+    #print("markers in panel1")
     df <- df1
-  } else {
-    #print("marker in panel2")
+  } else if (pos1 %in% colnames(df2) & pos2 %in% colnames(df2)) {
+    #print("markers in panel2")
     df <- df2
+  } else {
+    stop("Provide a marker combination that exists in the same panel")
   }
   
-  #Don't plot DAPI
-  df <- df %>% select(-DAPI_intensity, -DAPI_pos)
+  df <- df %>%
+    select(t_number, panel, object_id, contains(marker1), contains(marker2))
   
-  #Extract the relevant columns for plocolnames(df)[str_detect(colnames(df), "intensity")]tting
-  intensities <- colnames(df)[str_detect(colnames(df), "intensity")]
-  intensities <- intensities[-which(intensities==intens)]
+  #Convert positivity logicals into strings
+  df$marker1 <- if_else(df[,pos1]==T, paste0(marker1, "+"), paste0(marker1, "-"))
+  df$marker2 <- if_else(df[,pos2]==T, paste0(marker2, "+"), paste0(marker2, "-"))
+  df <- df %>%
+    mutate(markers = paste0(marker1, marker2)) %>%
+    select(-marker1, marker2)
+  
+  #Remove double negatives to improve runtime
+  df <- df %>%
+    filter(!(.data[[pos1]]==F & .data[[pos2]]==F))
+  
+  df %>%
+    ggplot(aes_string(x = intens1, y = intens2, 
+                      color = "markers", shape = "panel")) +
+    geom_point(alpha = 0.5) +
+    ggtitle(paste(marker1, marker2, "coexpression"))
+  
 
-  #return(df)
-  
-  lapply(intensities, function(z){
-    p <- str_replace(z, "intensity", "positive")
-    m <- str_remove(z, "_intensity")
-    
-    df <- df %>%
-      select(object_id, panel, contains(marker), contains(m))
-    
-    #Convert positivity logicals into strings
-    df[,pos] <- if_else(df[,pos]==T, paste0(marker, "+"), paste0(marker, "-"))
-    df[,p] <- if_else(df[,p]==T, paste0(m, "+"), paste0(m, "-"))
-    df$markers <- paste(df[,pos], df[,p])
-    df <- df %>%
-      mutate(markers = str_remove(markers, " NA"))
-    df %>%
-      ggplot(aes_string(x = intens, y = z, 
-                        color = "markers", shape = "panel")) +
-      geom_point(alpha = 0.5) +
-      #scale_x_log10() +
-      #scale_y_log10() +
-      ggthemes::scale_color_fivethirtyeight() +
-      ggtitle(paste(marker, m, "expression"))
-  }
-  )
 }  
 
-coexpression_plot("CD3")
+#testing
+#coexpression_plot("CD3", "CD20") +
+#  facet_wrap(~t_number)
+#coexpression_plot("CD3", "CD8")
+#coexpression_plot("CD3", "CD27")
+#coexpression_plot("CD8", "CD27")
 ```
 
-## Double positivity
+### Implausible CD3 combinations
+
+Many of the most abundant problematic markers combinations involve either the unexpected presence or the unexpected absence of CD3. Plot CD3 expression alongside problem markers.
+
+```{r cd3_coexpression}
+lapply(c("CD20", "CD138"), function(x){
+  coexpression_plot("CD3", x) +
+    scale_color_viridis_d()
+})
+```
+
+There is no FACS-style cloud around which we can "gate" alternatively for any of these combinations.
+
+### PanCK-immune coexpression
+
+```{r panck_coexpression}
+lapply(c("CD20", "CD3", "CD8" ,"FoxP3", "CD27"), function(x){
+  coexpression_plot("PanCK", x) +
+    scale_color_viridis_d()
+})
+```
+
+PanCK-CD20 coexpression does show signs of bleedthrough from PanCK into the CD20 channel. There is a smaller population of CD3 cells for which the same problem occurs. Check these two markers sample-wise.
+
+```{r, fig.height=6}
+lapply(c("CD20", "CD3"), function(x){
+  coexpression_plot("PanCK", x) +
+    scale_color_viridis_d() +
+    facet_wrap(~t_number)
+})
+```
+
+There is definitely some sample-specific weirdness going on with PanCK-CD20 coexpression. PanCK-CD3 coexpression is less bizarre, but still shows aberrant behavior between samples. TODO: discuss with Tycho.
+
+### Implausible CD20 coexpression
+
+CD3-CD20 coexpression was covered above, let's look at the other exclusive T cell markers.
+
+```{r, cd20_coexpression}
+lapply(c("CD8", "FoxP3"), function(x){
+  coexpression_plot("CD20", x) +
+    scale_color_viridis_d()
+})
+```
+
+There is more overlap than usual between CD20-FoxP3+ and double positive cells than is usual - or maybe there are just fewer points here so they show up better?
+
+```{r, cd20_coexpression_sample}
+lapply(c("CD8", "FoxP3"), function(x){
+  coexpression_plot("CD20", x) +
+    scale_color_viridis_d() +
+    facet_wrap(~t_number)
+})
+```
+
+These do not appear to show any major sample-specific aberrations.
+
+## Correcting double positivity
 
 For "impossible" combinations of immune markers, consider the cell positive for the marker with the highest expression.
 
@@ -302,7 +358,48 @@ for(i in 1:length(disallowed_markers)){
 }
 ```
 
-Todo: define cell types heuristically
+## Cell definitions
+
+* Cytotoxic T-cell (CD8+, CD3+)
+* T-reg (CD3+, FoxP3+)
+* Helper T-cell (CD3+, CD8-, FoxP3-)
+* B-cell (CD20+, CD138-)
+* Plasma B-cell (CD20+, CD138+)
+* NK cell (CD8+, CD3-)
+* Epithelial cell (PanCK+ and negative for immune markers)
+
+MPIF26 exclusive markers:  CD27, FoxP3
+MPIF27 exclusive markers: CD138, CD8 
+Shared markers: CD20, CD3, PanCK, DAPI
+
+```{r}
+#Still WIP
+define_cells <- function(df, markers = c("MPIF26", "MPIF27")){
+  
+  if(markers == "MPIF26"){
+    df <- df %>%
+      #Rules are executed in order and will not overwrite the previous
+      mutate(cell_type = case_when(
+        #CD8_positive & CD3_positive ~ "cytotoxic T",
+        CD3_positive & FoxP3_positive ~ "T-reg",
+        CD3_positive ~ "helper T",
+        CD27_positive & !CD3_positive ~ "NK cell",
+        #CD20_positive & CD138_positive ~ "plasma B",
+        CD20_positive ~ "B cell",
+        PanCK_positive ~ "epithelial",
+        #DAPI only
+        !CD27_positive & !FoxP3_positive & !CD3_positive &
+          !CD20_positive & !PanCK_positive ~ "non-epithelial", #better name?
+        TRUE ~ "fixme"
+      ), .after=object_id)
+  }
+  
+  df
+}
+
+define_cells(mpif26, markers = "MPIF26")
+```
+
 
 ```{r}
 sessionInfo()
