@@ -950,8 +950,8 @@ rule object_QC:
     cell_count_by_marker="results/spatial/cell_counts_by_marker.csv"
   output:
     html="reports/spatial/02_object_QC.html",
-    #mpif26_df="data/vectra/interim/mpif26_df.Rds",
-    #mpif27_df="data/vectra/interim/mpif27_df.Rds",
+    mpif26_df="data/vectra/interim/mpif26_df.Rds",
+    mpif27_df="data/vectra/interim/mpif27_df.Rds",
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
@@ -997,14 +997,27 @@ rule count_cells:
     "mkdir -p results/spatial/\n"
     "Rscript {input.script} data/vectra/interim/objects/ {output.csv}"
 
-rule define_cell_types:
+rule marker_correction:
   input:
     mpif26_df="data/vectra/interim/mpif26_df.Rds",
     mpif27_df="data/vectra/interim/mpif27_df.Rds",
     cell_count_by_marker="results/spatial/cell_counts_by_marker.csv",
-    rmd="reports/spatial/03_define_cell_types.Rmd",
+    rmd="reports/spatial/03_marker_correction.Rmd",
     script="src/rmarkdown.R"
   output:
-    html="reports/spatial/03_define_cell_types.html"
+    html="reports/spatial/03_marker_correction.html",
+    clean_mpif26="data/vectra/interim/clean_mpif26.Rds",
+    clean_mpif27="data/vectra/interim/clean_mpif27.Rds"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+    
+rule define_cell_types:
+  input:
+    clean_mpif26="data/vectra/interim/clean_mpif26.Rds",
+    clean_mpif27="data/vectra/interim/clean_mpif27.Rds",
+    rmd="reports/spatial/04_define_cell_types.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    html="reports/spatial/04_define_cell_types.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"    

@@ -1,0 +1,93 @@
+---
+title: "Define cell types"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages}
+library(here)
+library(tidyverse)
+
+theme_set(theme_bw())
+```
+
+
+We broadly define the following cell types:
+
+* Cytotoxic T-cell (CD8+, CD3+)
+* T-reg (CD3+, FoxP3+)
+* Helper T-cell (CD3+, CD8-, FoxP3-)
+* B-cell (CD20+, CD138-)
+* Plasma B-cell (CD20+, CD138+)
+* NK cell (CD8+, CD3- or CD27+, CD3-)
+* Epithelial cell (PanCK+ and negative for immune markers)
+
+Here we are assuming that CD3+CD8-FoxP3- are *probably* CD4+, since double-negative T-cells represent a [small (1-5%) populatoin of lymphocytes](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3269300/). One may also argue that not all CD8+ T-cells are by definition cytotoxic, but we lack the data to make such distinctions here.
+
+CD27 is an early immune activation marker and is highly associated with a positive outcome in the PPBC cohort, especially among involuting patients. We therefore consider it as an additional characteristic of immune cells. (TODO: What about cells that are CD27+ but negative for everything else?)
+
+## Load data
+
+```{r}
+mpif26 <- readRDS(here("data/vectra/interim/clean_mpif26.Rds"))
+mpif27 <- readRDS(here("data/vectra/interim/clean_mpif27.Rds"))
+```
+
+## Cell definitions
+
+* Cytotoxic T-cell (CD8+, CD3+)
+* T-reg (CD3+, FoxP3+)
+* Helper T-cell (CD3+, CD8-, FoxP3-)
+* B-cell (CD20+, CD138-)
+* Plasma B-cell (CD20+, CD138+)
+* NK cell (CD8+, CD3-)
+* Epithelial cell (PanCK+ and negative for immune markers)
+
+MPIF26 exclusive markers:  CD27, FoxP3
+MPIF27 exclusive markers: CD138, CD8 
+Shared markers: CD20, CD3, PanCK, DAPI
+
+FoxP3 positivity in the absence of CD3 positivity can occur. These cells will be classified as T-regs.
+
+```{r}
+define_cells <- function(df, markers = c("MPIF26", "MPIF27")){
+  
+  if(markers == "MPIF26"){
+    df <- df %>%
+      #Rules are executed in order and will not overwrite the previous
+      mutate(cell_type = dplyr::case_when(
+        #CD8_positive & CD3_positive ~ "cytotoxic T",
+        CD3_positive & FoxP3_positive ~ "T-reg",
+        CD3_positive ~ "helper T",
+        CD27_positive & !CD3_positive ~ "NK cell",
+        #CD20_positive & CD138_positive ~ "plasma B",
+        CD20_positive ~ "B cell",
+        PanCK_positive ~ "epithelial",
+        #DAPI only
+        !CD27_positive & !FoxP3_positive & !CD3_positive &
+          !CD20_positive & !PanCK_positive ~ "non-epithelial", #better name?
+        TRUE ~ "fixme"
+      ), .after=object_id)
+  }
+  
+  df
+}
+
+define_cells(clean_mpif26, markers = "MPIF26") %>%
+  #make debugging easier, comment out later
+  select(-contains("intensity"), -cell:-ymax, -contains("area"), -contains("nucleus"), -x,-y) #%>%
+  #pivot_longer(cols=c(contains("positive")), names_to = marker)
+  
+```
+
