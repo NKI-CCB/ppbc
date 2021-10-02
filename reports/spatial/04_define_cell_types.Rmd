@@ -35,7 +35,9 @@ We broadly define the following cell types:
 
 Here we are assuming that CD3+CD8-FoxP3- are *probably* CD4+, since double-negative T-cells represent a [small (1-5%) populatoin of lymphocytes](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3269300/). One may also argue that not all CD8+ T-cells are by definition cytotoxic, but we lack the data to make such distinctions here.
 
-CD27 is an early immune activation marker and is highly associated with a positive outcome in the PPBC cohort, especially among involuting patients. We therefore consider it as an additional characteristic of immune cells. (TODO: What about cells that are CD27+ but negative for everything else?)
+CD27 is an early immune activation marker and is highly associated with a positive outcome in the PPBC cohort, especially among involuting patients. We therefore consider it as an additional characteristic of immune cells. 
+
+CD138 in combination with CD20 is a plasma B marker, but it is also [expressed by T cells](https://www.biorxiv.org/content/10.1101/2020.03.25.008995v1) and [malignant cells](https://pubmed.ncbi.nlm.nih.gov/14983940/).
 
 ## Load data
 
@@ -46,19 +48,43 @@ mpif27 <- readRDS(here("data/vectra/interim/clean_mpif27.Rds"))
 
 ## Cell definitions
 
-* Cytotoxic T-cell (CD8+, CD3+)
-* T-reg (CD3+, FoxP3+)
-* Helper T-cell (CD3+, CD8-, FoxP3-)
-* B-cell (CD20+, CD138-)
-* Plasma B-cell (CD20+, CD138+)
-* NK cell (CD8+, CD3-)
-* Epithelial cell (PanCK+ and negative for immune markers)
+FoxP3 positivity in the absence of CD3 positivity can occur. These cells will be classified as T-regs.
+
+```{r}
+#This takes a reaaaaally long time to run and should be optimized somehow
+
+summarise_markers <- function(df){
+  #Summarise markers as strings for downstream sanity checks
+  mcols <- colnames(df)[str_detect(colnames(df), "_positive")]
+  #Except DAPI
+  mcols <- mcols[-which(mcols == "DAPI_positive")]
+  df$markers <- apply(df[,mcols], 1, function(x){
+    paste(str_replace(mcols[x], "_positive", "+"), collapse="_")
+  })
+  
+  df %>%
+    relocate(markers, .after=panel)
+}
+
+mark26 <- summarise_markers(mpif26)
+mark27 <- summarise_markers(mpif27)
+```
+
+
+```{r, eval=F include=F}
+#why does summarising the markers take so long to run?
+saveRDS(mark26, here("data/vectra/interim/temp26.Rds"))
+saveRDS(mark27, here("data/vectra/interim/temp27.Rds"))
+```
+
+```{r, eval=F include=F}
+mark26 <- readRDS(here("data/vectra/interim/temp26.Rds"))
+mark27 <- readRDS(here("data/vectra/interim/temp27.Rds"))
+```
 
 MPIF26 exclusive markers:  CD27, FoxP3
 MPIF27 exclusive markers: CD138, CD8 
 Shared markers: CD20, CD3, PanCK, DAPI
-
-FoxP3 positivity in the absence of CD3 positivity can occur. These cells will be classified as T-regs.
 
 ```{r}
 define_cells <- function(df, markers = c("MPIF26", "MPIF27")){
@@ -68,7 +94,7 @@ define_cells <- function(df, markers = c("MPIF26", "MPIF27")){
       #Rules are executed in order and will not overwrite the previous
       mutate(cell_type = dplyr::case_when(
         #CD8_positive & CD3_positive ~ "cytotoxic T",
-        CD3_positive & FoxP3_positive ~ "T-reg",
+        FoxP3_positive ~ "T-reg",
         CD3_positive ~ "helper T",
         CD27_positive & !CD3_positive ~ "NK cell",
         #CD20_positive & CD138_positive ~ "plasma B",
@@ -79,15 +105,54 @@ define_cells <- function(df, markers = c("MPIF26", "MPIF27")){
           !CD20_positive & !PanCK_positive ~ "non-epithelial", #better name?
         TRUE ~ "fixme"
       ), .after=object_id)
+  } else if (markers == "MPIF27"){
+    df <- df %>%
+      mutate(cell_type = dplyr::case_when(
+        CD8_positive & CD3_positive ~ "cytotoxic T",
+        #FoxP3_positive ~ "T-reg",
+        CD3_positive ~ "helper T",
+        CD8_positive & !CD3_positive ~ "NK cell",
+        CD20_positive & CD138_positive ~ "plasma B",
+        CD20_positive ~ "B cell",
+        PanCK_positive ~ "epithelial",
+        #DAPI only
+        !CD138_positive & !CD8_positive & !CD3_positive &
+          !CD20_positive & !PanCK_positive ~ "non-epithelial", #better name?
+        #CD138 & DAPI
+        !CD8_positive & !CD3_positive &
+          !CD20_positive & !PanCK_positive ~ "epithelial",
+        TRUE ~ "fixme"
+      ), .after=object_id)
+    
+  } else {
+    stop("Provide a panel that exists")
   }
   
-  df
 }
-
-define_cells(clean_mpif26, markers = "MPIF26") %>%
-  #make debugging easier, comment out later
-  select(-contains("intensity"), -cell:-ymax, -contains("area"), -contains("nucleus"), -x,-y) #%>%
-  #pivot_longer(cols=c(contains("positive")), names_to = marker)
   
 ```
+
+```{r}
+cells26 <- define_cells(mark26, markers = "MPIF26") 
+
+stopifnot(nrow(filter(cells26, cell_type == "fixme"))==0)
+  
+cells26 %>% 
+  group_by(cell_type, markers) %>%
+  count() %>%
+  arrange(cell_type)
+```
+
+```{r}
+cells27 <- define_cells(mark27, markers = "MPIF27") 
+
+stopifnot(nrow(filter(cells27, cell_type == "fixme"))==0)
+
+cells27 %>% 
+  group_by(cell_type, markers) %>%
+  count() %>%
+  arrange(cell_type)
+```
+
+
 
