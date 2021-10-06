@@ -1,5 +1,9 @@
+library('dplyr')
 library(ncdf4)
+requireNamespace('purrr')
+requireNamespace('stringr')
 library(tibble)
+requireNamespace('tidyr')
 
 pixel_size <- 0.0004286127  # mm^2  # FIXME: Check with Iris if this is corrrect
 unitname <- c('milimeter', 'milimeters')
@@ -76,4 +80,26 @@ read_cells <- function(fn, intensity=F) {
     }
 
     do.call(cbind, c(list(cell_df), unname(cell_matrices)))
+}
+
+if (sys.nframe() == 0) {
+  parse_args <- function(args) {
+    args <- commandArgs(T)
+    stopifnot(length(args) >= 3)
+    list(
+      in_fns = args[1:(length(args) - 1)],
+      out_fn = args[length(args)]
+    )
+  }
+
+  args <- parse_args(commandArgs(T))
+
+  objects <- rlang::set_names(args$in_fns) %>%
+    purrr::map_dfr(~ read_cells(., intensity=T), .id="file") %>%
+    dplyr::mutate(fn = fs::path_file(file)) %>%
+    tidyr::extract(fn, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)") %>%
+    dplyr::relocate(t_number, panel, .before = everything()) %>%
+    dplyr::relocate(file, .after = everything())
+
+  saveRDS(objects, args$out_fn)
 }

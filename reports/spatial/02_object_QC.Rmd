@@ -21,8 +21,6 @@ ggplot2::theme_set(ggplot2::theme_bw())
 library(here)
 library(fs)
 library(tidyverse)
-
-source(here('src/spatial/read_cells.R'))
 ```
 
 In this notebook, we perform a variety of sample-wise sanity checks regarding marker positivity cutoffs, localization, and correlation.
@@ -53,26 +51,9 @@ For every sample, check each marker to ensure that it's localized where it's sup
 
 Produce separate dfs per panel.
 
-```{r read_mpif26}
-mpif26 <- dir_ls(here("data/vectra/interim/objects/"), regexp = ".*MPIF26.*\\.nc") %>%
-  map_dfr(~ read_cells(., intensity=T), .id="file") %>%
-  mutate(fn = path_file(file)) %>%
-  extract(fn, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)") %>%
-  relocate(t_number, panel, .before = everything()) %>%
-  relocate(file, .after = everything())
-
-head(mpif26)
-```
-
-```{r read_mpif27}
-mpif27 <- dir_ls(here("data/vectra/interim/objects/"), regexp = ".*MPIF27.*\\.nc") %>%
-  map_dfr(~ read_cells(., intensity=T), .id="file") %>%
-  mutate(fn = path_file(file)) %>%
-  extract(fn, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)") %>%
-  relocate(t_number, panel, .before = everything()) %>%
-  relocate(file, .after = everything())
-
-head(mpif27)
+```{r read_objects}
+mpif26 <- readRDS(here("data/vectra/interim/MPIF26_df.Rds"))
+mpif27 <- readRDS(here("data/vectra/interim/MPIF27_df.Rds"))
 ```
 
 ## DAPI
@@ -549,28 +530,3 @@ summarise_marker("CD138", bysample=T) %>%
   ggpubr::rotate_x_text(angle = 45) +
   ggtitle("CD138 positive cells")
 ```
-
-## Write data
-
-Having ascertained that the cutoffs largely make sense and there is no improper marker localization, we can now discard many unnecessary columns for downstream analysis.
-
-Each of the markers examined above is localized in a single compartment, and can be thusly summarized.
-
-```{r}
-mpif26 <- mpif26[,sapply(mpif26, function(x) all(!is.nan(x)))]
-colnames(mpif26) <- str_replace(colnames(mpif26), "_(nucleus|cytoplasm|membrane)_", "_")
-
-saveRDS(mpif26, here("data/vectra/interim/mpif26_df.Rds"))
-```
-
-```{r}
-mpif27 <- mpif27[,sapply(mpif27, function(x) all(!is.nan(x)))]
-colnames(mpif27) <- str_replace(colnames(mpif27), "_(nucleus|cytoplasm|membrane)_", "_")
-
-saveRDS(mpif27, here("data/vectra/interim/mpif27_df.Rds"))
-```
-
-```{r}
-sessionInfo()
-```
-
