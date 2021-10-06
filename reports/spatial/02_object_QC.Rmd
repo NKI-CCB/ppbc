@@ -25,24 +25,6 @@ library(tidyverse)
 
 In this notebook, we perform a variety of sample-wise sanity checks regarding marker positivity cutoffs, localization, and correlation.
 
-## Marker combinations
-
-List all existing combinations of markers, their location (tumor vs stroma), by sample and by panel.
-
-```{r load-counts}
-cell_counts <- read_csv(here("results/spatial/cell_counts_by_marker.csv"))
-cell_counts %>%
-  group_by(marker_pos, panel, classifier_label) %>%
-  summarise(max_n=max(n), .groups="drop") %>%
-  left_join(cell_counts, by=c("marker_pos", "panel", "classifier_label", max_n="n")) %>%
-  group_by(marker_pos, panel, classifier_label, max_n) %>%
-  summarise(t_number=paste0(t_number, collapse="/"), .groups='drop') %>%
-  pivot_wider(
-    names_from=classifier_label,
-    values_from=c(max_n, t_number)) %>%
-  arrange(desc(max_n_Stroma + max_n_Tumor))
-```
-
 ## Marker intensity by sample
 
 For every sample, check each marker to ensure that it's localized where it's supposed to be, and ensure that the classifier cutoffs look reasonable based on marker intensity. For markers common to both panels, ensure that both the cell counts and the marker intensities are reasonably well correlated between both panels. 

@@ -935,7 +935,6 @@ rule summary_qc:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
-# FIXME: batch t / t_number association
 all_objects = expand(
   "data/vectra/interim/objects/{t_number}_{panel}_batch1.nc",
   t_number = t_numbers,
@@ -943,22 +942,19 @@ all_objects = expand(
 
 rule object_QC:
   input:
-    "src/spatial/read_cells.R",
     rmd="reports/spatial/02_object_QC.Rmd",
     script="src/rmarkdown.R",
-    objects=all_objects,
-    cell_count_by_marker="results/spatial/cell_counts_by_marker.csv"
+    mpif26_objects="data/vectra/interim/MPIF26_df.Rds",
+    mpif27_objects="data/vectra/interim/MPIF27_df.Rds",
   output:
     html="reports/spatial/02_object_QC.html",
-    mpif26_df="data/vectra/interim/mpif26_df.Rds",
-    mpif27_df="data/vectra/interim/mpif27_df.Rds",
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
 rule all_objects:
   input: all_objects
 
-rule process_objects:
+rule load_objects:
   input:
     script = "src/spatial/import_halo_objects.py",
     objects="data/vectra/symlinks/objects/{t_number}_{panel}_{batch}_object_results.csv",
@@ -997,19 +993,48 @@ rule count_cells:
     "mkdir -p results/spatial/\n"
     "Rscript {input.script} data/vectra/interim/objects/ {output.csv}"
 
-rule marker_correction:
+rule convert_objects_nc_to_rds:
   input:
-    mpif26_df="data/vectra/interim/mpif26_df.Rds",
-    mpif27_df="data/vectra/interim/mpif27_df.Rds",
+    object_nc=expand(
+      "data/vectra/interim/objects/{t_number}_{{panel}}_batch1.nc",
+      t_number = t_numbers),
+    script="src/spatial/read_cells.R"
+  output:
+    "data/vectra/interim/{panel}_df.Rds",
+  shell:
+    "Rscript {input.script} {input.object_nc} {output}"
+
+rule report_marker_correction:
+  input:
+    mpif26="data/vectra/interim/MPIF26_df.Rds",
+    mpif27="data/vectra/interim/MPIF27_df.Rds",
     cell_count_by_marker="results/spatial/cell_counts_by_marker.csv",
-    rmd="reports/spatial/03_marker_correction.Rmd",
+    rmd="reports/spatial/03a_marker_correction.Rmd",
     script="src/rmarkdown.R"
   output:
-    html="reports/spatial/03_marker_correction.html",
-    clean_mpif26="data/vectra/interim/clean_mpif26.Rds",
-    clean_mpif27="data/vectra/interim/clean_mpif27.Rds"
+    html="reports/spatial/03a_marker_correction.html",
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+
+rule test_marker_correction_results:
+  input:
+    mpif26="data/vectra/processed/objects_MPIF26.Rds",
+    mpif27="data/vectra/processed/objects_MPIF27.Rds",
+    rmd="reports/spatial/03b_test_marker_correction.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    html="reports/spatial/03b_test_marker_correction.html",
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+
+rule call_cell_types:
+  input:
+    script="src/spatial/call_cell_types.R",
+    objects="data/vectra/interim/MPIF27_df.Rds",
+  output:
+    "data/vectra/processed/objects_{panel}.Rds",
+  shell:
+    "Rscript {input.script} {input.objects} {output}"
     
 rule define_cell_types:
   input:

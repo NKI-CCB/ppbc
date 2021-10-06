@@ -4,7 +4,7 @@
     "Repositories": [
       {
         "Name": "CRAN",
-        "URL": "https://cran.rstudio.com"
+        "URL": "https://cloud.r-project.org"
       }
     ]
   },
@@ -807,6 +807,13 @@
       "Repository": "CRAN",
       "Hash": "d8d86d2f6c19e9e0174fb22c5d7dabc0"
     },
+    "hexbin": {
+      "Package": "hexbin",
+      "Version": "1.28.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "76314b69dc54f8c14204063a2fd6d74a"
+    },
     "highr": {
       "Package": "highr",
       "Version": "0.8",
@@ -1448,6 +1455,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "e0485290545c0e768c2b50390114da1f"
+    },
+    "spatial": {
+      "Package": "spatial",
+      "Version": "7.3-12",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "58a02ce0150652b96c044bc67a0df2e5"
     },
     "stringi": {
       "Package": "stringi",

@@ -46,4 +46,3 @@ if (sys.nframe() == 0) {
   cell_counts <- count_cells(args$object_dir)
   write_csv(cell_counts, args$out_fn)
 }
-
