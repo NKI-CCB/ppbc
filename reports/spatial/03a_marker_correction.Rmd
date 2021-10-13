@@ -169,8 +169,14 @@ Many of the most abundant problematic markers combinations involve either the un
 
 ```{r cd3_coexpression}
 lapply(c("CD20", "CD138"), function(x){
+  coexpression_plot("CD3", x)
+})
+```
+
+```{r cd3_coexpression-sample}
+lapply(c("CD20", "CD138"), function(x){
   coexpression_plot("CD3", x) +
-    scale_color_viridis_d()
+    facet_wrap(~t_number)
 })
 ```
 
@@ -179,18 +185,16 @@ There is no FACS-style cloud around which we can "gate" alternatively for any of
 ### PanCK-immune coexpression
 
 ```{r panck_coexpression}
-lapply(c("CD20", "CD3", "CD8" ,"FoxP3", "CD27"), function(x){
-  coexpression_plot("PanCK", x) +
-    scale_color_viridis_d()
+lapply(c("CD20", "CD3", "CD8","FoxP3", "CD27"), function(x){
+  coexpression_plot("PanCK", x)
 })
 ```
 
 PanCK-CD20 coexpression does show signs of bleedthrough from PanCK into the CD20 channel. There is a smaller population of CD3 cells for which the same problem occurs. Check these two markers sample-wise.
 
 ```{r, fig.height=6}
-lapply(c("CD20", "CD3"), function(x){
+lapply(c("CD20", "CD3", "CD8", "FoxP3", "CD27"), function(x){
   coexpression_plot("PanCK", x) +
-    scale_color_viridis_d() +
     facet_wrap(~t_number)
 })
 ```
@@ -202,18 +206,16 @@ There is definitely some sample-specific weirdness going on with PanCK-CD20 coex
 CD3-CD20 coexpression was covered above, let's look at the other exclusive T cell markers.
 
 ```{r, cd20_coexpression}
-lapply(c("CD8", "FoxP3"), function(x){
-  coexpression_plot("CD20", x) +
-    scale_color_viridis_d()
+lapply(c("CD8", "FoxP3", "CD27"), function(x){
+  coexpression_plot("CD20", x)
 })
 ```
 
 There is more overlap than usual between CD20-FoxP3+ and double positive cells than is usual - or maybe there are just fewer points here so they show up better?
 
 ```{r, cd20_coexpression_sample}
-lapply(c("CD8", "FoxP3"), function(x){
+lapply(c("CD8", "FoxP3", "CD27"), function(x){
   coexpression_plot("CD20", x) +
-    scale_color_viridis_d() +
     facet_wrap(~t_number)
 })
 ```
