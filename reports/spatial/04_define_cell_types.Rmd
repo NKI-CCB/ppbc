@@ -22,7 +22,6 @@ library(tidyverse)
 theme_set(theme_bw())
 ```
 
-
 We broadly define the following cell types:
 
 * Cytotoxic T-cell (CD8+, CD3+)
@@ -41,45 +40,33 @@ CD138 in combination with CD20 is a plasma B marker, but it is also [expressed b
 
 ## Load data
 
-```{r}
-mpif26 <- readRDS(here("data/vectra/interim/clean_mpif26.Rds"))
-mpif27 <- readRDS(here("data/vectra/interim/clean_mpif27.Rds"))
+```{r load-data}
+mpif26 <- readRDS(here("data/vectra/processed/objects_MPIF26.Rds"))
+mpif27 <- readRDS(here("data/vectra/processed/objects_MPIF27.Rds"))
 ```
 
 ## Cell definitions
 
 FoxP3 positivity in the absence of CD3 positivity can occur. These cells will be classified as T-regs.
 
-```{r}
-#This takes a reaaaaally long time to run and should be optimized somehow
-
-summarise_markers <- function(df){
+```{r summarise-markers, cache=F}
+summarise_markers <- function (objects) {
   #Summarise markers as strings for downstream sanity checks
-  mcols <- colnames(df)[str_detect(colnames(df), "_positive")]
+  marker_cols <- colnames(objects)[str_detect(colnames(objects), "_positive")]
   #Except DAPI
-  mcols <- mcols[-which(mcols == "DAPI_positive")]
-  df$markers <- apply(df[,mcols], 1, function(x){
-    paste(str_replace(mcols[x], "_positive", "+"), collapse="_")
+  marker_cols <- marker_cols[-which(marker_cols == "DAPI_positive")]
+  markers_str <- str_replace(marker_cols, "_positive", "+")
+  positive <- as.matrix(objects[, marker_cols])
+  objects$markers <- apply(positive, 1, function (pos) {
+        paste0(markers_str[pos], collapse="_")
   })
   
-  df %>%
+  objects %>%
     relocate(markers, .after=panel)
 }
 
-mark26 <- summarise_markers(mpif26)
-mark27 <- summarise_markers(mpif27)
-```
-
-
-```{r, eval=F include=F}
-#why does summarising the markers take so long to run?
-saveRDS(mark26, here("data/vectra/interim/temp26.Rds"))
-saveRDS(mark27, here("data/vectra/interim/temp27.Rds"))
-```
-
-```{r, eval=F include=F}
-mark26 <- readRDS(here("data/vectra/interim/temp26.Rds"))
-mark27 <- readRDS(here("data/vectra/interim/temp27.Rds"))
+mpif26 <- summarise_markers(mpif26)
+mpif27 <- summarise_markers(mpif27)
 ```
 
 MPIF26 exclusive markers:  CD27, FoxP3
@@ -87,72 +74,15 @@ MPIF27 exclusive markers: CD138, CD8
 Shared markers: CD20, CD3, PanCK, DAPI
 
 ```{r}
-define_cells <- function(df, markers = c("MPIF26", "MPIF27")){
-  
-  if(markers == "MPIF26"){
-    df <- df %>%
-      #Rules are executed in order and will not overwrite the previous
-      mutate(cell_type = dplyr::case_when(
-        #CD8_positive & CD3_positive ~ "cytotoxic T",
-        FoxP3_positive ~ "T-reg",
-        CD3_positive ~ "helper T",
-        CD27_positive & !CD3_positive ~ "NK cell",
-        #CD20_positive & CD138_positive ~ "plasma B",
-        CD20_positive ~ "B cell",
-        PanCK_positive ~ "epithelial",
-        #DAPI only
-        !CD27_positive & !FoxP3_positive & !CD3_positive &
-          !CD20_positive & !PanCK_positive ~ "non-epithelial", #better name?
-        TRUE ~ "fixme"
-      ), .after=object_id)
-  } else if (markers == "MPIF27"){
-    df <- df %>%
-      mutate(cell_type = dplyr::case_when(
-        CD8_positive & CD3_positive ~ "cytotoxic T",
-        #FoxP3_positive ~ "T-reg",
-        CD3_positive ~ "helper T",
-        CD8_positive & !CD3_positive ~ "NK cell",
-        CD20_positive & CD138_positive ~ "plasma B",
-        CD20_positive ~ "B cell",
-        PanCK_positive ~ "epithelial",
-        #DAPI only
-        !CD138_positive & !CD8_positive & !CD3_positive &
-          !CD20_positive & !PanCK_positive ~ "non-epithelial", #better name?
-        #CD138 & DAPI
-        !CD8_positive & !CD3_positive &
-          !CD20_positive & !PanCK_positive ~ "epithelial",
-        TRUE ~ "fixme"
-      ), .after=object_id)
-    
-  } else {
-    stop("Provide a panel that exists")
-  }
-  
-}
-  
-```
-
-```{r}
-cells26 <- define_cells(mark26, markers = "MPIF26") 
-
-stopifnot(nrow(filter(cells26, cell_type == "fixme"))==0)
-  
-cells26 %>% 
+mpif26 %>% 
   group_by(cell_type, markers) %>%
   count() %>%
   arrange(cell_type)
 ```
 
 ```{r}
-cells27 <- define_cells(mark27, markers = "MPIF27") 
-
-stopifnot(nrow(filter(cells27, cell_type == "fixme"))==0)
-
-cells27 %>% 
+mpif27 %>% 
   group_by(cell_type, markers) %>%
   count() %>%
   arrange(cell_type)
 ```
-
-
-

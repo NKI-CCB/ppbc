@@ -42,9 +42,34 @@ correct_marker_positivity <- function(objects) {
   objects
 }
 
+define_cell_types <- list(
+  MPIF26 = function(objects) {
+    mutate(objects, cell_type = dplyr::case_when(
+      # If a cell is FoxP3 positive, we assume it must be CD3+
+      FoxP3_positive ~ "FoxP3+",
+      CD3_positive ~ "CD3+FoxP3-",
+      CD20_positive ~ "CD20+",
+      CD27_positive ~ "CD27+CD20-CD3-",
+      PanCK_positive ~ "PanCK+",
+      !CD27_positive & !FoxP3_positive & !CD3_positive & !CD20_positive & !PanCK_positive ~ "Other",
+      TRUE ~ "fixme"), .after=object_id)
+  },
+  MPIF27 = function(objects) {
+    mutate(objects, cell_type = dplyr::case_when(
+      CD8_positive & CD3_positive ~ "CD3+CD8+",
+      CD3_positive ~ "CD3+CD8-",
+      CD8_positive ~ "CD3-CD8+",
+      CD20_positive & CD138_positive ~ "CD20+CD138+",
+      CD20_positive ~ "CD20+CD138-",
+      PanCK_positive ~ "PanCK+",
+      # CD138+ is ignored if it's not on a CD20+ cell
+      !CD8_positive & !CD3_positive & !CD20_positive & !PanCK_positive ~ "Other",
+      TRUE ~ "fixme"), .after=object_id)
+  })
+
 if (sys.nframe() == 0) {
   parse_args <- function(args) {
-    arg_names <- c('in_fn', 'out_fn') 
+    arg_names <- c('in_fn', 'panel', 'out_fn') 
     stopifnot(length(args) == length(arg_names))
     args <- as.list(args)
     names(args) <- arg_names
@@ -60,8 +85,7 @@ if (sys.nframe() == 0) {
   colnames(objects) <- str_replace(colnames(objects), "_(nucleus|cytoplasm|membrane)_", "_")
 
   objects <- correct_marker_positivity(objects)
-
-  #TODO: include calling of cell types
-
+  objects <- define_cell_types[[args$panel]](objects)
+  stopifnot(nrow(dplyr::filter(objects, cell_type == "fixme")) == 0)
   saveRDS(objects, args$out_fn)
 }

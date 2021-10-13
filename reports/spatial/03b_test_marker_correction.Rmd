@@ -38,25 +38,26 @@ mpif26_corrected <- readRDS(here("data/vectra/processed/objects_MPIF26.Rds"))
 mpif27_corrected <- readRDS(here("data/vectra/processed/objects_MPIF27.Rds"))
 ```
 
-Sanity checks
 
-```{r}
+Check that disallowed marker pairs indeed do not appear together.
+
+```{r no-more-disallowed-pairs-mpif26}
 print(disallowed_marker_pairs)
 for(i in 1:length(disallowed_marker_pairs)){
   m1 <- paste0(disallowed_marker_pairs[[i]][1], "_positive")
   m2 <- paste0(disallowed_marker_pairs[[i]][2], "_positive")
-  if (!(m1 %in% colnames(mpif26) & m2 %in% colnames(mpif26))) {
+  if (!(m1 %in% colnames(mpif26_corrected) & m2 %in% colnames(mpif26_corrected))) {
     next
   }
   stopifnot(nrow(dplyr::filter(mpif26_corrected, .data[[m1]] & .data[[m2]]))==0)
 }
 ```
 
-```{r}
+```{r no-more-dissallowed-pairs-mpif27}
 for(i in 1:length(disallowed_marker_pairs)){
   m1 <- paste0(disallowed_marker_pairs[[i]][1], "_positive")
   m2 <- paste0(disallowed_marker_pairs[[i]][2], "_positive")
-  if (!(m1 %in% colnames(mpif26) & m2 %in% colnames(mpif26))) {
+  if (!(m1 %in% colnames(mpif27_corrected) & m2 %in% colnames(mpif27_corrected))) {
     next
   }
   stopifnot(nrow(dplyr::filter(mpif27_corrected, .data[[m1]] & .data[[m2]]))==0)

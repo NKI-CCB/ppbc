@@ -1030,16 +1030,16 @@ rule test_marker_correction_results:
 rule call_cell_types:
   input:
     script="src/spatial/call_cell_types.R",
-    objects="data/vectra/interim/MPIF27_df.Rds",
+    objects="data/vectra/interim/{panel}_df.Rds",
   output:
     "data/vectra/processed/objects_{panel}.Rds",
   shell:
-    "Rscript {input.script} {input.objects} {output}"
+    "Rscript {input.script} {input.objects} {wildcards.panel} {output}"
     
-rule define_cell_types:
+rule define_cell_types_report:
   input:
-    clean_mpif26="data/vectra/interim/clean_mpif26.Rds",
-    clean_mpif27="data/vectra/interim/clean_mpif27.Rds",
+    mpif26="data/vectra/processed/objects_MPIF26.Rds",
+    mpif27="data/vectra/processed/objects_MPIF27.Rds",
     rmd="reports/spatial/04_define_cell_types.Rmd",
     script="src/rmarkdown.R"
   output:
