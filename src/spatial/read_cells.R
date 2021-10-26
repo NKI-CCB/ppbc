@@ -5,7 +5,7 @@ requireNamespace('stringr')
 library(tibble)
 requireNamespace('tidyr')
 
-pixel_size <- 0.0004286127  # mm^2  # FIXME: Check with Iris if this is corrrect
+pixel_size <- 0.0005  # mm
 unitname <- c('milimeter', 'milimeters')
 
 # Read a flag variable from a NetCDF dataset
