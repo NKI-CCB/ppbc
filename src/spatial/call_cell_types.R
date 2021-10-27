@@ -59,8 +59,7 @@ define_cell_types <- list(
       CD8_positive & CD3_positive ~ "CD3+CD8+",
       CD3_positive ~ "CD3+CD8-",
       CD8_positive ~ "CD3-CD8+",
-      CD20_positive & CD138_positive ~ "CD20+CD138+",
-      CD20_positive ~ "CD20+CD138-",
+      CD20_positive ~ "CD20+",
       PanCK_positive ~ "PanCK+",
       # CD138+ is ignored if it's not on a CD20+ cell
       !CD8_positive & !CD3_positive & !CD20_positive & !PanCK_positive ~ "Other",
