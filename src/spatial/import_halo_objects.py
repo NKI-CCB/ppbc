@@ -48,12 +48,12 @@ def create_string_variable(ds, name, values, dim):
 @dataclass(frozen=True)
 class Sample:
     t_number: str
-    stain: str
+    panel: str
 
     @classmethod
     def parse_filename(cls, filename):
         split = filename.split('_', 3)
-        return cls(split[0], split[1])
+        return cls(t_number=split[0], panel=split[2])
 
 def read_sample_summary(summary_fn):
     with open(summary_fn, encoding='utf-8-sig', newline='') as f:
@@ -187,8 +187,8 @@ def initialize_output(ds, sample, summary, variables, classes, dyes):
     
     ds.createVariable('t_number', str, ('sample', ))
     ds['t_number'][0] = sample.t_number
-    ds.createVariable('stain', str, ('sample', ))
-    ds['stain'][0] = sample.stain
+    ds.createVariable('panel', str, ('sample', ))
+    ds['panel'][0] = sample.panel
     ds.createVariable('image_location', str, ('sample', ))
     ds['image_location'][0] = summary['Image Location']
     ds.createVariable('image_tag', str, ('sample', ))

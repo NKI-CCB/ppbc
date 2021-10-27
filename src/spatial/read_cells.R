@@ -78,11 +78,22 @@ read_cells <- function(fn, intensity=F) {
         stringr::str_remove(" \\(Opal .*\\)") %>%
         paste0("_", m)
     }
+    cell_df <- do.call(cbind, c(list(cell_df), unname(cell_matrices)))
 
-    do.call(cbind, c(list(cell_df), unname(cell_matrices)))
+    # FIXME: Implement the addition of sample and tissue class variables more generally
+    sample_df <- nc_read_data_frame(ds, 'sample')
+    cell_df$t_number <- sample_df$t_number
+    cell_df$panel <- sample_df$panel
+    classifier_area <- nc_read_matrix(ds, 'area')
+    stopifnot(nrow(classifier_area) == 1) # Only one sample
+    cell_df$classifier_area <- classifier_area[1, as.character(cell_df$classifier_label)]
+
+    cell_df
 }
 
 if (sys.nframe() == 0) {
+  # Read all netCDF files on the command line and concatenate them into one big data frame
+  # saved in an RDS file.
   parse_args <- function(args) {
     args <- commandArgs(T)
     stopifnot(length(args) >= 3)
@@ -95,11 +106,8 @@ if (sys.nframe() == 0) {
   args <- parse_args(commandArgs(T))
 
   objects <- rlang::set_names(args$in_fns) %>%
-    purrr::map_dfr(~ read_cells(., intensity=T), .id="file") %>%
-    dplyr::mutate(fn = fs::path_file(file)) %>%
-    tidyr::extract(fn, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)") %>%
-    dplyr::relocate(t_number, panel, .before = everything()) %>%
-    dplyr::relocate(file, .after = everything())
+    purrr::map_dfr(~ read_cells(., intensity=T)) %>%
+    dplyr::relocate(t_number, panel, .before = everything())
 
   saveRDS(objects, args$out_fn)
 }

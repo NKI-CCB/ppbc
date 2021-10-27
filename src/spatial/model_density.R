@@ -5,8 +5,6 @@ library(purrr)
 library(readr)
 library(tidyr)
 
-source('src/spatial/read_cells.R')
-
 options(
   warn = 2,
   dplyr.summarise.inform=F)
@@ -19,33 +17,24 @@ parse_args <- function(args) {
   args
 }
 
-model_density <- function(fn) {
-    cells_ds <- ncdf4::nc_open(fn)
-    on.exit(ncdf4::nc_close(cells_ds), add=T)
-    cells <- read_cells(cells_ds)
-    cells <- left_join(
-      cells,
-      cells %>%
-        pivot_longer(
-          ends_with('positive'),
-          names_to='dye',
-          names_pattern='(.*)_positive',
-          values_to='positive') %>%
-        dplyr::filter(positive) %>%
-        group_by(cell) %>%
-        summarize(
-          cell_type=factor(paste0(dye, '+', collapse='_'))),
-      by='cell')
-    area <- nc_read_matrix(cells_ds, 'area') %>%
-      as_tibble() %>%
-      pivot_longer(everything(), names_to='classifier_label', values_to='area')
-    counts <- cells %>% group_by(cell_type, classifier_label) %>% summarize(n=n())
-    left_join(counts, area, by='classifier_label')
+ensure_one_value <- function(x) {
+  x <- unique(x)
+  stopifnot(length(x) == 1)
+  x
+}
+
+model_density <- function(objects) {
+  objects %>%
+    group_by(classifier_label, t_number, panel, cell_type) %>%  # FIXME: deal with batches
+    summarize(
+      area = ensure_one_value(classifier_area),
+      n = n_distinct(cell)) %>%
+    mutate(density = n / area)
 }
 
 if (sys.nframe() == 0) {
   args <- parse_args(commandArgs(T))
-  density <- model_density(args$objects)
-  density$density = density$n / density$area
+  objects <- readRDS(args$objects)
+  density <- model_density(objects)
   write_tsv(density, args$out)
 }
