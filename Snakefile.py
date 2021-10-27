@@ -965,19 +965,12 @@ rule load_objects:
     "export OMP_NUM_THREADS=1\n"
     "python {input.script} {input.summary} {input.objects} {output.objects}"
 
-rule all_density:
-  input:
-    expand(
-      "results/spatial/density/{t_number}_{panel}_batch1.tsv",
-      t_number = t_numbers,
-      panel = ['MPIF26', 'MPIF27'])
-
 rule cell_type_density:
   input:
     script="src/spatial/model_density.R",
-    objects="data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
+    objects="data/vectra/processed/objects_{panel}.Rds",
   output:
-    tsv="results/spatial/density/{t_number}_{panel}_{batch}.tsv",
+    tsv="results/spatial/density/{panel}.tsv",
   shell:
     "mkdir -p results/spatial/density\n"
     "Rscript {input.script} {input.objects} {output}"
