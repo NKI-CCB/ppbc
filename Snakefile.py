@@ -20,11 +20,22 @@ configfile: "config.yaml"
 #For condensed version: conda env export --from-history
 #To use a conda envinroment with snakemake: snakemake -n --use-conda
 #To create the environments without running any rules: snakemake -n --use-conda --create-envs-only
+#To get a graphical representation of the workflow:
+#"snakemake --dag | dot -Tsvg > dag.svg"
+
+panel=["MPIF26", "MPIF27"]
 
 rule all:
   input:
-    "reports/16_gene_unity_setup.html"
-    #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
+    #"reports/16_gene_unity_setup.html", #Pertains to RNAseq analysis, temporary omit
+    #Spatial analysis files:
+    "reports/spatial/00_organize_vectra_samples.html",
+    "reports/spatial/01_summary_QC.html",
+    "results/spatial/cell_counts_by_marker.csv",
+    expand("results/spatial/density/{panel}.tsv",panel=panel),
+    "reports/spatial/03a_marker_correction.html",
+    "reports/spatial/03b_test_marker_correction.html",
+    "reports/spatial/04_define_cell_types.html"
 
 ### RNAseq analyses ###
 
@@ -35,8 +46,8 @@ rule fastqc:
     html = expand("results/fastqc/{sample}_fastqc.html", sample=config['samples']),
     zip = expand("results/fastqc/{sample}_fastqc.zip", sample=config['samples'])
   threads: 5
-  conda:
-    "envs/environment.yml"         
+  #conda:
+  #  "envs/environment.yml"         
   shell:
         """
         fastqc {input} -o results/fastqc/ -t {threads}
@@ -48,8 +59,8 @@ rule salmon_index:
   output:
     #directory("data/external/index/grch38_index")
     "data/external/index/grch38_index/hash.bin"
-  conda:
-    "envs/environment.yml"        
+  #conda:
+  #  "envs/environment.yml"        
   shell:
     "bash {input}"
 
@@ -61,8 +72,8 @@ rule salmon_quant:
   params:
     index = "data/external/index/grch38_index",
     outdir = expand("data/RNA-seq/salmon/{sample}", sample=config['samples'])
-  conda:
-    "envs/environment.yml"     
+  #conda:
+  #  "envs/environment.yml"     
   shell:
     """
     bash {input}
@@ -78,8 +89,8 @@ rule star_index:
     genomeFastaFiles="data/external/index/Homo_sapiens.GRCh38.dna.primary_assembly.fa",
     sjdbGTFfile="data/external/index/Homo_sapiens.GRCh38.94.gtf",
     sjdbOverhang=50 #Read length is 51, ideal value is length - 1
-  conda:
-    "envs/environment.yml"
+  #conda:
+  #  "envs/environment.yml"
   shell:
     """
     mkdir {params.genomeDir}
@@ -93,8 +104,8 @@ rule star_align:
     script="src/01-STAR_align.sh"
   output:
     expand("data/RNA-seq/star/{sample}/Aligned.sortedByCoord.out.bam", sample=config['samples'])
-  conda:
-    "envs/environment.yml"
+  #conda:
+  #  "envs/environment.yml"
   threads: 16
   params:
     genomedir="data/external/index/STAR_grch38_index/",
@@ -120,8 +131,8 @@ rule multiqc:
     report="reports/multiqc_report.html",
     #alignstats="reports/multiqc_data/multiqc_general_stats.txt", #Decouple
     #or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt" #Decouple
-  conda:
-    "envs/environment.yml"             
+  #conda:
+  #  "envs/environment.yml"             
   shell:
     """multiqc {input.fastqc} {input.salmon_quant} -o results -n multiqc_report.html --force"""
 
@@ -886,15 +897,6 @@ rule trust_report:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"  
 
-#Does not work as a rule but does work in shell directly, fixme    
-rule workflow_diagram:
-  conda:
-    "envs/environment.yml"
-  shell:
-    "snakemake --use-conda --dag | dot -Tsvg > dag.svg"
-    #To view via shell: display dag.svg
-    
-
 ### Spatial analyses ###
 
 # The spatial analysis gets its own subdirectory in ./reports and within the data (sub)directories
@@ -915,6 +917,7 @@ rule organize_vectra:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
+#Extract t_numbers from organized sample table
 vectra_table_pth = Path("data/metadata/spatial/00_file_location_dictionary.csv")
 if vectra_table_pth.exists():
     vectra_table = pd.read_csv(vectra_table_pth)
@@ -935,25 +938,9 @@ rule summary_qc:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
-all_objects = expand(
-  "data/vectra/interim/objects/{t_number}_{panel}_batch1.nc",
-  t_number = t_numbers,
-  panel = ['MPIF26', 'MPIF27'])
-
-rule object_QC:
-  input:
-    rmd="reports/spatial/02_object_QC.Rmd",
-    script="src/rmarkdown.R",
-    mpif26_objects="data/vectra/interim/MPIF26_df.Rds",
-    mpif27_objects="data/vectra/interim/MPIF27_df.Rds",
-  output:
-    html="reports/spatial/02_object_QC.html",
-  shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
-
-rule all_objects:
-  input: all_objects
-
+#Convert object results and summary to .nc format
+#Do not invoke directly: use all_objects or object_QC instead
+#On harris, command must read python3 instead of python
 rule load_objects:
   input:
     script = "src/spatial/import_halo_objects.py",
@@ -963,18 +950,17 @@ rule load_objects:
     objects="data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
   shell:
     "export OMP_NUM_THREADS=1\n"
-    "python {input.script} {input.summary} {input.objects} {output.objects}"
+    "python3 {input.script} {input.summary} {input.objects} {output.objects}"
+    
+all_objects = expand(
+  "data/vectra/interim/objects/{t_number}_{panel}_batch1.nc",
+  t_number = t_numbers,
+  panel = ['MPIF26', 'MPIF27'])
 
-rule cell_type_density:
-  input:
-    script="src/spatial/model_density.R",
-    objects="data/vectra/processed/objects_{panel}.Rds",
-  output:
-    tsv="results/spatial/density/{panel}.tsv",
-  shell:
-    "mkdir -p results/spatial/density\n"
-    "Rscript {input.script} {input.objects} {output}"
+rule all_objects:
+  input: all_objects    
 
+#Generate an overview of marker combination abundance by panel
 rule count_cells:
   input:
     all_objects,
@@ -986,6 +972,9 @@ rule count_cells:
     "mkdir -p results/spatial/\n"
     "Rscript {input.script} data/vectra/interim/objects/ {output.csv}"
 
+#Converts sample-wise .nc files into a single RDS data frame organized by panel
+#This rule should not be called alone
+#It exists to produce input for downstream rules (and may go away soon)
 rule convert_objects_nc_to_rds:
   input:
     object_nc=expand(
@@ -996,7 +985,21 @@ rule convert_objects_nc_to_rds:
     "data/vectra/interim/{panel}_df.Rds",
   shell:
     "Rscript {input.script} {input.object_nc} {output}"
+    
+#QC reports based on object files rather than summary files
+rule object_QC:
+  input:
+    rmd="reports/spatial/02_object_QC.Rmd",
+    script="src/rmarkdown.R",
+    mpif26_objects="data/vectra/interim/MPIF26_df.Rds",
+    mpif27_objects="data/vectra/interim/MPIF27_df.Rds",
+  output:
+    html="reports/spatial/02_object_QC.html",
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"      
 
+#Identify and visualize problematic marker combinations
+#TODO rename this notebook: actual correction now takes place elsewhere
 rule report_marker_correction:
   input:
     mpif26="data/vectra/interim/MPIF26_df.Rds",
@@ -1009,6 +1012,19 @@ rule report_marker_correction:
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
+#Correct double positivity, deal with disallowed marker pairs,
+#and assign a "cell type" based on marker positivity
+#Do not call this rule alone: it exists to provide input for downstream rules
+rule call_cell_types:
+  input:
+    script="src/spatial/call_cell_types.R",
+    objects="data/vectra/interim/{panel}_df.Rds",
+  output:
+    "data/vectra/processed/objects_{panel}.Rds",
+  shell:
+    "Rscript {input.script} {input.objects} {wildcards.panel} {output}"
+
+#Ensure disallowed marker pairs no longer exist
 rule test_marker_correction_results:
   input:
     mpif26="data/vectra/processed/objects_MPIF26.Rds",
@@ -1020,15 +1036,7 @@ rule test_marker_correction_results:
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
-rule call_cell_types:
-  input:
-    script="src/spatial/call_cell_types.R",
-    objects="data/vectra/interim/{panel}_df.Rds",
-  output:
-    "data/vectra/processed/objects_{panel}.Rds",
-  shell:
-    "Rscript {input.script} {input.objects} {wildcards.panel} {output}"
-    
+#Quantify cell types and the marker combinations they represent
 rule define_cell_types_report:
   input:
     mpif26="data/vectra/processed/objects_MPIF26.Rds",
@@ -1038,4 +1046,23 @@ rule define_cell_types_report:
   output:
     html="reports/spatial/04_define_cell_types.html"
   shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"    
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+    
+#Model overall marker combination density by panel
+#Use all_densities instead of invoking this rule directly
+rule cell_type_density:
+  input:
+    script="src/spatial/model_density.R",
+    objects="data/vectra/processed/objects_{panel}.Rds",
+  output:
+    tsv="results/spatial/density/{panel}.tsv",
+  shell:
+    "mkdir -p results/spatial/density\n"
+    "Rscript {input.script} {input.objects} {output}"
+
+panel_densities = expand(
+  "results/spatial/density/{panel}.tsv",
+  panel = ['MPIF26', 'MPIF27'])
+
+rule all_densities:
+  input: panel_densities
