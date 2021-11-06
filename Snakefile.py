@@ -905,12 +905,15 @@ rule trust_report:
 # Create a manageable data structure
 rule organize_vectra:
   input:
-    #directory("data/vectra/Batch 3 Leuven (Batch 1 in HALO)"), #Raw data export
-    metadata="data/metadata/spatial/PPBC_sample_set.xlsx",
+    #directory("data/vectra/[batches 1-7]), #Raw data export
+    detailed_batch_info = "data/metadata/spatial/MPIF26en27 batches gekleurd.xlsx", #Exact date and time of Vectra staining
+    metadata="data/metadata/spatial/PPBC_sample_set.xlsx", #Cross-reference with patient ID and batch info
+    iris_remarks = "data/metadata/spatial/CFMPB527 Analysis remarks.txt", #Even more comments from Iris
     rmd="reports/spatial/00_organize_vectra_samples.Rmd",
     script="src/rmarkdown.R"
   output:
     #dir("data/vectra/symlinks"),
+    missing_samples = "data/metadata/spatial/00_missing_panel_samples.csv",
     filedict="data/metadata/spatial/00_file_location_dictionary.csv",
     meta="data/metadata/spatial/00_vectra_metadata.csv",
     html="reports/spatial/00_organize_vectra_samples.html"

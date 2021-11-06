@@ -14,31 +14,34 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(here)
+library(lubridate)
 library(tidyverse)
-library(XML)
 library(methods)
 ```
 
 ## Overview
 
-As of August 2021, there is only one batch "ready" to be processed. There are two panels.
+In Nov 2021, we went from having a single exported batch to work with, to having all batches available.
 
 ```{r}
-list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)"))
+list.files(here("data/vectra"), pattern = "Batch")
 ```
 
-### Panel markers
+`Batch 3 Leuven (Batch 1 in HALO)` refers to the first batch that was exported in August. It is redundant with the new folder "batch 1" and should not be used.
+
+```{r}
+batches <- list.files(here("data/vectra"), pattern = "Batch")
+
+batches <- batches[-which(batches == "Batch 3 Leuven (Batch 1 in HALO)")]
+batches
+```
+
+There are two panels in each batch. The markers are as follows:
 
 MPIF26 = CD3_CD20_CD27_FoxP3_PanCK
 MPIF27 = CD3_CD8_CD138_CD20_PanCK
 
-There are 21 samples in this batch, all of which are present in both panels. 
-
-```{r}
-list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26")) %>% length()
-all(list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26")) ==
-      list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF27")))
-```
+We cross-reference these samples with the list of known failed stainings later on.
 
 ### Metadata
 
@@ -49,19 +52,39 @@ meta <- readxl::read_excel(here("data/metadata/spatial/PPBC_sample_set.xlsx"))
 head(meta)
 ```
 
+There are more remarks to be found here.
+
+```{r}
+#File is messy and has been manually justified using a mix of spaces and tabs
+remarks <- read_delim(here("data/metadata/spatial/CFMPB527 Analysis remarks.txt"),
+                      delim = " ") %>%
+  set_names(c("t_number", "remark")) %>%
+  filter(str_detect(t_number, "T[0-9][0-9]\\-")) %>%
+  separate(t_number, into = c("t_number", "temp"), sep = "\t") %>%
+  mutate(remark = paste(temp, remark)) %>% select(-temp) %>%
+  mutate(remark = str_trim(
+    str_remove(str_remove(str_remove(remark, "\t"),"NA"), "\r"),
+    side = c("both", "left", "right")))
+```
+
+```{r}
+remarks %>% head()
+```
+
+
 ### Directory structure
 
 For every sample, the data is in a dated sub-directory.
 
 ```{r}
-list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851"))
+list.files(here("data/vectra/Batch 1/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851"))
 ```
 
 Basic stats are in `summary_results.csv`.
 
 ```{r}
 read_csv(
-  here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851/summary_results.csv")
+  here("data/vectra/Batch 1/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851/summary_results.csv")
 )
 ```
 
@@ -80,39 +103,6 @@ The image segmentations are in the Images directory with a .annotations extensio
 ```{r}
 list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851/Images"))
 ```
-
-```{r, include=F}
-#The version without the job id:
-anno_ex <- here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851/Images/T21-60303_I1_MPIF26_(CD3_CD20_CD27_FoxP3_PanCK)_LMS-5-7592052_Scan1_fuse_208446.annotations")
-xmlParse(file = anno_ex) #%>%  xmlToList()
-
-#The two shapes seem to differ by the `NegativeROA` parameter.
-#NegativeROA = negative region of annotation, i.e. a polygon within a polygon that denotes a hole
-```
-
-```{r, include=F}
-#Parsing doesn't seem to work right with `xml2`.
-library(xml2)
-#read_xml(anno_ex) %>% xml_name()
-read_xml(anno_ex) %>% xml_children()
-
-#It goes a bit better as a list, but then we lose the name attributes
-anno_list <- read_xml(anno_ex) %>%
-  as_list()
-
-anno_list$Annotation$Annotation$Regions %>% length()
-#Maybe this is easier in python after all, come back to this later
-```
-
-## Potential problems
-
-After meeting with Iris Seignette in early Aug 2021, she highlighted a number of problems with these samples in the first batch.
-
-1) The sample numbering/nomenclature from Leuven is not what was expected. Some slides that are supposedly consecutive within the Z plane show radically different CD3+ cell abundance, more than expected from adjacent tissue (i.e 500% increase/decrease). These slides sometimes also do not stack visually when viewed in bright field (but sometimes they do; it depends). Leuven insist that consecutive numbers represent adjacent tissue, but sometimes there are multiple different slides with the same numbering, slides came out of order in the box, etc.
-
-2) PanCK+ bleedthrough into the CD20 channel due to unknown cause. It is NOT due to spectral overlap because of different cubes, yet there are nevertheless quite a few cells that are both CD20+ and PanCK+, which is biologically impossible. Incomplete washing/stripping is the most likely culprit, as PanCK was applied after all the other markers but before CD20. PanCK appears oversaturated throughout many slides. Iris' current solution has been to heuristically exclude double positive CD20+PanCK+ cells, but acknowledges that this approach is likely to result in many false negatives, i.e. real B cells that are incorrectly excluded because the PanCK has not completely washed off. She is not sure where to set the threshold exactly. To do: Examine CD20 and PanCK distributions via dotplot/histogram and look for a (hopefully bimodal) distribution that suggests a clear threshold.
-
-3) Apparently the Canadian batch came through with a bunch of weird stickers on them which has a residue that interfered with fluorescent intensity somehow. (No, I am not making this up.) Replacing the sticker with one of their standard stickers improved intensity for CD3 up to 300%. The Canadian slides also come on "mystery glass", which may or may not have an impact.
 
 ## Process metadata
 
@@ -168,20 +158,112 @@ meta <- meta %>%
 meta %>% head()
 ```
 
-### Failed samples
+### Failed and missing samples
 
 A number of analyses failed. These are marked with x.
 
 ```{r}
 meta %>%
   filter(annotations == "x") %>%
-  select(t_number, extern_number, batch_in_halo, annotations, comments) %>%
+  select(t_number, staining, extern_number, batch_in_halo, annotations, comments) %>%
   distinct()
+```
+
+Each sample within a batch should be present within both samples, but already we can see that some batches have uneven numbers.
+
+```{r}
+panel_check <- lapply(here("data/vectra", batches),
+       function(x) {
+         lapply(c("MPIF26", "MPIF27"), function(y){
+           tibble(
+             batch = str_remove(x, "/DATA/share/postpartumbc/data/vectra/"),
+             panel = y,
+             t_number = list.files(file.path(x, y))
+           )}
+         )
+       }) %>% bind_rows() %>%
+  arrange(t_number)
+
+panel_check %>%
+  pivot_wider(names_from = panel, values_from = t_number, values_fn = length)
+
+```
+
+Ensure that the samples present in each batch are identical when the numbers are equal, and print the discrepancy when they are not.
+
+```{r}
+#A data frame where sample names are stored as a list-col
+panel_lcol <- panel_check %>%
+  pivot_wider(names_from = panel, values_from = t_number, values_fn = list)
+
+missing_samples <- list()
+
+suppressWarnings(
+  for (x in 1:nrow(panel_lcol)){
+  if(all(sort(panel_lcol$MPIF26[[x]]) == sort(panel_lcol$MPIF27[[x]]))){
+    #print(paste("No discrepancies in batch", panel_lcol$batch[[x]]))
+  } else {
+    #print(paste("Mismatched samples found in batch", panel_lcol$batch[[x]]))
+    #print(paste("Found in MPIF26 but absent in MPIF27:"))
+    problem <- setdiff(sort(unlist(panel_lcol[x,"MPIF26",drop=T])),
+                  sort(unlist(panel_lcol[x,"MPIF27",drop=T])))
+    #print(problem)
+    missing_samples[[length(missing_samples) + 1]] <- tibble(
+      batch = panel_lcol$batch[[x]], t_number = problem,
+      MPIF26_present = T, MPIF27_present = F
+    )
+    #print(paste("Found in MPIF27 but absent in MPIF26:"))
+    problem <- setdiff(sort(unlist(panel_lcol[x,"MPIF27",drop=T])),
+                  sort(unlist(panel_lcol[x,"MPIF26",drop=T])))
+    #print(problem)
+    missing_samples[[length(missing_samples) + 1]] <- tibble(
+      batch = panel_lcol$batch[[x]], t_number = problem,
+      MPIF26_present = F, MPIF27_present = T
+    )
+  }
+})
+
+missing_samples <- missing_samples %>% 
+  bind_rows()
+
+missing_samples
+```
+
+Find the reason why these samples failed, if available in the metadata
+
+```{r}
+missing_samples <- missing_samples %>%
+  mutate(present_in_metadata = t_number %in% meta$t_number) %>%
+  left_join(.,pivot_wider(
+    select(meta,t_number, staining, comments),
+    names_from = staining, values_from = comments,
+    names_glue = "comments_{staining}"),
+            by = "t_number") %>%
+  relocate(t_number, .before = everything())
+
+missing_samples
+```
+
+See if there are comments about these samples in the remarks:
+
+```{r}
+missing_samples <- missing_samples %>%
+  mutate(present_in_remarks = t_number %in% remarks$t_number,
+         .after = present_in_metadata) %>%
+  left_join(., remarks, by = "t_number")
+
+missing_samples
+```
+
+All missing samples accounted for, though we still need to ask for the patient ref of T20-62412 since it's absent from the metadata. More on that later.
+
+```{r}
+write_csv(missing_samples, here("data/metadata/spatial/00_missing_panel_samples.csv"))
 ```
 
 ### Duplicates
 
-We should have two samples per sample, but now we have more. These samples are mapped to more than two t-numbers.
+Some patients evidently provided more than one tissue block.
 
 ```{r}
 dups <- filter(count(group_by(meta, extern_number)), n!=2)$extern_number
@@ -193,33 +275,6 @@ meta %>%
   distinct()
 ```
 
-### Link to RNA data
-
-Link with RNAseq IDs and study_group etc. Note: the molecular subtypes as listed here are based on the clinical classification from Leuven. Also, some samples were later removed from the RNAseq analysis for QC reasons.
-
-```{r}
-combi_meta <- read_tsv(here("data/metadata/01_sample_annot.tsv")) %>%
-  select(sample_ref, patient_ref, sample_name, study_group, PPBC, country, clin_subtype = molecular_subtype,
-         stage=stage_short, grade, TIL_percent = TILprecent, age = age_diagnosis,
-         overall_survival, distant_recurrence, months_of_followup,
-         months_involution_breastfeeding, breastfeeding_months) %>%
-  left_join(meta, ., by = c("extern_number" = "sample_ref")) %>%
-  distinct()
-```
-
-There should be the same number of observations after joining with RNAseq data.
-
-```{r}
-stopifnot(nrow(combi_meta) == nrow(meta))
-```
-
-### Write metadata
-
-```{r}
-write_csv(combi_meta, here("data/metadata/spatial/00_vectra_metadata.csv"))
-```
-
-
 ## File location dictionary
 
 The data structure is a mess. Let's look up the location of the relevant files so we can make symlinks later on.
@@ -229,30 +284,61 @@ Reminder:
 MPIF26 = CD3_CD20_CD27_FoxP3_PanCK
 MPIF27 = CD3_CD8_CD138_CD20_PanCK
 
-First retrieve sample names
+First retrieve sample names, panel, and batch.
 
 ```{r}
-filedict <- tibble(
-  t_number = list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26"))
-  )
+filedict <- lapply(here("data/vectra", batches),
+       function(x) {
+         lapply(c("MPIF26", "MPIF27"), function(y){
+           tibble(
+             t_number = list.files(file.path(x, y)),
+             batch = str_remove(x, "/DATA/share/postpartumbc/data/vectra/"),
+             panel = y
+           )}
+         )
+       }) %>% bind_rows() %>%
+  arrange(t_number)
 
 filedict %>% head()
 ```
 
 ### Object results
 
-MPIF26 object results.
+Same samples apparently lack these files.
 
 ```{r}
-mainDir <- here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)")
+mainDir <- here("data/vectra")
 
-filedict <- sapply(filedict$t_number,
-       function(x){
-         list.files(file.path(mainDir, "MPIF26", x), recursive = T, full.names = T,
-                    pattern = ".object_results.csv")
-       }) %>%
-  enframe("t_number", "mpif26_object_results")
+tibble(object_results = str_remove(list.files(
+  file.path(mainDir, filedict$batch, filedict$panel, filedict$t_number),
+  recursive = T, full.names = T, pattern = ".object_results.csv"
+),"/DATA/share/postpartumbc/")) %>%
+  mutate(temp = str_remove(object_results, "data/vectra/Batch 1/MPIF26/")) %>%
+  separate(temp, into = c("t_number", NA), extra = "drop", sep = "/") %>%
+  left_join(filedict, ., by = "t_number")
+
+filedict
 ```
+
+Why is for example T09-22827 scanned twice in MPIF26? Nothing in the remarks file.
+
+```{r}
+mainDir <- here("data/vectra")
+tibble(
+  object_results = list.files(
+    file.path(mainDir, batches), #Excluding the old Leuven export
+    recursive = T, full.names = T, pattern = ".object_results.csv"
+  )
+) %>%
+  #Extract the t_number, batch and panel from the object results
+  separate(object_results,
+           into=c(NA,NA,NA,NA,NA,NA,"batch","panel",
+                  "t_number", "Halo_time", "object_file"),sep="/", remove = F) %>%
+  relocate(object_results, .after = everything()) %>%
+  relocate(t_number, .before = everything()) %>%
+  arrange(t_number)
+```
+
 
 MPIF27 object results
 
@@ -293,6 +379,10 @@ filedict <- sapply(filedict$t_number,
   enframe("t_number", "mpif27_summary_results") %>%
   left_join(filedict, ., by = "t_number")
 ```
+
+### Pivot wider by panel
+
+TODO
 
 ### Annotations files
 
@@ -351,6 +441,55 @@ filedict <- sapply(filedict$t_number,
 
 head(filedict)
 ```
+
+### Batches
+
+The batches associated with folder names do not necessarily reflect the staining batches. These can be found here, with the following comment:
+
+>Hereby I send to you the batches exactly howthey are logged in the Ventana stainer, including date and time + the controls that are stained
+
+```{r}
+detailed_batches <- readxl::read_excel(here("data/metadata/spatial/MPIF26en27 batches gekleurd.xlsx")) %>%
+  rename(t_number = `Block ID`, staining = `Protocol Name`, scan_time = `Start Time`) %>%
+  select(t_number, staining, scan_time) %>%
+  mutate(t_number = str_remove(t_number, " [A|B|I].*"), #Suddenly some t_number have suffixes
+         staining = str_remove(str_remove(staining, "CF "), " v1"))
+head(detailed_batches)
+```
+
+Add to metadata. TODO fix T20-62169_I1 and T20-62169_II1 (WHY)
+
+```{r}
+meta %>%
+  left_join(., detailed_batches, by = c("t_number", "staining"))
+```
+
+## Link to RNA data
+
+Link with RNAseq IDs and study_group etc. Note: the molecular subtypes as listed here are based on the clinical classification from Leuven. Also, some samples were later removed from the RNAseq analysis for QC reasons.
+
+```{r}
+combi_meta <- read_tsv(here("data/metadata/01_sample_annot.tsv")) %>%
+  select(sample_ref, patient_ref, sample_name, study_group, PPBC, country, clin_subtype = molecular_subtype,
+         stage=stage_short, grade, TIL_percent = TILprecent, age = age_diagnosis,
+         overall_survival, distant_recurrence, months_of_followup,
+         months_involution_breastfeeding, breastfeeding_months) %>%
+  left_join(meta, ., by = c("extern_number" = "sample_ref")) %>%
+  distinct()
+```
+
+There should be the same number of observations after joining with RNAseq data.
+
+```{r}
+stopifnot(nrow(combi_meta) == nrow(meta))
+```
+
+### Write metadata
+
+```{r}
+write_csv(combi_meta, here("data/metadata/spatial/00_vectra_metadata.csv"))
+```
+
 
 ### RNAseq sample names
 
