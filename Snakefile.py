@@ -906,14 +906,20 @@ rule trust_report:
 rule organize_vectra:
   input:
     #directory("data/vectra/[batches 1-7]), #Raw data export
-    detailed_batch_info = "data/metadata/spatial/MPIF26en27 batches gekleurd.xlsx", #Exact date and time of Vectra staining
+    #Manual inspection suggests redefining batches is not necessary
+    #detailed_batch_info = "data/metadata/spatial/MPIF26en27 batches gekleurd.xlsx", #Exact date and time of Vectra staining
     metadata="data/metadata/spatial/PPBC_sample_set.xlsx", #Cross-reference with patient ID and batch info
     iris_remarks = "data/metadata/spatial/CFMPB527 Analysis remarks.txt", #Even more comments from Iris
+    processed_rna_meta = "data/metadata/01_sample_annot.tsv",
+    raw_rna_meta = "data/external/Hercoderingslijst_v09032020_KM.xlsx",
     rmd="reports/spatial/00_organize_vectra_samples.Rmd",
     script="src/rmarkdown.R"
   output:
     #dir("data/vectra/symlinks"),
     missing_samples = "data/metadata/spatial/00_missing_panel_samples.csv",
+    dups = "data/metadata/spatial/00_possible_duplicates.csv",
+    weird_annos = "data/metadata/spatial/00_annos_by_batch.csv",
+    no_clinical = "data/metadata/spatial/00_no_clinical_outcome.csv",
     filedict="data/metadata/spatial/00_file_location_dictionary.csv",
     meta="data/metadata/spatial/00_vectra_metadata.csv",
     html="reports/spatial/00_organize_vectra_samples.html"
