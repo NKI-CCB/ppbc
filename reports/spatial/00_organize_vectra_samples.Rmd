@@ -773,6 +773,9 @@ suppressWarnings(file.symlink(
 Contains original file location and symlink path for all of the result types.
 
 ```{r}
+#Ensure batch matches the the file
+filedict <- filedict %>%
+  mutate(batch = str_remove_all(tolower(batch), " "))
 write_csv(filedict, here("data/metadata/spatial/00_file_location_dictionary.csv"))
 ```
 
