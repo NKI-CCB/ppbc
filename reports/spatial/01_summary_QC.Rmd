@@ -34,18 +34,18 @@ MPIF26 = CD3_CD20_CD27_FoxP3_PanCK
 MPIF27 = CD3_CD8_CD138_CD20_PanCK
 
 ```{r, echo =F}
-read_fn <- function(file, trim_string = here("data/vectra/symlinks/summary/")) {
+read_fn <- function(file, trim_string = here("data/vectra/raw/summary/")) {
     read_csv(file) %>% 
         mutate(filename = str_remove(file, trim_string))
 }
 
 summary1 <-
-    list.files(here("data/vectra/symlinks/summary"), 
+    list.files(here("data/vectra/raw/summary"), 
                full.names = T, pattern = "MPIF26") %>% 
     map_df(~read_fn(.))
 
 summary2 <-
-    list.files(here("data/vectra/symlinks/summary"), 
+    list.files(here("data/vectra/raw/summary"), 
                full.names = T, pattern = "MPIF27") %>% 
     map_df(~read_fn(.))
 ```
@@ -80,6 +80,13 @@ Column names after cleaning (it's a lot)
 colnames(summary1)
 ```
 
+```{r}
+#temporary fix, unclear why these columns are getting duplicated
+summary1 <- summary1[,colnames(summary1)[-which(duplicated(colnames(summary1)))]]
+summary2 <- summary2[,colnames(summary2)[-which(duplicated(colnames(summary2)))]]
+```
+
+
 Clean t-number column, remove unnecessary image locations etc.
 
 ```{r}
@@ -92,6 +99,8 @@ clean_summary <- function(df){
 
 summary1 <- clean_summary(summary1)
 summary2 <- clean_summary(summary2)
+
+head(summary1)
 ```
 
 ## Common fields
