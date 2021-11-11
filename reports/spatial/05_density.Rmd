@@ -1,0 +1,138 @@
+---
+title: "Density of immune cell types"
+author: "Tycho Bismeijer"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+ggplot2::theme_set(ggplot2::theme_bw())
+library(conflicted)
+```
+
+```{r packages, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(glue)
+library(here)
+library(purrr)
+library(readr)
+library(tidyr)
+```
+
+```{r conf}
+classifier_labels = c('Stroma', 'Tumor')
+panels = c('MPIF26', 'MPIF27')
+```
+
+```{r load_data}
+density_col_types <- cols(
+    classifier_label = col_factor(levels = classifier_labels),
+    t_number = col_factor(),
+    panel = col_factor(levels = panels),
+    cell_type = col_factor(),
+    area = col_double(),
+    n = col_integer(),
+    density = col_double())
+density <- map_dfr(panels, function (p) {
+  read_tsv(here(glue('results/spatial/density/{p}.tsv')),
+           col_types = density_col_types)
+})
+```
+
+## Histograms
+
+```{r hist-density}
+binwidth = 10
+limit = (ceiling(sqrt(max(density$density)) / binwidth)*binwidth)**2
+for (cl in classifier_labels) {
+  for (p in panels) {
+    plt <- density %>%
+      dplyr::filter(classifier_label == cl, panel == p) %>%
+      ggplot(aes(x=density)) +
+      geom_histogram(binwidth=10, boundary=0) + 
+      facet_wrap(vars(cell_type)) +
+      scale_x_sqrt(limits=c(0, limit)) +
+      labs(title = glue("Histograms of density per cell type in {cl} on {p}"))
+    print(plt)
+  }
+}
+```
+
+```{r hist-count}
+binwidth = 100
+limit = (ceiling(sqrt(max(density$n)) / binwidth)*binwidth)**2
+for (cl in classifier_labels) {
+  for (p in panels) {
+    plt <- density %>%
+      dplyr::filter(classifier_label == cl, panel == p) %>%
+      ggplot(aes(x=n)) +
+      geom_histogram(binwidth=binwidth, boundary=0) + 
+      facet_wrap(vars(cell_type)) +
+      scale_x_sqrt(limits=c(0, limit)) +
+      labs(title = glue("Histograms of counts per cell type in {cl} on {p}"))
+    print(plt)
+  }
+}
+```
+
+```{r hist-area}
+plt <- density %>%
+  select(classifier_label, panel, area) %>%
+  distinct() %>%
+  ggplot(aes(x=area)) +
+  geom_histogram(binwidth=10, boundary=0) + 
+  facet_wrap(vars(classifier_label, panel)) +
+  labs(title = glue("Histograms of area"))
+print(plt)
+```
+
+## Paired scatter plot
+
+```{r cor}
+for (cl in classifier_labels) {
+  for (p in panels) {
+    plt <- density %>%
+      dplyr::filter(classifier_label == cl, panel == p) %>%
+      full_join(., ., by='t_number', suffix=c('_x', '_y')) %>%
+      ggplot(aes(x=density_x, y=density_y)) +
+      geom_point() +
+      facet_grid(vars(cell_type_y), vars(cell_type_x), scales='free') +
+      scale_x_sqrt() +
+      scale_y_sqrt() +
+      labs(title = glue("Paired scatter plots of density per cell type in {cl} on {p}"))
+    print(plt)
+  }
+}
+```
+
+## Heatmap
+```{r heatmap}
+for (cl in classifier_labels) {
+  for (p in panels) {
+    plt_data <- density %>%
+      dplyr::filter(classifier_label == cl, panel == p)
+    density_mat <- pivot_wider(plt_data, t_number, names_from=cell_type, values_from=density) %>%
+      tibble::column_to_rownames('t_number') %>%
+      data.matrix()
+    hc_samples <- hclust(dist(density_mat), method='average')
+    dd_samples <- reorder(as.dendrogram(hc_samples), rowMeans(density_mat))
+    hc_cells <- hclust(dist(t(density_mat)), method='average')
+    dd_cells <- reorder(as.dendrogram(hc_cells), colMeans(density_mat))
+    plt <- plt_data %>%
+      ggplot(aes(x=t_number, y=cell_type)) +
+      geom_tile(aes(fill=density)) +
+      scale_fill_continuous(type='gradient', trans='sqrt') +
+      scale_x_discrete(limits=labels(dd_samples)) +
+      scale_y_discrete(limits=labels(dd_cells)) +
+      theme(axis.text.x = element_text(angle = 90))
+    print(plt)
+  }
+}

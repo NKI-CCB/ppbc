@@ -18,18 +18,24 @@ parse_args <- function(args) {
 }
 
 ensure_one_value <- function(x) {
+  x <- x[!is.na(x)] # Because we store data in a tidy format, some values can disappear
   x <- unique(x)
-  stopifnot(length(x) == 1)
-  x
+  if (length(x) == 0) {
+    NA
+  } else if (length(x) == 1) {
+    x
+  } else {
+    stop('Number of unique non-NA values > 1')
+  }
 }
 
 model_density <- function(objects) {
   objects %>%
-    group_by(classifier_label, t_number, panel, cell_type) %>%  # FIXME: deal with batches
+    group_by(classifier_label, t_number, panel, cell_type, .drop=F) %>%  # FIXME: deal with batches
     summarize(
       area = ensure_one_value(classifier_area),
       n = n_distinct(cell)) %>%
-    mutate(density = n / area)
+    mutate(density = if_else(n==0, 0, n / area)) # If n==0, we don't have area
 }
 
 if (sys.nframe() == 0) {

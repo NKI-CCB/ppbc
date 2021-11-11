@@ -1074,3 +1074,13 @@ panel_densities = expand(
 
 rule all_densities:
   input: panel_densities
+
+rule density_report:
+  input:
+    panel_densities,
+    rmd="reports/spatial/05_density.Rmd",
+    script="src/rmarkdown.R",
+  output:
+    html="reports/spatial/05_density.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
