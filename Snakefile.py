@@ -906,8 +906,7 @@ rule trust_report:
 rule organize_vectra:
   input:
     #directory("data/vectra/[batches 1-7]), #Raw data export
-    #Manual inspection suggests redefining batches is not necessary
-    #detailed_batch_info = "data/metadata/spatial/MPIF26en27 batches gekleurd.xlsx", #Exact date and time of Vectra staining
+    detailed_batch_info = "data/metadata/spatial/MPIF26en27 batches gekleurd.xlsx", #Exact date and time of Vectra staining
     metadata="data/metadata/spatial/PPBC_sample_set.xlsx", #Cross-reference with patient ID and batch info
     iris_remarks = "data/metadata/spatial/CFMPB527 Analysis remarks.txt", #Even more comments from Iris
     processed_rna_meta = "data/metadata/01_sample_annot.tsv",
