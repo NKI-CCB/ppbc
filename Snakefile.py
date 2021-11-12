@@ -35,7 +35,9 @@ rule all:
     expand("results/spatial/density/{panel}.tsv",panel=panel),
     "reports/spatial/03a_marker_correction.html",
     "reports/spatial/03b_test_marker_correction.html",
-    "reports/spatial/04_define_cell_types.html"
+    "reports/spatial/04_define_cell_types.html",
+    "reports/spatial/05_density.html",
+    "reports/spatial/06_density_outcome.html"
 
 ### RNAseq analyses ###
 
@@ -952,8 +954,8 @@ rule summary_qc:
 rule load_objects:
   input:
     script = "src/spatial/import_halo_objects.py",
-    objects="data/vectra/symlinks/objects/{t_number}_{panel}_{batch}_object_results.csv",
-    summary="data/vectra/symlinks/summary/{t_number}_{panel}_{batch}_summary_results.csv",
+    objects="data/vectra/raw/objects/{t_number}_{panel}_{batch}_object_results.csv",
+    summary="data/vectra/raw/summary/{t_number}_{panel}_{batch}_summary_results.csv",
   output:
     objects="data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
   shell:
@@ -1082,5 +1084,17 @@ rule density_report:
     script="src/rmarkdown.R",
   output:
     html="reports/spatial/05_density.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+
+rule ppbc_density:
+  input:
+    mpif26="results/spatial/density/MPIF26.tsv",
+    mpif27="results/spatial/density/MPIF27.tsv",
+    meta="data/metadata/spatial/00_vectra_metadata.csv",
+    rmd="reports/spatial/06_density_outcome.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    html="reports/spatial/06_density_outcome.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
