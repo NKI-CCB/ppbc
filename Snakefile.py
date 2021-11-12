@@ -952,8 +952,8 @@ rule summary_qc:
 rule load_objects:
   input:
     script = "src/spatial/import_halo_objects.py",
-    objects="data/vectra/symlinks/objects/{t_number}_{panel}_{batch}_object_results.csv",
-    summary="data/vectra/symlinks/summary/{t_number}_{panel}_{batch}_summary_results.csv",
+    objects="data/vectra/raw/objects/{t_number}_{panel}_{batch}_object_results.csv",
+    summary="data/vectra/raw/summary/{t_number}_{panel}_{batch}_summary_results.csv",
   output:
     objects="data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
   shell:
@@ -1074,3 +1074,15 @@ panel_densities = expand(
 
 rule all_densities:
   input: panel_densities
+
+rule ppbc_density:
+  input:
+    mpif26="results/spatial/density/MPIF26.tsv",
+    mpif27="results/spatial/density/MPIF27.tsv",
+    meta="data/metadata/spatial/00_vectra_metadata.csv",
+    rmd="reports/spatial/06_density_outcome.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    html="reports/spatial/06_density_outcome.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
