@@ -1,7 +1,6 @@
 library(conflicted)
 
 library(dplyr)
-requireNamespace('fs')
 requireNamespace('ncdf4')
 library(purrr)
 library(readr)
@@ -13,7 +12,7 @@ source('src/spatial/read_cells.R')
 options(warn = 2)
 
 parse_args <- function(args) {
-  arg_names <- c('object_dir', 'out_fn') 
+  arg_names <- c('objects', 'out_fn') 
   stopifnot(length(args) == length(arg_names))
   args <- as.list(args)
   names(args) <- arg_names
@@ -34,15 +33,8 @@ read_and_count_objects <- function(fn) {
     summarize(n=n(), .groups="drop")
 }
 
-count_cells <- function(object_dir) {
-  cell_counts <- fs::dir_ls(object_dir, regexp = "\\.nc") %>%
-    map_dfr(read_and_count_objects, .id="file") %>%
-    mutate(file = fs::path_file(file)) %>%
-    extract(file, c('t_number', 'panel'), "(T\\d+-\\d+)_(MPIF\\d+)")
-}
-
 if (sys.nframe() == 0) {
   args <- parse_args(commandArgs(T))
-  cell_counts <- count_cells(args$object_dir)
+  cell_counts <- read_and_count_objects(args$objects)
   write_csv(cell_counts, args$out_fn)
 }
