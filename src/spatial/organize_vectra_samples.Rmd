@@ -1,6 +1,6 @@
 ---
 title: "Organize Vectra samples"
-author: "Kat Moore"
+author: "Kat Moore and Tycho Bismeijer"
 date: "`r Sys.Date()`"
 output: 
   html_document:
@@ -9,14 +9,24 @@ output:
     toc_depth: 4
     df_print: paged
     highlight: kate
+params:
+    metadata: ""
+    batch_info: ""
+    example_halo_archive: ""
+    vectra_dir: ""
+    out: ""
 ---
+
+Here we discover the Vectra data exported from Halo in the `data/vectra` directory.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r lib, message=FALSE}
 library(here)
 library(lubridate)
 library(tidyverse)
-library(methods)
 ```
 
 ## Overview
@@ -24,16 +34,8 @@ library(methods)
 In Nov 2021, we went from having a single exported batch to work with, to having all batches available.
 
 ```{r}
-list.files(here("data/vectra"), pattern = "Batch")
-```
-
-`Batch 3 Leuven (Batch 1 in HALO)` refers to the first batch that was exported in August. It is redundant with the new folder "batch 1" and should not be used.
-
-```{r}
-batches <- list.files(here("data/vectra"), pattern = "Batch")
-
-batches <- batches[-which(batches == "Batch 3 Leuven (Batch 1 in HALO)")]
-batches
+batches <- list.files(here(params$vectra_dir, 'halo'), pattern = "Batch")
+print(batches)
 ```
 
 There are two panels in each batch. The markers are as follows:
@@ -43,220 +45,56 @@ MPIF27 = CD3_CD8_CD138_CD20_PanCK
 
 We cross-reference these samples with the list of known failed stainings later on.
 
-### Metadata
+## Sample Annotation
 
-All samples now have a T-number. The conversion back to the original sample names can be found here:
-
-```{r}
-meta <- readxl::read_excel(here("data/metadata/spatial/PPBC_sample_set.xlsx"))
-head(meta)
-```
-
-There are more remarks to be found here.
+All samples now have a T-number.
 
 ```{r}
-#File is messy and has been manually justified using a mix of spaces and tabs
-remarks <- read_delim(here("data/metadata/spatial/CFMPB527 Analysis remarks.txt"),
-                      delim = " ") %>%
-  set_names(c("t_number", "remark")) %>%
-  filter(str_detect(t_number, "T[0-9][0-9]\\-")) %>%
-  separate(t_number, into = c("t_number", "temp"), sep = "\t") %>%
-  mutate(remark = paste(temp, remark)) %>% select(-temp) %>%
-  mutate(remark = str_trim(
-    str_remove(str_remove(str_remove(remark, "\t"),"NA"), "\r"),
-    side = c("both", "left", "right")))
+sample_annotation <- readxl::read_excel(here(params$metadata), 1)
+head(sample_annotation)
 ```
 
-```{r}
-remarks %>% head()
-```
-
-
-### Directory structure
+## Directory structure
 
 For every sample, the data is in a dated sub-directory.
 
 ```{r}
-list.files(here("data/vectra/Batch 1/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851"))
+list.files(here(params$example_halo_archive))
 ```
 
 Basic stats are in `summary_results.csv`.
 
 ```{r}
-read_csv(
-  here("data/vectra/Batch 1/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851/summary_results.csv")
-)
+read_csv(here(params$example_halo_archive, "summary_results.csv"))
 ```
 
 Full results are in an `object_results.csv` file.
 
 ```{r}
-read_csv(
-  here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851/T21-60303_I1_MPIF26_(CD3_CD20_CD27_FoxP3_PanCK)_LMS-5-7592052_Scan1_fuse.tif_208446_job113494.object_results.csv")
-) %>% head()
-
-
+object_results_files <- list.files(here(params$example_halo_archive), "*.object_results.csv")
+stopifnot(length(object_results_files) == 1)
+read_csv(here(params$example_halo_archive, object_results_files[1])) %>% head()
 ```
 
-The image segmentations are in the Images directory with a .annotations extension: these are xml files. Unclear what the difference is between the two annotations files.
+The image segmentations are in the Images directory with a .annotations extension: these are xml
+files. Unclear what the difference is between the two annotations files.
 
 ```{r}
-list.files(here("data/vectra/Batch 3 Leuven (Batch 1 in HALO)/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851/Images"))
+list.files(here(params$example_halo_archive, "Images"))
 ```
 
-## Process metadata
+## Failed and missing samples
+
+A number of analyses failed.
 
 ```{r}
-meta <- readxl::read_excel(here("data/metadata/spatial/PPBC_sample_set.xlsx"), .name_repair = "universal")
-
-head(meta)
+sample_annotation %>%
+  filter(sample_type == 'slide' & Included == 0) %>%
+  select(sample_ID, experimental_platform, patient_ID, batch_Leuven, batch_HALO, comments)
 ```
 
-### Basic preprocessing
-
-Fix column names.
-
-```{r}
-colnames(meta) <- colnames(meta) %>%
-  tolower() %>%
-  str_replace_all("\\.", "_") %>%
-  str_replace("__", "_") %>%
-  str_replace("seg_", "seg")
-
-head(meta)
-```
-
-This Excel file was designed by humans for humans, with a bunch of colored fields and empty rows that contain only a header. These row headers can be found in the staining column.
-
-```{r}
-meta %>%
-  filter(!staining %in% c("MPIF26", "MPIF27"))
-
-#Remove these rows.
-
-meta <- meta %>%
-  filter(staining %in% c("MPIF26", "MPIF27"))
-```
-
-Most of the time, the T-number has only been filled in once for each panel. Sometimes a block ID has been filled into the empty space instead of NA. It's unclear why, but these samples clearly belong to the same ID.
-
-```{r}
-#Show the affected rows and the row that proceeds them
-meta[sort(c(which(str_detect(meta$extern_number, "Block")),
-  which(str_detect(meta$extern_number, "Block"))-1)),]
-
-#replace block with NA so we can fill in the correct IDs below
-meta$extern_number[which(str_detect(meta$extern_number, "Block"))] <- NA
-```
-
-Fix the NAs.
-
-```{r}
-meta <- meta %>%
-  fill(extern_batch, extern_number, t_number, .direction = "down")
-
-meta %>% head()
-```
-
-### Failed and missing samples
-
-A number of analyses failed. These are marked with x.
-
-```{r}
-meta %>%
-  filter(annotations == "x") %>%
-  select(t_number, staining, extern_number, batch_in_halo, annotations, comments) %>%
-  distinct()
-```
-
-Each sample within a batch should be present within both samples, but already we can see that some batches have uneven numbers.
-
-```{r}
-panel_check <- lapply(here("data/vectra", batches),
-       function(x) {
-         lapply(c("MPIF26", "MPIF27"), function(y){
-           tibble(
-             batch = str_remove(x, "/DATA/share/postpartumbc/data/vectra/"),
-             panel = y,
-             t_number = list.files(file.path(x, y))
-           )}
-         )
-       }) %>% bind_rows() %>%
-  arrange(t_number)
-
-panel_check %>%
-  pivot_wider(names_from = panel, values_from = t_number, values_fn = length)
-
-```
-
-Ensure that the samples present in each batch are identical when the numbers are equal, and print the discrepancy when they are not.
-
-```{r}
-#A data frame where sample names are stored as a list-col
-panel_lcol <- panel_check %>%
-  pivot_wider(names_from = panel, values_from = t_number, values_fn = list)
-
-missing_samples <- list()
-
-suppressWarnings(
-  for (x in 1:nrow(panel_lcol)){
-  if(all(sort(panel_lcol$MPIF26[[x]]) == sort(panel_lcol$MPIF27[[x]]))){
-    #print(paste("No discrepancies in batch", panel_lcol$batch[[x]]))
-  } else {
-    #print(paste("Mismatched samples found in batch", panel_lcol$batch[[x]]))
-    #print(paste("Found in MPIF26 but absent in MPIF27:"))
-    problem <- setdiff(sort(unlist(panel_lcol[x,"MPIF26",drop=T])),
-                  sort(unlist(panel_lcol[x,"MPIF27",drop=T])))
-    #print(problem)
-    missing_samples[[length(missing_samples) + 1]] <- tibble(
-      batch = panel_lcol$batch[[x]], t_number = problem,
-      MPIF26_present = T, MPIF27_present = F
-    )
-    #print(paste("Found in MPIF27 but absent in MPIF26:"))
-    problem <- setdiff(sort(unlist(panel_lcol[x,"MPIF27",drop=T])),
-                  sort(unlist(panel_lcol[x,"MPIF26",drop=T])))
-    #print(problem)
-    missing_samples[[length(missing_samples) + 1]] <- tibble(
-      batch = panel_lcol$batch[[x]], t_number = problem,
-      MPIF26_present = F, MPIF27_present = T
-    )
-  }
-})
-
-missing_samples <- missing_samples %>% 
-  bind_rows()
-
-missing_samples
-```
-
-Find the reason why these samples failed, if available in the metadata
-
-```{r}
-missing_samples <- missing_samples %>%
-  mutate(present_in_metadata = t_number %in% meta$t_number) %>%
-  left_join(.,pivot_wider(
-    select(meta,t_number, staining, comments),
-    names_from = staining, values_from = comments,
-    names_glue = "comments_{staining}"),
-            by = "t_number") %>%
-  relocate(t_number, .before = everything())
-
-missing_samples
-```
-
-See if there are comments about these samples in the remarks:
-
-```{r}
-missing_samples <- missing_samples %>%
-  mutate(present_in_remarks = t_number %in% remarks$t_number,
-         .after = present_in_metadata) %>%
-  left_join(., remarks, by = "t_number")
-
-missing_samples
-```
-
-All missing samples accounted for, though we still need to ask for the patient ref of T20-62412 since it's absent from the metadata. More on that later.
-
+*TODO:  Ensure that the samples present in each batch are identical when the numbers are equal, and
+print the discrepancy when they are not.*
 
 
 ### Duplicates
@@ -264,105 +102,88 @@ All missing samples accounted for, though we still need to ask for the patient r
 Some patients evidently provided more than one tissue block.
 
 ```{r}
-dups <- filter(count(group_by(meta, extern_number)), n!=2)$extern_number
+patients_with_duplicates <- sample_annotation %>%
+    filter(sample_type == 'slide', Included == 1) %>%
+    group_by(patient_ID, experimental_platform) %>%
+    count() %>%
+    filter(n > 1) %>%
+    `$`('patient_ID') %>%
+    unique()
 
-meta %>%
-  filter(extern_number %in% dups) %>%
-  arrange(extern_number) %>%
-  select(extern_number, t_number) %>%
-  distinct()
+sample_annotation %>%
+  filter(
+    sample_type == 'slide',
+    patient_ID %in% patients_with_duplicates) %>%
+  arrange(patient_ID) %>%
+  select(patient_ID, sample_ID, experimental_platform)
 ```
 
 ## File location dictionary
 
-The data structure is a mess. Let's look up the location of the relevant files so we can make symlinks later on.
-
-Reminder:
-
-MPIF26 = CD3_CD20_CD27_FoxP3_PanCK
-MPIF27 = CD3_CD8_CD138_CD20_PanCK
-
 ### Object results
 
-Why is for example T09-22827 scanned twice in MPIF26? Nothing in the remarks file.
+The data is located in `r params$vectra_dir`/halo in directories, with the first directory
+identifying the batch starting with batch, then a directory with the panel name, then a directory
+with the t-number.
+
 
 ```{r}
-mainDir <- here("data/vectra")
-
-filedict <- tibble(
+object_files <- tibble(
   object_path = list.files(
-    file.path(mainDir, batches), #Excluding the old Leuven export
+    here(params$vectra_dir, 'halo', batches),
     recursive = T, full.names = T, pattern = ".object_results.csv"
-  )
-) %>%
+  )) %>%
   #Extract the t_number, batch and panel from the object results
-  separate(object_path,
-           into=c(NA,NA,NA,NA,NA,NA,"batch","panel",
-                  "t_number", "Halo_time", "object_file"),sep="/", remove = F) %>%
+  mutate(
+    split_object_path=fs::path_split(object_path),
+    HALO_batch = map_chr(split_object_path, ~ .[[length(.)-4]]),
+    panel = map_chr(split_object_path, ~ .[[length(.)-3]]),
+    t_number = map_chr(split_object_path, ~ .[[length(.)-2]])) %>%
+  select(-split_object_path) %>%
   relocate(object_path, .after = everything()) %>%
   relocate(t_number, .before = everything()) %>%
   arrange(t_number)
 
-head(filedict)
+head(object_files)
 ```
+
+The number of sample-panel combinations with an object file is `r nrow(object_files)` for
+`r length(unique(object_files$t_number))` samples.
+
+Sample-panel combinations for which we did not find an object file:
 
 ```{r}
-print(paste("Number of samples", nrow(filedict)))
+anti_join(
+  filter(sample_annotation, sample_type == 'slide' & Included == 1),
+  object_files,
+  by = c(sample_ID = 't_number', experimental_platform = 'panel'))
 ```
 
-Samples with greater or fewer files than expected, taking into account the samples we've already identified as missing:
+and those for which we have a file, but don't expect it:
 
 ```{r}
-object_inv <- filedict %>%
-  select(-Halo_time, -object_path) %>%
-  pivot_wider(names_from = panel, values_from = object_file,
-              values_fn = list) %>%
-  #Somewhat cumbersome method of using filter with listcols
-  filter(map_lgl(MPIF26, ~ .x %>%
-                   length !=1) |
-           map_lgl(MPIF27, ~ .x %>%
-                   length !=1)) %>%
-  mutate(MPIF26_present = map_lgl(MPIF26, ~ .x %>%
-                   length >0),
-         MPIF27_present = map_lgl(MPIF27, ~ .x %>%
-                   length >0)
-)
-
-object_inv$present_in_metadata <- object_inv$t_number %in% meta$t_number   
-object_inv$present_in_remarks <- object_inv$t_number %in% remarks$t_number   
-
-object_inv %>%
-  filter(!t_number %in% missing_samples$t_number)
+anti_join(
+  object_files,
+  filter(sample_annotation, sample_type == 'slide' & Included == 1),
+  by=c(t_number = 'sample_ID', panel = 'experimental_platform'))
 ```
 
-Add these to the missing samples object, and note the type of problem:
+and check for doubles
 
 ```{r}
-missing_samples <- object_inv %>%
-  filter(!t_number %in% missing_samples$t_number) %>%
-  left_join(.,pivot_wider(
-    select(meta,t_number, staining, comments),
-    names_from = staining, values_from = comments,
-    names_glue = "comments_{staining}"),
-    by = "t_number") %>%
-  left_join(., remarks, by = "t_number") %>%
-  mutate(problem = ifelse(t_number == "T09-22827",
-                          "more than 1 results directory in MPIF26",
-                          "missing object results"),
-         .after = batch) %>%
-  select(-MPIF26, -MPIF27) %>%
-  bind_rows(., missing_samples %>%
-              mutate(problem = "missing sample directory",
-                     .after = batch))
-
-missing_samples
+object_files %>%
+  group_by(t_number, panel) %>%
+  count() %>%
+  filter(n > 1) %>%
+  right_join(object_files, by=c('t_number', 'panel'))
 ```
+
 
 ### Summary results
 
 This file is always called `summary_results.csv`, regardless of the sample it belongs to.
 
-```{r}
+```{r, eval=F}
 temp <- tibble(
   summary_path = list.files(
     file.path(mainDir, batches), #Excluding the old Leuven export
@@ -387,7 +208,7 @@ filedict <- left_join(filedict, temp, by=c("t_number", "panel", "Halo_time"))
 rm(temp)
 ```
 
-```{r}
+```{r, eval=F}
 print(paste("Number of samples", nrow(filedict)))
 ```
 
@@ -397,7 +218,7 @@ The first batch had multiple annotation files per sample, but it looks like that
 
 The number of annotation files found indicates that there are irregularities.
 
-```{r}
+```{r, eval=F}
 temp <- tibble(
   annotation_path = list.files(
     file.path(mainDir, batches), #Excluding the old Leuven export
@@ -418,7 +239,7 @@ print(paste("Number of annotation files:", nrow(temp)))
 
 Count annotation files by sample TODO
 
-```{r}
+```{r, eval=F}
 anno_inv <- temp %>%
   select(-Halo_time, -annotation_path) %>%
   pivot_wider(names_from = panel, values_from = annotation_file,
@@ -439,7 +260,7 @@ head(anno_inv)
 
 For those samples missing annotation files: check if they're not already in the missing sample list.
 
-```{r}
+```{r, eval=F}
 stopifnot(nrow(
   filter(anno_inv, MPIF26_present == F | MPIF27_present == F)$t_number 
   %in% missing_samples$t_number
@@ -449,7 +270,7 @@ stopifnot(nrow(
 
 Now figure out what is going on with the annotation file duplicates and nomenclature.
 
-```{r}
+```{r, eval=F}
 annos_by_batch <- temp %>%
   group_by(t_number, batch, panel) %>%
   summarise(annos_per_sample = n(), .groups = "drop") %>%
@@ -467,7 +288,7 @@ Most batches have either 1 or 2 annotation files per sample, but there are excep
 
 Look at some outliers. It appears that the duplicate annotation files have the same file name, but one includes a job id.
 
-```{r}
+```{r, eval=F}
 temp %>%
   filter(batch == "Batch 5" & panel == "MPIF26") %>%
   filter(duplicated(t_number) | duplicated(t_number, fromLast=T))
@@ -475,7 +296,7 @@ temp %>%
 
 For now, just track both annotation files, where applicable.
 
-```{r}
+```{r, eval=F}
 temp <- temp %>%
   mutate(annotation_type = ifelse(str_detect(annotation_file, "job"),
                                   "anno_job", "anno"), .before = batch) %>%
@@ -489,7 +310,7 @@ stopifnot(all(sort(temp$t_number)==sort(filedict$t_number)))
 
 Make sure we didn't gain any rows.
 
-```{r}
+```{r, eval=F}
 print(paste("Number of samples:", nrow(filedict)))
 filedict <- left_join(filedict, temp, by = c("t_number", "batch", "panel", "Halo_time"))
 print(paste("Number of samples:", nrow(filedict)))
@@ -497,7 +318,7 @@ print(paste("Number of samples:", nrow(filedict)))
 
 All samples have at least one annotation file that does not have a job id in the filename. Some samples lack the second annotation file that includes a job id.
 
-```{r}
+```{r, eval=F}
 filedict %>%
   filter(is.na(anno_path)) %>%
   nrow()
@@ -511,7 +332,7 @@ filedict %>%
 
 Link with RNAseq IDs and study_group etc. Note: the molecular subtypes as listed here are based on the clinical classification from Leuven. Also, some samples were later removed from the RNAseq analysis for QC reasons, and some of the patient refs among the Vectra data were not included among the RNAseq data.
 
-```{r}
+```{r, eval=F}
 rna_meta <- read_tsv(here("data/metadata/01_sample_annot.tsv")) %>%
   select(sample_ref, patient_ref, sample_name, study_group, PPBC, country,
          clin_subtype = molecular_subtype,
@@ -530,7 +351,7 @@ stopifnot(nrow(combi_meta) == nrow(meta))
 
 For those that we could not find: check to see if the external number matches the patient ref instead of the sample ref.
 
-```{r}
+```{r, eval=F}
 #Split those we couldn't find off from the metadata
 no_outcome <- combi_meta %>%
   filter(is.na(study_group)) %>%
@@ -552,7 +373,7 @@ print(paste("Samples lacking clinical data:",
 
 As a last measure to find clinical data related to these samples: check the original raw metadata file provided by Hanne. We did not find them.
 
-```{r}
+```{r, eval=F}
 raw_rna_meta <- readxl::read_excel(here("data/external/Hercoderingslijst_v09032020_KM.xlsx"),
                    sheet = "Recoding Book_v09032020_Overall") %>%
   select(patient_ref = `NEW REF`, 
@@ -580,7 +401,7 @@ filter(no_outcome, is.na(study_group))$extern_number %in% raw_rna_meta$old_ref
 
 Rejoin the samples we were able to repair.
 
-```{r}
+```{r, eval=F}
 #Remove the old empty rows
 combi_meta <- combi_meta %>%
   filter(!is.na(study_group))
@@ -597,7 +418,7 @@ stopifnot(all(
 
 Identify remaining patient refs that cannot be found in the RNAseq data.
 
-```{r}
+```{r, eval=F}
 combi_meta %>%
   filter(is.na(study_group)) %>%
   select(extern_number, t_number) %>% distinct()
@@ -607,7 +428,7 @@ combi_meta %>%
 
 The batch indicated by the file name is not the same as the staining batch, which is called "extern" in the metadata.
 
-```{r}
+```{r, eval=F}
 filedict %>%
   select(t_number, panel, file_batch = batch) %>%
   left_join(., select(combi_meta, t_number, staining, extern_batch, batch_in_halo),
@@ -624,7 +445,7 @@ We are not interested in formally correcting for batch effects right now, so thi
 
 Create directory structure.
 
-```{r}
+```{r, eval=F}
 symdir <- here("data/vectra/raw")
 dir.create(symdir, showWarnings = F)
 
@@ -647,7 +468,7 @@ file.remove(list.files(file.path(symdir, "summary"),
 
 Creating a symlink will fail if it exists already (which we want). Handle the one t-number that has multiple output dirs in MPIF26.
 
-```{r}
+```{r, eval=F}
 head(filedict)
 stopifnot(all(filedict$t_number[1:3]=="T09-22827"))
 stopifnot(all(filedict$panel[1:2]=="MPIF26"))
@@ -656,7 +477,7 @@ filedict$t_number[2] <- "T09-22827-B"
 
 Also add this entry to the metadata it can be found later.
 
-```{r}
+```{r, eval=F}
 combi_meta <- combi_meta %>%
   filter(t_number == "T09-22827" & staining == "MPIF26") %>%
   mutate(t_number = paste0(t_number, "-B")) %>%
@@ -669,7 +490,7 @@ combi_meta <- combi_meta %>%
 
 Add symbolic links to file dictionary.
 
-```{r}
+```{r, eval=F}
 filedict$sym_object <- file.path(
   symdir, "objects",
   paste(
@@ -684,7 +505,7 @@ filedict$sym_object <- file.path(
 
 Create the symbolic links.
 
-```{r}
+```{r, eval=F}
 #Will harmlessly give a "file exists" warning and return FALSE if already done
 suppressWarnings(file.symlink(
   from = filedict$object_path,
@@ -696,7 +517,7 @@ suppressWarnings(file.symlink(
 
 Add symlinks to file dict.
 
-```{r}
+```{r, eval=F}
 filedict$sym_summary <- file.path(
   symdir, "summary",
   paste(
@@ -711,7 +532,7 @@ filedict$sym_summary <- file.path(
 
 Create the symbolic links.
 
-```{r}
+```{r, eval=F}
 suppressWarnings(file.symlink(
   from = filedict$summary_path,
   to = filedict$sym_summary
@@ -722,7 +543,7 @@ suppressWarnings(file.symlink(
 
 The annotation files that contain `job` in the file name appear to contain less info. Put these in their own subfolder. The files without that string go in the parent directory.
 
-```{r}
+```{r, eval=F}
 filedict$sym_annotations <- file.path(
   symdir, "annotations",
   paste(
@@ -737,7 +558,7 @@ filedict$sym_annotations <- file.path(
 
 Create the symbolic links.
 
-```{r}
+```{r, eval=F}
 suppressWarnings(file.symlink(
   from = filedict$anno_path,
   to = filedict$sym_annotations
@@ -746,7 +567,7 @@ suppressWarnings(file.symlink(
 
 Now do the job annotations.
 
-```{r}
+```{r, eval=F}
 filedict$sym_job_annotations <- file.path(
   symdir, "annotations", "job_annotations",
   paste(
@@ -761,7 +582,7 @@ filedict$sym_job_annotations <- file.path(
 
 Create the symbolic links, for those samples that have them.
 
-```{r}
+```{r, eval=F}
 suppressWarnings(file.symlink(
   from = filter(filedict, !is.na(anno_job_path))$anno_job_path,
   to = filter(filedict, !is.na(anno_job_path))$sym_job_annotations
@@ -772,7 +593,7 @@ suppressWarnings(file.symlink(
 
 Contains original file location and symlink path for all of the result types.
 
-```{r}
+```{r, eval=F}
 #Ensure batch matches the the file
 filedict <- filedict %>%
   mutate(batch = str_remove_all(tolower(batch), " "))
@@ -781,19 +602,19 @@ write_csv(filedict, here("data/metadata/spatial/00_file_location_dictionary.csv"
 
 And track the missing samples.
 
-```{r}
+```{r, eval=F}
 write_csv(missing_samples, here("data/metadata/spatial/00_missing_panel_samples.csv"))
 ```
 
 Report annotation file irregularities.
 
-```{r}
+```{r, eval=F}
 write_csv(annos_by_batch, here("data/metadata/spatial/00_annos_by_batch.csv"))
 ```
 
 Report duplicates and multiples.
 
-```{r}
+```{r, eval=F}
 meta %>%
   filter(extern_number %in% dups) %>%
   arrange(extern_number) %>%
@@ -815,13 +636,13 @@ meta %>%
 
 Metadata that includes clinical outcome
 
-```{r}
+```{r, eval=F}
 write_csv(combi_meta, here("data/metadata/spatial/00_vectra_metadata.csv"))
 ```
 
 Samples for which no clinical outcomes could be found
 
-```{r}
+```{r, eval=F}
 combi_meta %>%
   filter(is.na(study_group)) %>%
   select(extern_number, t_number) %>% distinct() %>%
@@ -829,6 +650,6 @@ combi_meta %>%
 ```
 
 
-```{r}
+```{r, eval=F}
 sessionInfo()
 ```

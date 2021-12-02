@@ -9,6 +9,7 @@ p <- local({
   
   if (length(args) > 2) {
     params <- args[3:length(args)]
+    print(params)
     stopifnot(length(params) %% 2 == 0)
     params_names <- params[seq(1, length(params), 2)]
     params_values <- params[seq(1, length(params), 2)+1]
