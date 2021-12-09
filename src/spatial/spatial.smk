@@ -22,7 +22,7 @@ class Sample():
             return VectraSample(
                 sample_id = x["sample_ID"],
                 patient_id = x["patient_ID"],
-                batch_HALO = x["batch_HALO"],
+                batch_HALO = x["batch_HALO"].lower().replace(" ", ""),
                 panel = x["experimental_platform"],
             )
         else:
@@ -112,12 +112,18 @@ rule load_objects:
     "python3 {input.script} {input.summary} {input.objects} {output.objects}"
     
 
-rule all_objects:
+rule aggregrate_objects:
   input:
-    ["data/vectra/interim/objects/{s.sample_id}_{s.panel}_{s.HALO_batch}.nc"
-     for s in vectra_samples.values()]
+    object_files = [f"data/vectra/interim/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}.nc"
+                    for s in vectra_samples.values()],
+    script = "src/spatial/read_cells.R"
+  output:
+    "data/vectra/interim/objects.Rds"
+  shell:
+    "Rscript {input.script} {input.object_files} {output}"
+    
 
-#Generate an overview of marker combination abundance by panel
+#Generate an overview of marker combination abundance
 rule count_cells:
   input:
     "src/spatial/read_cells.R",
@@ -135,8 +141,7 @@ rule object_QC:
   input:
     rmd="reports/spatial/02_object_QC.Rmd",
     script="src/rmarkdown.R",
-    mpif26_objects="data/vectra/interim/MPIF26_df.Rds",
-    mpif27_objects="data/vectra/interim/MPIF27_df.Rds",
+    objects="data/vectra/interim/objects.Rds",
   output:
     html="reports/spatial/02_object_QC.html",
   shell:
@@ -146,8 +151,7 @@ rule object_QC:
 #TODO rename this notebook: actual correction now takes place elsewhere
 rule report_marker_correction:
   input:
-    mpif26="data/vectra/interim/MPIF26_df.Rds",
-    mpif27="data/vectra/interim/MPIF27_df.Rds",
+    objects="data/vectra/interim/objects.Rds",
     cell_count_by_marker="results/spatial/cell_counts_by_marker.csv",
     rmd="reports/spatial/03a_marker_correction.Rmd",
     script="src/rmarkdown.R"
@@ -162,9 +166,9 @@ rule report_marker_correction:
 rule call_cell_types:
   input:
     script="src/spatial/call_cell_types.R",
-    objects="data/vectra/interim/{panel}_df.Rds",
+    objects = "data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
   output:
-    "data/vectra/processed/objects_{panel}.Rds",
+    "data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
   shell:
     "Rscript {input.script} {input.objects} {wildcards.panel} {output}"
 

@@ -1,7 +1,8 @@
-import pandas as pd
 from pathlib import Path
 
 configfile: "config.yaml"
+
+include: "src/spatial/spatial.smk"
 
 # The Snakefile is given a .py extension so that we can see syntax highlighting in IDEs
 
@@ -23,21 +24,19 @@ configfile: "config.yaml"
 #To get a graphical representation of the workflow:
 #"snakemake --dag | dot -Tsvg > dag.svg"
 
-panel=["MPIF26", "MPIF27"]
 
 rule all:
   input:
     #"reports/16_gene_unity_setup.html", #Pertains to RNAseq analysis, temporary omit
-    #Spatial analysis files:
     "reports/spatial/00_organize_vectra_samples.html",
     "reports/spatial/01_summary_QC.html",
     "results/spatial/cell_counts_by_marker.csv",
-    expand("results/spatial/density/{panel}.tsv",panel=panel),
     "reports/spatial/03a_marker_correction.html",
     "reports/spatial/03b_test_marker_correction.html",
     "reports/spatial/04_define_cell_types.html",
     "reports/spatial/05_density.html",
     "reports/spatial/06_density_outcome.html"
+
 
 ### RNAseq analyses ###
 
@@ -898,203 +897,3 @@ rule trust_report:
     html="reports/18_BCR_clonality.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"  
-
-### Spatial analyses ###
-
-# The spatial analysis gets its own subdirectory in ./reports and within the data (sub)directories
-# Raw data is in ./data/vectra
-
-# Create a manageable data structure
-rule organize_vectra:
-  input:
-    #directory("data/vectra/[batches 1-7]), #Raw data export
-    detailed_batch_info = "data/metadata/spatial/MPIF26en27 batches gekleurd.xlsx", #Exact date and time of Vectra staining
-    metadata="data/metadata/spatial/PPBC_sample_set.xlsx", #Cross-reference with patient ID and batch info
-    iris_remarks = "data/metadata/spatial/CFMPB527 Analysis remarks.txt", #Even more comments from Iris
-    processed_rna_meta = "data/metadata/01_sample_annot.tsv",
-    raw_rna_meta = "data/external/Hercoderingslijst_v09032020_KM.xlsx",
-    rmd="reports/spatial/00_organize_vectra_samples.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    #dir("data/vectra/symlinks"),
-    missing_samples = "data/metadata/spatial/00_missing_panel_samples.csv",
-    dups = "data/metadata/spatial/00_possible_duplicates.csv",
-    weird_annos = "data/metadata/spatial/00_annos_by_batch.csv",
-    no_clinical = "data/metadata/spatial/00_no_clinical_outcome.csv",
-    filedict="data/metadata/spatial/00_file_location_dictionary.csv",
-    meta="data/metadata/spatial/00_vectra_metadata.csv",
-    html="reports/spatial/00_organize_vectra_samples.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-#Extract t_numbers from organized sample table
-vectra_table_pth = Path("data/metadata/spatial/00_file_location_dictionary.csv")
-if vectra_table_pth.exists():
-    vectra_table = pd.read_csv(vectra_table_pth)
-    t_numbers = list(pd.unique(vectra_table['t_number']))
-else:
-    t_numbers = []
-
-#QC checks based on aggregated summary files
-rule summary_qc:
-  input:
-    filedict="data/metadata/spatial/00_file_location_dictionary.csv",
-    rmd="reports/spatial/01_summary_QC.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    mpif26_summary="data/vectra/interim/summaries/01_MPIF26_batch1_summaries.csv",
-    mpif27_summary="data/vectra/interim/summaries/01_MPIF27_batch1_summaries.csv",
-    html="reports/spatial/01_summary_QC.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-#Convert object results and summary to .nc format
-#Do not invoke directly: use all_objects or object_QC instead
-#On harris, command must read python3 instead of python
-rule load_objects:
-  input:
-    script = "src/spatial/import_halo_objects.py",
-    objects="data/vectra/raw/objects/{t_number}_{panel}_{batch}_object_results.csv",
-    summary="data/vectra/raw/summary/{t_number}_{panel}_{batch}_summary_results.csv",
-  output:
-    objects="data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
-  shell:
-    "export OMP_NUM_THREADS=1\n"
-    "python3 {input.script} {input.summary} {input.objects} {output.objects}"
-    
-all_objects = expand(
-  "data/vectra/interim/objects/{t_number}_{panel}_batch1.nc",
-  t_number = t_numbers,
-  panel = ['MPIF26', 'MPIF27'])
-
-rule all_objects:
-  input: all_objects    
-
-#Generate an overview of marker combination abundance by panel
-rule count_cells:
-  input:
-    all_objects,
-    "src/spatial/read_cells.R",
-    script="src/spatial/counts_cells.R",
-  output:
-    csv="results/spatial/cell_counts_by_marker.csv",
-  shell:
-    "mkdir -p results/spatial/\n"
-    "Rscript {input.script} data/vectra/interim/objects/ {output.csv}"
-
-#Converts sample-wise .nc files into a single RDS data frame organized by panel
-#This rule should not be called alone
-#It exists to produce input for downstream rules (and may go away soon)
-rule convert_objects_nc_to_rds:
-  input:
-    object_nc=expand(
-      "data/vectra/interim/objects/{t_number}_{{panel}}_batch1.nc",
-      t_number = t_numbers),
-    script="src/spatial/read_cells.R"
-  output:
-    "data/vectra/interim/{panel}_df.Rds",
-  shell:
-    "Rscript {input.script} {input.object_nc} {output}"
-    
-#QC reports based on object files rather than summary files
-rule object_QC:
-  input:
-    rmd="reports/spatial/02_object_QC.Rmd",
-    script="src/rmarkdown.R",
-    mpif26_objects="data/vectra/interim/MPIF26_df.Rds",
-    mpif27_objects="data/vectra/interim/MPIF27_df.Rds",
-  output:
-    html="reports/spatial/02_object_QC.html",
-  shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"      
-
-#Identify and visualize problematic marker combinations
-#TODO rename this notebook: actual correction now takes place elsewhere
-rule report_marker_correction:
-  input:
-    mpif26="data/vectra/interim/MPIF26_df.Rds",
-    mpif27="data/vectra/interim/MPIF27_df.Rds",
-    cell_count_by_marker="results/spatial/cell_counts_by_marker.csv",
-    rmd="reports/spatial/03a_marker_correction.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    html="reports/spatial/03a_marker_correction.html",
-  shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
-
-#Correct double positivity, deal with disallowed marker pairs,
-#and assign a "cell type" based on marker positivity
-#Do not call this rule alone: it exists to provide input for downstream rules
-rule call_cell_types:
-  input:
-    script="src/spatial/call_cell_types.R",
-    objects="data/vectra/interim/{panel}_df.Rds",
-  output:
-    "data/vectra/processed/objects_{panel}.Rds",
-  shell:
-    "Rscript {input.script} {input.objects} {wildcards.panel} {output}"
-
-#Ensure disallowed marker pairs no longer exist
-rule test_marker_correction_results:
-  input:
-    mpif26="data/vectra/processed/objects_MPIF26.Rds",
-    mpif27="data/vectra/processed/objects_MPIF27.Rds",
-    rmd="reports/spatial/03b_test_marker_correction.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    html="reports/spatial/03b_test_marker_correction.html",
-  shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
-
-#Quantify cell types and the marker combinations they represent
-rule define_cell_types_report:
-  input:
-    mpif26="data/vectra/processed/objects_MPIF26.Rds",
-    mpif27="data/vectra/processed/objects_MPIF27.Rds",
-    rmd="reports/spatial/04_define_cell_types.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    html="reports/spatial/04_define_cell_types.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
-    
-#Model overall marker combination density by panel
-#Use all_densities instead of invoking this rule directly
-rule cell_type_density:
-  input:
-    script="src/spatial/model_density.R",
-    objects="data/vectra/processed/objects_{panel}.Rds",
-  output:
-    tsv="results/spatial/density/{panel}.tsv",
-  shell:
-    "mkdir -p results/spatial/density\n"
-    "Rscript {input.script} {input.objects} {output}"
-
-panel_densities = expand(
-  "results/spatial/density/{panel}.tsv",
-  panel = ['MPIF26', 'MPIF27'])
-
-rule all_densities:
-  input: panel_densities
-
-rule density_report:
-  input:
-    panel_densities,
-    rmd="reports/spatial/05_density.Rmd",
-    script="src/rmarkdown.R",
-  output:
-    html="reports/spatial/05_density.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
-
-rule ppbc_density:
-  input:
-    mpif26="results/spatial/density/MPIF26.tsv",
-    mpif27="results/spatial/density/MPIF27.tsv",
-    meta="data/metadata/spatial/00_vectra_metadata.csv",
-    rmd="reports/spatial/06_density_outcome.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    html="reports/spatial/06_density_outcome.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
