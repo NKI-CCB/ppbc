@@ -53,7 +53,6 @@ nc_read_matrix <- function(ds, var_name) {
 read_cells <- function(fn, intensity=F) {
     if (is.character(fn)) {
       ds <- ncdf4::nc_open(fn)
-      on.exit(ncdf4::nc_close(ds), add=T)
     } else {
       ds <- fn
     }
@@ -82,11 +81,17 @@ read_cells <- function(fn, intensity=F) {
 
     # FIXME: Implement the addition of sample and tissue class variables more generally
     sample_df <- nc_read_data_frame(ds, 'sample')
-    cell_df$t_number <- sample_df$t_number
+    cell_df$t_number <- str_extract(fn, "T[0-9]+-[0-9]+(_[I0-9]+)?")
+    cell_df$batch <- str_extract(fn, "batch[0-9]+")
     cell_df$panel <- sample_df$panel
     classifier_area <- nc_read_matrix(ds, 'area')
     stopifnot(nrow(classifier_area) == 1) # Only one sample
     cell_df$classifier_area <- classifier_area[1, as.character(cell_df$classifier_label)]
+
+    # Cannot use on.exit, because it doesn't trigger on time with map_dfr
+    if (is.character(fn)) {
+      ncdf4::nc_close(ds)
+    }
 
     cell_df
 }

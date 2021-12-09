@@ -34,8 +34,9 @@ For every sample, check each marker to ensure that it's localized where it's sup
 Produce separate dfs per panel.
 
 ```{r read_objects}
-mpif26 <- readRDS(here("data/vectra/interim/MPIF26_df.Rds"))
-mpif27 <- readRDS(here("data/vectra/interim/MPIF27_df.Rds"))
+objects <- readRDS(here("data/vectra/interim/objects.Rds"))
+mpif26 <- filter(objects, panel == 'MPIF26')
+mpif27 <- filter(objects, panel == 'MPIF27')
 ```
 
 ## DAPI

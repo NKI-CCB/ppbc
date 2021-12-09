@@ -5,6 +5,14 @@ import openpyxl
 # The spatial analysis gets its own subdirectory in ./reports and within the data (sub)directories
 # Raw data is in data/vectra
 
+
+wildcard_constraints:
+    # T numbers, with a possible block ID appended
+    t_number="T[0-9]+-[0-9]+(_[I0-9]+)?",
+    panel="MPIF[0-9]+",
+    batch="batch[0-9]+"
+
+
 ###################
 # Sample metadata #
 ###################
@@ -62,6 +70,9 @@ def read_sample_xlsx(fn):
 samples = read_sample_xlsx("data/metadata/PPBC_metadata.xlsx")
 vectra_samples = {s.sample_id: s for s in samples if isinstance(s, VectraSample)}
 
+#FIXME: Check this sample, something goes wrong with calling
+vectra_samples = {k: s for k, s in vectra_samples.items() if s.sample_id != "T20-62429"}
+
 #################
 # Preprocessing #
 #################
@@ -85,7 +96,7 @@ rule organize_vectra:
     " --out '{output}'"
 
 #QC checks based on aggregated summary files
-rule summary_qc:
+rule summary_QC:
   input:
     filedict="data/metadata/spatial/00_file_location_dictionary.csv",
     rmd="reports/spatial/01_summary_QC.Rmd",
@@ -135,12 +146,6 @@ rule count_cells:
     "Rscript {input.script} {input.objects} {output}"
 
 
-rule all_count_cells:
-  input:
-    [f"results/spatial/marker_cell_counts/{s.sample_id}_{s.panel}_{s.batch_HALO}.csv"
-      for s in vectra_samples.values()],
-
-
 #QC reports based on object files rather than summary files
 rule object_QC:
   input:
@@ -177,11 +182,6 @@ rule call_cell_types:
   shell:
     "Rscript {input.script} {input.objects} {wildcards.panel} {output}"
 
-rule all_call_cell_types:
-  input:
-    [f"data/vectra/processed/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}.Rds"
-      for s in vectra_samples.values()],
-
 #Ensure disallowed marker pairs no longer exist
 rule test_marker_correction_results:
   input:
@@ -207,27 +207,31 @@ rule define_cell_types_report:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     
 #Model overall marker combination density by panel
-#Use all_densities instead of invoking this rule directly
+#Use aggregrate_densities instead of invoking this rule directly
 rule cell_type_density:
   input:
     script="src/spatial/model_density.R",
-    objects="data/vectra/processed/objects_{panel}.Rds",
+    objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
   output:
-    tsv="results/spatial/density/{panel}.tsv",
+    tsv="results/spatial/density/{t_number}_{panel}_{batch}.tsv",
   shell:
     "mkdir -p results/spatial/density\n"
     "Rscript {input.script} {input.objects} {output}"
 
-panel_densities = expand(
-  "results/spatial/density/{panel}.tsv",
-  panel = ['MPIF26', 'MPIF27'])
 
-rule all_densities:
-  input: panel_densities
+rule aggregrate_densities:
+  input:
+    tsv=[f"results/spatial/density/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
+     for s in vectra_samples.values()],
+    script="src/spatial/cat_tsv.R",
+  output: 'results/spatial/density.tsv'
+  shell:
+    "Rscript {input.script} {input.tsv} {output}"
+
 
 rule density_report:
   input:
-    panel_densities,
+    "results/spatial/density.tsv",  # TODO: aggregate densities
     rmd="reports/spatial/05_density.Rmd",
     script="src/rmarkdown.R",
   output:

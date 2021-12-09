@@ -31,7 +31,7 @@ ensure_one_value <- function(x) {
 
 model_density <- function(objects) {
   objects %>%
-    group_by(classifier_label, t_number, panel, cell_type, .drop=F) %>%  # FIXME: deal with batches
+    group_by(classifier_label, t_number, panel, cell_type, batch, .drop=F) %>%
     summarize(
       area = ensure_one_value(classifier_area),
       n = n_distinct(cell)) %>%

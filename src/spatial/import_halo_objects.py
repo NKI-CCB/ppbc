@@ -53,6 +53,7 @@ class Sample:
     @classmethod
     def parse_filename(cls, filename):
         split = filename.split('_', 3)
+        # FIXME: needs batch and block number
         return cls(t_number=split[0], panel=split[2])
 
 def read_sample_summary(summary_fn):

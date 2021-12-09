@@ -33,10 +33,17 @@ Combine all summary files together for each panel.
 MPIF26 = CD3_CD20_CD27_FoxP3_PanCK
 MPIF27 = CD3_CD8_CD138_CD20_PanCK
 
-```{r, echo =F}
+```{r}
 read_fn <- function(file, trim_string = here("data/vectra/raw/summary/")) {
-    read_csv(file) %>% 
-        mutate(filename = str_remove(file, trim_string))
+  read_csv(file, col_types=cols(
+      .default = col_double(),
+      `Image Location` = col_character(),
+      `Image Tag` = col_character(),
+      `Algorithm Name` = col_character(),
+      `Start Time` = col_character(),
+      `Analysis Region` = col_character(),
+      `Analysis Inputs` = col_character())) %>% 
+    mutate(filename = str_remove(file, trim_string))
 }
 
 summary1 <-
@@ -92,7 +99,7 @@ Clean t-number column, remove unnecessary image locations etc.
 ```{r}
 clean_summary <- function(df){
   df %>%
-    separate(filename, into = c("t_number"), sep = "_", remove=F, extra = "drop") %>%
+    mutate(t_number=str_extract(filename, "^T[0-9]+-[0-9]+(_[A-Z][0-9]+)?")) %>%
     relocate(t_number, .before = everything()) %>%
     select(-image_location:-start_time)
 } 
