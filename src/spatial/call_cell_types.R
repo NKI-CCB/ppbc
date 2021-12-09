@@ -3,6 +3,8 @@ library(conflicted)
 library(dplyr)
 library(stringr)
 
+source("src/spatial/read_cells.R")
+
 options(warn = 2)
 
 disallowed_marker_pairs <- list(
@@ -85,7 +87,7 @@ if (sys.nframe() == 0) {
 
   args <- parse_args(commandArgs(T))
 
-  objects <- readRDS(args$in_fn)
+  objects <- read_cells(args$in_fn, intensity=T)
 
   # Assume that every maker is reported in a single location
   objects <- objects[,sapply(objects, function(x) all(!is.nan(x)))]

@@ -129,11 +129,16 @@ rule count_cells:
     "src/spatial/read_cells.R",
     objects = "data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
     script="src/spatial/counts_cells.R",
-  output:
-    nc="results/spatial/marker_cell_counts/{t_number}_{panel}_{batch}.csv",
+  output: "results/spatial/marker_cell_counts/{t_number}_{panel}_{batch}.csv",
   shell:
     "mkdir -p results/spatial/marker_cell_counts\n"
-    "Rscript {input.script} {input.objects} {output.csv}"
+    "Rscript {input.script} {input.objects} {output}"
+
+
+rule all_count_cells:
+  input:
+    [f"results/spatial/marker_cell_counts/{s.sample_id}_{s.panel}_{s.batch_HALO}.csv"
+      for s in vectra_samples.values()],
 
 
 #QC reports based on object files rather than summary files
@@ -171,6 +176,11 @@ rule call_cell_types:
     "data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
   shell:
     "Rscript {input.script} {input.objects} {wildcards.panel} {output}"
+
+rule all_call_cell_types:
+  input:
+    [f"data/vectra/processed/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}.Rds"
+      for s in vectra_samples.values()],
 
 #Ensure disallowed marker pairs no longer exist
 rule test_marker_correction_results:
