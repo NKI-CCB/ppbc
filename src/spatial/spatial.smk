@@ -72,7 +72,7 @@ rule organize_vectra:
     # Exact date and time of Vectra staining
     batch_info = "data/metadata/spatial/MPIF26en27 batches gekleurd.xlsx", 
     example_halo_archive = 
-        "data/vectra/halo/Batch 1/MPIF26/T21-60303/Halo archive 2021-06-24 11-33 - v3.2.1851",
+        "data/vectra/halo/Batch 1/MPIF26/T21-60304/Halo archive 2021-06-21 12-17 - v3.2.1851/",
     metadata = "data/metadata/PPBC_metadata.xlsx",
     rmd="src/spatial/organize_vectra_samples.Rmd",
     script="src/rmarkdown.R"
