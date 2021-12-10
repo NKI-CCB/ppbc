@@ -31,11 +31,19 @@ ensure_one_value <- function(x) {
 
 model_density <- function(objects) {
   objects %>%
+    mutate(
+      t_number = factor(t_number),
+      batch = factor(batch),
+    ) %>%
     group_by(classifier_label, t_number, panel, cell_type, batch, .drop=F) %>%
     summarize(
       area = ensure_one_value(classifier_area),
       n = n_distinct(cell)) %>%
-    mutate(density = if_else(n==0, 0, n / area)) # If n==0, we don't have area
+    group_by(classifier_label) %>%
+    mutate(
+      area = ensure_one_value(area), # Fill in area when n==0
+    ) %>%
+    mutate(density = if_else(n==0, 0, n / area)) # Edge case if there are no cells at all
 }
 
 if (sys.nframe() == 0) {
