@@ -81,8 +81,10 @@ read_cells <- function(fn, intensity=F) {
 
     # FIXME: Implement the addition of sample and tissue class variables more generally
     sample_df <- nc_read_data_frame(ds, 'sample')
-    cell_df$t_number <- str_extract(fn, "T[0-9]+-[0-9]+(_[I0-9]+)?")
-    cell_df$batch <- str_extract(fn, "batch[0-9]+")
+    cell_df$t_number <- stringr::str_extract(fn, "T[0-9]+-[0-9]+(_[I0-9]+)?")
+    batch <- stringr::str_extract(fn, "batch[0-9]+")
+    stopifnot(batch != "")
+    cell_df$batch <- batch
     cell_df$panel <- sample_df$panel
     classifier_area <- nc_read_matrix(ds, 'area')
     stopifnot(nrow(classifier_area) == 1) # Only one sample
