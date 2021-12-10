@@ -1,5 +1,5 @@
 ---
-title: "Density outcomes"
+title: "PPBC density"
 author: "Kat Moore"
 date: "`r Sys.Date()`"
 output: 
@@ -26,53 +26,94 @@ theme_set(theme_bw())
 ## Load data
 
 ```{r}
-mpif26 <- read_tsv(here("results/spatial/density/MPIF26.tsv"))
-head(mpif26)
-```
+density <- read_tsv(here("results/spatial/density.tsv"))
+#head(density)
 
-```{r}
-mpif27 <- read_tsv(here("results/spatial/density/MPIF27.tsv"))
-head(mpif27)
-```
-
-```{r}
-density <- bind_rows(mpif26, mpif27)
+density %>%
+  group_by(panel) %>%
+  count()
 ```
 
 
-```{r}
-meta <- read_csv(here("data/metadata/spatial/00_vectra_metadata.csv"))
-head(meta)
-```
+The metadata is separated into three sheets.
 
 ```{r}
-dens <- meta %>%
-  select(t_number, extern_number, staining, patient_ref:months_of_followup) %>%
-  left_join(density, ., by = c("t_number", "panel"="staining"))
+read_sheets_to_list <- function(xlsfile){
+  readxl::excel_sheets(xlsfile) %>% 
+    set_names() %>% 
+    map(readxl::read_excel, path = xlsfile)
+}
+
+read_sheets_to_list(here("data/metadata/PPBC_metadata.xlsx"))
 ```
 
+Here the t_number can be mapped to the patient_ID (via sample_ID).
+
 ```{r}
+head(meta$sample_data)
+```
+
+Survival data can be found here.
+
+```{r}
+head(meta$patient_data)
+```
+
+Explanations are in the codebook.
+
+```{r}
+head(meta$codebook)
+```
+
+
+## Survival outcomes in PPBC
+
+Join t_numbers with survival, link to density.
+
+```{r}
+dens <- meta$sample_data %>%
+  filter(experimental_platform != "RNAseq" & !is.na(sample_ID)) %>%
+  select(t_number = sample_ID, patient_ID) %>% distinct() %>%
+  left_join(., meta$patient_data, by = "patient_ID") %>%
+  left_join(density, ., by = "t_number")
+
+stopifnot(nrow(filter(dens, is.na(death)))==0)
+
 head(dens)
 ```
+
+Four possible possible PPBC categories exist : 
+
+* nulliparous breast cancer(non_prbc)
+* pregnant breast cancer (prbc)
+* post-partum breast cancer: lactating (ppbc_lac)
+* post-partum breast cancer: involuting (ppbc_inv)
+
+```{r}
+unique(dens$study_group)
+```
+
+
+Format PPBC categories.
 
 ```{r}
 dens <- dens %>%
   mutate(classifier_label = factor(classifier_label,
                                    levels = c("Stroma", "Tumor")),
          panel = factor(panel, levels = c("MPIF26", "MPIF27")),
-         PPBC = factor(PPBC, levels = c("nulliparous", "pregnant", "involuting")),
          #Shorter group names, similar to study_group but clearer 
          #and with no potential delimiters
-         short_name = case_when(
+         group = case_when(
            study_group == "ppbc_inv" ~ "inv",
            study_group == "non_prbc" ~ "nonprbc",
+           study_group == "ppbc_lac" ~ "lac",
            TRUE ~ study_group) 
          ) %>%
-  mutate(short_name = factor(short_name, levels = c("nonprbc", "prbc","inv"))) %>%
-  relocate(short_name, .after = study_group)
+  mutate(group = factor(group, levels = c("nonprbc", "prbc", "lac", "inv"))) %>%
+  relocate(group, .after = study_group)
 
 dens %>%
-  select(study_group, short_name, PPBC) %>%
+  select(study_group, group) %>%
   distinct()
 ```
 
@@ -91,15 +132,15 @@ bind_cols (
 )
 ```
 
-## Density by study group
+## Density by group
 
 Number of samples per study group (will improve):
 
 ```{r}
 dens %>%
-  select(t_number, panel, PPBC) %>%
+  select(t_number, panel, study_group, group) %>%
   distinct() %>%
-  group_by(panel, PPBC) %>%
+  group_by(panel, group) %>%
   count() %>%
   pivot_wider(names_from = panel, values_from = n)
 ```
@@ -131,11 +172,11 @@ stat_density <- function(df,
   df <- filter(df, panel == {{panel}})
   df <- df %>% filter(cell_type == {{cell_type}})
   
-  #Test between all PPBC groups together for tumor
+  #Test between all study_group groups together for tumor
   krusk <- tibble(
    cell_type = {{cell_type}},
    panel = {{panel}},
-   kruskal_p = kruskal.test(density ~ PPBC, data = df)$p.value
+   kruskal_p = kruskal.test(density ~ study_group, data = df)$p.value
   )
 
   pairwise <- pairwise.wilcox.test(df$density, df$short_name,
@@ -252,7 +293,7 @@ plot_density <- function(df = dens,
                 )
   
   df %>%
-    ggplot(aes(x = PPBC, y = density)) +
+    ggplot(aes(x = study_group, y = density)) +
     geom_boxplot(alpha = 0) +
     geom_jitter(aes(color = get(colorby)), height = 0 ) +
     facet_wrap(~classifier_label) +
@@ -314,7 +355,7 @@ cox_density <- function(df, panel, cell_type){
     pivot_wider(names_from = classifier_label, values_from = density,
                 values_fill = NA, names_glue = "{classifier_label}_density")
   
-  tum <- coxph(Surv(time = months_of_followup, event = overall_survival) ~ strata(PPBC) + Tumor_density,
+  tum <- coxph(Surv(time = months_of_followup, event = overall_survival) ~ strata(study_group) + Tumor_density,
         data = as.data.frame(df)) %>%
     #Very convenient!
     broom::tidy(conf.int = T) %>%
@@ -323,7 +364,7 @@ cox_density <- function(df, panel, cell_type){
            panel = {{panel}},
            .after=term)
   
-  strom <- coxph(Surv(time = months_of_followup, event = overall_survival) ~ strata(PPBC) + Stroma_density,
+  strom <- coxph(Surv(time = months_of_followup, event = overall_survival) ~ strata(study_group) + Stroma_density,
         data = as.data.frame(df)) %>%
     broom::tidy(conf.int = T) %>%
     mutate(HR = exp(estimate),.after=estimate) %>%
