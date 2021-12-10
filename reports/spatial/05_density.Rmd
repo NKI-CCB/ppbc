@@ -114,6 +114,7 @@ for (cl in classifier_labels) {
 ```
 
 ## Heatmap
+
 ```{r heatmap}
 for (cl in classifier_labels) {
   for (p in panels) {
@@ -136,3 +137,9 @@ for (cl in classifier_labels) {
     print(plt)
   }
 }
+```
+
+```{r}
+sessionInfo()
+```
+
