@@ -183,6 +183,7 @@ rule call_cell_types:
   input:
     script="src/spatial/call_cell_types.R",
     objects = "data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
+    lib="src/spatial/read_cells.R",
   output:
     "data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
   shell:
