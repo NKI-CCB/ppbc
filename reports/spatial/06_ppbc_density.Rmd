@@ -375,6 +375,8 @@ cox_dens <- dens %>%
   filter(! group %in% c("prbc", "lac")) %>%
   filter(stage != "stage IV")
 
+cox_dens <- droplevels(cox_dens)
+
 cox_dens %>%
   select(t_number, stage, study_group, group) %>%
   distinct() %>%
@@ -600,6 +602,104 @@ lapply(cells_to_plot,
                               cell_type = x, outcome = "Survival"))
 ```
 
+## OS involution interaction
+
+Interaction term between group and cell density.
+
+```{r}
+cox_dens$group <- droplevels(cox_dens$group)
+levels(cox_dens$group)
+```
+
+
+```{r}
+baseform <- "Surv(time = FU_time_months, event = death) ~ stage"
+
+cox_interaction <- function(df, panel, cell_type, f = baseform){
+  
+  df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}})
+  
+  tum_df <- cox_reshape(df)$tumor
+  str_df <- cox_reshape(df)$stroma
+  
+  stopifnot(nrow(filter(tum_df, duplicated(t_number)))==0 &
+              nrow(filter(str_df, duplicated(t_number)))==0)
+  f_tumor <- as.formula(paste(f, paste("group", "Tumor_density",sep=":"), sep = "+"))
+  f_stroma <- as.formula(paste(f, paste("group", "Stroma_density",sep=":"), sep = "+"))
+  #return(f_tumor)
+  
+  tum <- coxph(f_tumor, data = as.data.frame(tum_df)) %>%
+    broom::tidy(conf.int = T) %>%
+    mutate(HR = exp(estimate),.after=estimate) %>%
+    mutate(cell_type = {{cell_type}},
+           panel = {{panel}},
+           .after=term) %>%
+    mutate(term = str_replace(term, "stage", "tumor "))
+
+  strom <- coxph(f_stroma,
+        data = as.data.frame(str_df)) %>%
+    broom::tidy(conf.int = T) %>%
+    mutate(HR = exp(estimate),.after=estimate) %>%
+    mutate(cell_type = {{cell_type}},
+           panel = {{panel}},
+           .after=term) %>%
+    mutate(term = str_replace(term, "stage", "stroma "))
+
+  bind_rows(tum, strom) %>%
+    mutate(term = str_remove(term, "group"))
+}
+#testing
+cox_interaction(cox_dens, "MPIF26", "CD20+")
+```
+
+### Results by significance
+
+```{r}
+baseform <- "Surv(time = FU_time_months, event = death) ~ stage"
+
+all_cox_interaction <- function(df, cell_type, f = baseform){
+  
+  df <- df %>% filter(cell_type == {{cell_type}})
+  
+  mpif26_cells <- df %>% filter(panel == "MPIF26") %>% pull(cell_type) %>%
+    unique()
+  
+  mpif27_cells <- df %>% filter(panel == "MPIF27") %>% pull(cell_type) %>%
+    unique()
+  
+  #Skip regression if cell type is absent
+  if(cell_type %in% mpif26_cells & cell_type %in% mpif27_cells){
+    res <- bind_rows(
+      cox_density(df, "MPIF26", cell_type),
+      cox_density(df, "MPIF27", cell_type)
+    )
+  } else if (cell_type %in% mpif26_cells) {
+    res <- cox_interaction(df, "MPIF26", cell_type, f)
+  } else if (cell_type %in% mpif27_cells){
+    res <- cox_interaction(df, "MPIF27", cell_type, f)
+  } else {
+    stop("Provide a valid cell type")
+  }
+  
+  #Remove non-density entries from output
+  res <- res %>% filter(str_detect(term, "density"))
+  res
+}
+
+relevant_cells <- unique(cox_dens$cell_type)
+relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
+
+interaction_df <- lapply(relevant_cells, function(x){
+  all_cox_interaction(cox_dens, x)
+}) %>%
+  bind_rows() %>%
+  group_by(panel) %>%
+  mutate(fdr = p.adjust(p.value, method = "BH"), .after= panel) %>%
+  relocate(p.value, .after=fdr)
+
+interaction_df %>%
+  arrange(fdr, p.value)
+```
 
 
 ```{r}
