@@ -249,7 +249,7 @@ rule density_report:
 rule ppbc_density:
   input:
     densities = "results/spatial/density.tsv",
-    meta="data/metadata/spatial/00_vectra_metadata.csv",
+    meta="data/metadata/PPBC_metadata.xlsx",
     rmd="reports/spatial/06_ppbc_density.Rmd",
     script="src/rmarkdown.R"
   output:
