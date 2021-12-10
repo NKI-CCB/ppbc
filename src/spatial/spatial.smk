@@ -24,19 +24,23 @@ wildcard_constraints:
 class Sample():
     sample_id: str
     patient_id: str
+    included: bool
 
     def from_dict(x):
         if x["sample_type"] == "slide":
             return VectraSample(
                 sample_id = x["sample_ID"],
                 patient_id = x["patient_ID"],
-                batch_HALO = x["batch_HALO"].lower().replace(" ", ""),
+                included = x["Included"] == 1,
+                batch_HALO = x["batch_HALO"].lower().replace(" ", "") if x["batch_HALO"] is not None else None,
                 panel = x["experimental_platform"],
             )
         else:
+            assert x["sample_type"] in ["RNA"]
             return Sample(
                 sample_id = x["sample_ID"],
                 patient_id = x["patient_ID"],
+                included = x["Included"] == 1,
             )
         
 
@@ -46,7 +50,7 @@ class VectraSample(Sample):
     panel: str
 
 def read_sample_xlsx(fn):
-    # Avoid pandas magic by using openpyxl and Apache Arrow
+    # Avoid pandas magic by using openpyxl
     # First row should contain a header
     worksheet = openpyxl.load_workbook(fn)["sample_data"]
     rows = worksheet.values
@@ -54,12 +58,9 @@ def read_sample_xlsx(fn):
     samples = list()
     for row in rows:
         row = dict(zip(columns, row))
-        # Only include samples that should be processed such that we don't have to exclude them
-        # in every rule
-        if row["Included"] == 1:
-            samples.append(Sample.from_dict(row))
+        samples.append(Sample.from_dict(row))
     if len(samples) == 0:
-        raise Exception('No samples included in the analysis')
+        raise Exception('No samples')
     if len(samples) != len(set(samples)):
         import collections
         c = {s: n for s, n in collections.Counter(samples).items() if n > 1}
@@ -68,10 +69,15 @@ def read_sample_xlsx(fn):
     return samples
 
 samples = read_sample_xlsx("data/metadata/PPBC_metadata.xlsx")
-vectra_samples = {s.sample_id: s for s in samples if isinstance(s, VectraSample)}
+
+# Only include samples that should be processed such that we don't have to exclude them
+# in every rule
+vectra_samples = [s for s in samples if isinstance(s, VectraSample) and s.included]
+if len(vectra_samples) == 0:
+    raise Exception('No vectra samples included in the analysis')
 
 #FIXME: Check this sample, something goes wrong with calling
-vectra_samples = {k: s for k, s in vectra_samples.items() if s.sample_id != "T20-62429"}
+vectra_samples = [s for s in vectra_samples if s.sample_id != "T20-62429"]
 
 #################
 # Preprocessing #
@@ -126,7 +132,7 @@ rule load_objects:
 rule aggregrate_objects:
   input:
     object_files = [f"data/vectra/interim/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}.nc"
-                    for s in vectra_samples.values()],
+                    for s in vectra_samples],
     script = "src/spatial/read_cells.R"
   output:
     "data/vectra/interim/objects.Rds"
@@ -222,7 +228,7 @@ rule cell_type_density:
 rule aggregrate_densities:
   input:
     tsv=[f"results/spatial/density/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
-     for s in vectra_samples.values()],
+     for s in vectra_samples],
     script="src/spatial/cat_tsv.R",
   output: 'results/spatial/density.tsv'
   shell:
