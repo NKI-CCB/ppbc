@@ -131,7 +131,7 @@ dens %>%
   distinct()
 ```
 
-Cell types by panel:
+### Cell types by panel:
 
 ```{r}
 bind_cols (
@@ -268,23 +268,24 @@ density_by_ppbc <- lapply(unique(dens$cell_type), function(x){
   combi_dens(df = dens, cell_type = x)
   }) %>%
   bind_rows() %>%
-  #Panels are treated separately, should BH be calculated separately for regions?
   group_by(panel, classifier_label) %>%
   mutate(kruskal_bh = p.adjust(kruskal_p), .after = kruskal_p)
 
 density_by_ppbc
 ```
 
-Show significant comparisons based on multiple testing correction.
+Show significant comparisons based on multiple testing correction. Only look further for significance if the Kruskal-Wallis test is significant.
 
 ```{r}
 #bhs <- colnames(density_by_ppbc)[str_detect(colnames(density_by_ppbc), "_bh")]
 
 density_by_ppbc %>%
   select(-kruskal_p) %>%
+  filter(kruskal_bh < 0.05) %>%
   pivot_longer(cols = kruskal_bh:inv_vs_lac_bh, names_to = "comparison",
                values_to = "padjust") %>%
-  filter(padjust < 0.05)
+  filter(padjust < 0.05) %>%
+  pivot_wider(names_from = classifier_label, values_from = padjust)
 
 ```
 
@@ -389,25 +390,12 @@ cox_dens %>%
 
 Overall impact of density independent of study group.
 
-Start with a limited number of covariates. Potential additional covariates (see `12_genewise_survival.R`): 
-
-age_at_diagnosis
-grade
-surgery
-radiotherapy
-strata(hormonetherapy)
-chemotherapy
-herceptin
-strata(PAM50)
-
-Probably not PAM50, since that will be correlated with immune cell density. Same is possibly true of treatment interventions.
-
 Fit separate models for each cell_type/tumor vs stroma/panel.
-Stratify PPBC to allow separate baseline hazards functions for each PPBC subgroup.
+TODO perform LRT instead of p val of coefficient
+
+### Univariate
 
 ```{r}
-form <- "Surv(time = FU_time_months, event = death) ~ strata(group) + stage"
-
 cox_reshape <- function(df){
   #Separate tumor and stroma densities to prevent unintentional sample duplication
   tum_df <- df %>%
@@ -427,7 +415,7 @@ cox_reshape <- function(df){
   return(list(tumor = tum_df, stroma = str_df))
 }
 
-cox_density <- function(df, panel, cell_type, f = form){
+cox_density <- function(df, panel, cell_type, f){
   
   df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}})
   
@@ -439,7 +427,6 @@ cox_density <- function(df, panel, cell_type, f = form){
   
   tum <- coxph(as.formula(paste(f, "Tumor_density", sep = "+")),
         data = as.data.frame(tum_df)) %>%
-    #Very convenient!
     broom::tidy(conf.int = T) %>%
     mutate(HR = exp(estimate),.after=estimate) %>%
     mutate(cell_type = {{cell_type}},
@@ -460,17 +447,42 @@ cox_density <- function(df, panel, cell_type, f = form){
 }
 
 
-#testing
-cox_density(cox_dens, "MPIF26", "CD20+")
-
+cox_density(cox_dens, "MPIF27", "CD3-CD8+",
+            f = "Surv(time = FU_time_months, event = death) ~ 1")
 ```
 
-### Results by significance
+
+
+### Multivariate
+
+Start with a limited number of covariates. Potential additional covariates (see `12_genewise_survival.R`): 
+
+age_at_diagnosis
+grade
+surgery
+radiotherapy
+strata(hormonetherapy)
+chemotherapy
+herceptin
+strata(PAM50)
+
+Probably not PAM50, since that will be correlated with immune cell density. Same is possibly true of treatment interventions.
+Stratify PPBC to allow separate baseline hazards functions for each PPBC subgroup.
 
 ```{r}
 form <- "Surv(time = FU_time_months, event = death) ~ strata(group) + stage"
 
-all_cox_density <- function(df, cell_type){
+#testing
+cox_density(cox_dens, "MPIF27", "CD3-CD8+", f = form)
+
+```
+
+#### Results by significance
+
+```{r}
+form <- "Surv(time = FU_time_months, event = death) ~ strata(group) + stage"
+
+all_cox_density <- function(df, cell_type, f){
   
   df <- df %>% filter(cell_type == {{cell_type}})
   
@@ -487,9 +499,9 @@ all_cox_density <- function(df, cell_type){
       cox_density(df, "MPIF27", cell_type)
     )
   } else if (cell_type %in% mpif26_cells) {
-    res <- cox_density(df, "MPIF26", cell_type)
+    res <- cox_density(df, "MPIF26", cell_type, f)
   } else if (cell_type %in% mpif27_cells){
-    res <- cox_density(df, "MPIF27", cell_type)
+    res <- cox_density(df, "MPIF27", cell_type, f)
   } else {
     stop("Provide a valid cell type")
   }
@@ -503,7 +515,7 @@ relevant_cells <- unique(cox_dens$cell_type)
 relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
 
 cox_df <- lapply(relevant_cells, function(x){
-  all_cox_density(cox_dens, x)
+  all_cox_density(cox_dens, x, f = form)
 }) %>%
   bind_rows() %>%
   group_by(panel) %>%
@@ -514,47 +526,35 @@ cox_df %>%
   arrange(fdr, p.value)
 ```
 
-### Kaplan-meier
-
-KMs require categorical variables. Convert density into quantiles
-
-Separate kaplan meiers are shown for tumor and stroma because the two will be correlated.
-
-See survminer documentation for details of `surv_adjustedcurves` with `conditional` method.
+Reshape by region, split by panel
 
 ```{r}
-form <- "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + ntile"
+cox_df %>%
+  select(cell_type, term, fdr, panel, p.value) %>%
+  # left_join(., density %>%
+  #             group_by(classifier_label, panel, cell_type) %>%
+  #             summarise(n_total = sum(n), .groups = "drop") %>%
+  #             mutate(term = paste0(classifier_label, "_density")) %>%
+  #             select(-classifier_label),
+  #           by = c("term", "cell_type", "panel")
+  # ) %>%
+  arrange(fdr, p.value) %>%
+  pivot_wider(names_from = term, values_from = c(fdr, p.value,
+                                                 #n_total
+                                                 )) %>%
+  split(., .$panel)
+```
 
-km_plot <- function(df, f, region, cell_type, panel, outcome){
-  
-  coxfit <- survival::coxph(
-      as.formula(f),
-      data = as.data.frame(df))
-  
-  #Extract p value for the relevant coefficient
-  fit_ntile <- as.data.frame(summary(coxfit)$coefficients)
-  #return(fit_ntile)
-  p_ntile <- signif(fit_ntile[rownames(fit_ntile) == "ntile", ]$`Pr(>|z|)`, 2)
-  #return(p_ntile)
-  
-  #Calculate adjusted curve
-  survminer::surv_adjustedcurves(
-    fit = coxfit,
-    variable = "ntile", data = as.data.frame(df), method = "conditional") %>%
-    rename(ntile = variable) %>%
-    #Plot
-    ggplot(., aes(x = time, y = surv, color = ntile)) + 
-    geom_step(size = 1) +
-    scale_y_continuous(limits = c(0,1)) +
-  ylab(label = paste(outcome, "probability")) +
-  labs(color = paste(region, "density\nquantile")) +
-  xlab("Months") +
-  ggtitle(paste("Adjusted curve for", cell_type, tolower(region), "density in", panel)) +
-  annotate(geom = "text", label = paste0("pval (ntile): ", p_ntile), x= 25, y =0.1)
-}
 
-density_km <- function(df, panel, cell_type, f = form, outcome){
-  
+### Standard Kaplan-Meier plots
+
+KMs require categorical variables. Convert density into quantiles.
+
+Separate kaplan meiers are shown for tumor and stroma because the two will be correlated. P values are from logrank tests.
+
+```{r}
+km_plot <- function(df, panel, cell_type, f, outcome){
+  #Region and km_coef are currently unused, but kept for the wrapper function  
   df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}})
   
   #Separate tumor and stroma densities to prevent unintentional sample duplication
@@ -568,16 +568,118 @@ density_km <- function(df, panel, cell_type, f = form, outcome){
   str_df <- str_df %>%
     mutate(ntile = dplyr::ntile(Stroma_density, 3), .after=Stroma_density)
   
+  list(
+    tumor = survminer::ggsurvplot(
+      fit = survminer::surv_fit(as.formula(f), data = as.data.frame(tum_df)), 
+      xlab = "Months", 
+      ylab = paste(outcome, "probability"),
+      title = paste("Unadjusted curve for", cell_type, "in", panel, "tumor"),
+      pval = T #Logrank method
+    )$plot, #Converts a ggsurvplot object into a regular ggplot 
+    stroma = survminer::ggsurvplot(
+      fit = survminer::surv_fit(as.formula(f), data = as.data.frame(str_df)), 
+      xlab = "Months", 
+      ylab = paste(outcome, "probability"),
+      title = paste("Unadjusted curve for", cell_type, "in", panel, "stroma"),
+      pval = T #Logrank method
+    )$plot
+    )
+}
+
+#testing
+# km_plot(cox_dens, panel = "MPIF26", cell_type = "CD20+", outcome = "Survival",
+#         f = "Surv(time = FU_time_months, event = death) ~ ntile")
+```
+
+MPIF26
+
+```{r}
+cells_to_plot <- unique(filter(cox_dens, panel == "MPIF26")$cell_type)
+cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
+
+lapply(cells_to_plot, function(x){
+  km_plot(cox_dens, panel = "MPIF26", cell_type = x, outcome = "Survival",
+        f = "Surv(time = FU_time_months, event = death) ~ ntile")
+}) %>% set_names(cells_to_plot)
+```
+
+MPIF27
+
+```{r}
+cells_to_plot <- unique(filter(cox_dens, panel == "MPIF27")$cell_type)
+cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
+
+lapply(cells_to_plot, function(x){
+  km_plot(cox_dens, panel = "MPIF27", cell_type = x, outcome = "Survival",
+        f = "Surv(time = FU_time_months, event = death) ~ ntile")
+}) %>% set_names(cells_to_plot)
+```
+
+### Adjusted Kaplan-Meier plots
+
+See survminer documentation for details of `surv_adjustedcurves` with `conditional` method.
+
+>For method = "conditional" a separate survival curve is plotted for each level of a grouping variable selected by variable argument. If this argument is not specified, then it will be extracted from the strata component of fit object. Subpopulations are balanced in a following way: (1) the data is replicated as many times as many subpopulations are considered (say k), (2) for each row in original data a set of k copies are created and for every copy a different value of a grouping variable is assigned, this will create a new dataset balanced in terms of grouping variables, (3) expected survival is calculated for each subpopulation based on the new artificial dataset. Here the model fit is not refitted.
+
+```{r}
+
+adj_km_plot <- function(df, f, region, cell_type, panel, outcome, km_coef){
+  
+  coxfit <- survival::coxph(
+      as.formula(f),
+      data = as.data.frame(df))
+  #return(list(coxfit,df))
+  
+  #Extract p value for the relevant coefficient
+  fit_ntile <- as.data.frame(summary(coxfit)$coefficients)
+  #return(fit_ntile)
+  p_ntile <- signif(fit_ntile[rownames(fit_ntile) == km_coef, ]$`Pr(>|z|)`, 2)
+  #return(p_ntile)
+  
+  #Calculate adjusted curve
+  survminer::surv_adjustedcurves(
+    fit = coxfit,
+    variable = km_coef, data = as.data.frame(df), method = "conditional") %>%
+    #Plot
+    ggplot(., aes(x = time, y = surv, color = variable)) + 
+    geom_step(size = 1) +
+    scale_y_continuous(limits = c(0,1)) +
+  ylab(label = paste(outcome, "probability")) +
+  labs(color = paste(region, "density\nquantile")) +
+  xlab("Months") +
+  ggtitle(paste("Adjusted curve for", cell_type, tolower(region), "density in", panel)) +
+  annotate(geom = "text", label = paste0("pval ",km_coef, ": ", p_ntile), x= 25, y =0.1)
+}
+
+
+#Utilty function for splitting the data
+density_km <- function(df, panel, cell_type, f, outcome, km_coef){
+  
+  df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}})
+  #Separate tumor and stroma densities to prevent unintentional sample duplication
+  tum_df <- cox_reshape(df)$tumor
+  str_df <- cox_reshape(df)$stroma
+  
+  #Add density ntiles
+  tum_df <- tum_df %>%
+    mutate(ntile = dplyr::ntile(Tumor_density, 3), .after=Tumor_density)
+  #return(tum_df)
+  str_df <- str_df %>%
+    mutate(ntile = dplyr::ntile(Stroma_density, 3), .after=Stroma_density)
+  #return(tumor = adj_km_plot(tum_df, f, region = "Tumor", cell_type, panel, outcome, km_coef))
   reslist <- list(
-    tumor = km_plot(tum_df, f, region = "Tumor", cell_type, panel, outcome),
-    stroma = km_plot(str_df, f, region = "Stroma", cell_type, panel, outcome)
+    tumor = adj_km_plot(tum_df, f, region = "Tumor", cell_type, panel, outcome, km_coef),
+    stroma = adj_km_plot(str_df, f, region = "Stroma", cell_type, panel, outcome, km_coef)
   )
   
   reslist
  
 }
-#testing
-#density_km(df = cox_dens, panel = "MPIF26", cell_type = "CD20+", outcome = "Survival")
+# 
+# density_km(df = cox_dens, panel = "MPIF26", cell_type = "CD20+",
+#            f = "Surv(time = FU_time_months, event = death) ~ group",
+#            outcome = "Survival", km_coef = "ntile")
+
 ```
 
 MPIF26
@@ -588,7 +690,9 @@ cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
 
 lapply(cells_to_plot,
        function(x) density_km(df = cox_dens, panel = "MPIF26",
-                              cell_type = x, outcome = "Survival"))
+                              f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + ntile",
+                              cell_type = x, outcome = "Survival",
+                              km_coef = "ntile"))
 ```
 
 MPIF27
@@ -599,7 +703,9 @@ cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
 
 lapply(cells_to_plot,
        function(x) density_km(df = cox_dens, panel = "MPIF27",
-                              cell_type = x, outcome = "Survival"))
+                              f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + ntile",
+                              cell_type = x, outcome = "Survival",
+                              km_coef="ntile"))
 ```
 
 ## OS involution interaction
@@ -611,6 +717,7 @@ cox_dens$group <- droplevels(cox_dens$group)
 levels(cox_dens$group)
 ```
 
+TODO just subset down to each group and redo the model
 
 ```{r}
 baseform <- "Surv(time = FU_time_months, event = death) ~ stage"
@@ -698,6 +805,29 @@ interaction_df <- lapply(relevant_cells, function(x){
   relocate(p.value, .after=fdr)
 
 interaction_df %>%
+  arrange(fdr, p.value)
+```
+
+Adjusted KMs via `survminer::surv_adjustedcurves` are not possible when using an interaction term. Use a standard, unadjusted KM plot in a univariate formula.
+
+## DRS density
+
+```{r}
+#cox_density(df = cox_dens, panel = "MPIF26", cell_type = "CD20+",
+#            f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage")
+all_cox_density(cox_dens, x, f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage")
+relevant_cells <- unique(cox_dens$cell_type)
+relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
+
+drs_df <- lapply(relevant_cells, function(x){
+  all_cox_density(cox_dens, x)
+}) %>%
+  bind_rows() %>%
+  group_by(panel) %>%
+  mutate(fdr = p.adjust(p.value, method = "BH"), .after= panel) %>%
+  relocate(p.value, .after=fdr)
+
+cox_df %>%
   arrange(fdr, p.value)
 ```
 
