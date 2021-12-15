@@ -484,7 +484,7 @@ cox_density(cox_dens, "MPIF27", "CD3-CD8+",
             f = "Surv(time = FU_time_months, event = death) ~ 1")
 ```
 
-#### Results by significance
+#### Results
 
 ```{r}
 all_cox_density <- function(df, cell_type, f, testing = F){
@@ -574,7 +574,7 @@ cox_density(cox_dens, "MPIF27", "CD3-CD8+",
 
 ```
 
-#### Results by significance
+#### Results 
 
 ```{r}
 relevant_cells <- unique(cox_dens$cell_type)
@@ -789,6 +789,164 @@ lapply(cells_to_plot,
                               km_coef="ntile", met = "conditional"))
 ```
 
+## OS grouped subsets
+
+Check significance in involution samples and nulliparous samples separately.
+
+Involution samples:
+
+```{r}
+inv_dens <- filter(cox_dens, group == "inv")
+inv_dens <- droplevels(inv_dens)
+
+inv_dens %>%
+  select(t_number, stage, study_group, group) %>%
+  distinct() %>%
+  group_by(group, stage) %>%
+  distinct() %>%
+  count()
+```
+
+Nulliparous samples:
+
+```{r}
+np_dens <- filter(cox_dens, group == "nonprbc")
+np_dens <- droplevels(np_dens)
+
+np_dens %>%
+  select(t_number, stage, study_group, group) %>%
+  distinct() %>%
+  group_by(group, stage) %>%
+  distinct() %>%
+  count()
+```
+
+### Univariate
+
+As above, but split by group.
+
+#### Involution
+
+```{r}
+relevant_cells <- unique(cox_dens$cell_type)
+relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
+
+inv_univ_cox <- lapply(relevant_cells, function(x){
+  all_cox_density(inv_dens, x,
+                  f = "Surv(time = FU_time_months, event = death) ~ 1")
+}) %>%
+  bind_rows() %>%
+  # group_by(panel) %>% #Debatable
+  mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
+  mutate(formula = "Surv(time = FU_time_months, event = death) ~ 1 + Density")
+
+inv_univ_cox %>%
+  arrange(lrt.fdr, lrt.pval)
+```
+
+MPIF26
+
+```{r}
+cells_to_plot <- unique(filter(cox_dens, panel == "MPIF26")$cell_type)
+cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
+
+lapply(cells_to_plot, function(x){
+  km_plot(inv_dens, panel = "MPIF26", cell_type = x, outcome = "Survival",
+        f = "Surv(time = FU_time_months, event = death) ~ ntile")
+}) %>% set_names(cells_to_plot)
+```
+
+MPIF27
+
+```{r}
+cells_to_plot <- unique(filter(cox_dens, panel == "MPIF27")$cell_type)
+cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
+
+lapply(cells_to_plot, function(x){
+  km_plot(inv_dens, panel = "MPIF27", cell_type = x, outcome = "Survival",
+        f = "Surv(time = FU_time_months, event = death) ~ ntile")
+}) %>% set_names(cells_to_plot)
+```
+
+#### Nulliparous
+
+```{r}
+relevant_cells <- unique(cox_dens$cell_type)
+relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
+
+np_univ_cox <- lapply(relevant_cells, function(x){
+  all_cox_density(np_dens, x,
+                  f = "Surv(time = FU_time_months, event = death) ~ 1")
+}) %>%
+  bind_rows() %>%
+  # group_by(panel) %>% #Debatable
+  mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
+  mutate(formula = "Surv(time = FU_time_months, event = death) ~ 1 + Density")
+
+np_univ_cox %>%
+  arrange(lrt.fdr, lrt.pval)
+```
+
+MPIF26
+
+```{r}
+cells_to_plot <- unique(filter(cox_dens, panel == "MPIF26")$cell_type)
+cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
+
+lapply(cells_to_plot, function(x){
+  km_plot(np_dens, panel = "MPIF26", cell_type = x, outcome = "Survival",
+        f = "Surv(time = FU_time_months, event = death) ~ ntile")
+}) %>% set_names(cells_to_plot)
+```
+
+MPIF27
+
+```{r}
+cells_to_plot <- unique(filter(cox_dens, panel == "MPIF27")$cell_type)
+cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
+
+lapply(cells_to_plot, function(x){
+  km_plot(np_dens, panel = "MPIF27", cell_type = x, outcome = "Survival",
+        f = "Surv(time = FU_time_months, event = death) ~ ntile")
+}) %>% set_names(cells_to_plot)
+```
+
+### Multivariate
+
+Given the lack of insight from the adjusted multivariate curves, Kaplan-Meiers are omitted from this analysis.
+
+#### Involution
+
+```{r}
+inv_mult_cox <- lapply(relevant_cells, function(x){
+  all_cox_density(inv_dens, x,
+                  f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage")
+}) %>%
+  bind_rows() %>%
+  # group_by(panel) %>% #Debatable
+  mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
+  mutate(formula = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + density")
+
+inv_mult_cox %>%
+  arrange(lrt.fdr, lrt.pval)
+```
+
+#### Nulliparous
+
+```{r}
+np_mult_cox <- lapply(relevant_cells, function(x){
+  all_cox_density(np_dens, x,
+                  f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage")
+}) %>%
+  bind_rows() %>%
+  # group_by(panel) %>% #Debatable
+  mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
+  mutate(formula = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + density")
+
+np_mult_cox %>%
+  arrange(lrt.fdr, lrt.pval)
+```
+
 ## OS interaction involution
 
 Interaction term between group and cell density. We don't expect much to be significant here due to lack of samples (TODO check with power analysis).
@@ -908,6 +1066,8 @@ interaction_df %>%
 Adjusted KMs via `survminer::surv_adjustedcurves` are not possible when using an interaction term. Use a standard, unadjusted KM plot in a univariate formula.
 
 ## DRS density
+
+TODO (but consider refactor first)
 
 ```{r}
 #cox_density(df = cox_dens, panel = "MPIF26", cell_type = "CD20+",
