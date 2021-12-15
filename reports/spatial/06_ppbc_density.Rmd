@@ -631,14 +631,14 @@ km_plot <- function(df, panel, cell_type, f, outcome){
       fit = survminer::surv_fit(as.formula(f), data = as.data.frame(tum_df)), 
       xlab = "Months", 
       ylab = paste(outcome, "probability"),
-      title = paste("Unadjusted curve for", cell_type, "in", panel, "tumor"),
+      title = paste("Unadjusted curve for", cell_type, "tumor density in", panel),
       pval = T #Logrank method
     )$plot, #Converts a ggsurvplot object into a regular ggplot 
     stroma = survminer::ggsurvplot(
       fit = survminer::surv_fit(as.formula(f), data = as.data.frame(str_df)), 
       xlab = "Months", 
       ylab = paste(outcome, "probability"),
-      title = paste("Unadjusted curve for", cell_type, "in", panel, "stroma"),
+      title = paste("Unadjusted curve for", cell_type, "stroma density in", panel),
       pval = T #Logrank method
     )$plot
     )
@@ -675,13 +675,19 @@ lapply(cells_to_plot, function(x){
 
 ### Adjusted Kaplan-Meier plots
 
-See survminer documentation for details of `surv_adjustedcurves` with `conditional` method.
+See survminer documentation for details of `surv_adjustedcurves`. Two balancing options are available.
+
+>For method = "marginal" a survival curve is plotted for each level of a grouping variable selected by variable argument. If this argument is not specified, then it will be extracted from the strata component of fit object. Subpopulations are balanced with respect to variables in the fit formula to keep distributions similar to these in the reference population. If no reference population is specified, then the whole data is used as a reference population instead. The balancing is performed in a following way: (1) for each subpopulation a logistic regression model is created to model the odds of being in the subpopulation against the reference population given the other variables listed in a fit object, (2) reverse probabilities of belonging to a specified subpopulation are used as weights in the Cox model, (3) the Cox model is refitted with weights taken into account, (4) expected survival curves are calculated for each subpopulation based on a refitted weighted model.
 
 >For method = "conditional" a separate survival curve is plotted for each level of a grouping variable selected by variable argument. If this argument is not specified, then it will be extracted from the strata component of fit object. Subpopulations are balanced in a following way: (1) the data is replicated as many times as many subpopulations are considered (say k), (2) for each row in original data a set of k copies are created and for every copy a different value of a grouping variable is assigned, this will create a new dataset balanced in terms of grouping variables, (3) expected survival is calculated for each subpopulation based on the new artificial dataset. Here the model fit is not refitted.
 
+Graphs from the two methods are generally very similar. The marginal method sometimes throws errors due to the regression involved: therefore, we stick to conditional.
+
+Although useful for data exploration, these plots should not be used to draw conclusions that cannot also be drawn from the unadjusted curves. The groups are already reasonably well balanced from the start and should not indicate radically different conclusions.
+
 ```{r}
 
-adj_km_plot <- function(df, f, region, cell_type, panel, outcome, km_coef){
+adj_km_plot <- function(df, f, region, cell_type, panel, outcome, km_coef, met){
   
   coxfit <- survival::coxph(
       as.formula(f),
@@ -689,6 +695,7 @@ adj_km_plot <- function(df, f, region, cell_type, panel, outcome, km_coef){
   #return(list(coxfit,df))
   
   #Extract p value for the relevant coefficient
+  #Ideally would be LRT instead, but since this is explorative, we can be lax
   fit_ntile <- as.data.frame(summary(coxfit)$coefficients)
   #return(fit_ntile)
   p_ntile <- signif(fit_ntile[rownames(fit_ntile) == km_coef, ]$`Pr(>|z|)`, 2)
@@ -697,7 +704,7 @@ adj_km_plot <- function(df, f, region, cell_type, panel, outcome, km_coef){
   #Calculate adjusted curve
   survminer::surv_adjustedcurves(
     fit = coxfit,
-    variable = km_coef, data = as.data.frame(df), method = "conditional") %>%
+    variable = km_coef, data = as.data.frame(df), method = met) %>%
     #Plot
     ggplot(., aes(x = time, y = surv, color = variable)) + 
     geom_step(size = 1) +
@@ -711,7 +718,7 @@ adj_km_plot <- function(df, f, region, cell_type, panel, outcome, km_coef){
 
 
 #Utilty function for splitting the data
-density_km <- function(df, panel, cell_type, f, outcome, km_coef){
+density_km <- function(df, panel, cell_type, f, outcome, km_coef, met){
   
   df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}})
   #Separate tumor and stroma densities to prevent unintentional sample duplication
@@ -726,32 +733,47 @@ density_km <- function(df, panel, cell_type, f, outcome, km_coef){
     mutate(ntile = dplyr::ntile(Stroma_density, 3), .after=Stroma_density)
   #return(tumor = adj_km_plot(tum_df, f, region = "Tumor", cell_type, panel, outcome, km_coef))
   reslist <- list(
-    tumor = adj_km_plot(tum_df, f, region = "Tumor", cell_type, panel, outcome, km_coef),
-    stroma = adj_km_plot(str_df, f, region = "Stroma", cell_type, panel, outcome, km_coef)
+    tumor = adj_km_plot(tum_df, f, region = "Tumor", cell_type, panel,
+                        outcome, km_coef, met),
+    stroma = adj_km_plot(str_df, f, region = "Stroma", cell_type, panel,
+                         outcome, km_coef, met)
   )
   
   reslist
  
 }
-# 
-# density_km(df = cox_dens, panel = "MPIF26", cell_type = "CD20+",
-#            f = "Surv(time = FU_time_months, event = death) ~ group",
-#            outcome = "Survival", km_coef = "ntile")
+
+density_km(df = cox_dens, panel = "MPIF26", cell_type = "CD20+",
+           f = "Surv(time = FU_time_months, event = death) ~ group",
+           outcome = "Survival", km_coef = "ntile", met = "marginal")
 
 ```
 
-MPIF26
+MPIF26, conditional
 
 ```{r}
 cells_to_plot <- unique(filter(cox_dens, panel == "MPIF26")$cell_type)
 cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
 
+#Compare methods
 lapply(cells_to_plot,
        function(x) density_km(df = cox_dens, panel = "MPIF26",
                               f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + ntile",
                               cell_type = x, outcome = "Survival",
-                              km_coef = "ntile"))
+                              km_coef = "ntile", met = "conditional")) %>%
+  set_names(paste(cells_to_plot, "conditional", sep = "_"))
 ```
+
+```{r, include=F, eval=F}
+#MPIF26 marginal, not run
+lapply(cells_to_plot,
+       function(x) density_km(df = cox_dens, panel = "MPIF26",
+                              f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + ntile",
+                              cell_type = x, outcome = "Survival",
+                              km_coef = "ntile", met = "marginal")) %>%
+  set_names(paste(cells_to_plot, "marginal", sep = "_"))
+```
+
 
 MPIF27
 
@@ -763,7 +785,7 @@ lapply(cells_to_plot,
        function(x) density_km(df = cox_dens, panel = "MPIF27",
                               f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + ntile",
                               cell_type = x, outcome = "Survival",
-                              km_coef="ntile"))
+                              km_coef="ntile", met = "conditional"))
 ```
 
 ## OS involution interaction
