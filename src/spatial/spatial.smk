@@ -235,7 +235,7 @@ rule aggregrate_densities:
   shell:
     "Rscript {input.script} {input.tsv} {output}"
 
-
+#Histograms, scatterplots and heatmaps of cell types by tumor/stroma and panel
 rule density_report:
   input:
     "results/spatial/density.tsv",  # TODO: aggregate densities
@@ -248,12 +248,11 @@ rule density_report:
 
 rule ppbc_density:
   input:
-    mpif26="results/spatial/density/MPIF26.tsv",
-    mpif27="results/spatial/density/MPIF27.tsv",
-    meta="data/metadata/spatial/00_vectra_metadata.csv",
-    rmd="reports/spatial/06_density_outcome.Rmd",
+    densities = "results/spatial/density.tsv",
+    meta="data/metadata/PPBC_metadata.xlsx",
+    rmd="reports/spatial/06_ppbc_density.Rmd",
     script="src/rmarkdown.R"
   output:
-    html="reports/spatial/06_density_outcome.html"
+    html="reports/spatial/06_ppbc_density.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
