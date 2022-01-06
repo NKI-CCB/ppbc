@@ -546,8 +546,9 @@ univ_cox %>%
 
 ### Multivariate
 
-Start with a limited number of covariates. Potential additional covariates (see `12_genewise_survival.R`): 
+Start with a limited number of covariates. Potential covariates (see `12_genewise_survival.R`): 
 
+stage
 age_at_diagnosis
 grade
 surgery
@@ -651,6 +652,8 @@ km_plot <- function(df, panel, cell_type, f, outcome){
 ```
 
 MPIF26
+
+TODO group by ppbc group
 
 ```{r}
 cells_to_plot <- unique(filter(cox_dens, panel == "MPIF26")$cell_type)
@@ -920,12 +923,12 @@ Given the lack of insight from the adjusted multivariate curves, Kaplan-Meiers a
 ```{r}
 inv_mult_cox <- lapply(relevant_cells, function(x){
   all_cox_density(inv_dens, x,
-                  f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage")
+                  f = "Surv(time = FU_time_months, event = death) ~  stage")
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + density")
+  mutate(formula = "Surv(time = FU_time_months, event = death) ~  stage + density")
 
 inv_mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -936,12 +939,12 @@ inv_mult_cox %>%
 ```{r}
 np_mult_cox <- lapply(relevant_cells, function(x){
   all_cox_density(np_dens, x,
-                  f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage")
+                  f = "Surv(time = FU_time_months, event = death) ~ stage")
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + density")
+  mutate(formula = "Surv(time = FU_time_months, event = death) ~ stage + density")
 
 np_mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -1062,32 +1065,6 @@ interaction_df <- lapply(relevant_cells, function(x){
 interaction_df %>%
   arrange(lrt.fdr, lrt.pval)
 ```
-
-Adjusted KMs via `survminer::surv_adjustedcurves` are not possible when using an interaction term. Use a standard, unadjusted KM plot in a univariate formula.
-
-## DRS density
-
-TODO (but consider refactor first)
-
-```{r}
-#cox_density(df = cox_dens, panel = "MPIF26", cell_type = "CD20+",
-#            f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage")
-all_cox_density(cox_dens, x, f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage")
-relevant_cells <- unique(cox_dens$cell_type)
-relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
-
-drs_df <- lapply(relevant_cells, function(x){
-  all_cox_density(cox_dens, x)
-}) %>%
-  bind_rows() %>%
-  group_by(panel) %>%
-  mutate(fdr = p.adjust(p.value, method = "BH"), .after= panel) %>%
-  relocate(p.value, .after=fdr)
-
-cox_df %>%
-  arrange(fdr, p.value)
-```
-
 
 ```{r}
 sessionInfo()
