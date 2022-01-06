@@ -631,29 +631,29 @@ km_plot <- function(df, panel, cell_type, f, outcome){
   list(
     tumor = survminer::ggsurvplot(
       fit = survminer::surv_fit(as.formula(f), data = as.data.frame(tum_df)), 
+      facet.by = "study_group",
       xlab = "Months", 
       ylab = paste(outcome, "probability"),
       title = paste("Unadjusted curve for", cell_type, "tumor density in", panel),
       pval = T #Logrank method
-    )$plot, #Converts a ggsurvplot object into a regular ggplot 
+    ),  
     stroma = survminer::ggsurvplot(
       fit = survminer::surv_fit(as.formula(f), data = as.data.frame(str_df)), 
+      facet.by = "study_group",
       xlab = "Months", 
       ylab = paste(outcome, "probability"),
       title = paste("Unadjusted curve for", cell_type, "stroma density in", panel),
       pval = T #Logrank method
-    )$plot
+    )
     )
 }
 
 #testing
-# km_plot(cox_dens, panel = "MPIF26", cell_type = "CD20+", outcome = "Survival",
-#         f = "Surv(time = FU_time_months, event = death) ~ ntile")
+ km_plot(cox_dens, panel = "MPIF26", cell_type = "CD20+", outcome = "Survival",
+         f = "Surv(time = FU_time_months, event = death) ~ ntile")
 ```
 
 MPIF26
-
-TODO group by ppbc group
 
 ```{r}
 cells_to_plot <- unique(filter(cox_dens, panel == "MPIF26")$cell_type)
@@ -1065,6 +1065,8 @@ interaction_df <- lapply(relevant_cells, function(x){
 interaction_df %>%
   arrange(lrt.fdr, lrt.pval)
 ```
+
+Kaplan-meiers are not relevant for Cox formulas that contain interaction terms.
 
 ```{r}
 sessionInfo()
