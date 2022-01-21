@@ -108,8 +108,6 @@ rule summary_QC:
     rmd="reports/spatial/01_summary_QC.Rmd",
     script="src/rmarkdown.R"
   output:
-    mpif26_summary="data/vectra/interim/summaries/01_MPIF26_batch1_summaries.csv",
-    mpif27_summary="data/vectra/interim/summaries/01_MPIF27_batch1_summaries.csv",
     html="reports/spatial/01_summary_QC.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"

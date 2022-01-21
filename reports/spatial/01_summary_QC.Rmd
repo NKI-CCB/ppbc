@@ -18,6 +18,7 @@ library(here)
 library(tidyverse)
 library(car)
 library(ggpubr)
+library(ggrepel)
 
 theme_set(theme_bw())
 ```
@@ -64,7 +65,7 @@ Markers unique to summary2: CD138 (plasma B), CD8
 
 `rename_all(make.names)` will result in nonsensical output, we'll need to do this stepwise.
 
-```{r}
+```{r, echo=F}
 summary_name_repair <- function(cols){
   cols %>%
     tolower() %>%
@@ -83,7 +84,7 @@ colnames(summary2) <- summary_name_repair(colnames(summary2))
 
 Column names after cleaning (it's a lot)
 
-```{r}
+```{r, echo=F}
 colnames(summary1)
 ```
 
@@ -110,6 +111,22 @@ summary2 <- clean_summary(summary2)
 head(summary1)
 ```
 
+Extract batch information from the file name.
+
+```{r}
+extract_batch <- function(df){
+  df %>%
+    mutate(temp = str_remove(str_remove(filename, "_summary_results.csv"), "_I1|_II1")) %>%
+    tidyr::separate(temp, into = c(NA, "panel", "batch"), sep="_") %>%
+    relocate(panel, batch, .after=t_number) %>%
+    mutate(batch = factor(batch, levels = sort(unique(batch))))
+}
+
+summary1 <- extract_batch(summary1)
+summary2 <- extract_batch(summary2)
+```
+
+
 ## Common fields
 
 Some fields, such as tumor area etc, should be pretty similar in both panels. Show Spearman correlation and R squared. Label samples that are outliers based on the Bonferroni outlier test. See `?car::outlierTest()` for details. (Alternatively, plot the highest Cook's distance?)
@@ -128,14 +145,21 @@ plot_common_columns <- function(panel1 = summary1, panel2 = summary2,
   )
   
   colnames(df)[2:3] <- c("x", "y")
-  
+
   if(returndata){return(df)}
+  
+  batches <- bind_rows(
+    distinct(select(panel1, t_number, batch)),
+    distinct(select(panel2, t_number, batch))
+  ) %>% distinct()
+  stopifnot(nrow(filter(batches, duplicated(t_number)))==0)
   
   #Make the basic ggplot
   g <- df %>%
+    left_join(., batches, by = "t_number") %>%
     ggplot(aes(x, y)) +
     #geom_text(aes(label = t_number)) +
-    geom_point() +
+    geom_point(aes(color = batch)) +
     ggtitle(paste("Correlation:", str_replace_all(col, "_", " "))) +
     xlab(paste("Panel 1:", panel1_name)) +
     ylab(paste("Panel 2:", panel2_name)) +
@@ -152,31 +176,29 @@ plot_common_columns <- function(panel1 = summary1, panel2 = summary2,
   
   #Label outliers, if any
   g +
-    geom_label(data = filter(df, t_number %in% outliers),
+    ggrepel::geom_label_repel(data = filter(df, t_number %in% outliers),
              aes(label = t_number), ...)
 }
 
-plot_common_columns(col = "tumor_area_mm2", nudge_x = 5)
+plot_common_columns(col = "tumor_area_mm2", returndata = F)
 ```
 
 ## Stroma area
 
 ```{r}
-plot_common_columns(col = "stroma_area_mm2", nudge_x = 12)
+plot_common_columns(col = "stroma_area_mm2")
 ```
 
 ## Glass area
 
-Surely the glass area is the same between panels... right?
-
 ```{r}
-plot_common_columns(col = "glass_area_mm2", nudge_x = 0.5, nudge_y = -0.5)
+plot_common_columns(col = "glass_area_mm2")
 ```
 
 ## Total cells
 
 ```{r}
-plot_common_columns(col = "total_cells", nudge_x = 5e4, nudge_y = -0.5)
+plot_common_columns(col = "total_cells")
 ```
 
 ## DAPI positive cells
@@ -184,35 +206,27 @@ plot_common_columns(col = "total_cells", nudge_x = 5e4, nudge_y = -0.5)
 Looks the same as total cells
 
 ```{r}
-plot_common_columns(col = "dapi_positive_cells", nudge_x = 5e4, nudge_y = -0.5)
+plot_common_columns(col = "dapi_positive_cells")
 ```
 
 ## PanCK +
 
 ```{r}
-plot_common_columns(col = "panck_positive_cells", nudge_x = 0, nudge_y = 0) #+
-  #scale_x_log10() + scale_y_log10()
+plot_common_columns(col = "panck_positive_cells")
 ```
 
 ```{r}
-plot_common_columns(col = "cd3_positive_cells", nudge_x = -8e3, nudge_y = 0)
+plot_common_columns(col = "cd3_positive_cells")
 ```
 
 ```{r}
-plot_common_columns(col = "cd20_positive_cells", nudge_x = 5e3, nudge_y = 0)
+plot_common_columns(col = "cd20_positive_cells")
 ```
-
-## Write summary aggregates
-
-MPIF26 = CD3-CD20-CD27-FoxP3-PanCK
-MPIF27 = CD3_CD8_CD138_CD20_PanCK
 
 ```{r}
-dir.create(here("data/vectra/interim/summaries"), showWarnings = F)
-
-write_csv(summary1, file = here("data/vectra/interim/summaries/01_MPIF26_batch1_summaries.csv"))
-write_csv(summary2, file = here("data/vectra/interim/summaries/01_MPIF27_batch1_summaries.csv"))
+sessionInfo()
 ```
+
 
                          
 

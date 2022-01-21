@@ -28,14 +28,14 @@ include: "src/spatial/spatial.smk"
 rule all:
   input:
     #"reports/16_gene_unity_setup.html", #Pertains to RNAseq analysis, temporary omit
-    "reports/spatial/00_organize_vectra_samples.html",
-    "reports/spatial/01_summary_QC.html",
-    "results/spatial/cell_counts_by_marker.csv",
-    "reports/spatial/03a_marker_correction.html",
-    "reports/spatial/03b_test_marker_correction.html",
-    "reports/spatial/04_define_cell_types.html",
-    "reports/spatial/05_density.html",
-    "reports/spatial/06_density_outcome.html"
+    "src/spatial/organize_vectra_samples.html",
+    "reports/spatial/01_summary_QC.html"#,
+    #"results/spatial/cell_counts_by_marker.csv",
+    #"reports/spatial/03a_marker_correction.html",
+    #"reports/spatial/03b_test_marker_correction.html",
+    #"reports/spatial/04_define_cell_types.html",
+    #"reports/spatial/05_density.html",
+    #"reports/spatial/06_density_outcome.html"
 
 
 ### RNAseq analyses ###
