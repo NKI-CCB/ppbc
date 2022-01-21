@@ -271,7 +271,8 @@ density_by_ppbc <- lapply(unique(dens$cell_type), function(x){
   group_by(panel, classifier_label) %>%
   mutate(kruskal_bh = p.adjust(kruskal_p), .after = kruskal_p)
 
-density_by_ppbc
+density_by_ppbc %>%
+  arrange(kruskal_bh)
 ```
 
 Show significant comparisons based on multiple testing correction. Only look further for significance if the Kruskal-Wallis test is significant.
@@ -847,6 +848,18 @@ inv_univ_cox %>%
   arrange(lrt.fdr, lrt.pval)
 ```
 
+Reshape by region, split by panel
+
+```{r}
+inv_univ_cox %>%
+  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
+  arrange(lrt.fdr, lrt.pval) %>%
+  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval,
+                                                 #n_total
+                                                 )) %>%
+  split(., .$panel)
+```
+
 MPIF26
 
 ```{r}
@@ -888,6 +901,18 @@ np_univ_cox <- lapply(relevant_cells, function(x){
 
 np_univ_cox %>%
   arrange(lrt.fdr, lrt.pval)
+```
+
+Reshape by region, split by panel
+
+```{r}
+np_univ_cox %>%
+  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
+  arrange(lrt.fdr, lrt.pval) %>%
+  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval,
+                                                 #n_total
+                                                 )) %>%
+  split(., .$panel)
 ```
 
 MPIF26
@@ -934,6 +959,18 @@ inv_mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
 ```
 
+Reshape by region, split by panel
+
+```{r}
+inv_mult_cox %>%
+  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
+  arrange(lrt.fdr, lrt.pval) %>%
+  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval,
+                                                 #n_total
+                                                 )) %>%
+  split(., .$panel)
+```
+
 #### Nulliparous
 
 ```{r}
@@ -949,6 +986,17 @@ np_mult_cox <- lapply(relevant_cells, function(x){
 np_mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
 ```
+
+```{r}
+np_mult_cox %>%
+  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
+  arrange(lrt.fdr, lrt.pval) %>%
+  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval,
+                                                 #n_total
+                                                 )) %>%
+  split(., .$panel)
+```
+
 
 ## OS interaction involution
 
@@ -1065,6 +1113,17 @@ interaction_df <- lapply(relevant_cells, function(x){
 interaction_df %>%
   arrange(lrt.fdr, lrt.pval)
 ```
+
+```{r}
+interaction_df %>%
+  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
+  arrange(lrt.fdr, lrt.pval) %>%
+  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval,
+                                                 #n_total
+                                                 )) %>%
+  split(., .$panel)
+```
+
 
 Kaplan-meiers are not relevant for Cox formulas that contain interaction terms.
 
