@@ -32,7 +32,6 @@ rule all:
     "reports/spatial/01_summary_QC.html",
     expand("reports/spatial/object_qc_by_batch/02_object_QC_{batch}.html", batch = ['batch' + str(i) for i in range (1, 7)]),
     expand("reports/spatial/batch_marker_viz/03_{batch}_marker_coexpression.html", batch = ['batch' + str(i) for i in range (1, 7)]),
-    #"reports/spatial/03b_test_marker_correction.html",
     #"reports/spatial/04_define_cell_types.html",
     #"reports/spatial/05_density.html",
     "reports/spatial/06_ppbc_density.html"

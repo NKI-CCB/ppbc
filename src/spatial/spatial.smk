@@ -202,18 +202,6 @@ rule call_cell_types:
   shell:
     "Rscript {input.script} {input.objects} {wildcards.panel} {output}"
 
-#Ensure disallowed marker pairs no longer exist
-rule test_marker_correction_results:
-  input:
-    mpif26="data/vectra/processed/objects_MPIF26.Rds",
-    mpif27="data/vectra/processed/objects_MPIF27.Rds",
-    rmd="reports/spatial/03b_test_marker_correction.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    html="reports/spatial/03b_test_marker_correction.html",
-  shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
-
 #Quantify cell types and the marker combinations they represent
 rule define_cell_types_report:
   input:
