@@ -18,6 +18,7 @@ z
 to_do.nb.html
 to_do.Rmd
 reports/spatial/archive
+reports/spatial/batch_marker_viz
 
 *.RData
 *.Rdata

@@ -1,0 +1,220 @@
+---
+author: "Kat Moore and Tycho Bismeijer"
+date: "`r Sys.Date()`"
+params:
+  batch: 
+    label: "Select batch:"
+    value: "batch3"
+    input: select
+    choices: ["batch1", "batch2", "batch3", "batch4", "batch5", "batch6", "batch7"]
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+---
+
+
+```{r,echo=F}
+#params$batch cannot be passed directly to title
+batch <- params$batch
+```
+
+---
+title: '`r paste('Marker coexpression for:', batch)`'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+ggplot2::theme_set(ggplot2::theme_bw())
+```
+
+```{r libraries}
+library(fs)
+library(here)
+library(tidyverse)
+```
+
+Examine implausible marker corrections.
+
+MPIF26 exclusive markers:  CD27, FoxP3
+MPIF27 exclusive markers: CD138, CD8 
+Shared markers: CD20, CD3, PanCK, DAPI
+
+DAPI is used to visualize nuclear DNA. We have already established that all objects exported in this analysis are DAPI positive.
+
+Worth noting is that although PanCk is broadly used as a "cancer marker", cytokeratins are also expressed on healthy epithelium (see: fibroblasts), PanCK double positivity on i.e. immune cells is a frequent problem due to the intensity of the adjacency between epithelial and immune cells. 
+
+Also notable is that while CD138 was included as a plasma B-cell marker, it is [also expressed on malignant cells](https://pubmed.ncbi.nlm.nih.gov/14983940/).
+
+## Load data
+
+```{r detect_batch_files}
+inDir <- "data/vectra/interim/objects/"
+inFiles26 <- list.files(here(inDir), pattern = paste0("MPIF26_", batch, ".nc"))
+inFiles26
+inFiles27 <- list.files(here(inDir), pattern = paste0("MPIF27_", batch, ".nc"))
+inFiles27
+```
+
+Load the relevant objects:
+
+```{r read_26}
+source(here("src/spatial/read_cells.R"))
+
+start <- Sys.time()
+mpif26 <- rlang::set_names(here(file.path(inDir, inFiles26))) %>%
+    purrr::map_dfr(~ read_cells(., intensity=T)) %>%
+    dplyr::relocate(t_number, panel, .before = everything())
+end <- Sys.time()
+
+end-start
+```
+
+```{r read_27}
+start <- Sys.time()
+mpif27 <- rlang::set_names(here(file.path(inDir, inFiles27))) %>%
+    purrr::map_dfr(~ read_cells(., intensity=T)) %>%
+    dplyr::relocate(t_number, panel, .before = everything())
+end <- Sys.time()
+
+
+end-start
+```
+
+Clean empty intensity columns
+
+```{r}
+mpif26 <- remove_rownames(mpif26[, colSums(is.na(mpif26)) != nrow(mpif26)])
+mpif27 <- remove_rownames(mpif27[, colSums(is.na(mpif27)) != nrow(mpif27)])
+```
+
+```{r}
+colnames(mpif26) <- str_replace(colnames(mpif26), "_(nucleus|cytoplasm|membrane)_", "_")
+colnames(mpif27) <- str_replace(colnames(mpif27), "_(nucleus|cytoplasm|membrane)_", "_")
+```
+
+## Marker coexpression
+
+Because we are plotting a few million points, this does take a few minutes to run, and it will only get worse as new samples come in. We therefore exclude the double negatives for each marker combo to reduce the total number of points.
+
+```{r, coexpression_fn}
+coexpression_plot <- function(marker1, marker2, df1 = mpif26, df2 = mpif27,
+                              verbose = F){
+  
+  pos1 <- paste0(marker1, "_positive")
+  pos2 <- paste0(marker2, "_positive")
+  intens1 <- paste0(marker1, "_intensity")
+  intens2 <- paste0(marker2, "_intensity")
+  
+  df1 <- df1 %>%
+    select(t_number, panel, object_id,
+           contains(pos1), contains(pos2),
+           contains(intens1), contains(intens2))
+  
+  df2 <- df2 %>%
+    select(t_number, panel, object_id,
+           contains(pos1), contains(pos2),
+           contains(intens1), contains(intens2))
+  
+  if(pos1 %in% colnames(df1) & pos2 %in% colnames(df1) &
+     pos1 %in% colnames(df2) & pos2 %in% colnames(df2)){
+    if(verbose){print("markers in both")}
+    df <- bind_rows(
+      df1, df2
+    )
+  } else if (pos1 %in% colnames(df1) & pos2 %in% colnames(df1)) {
+    if(verbose){print("markers in panel 1")}
+    df <- df1
+  } else if (pos1 %in% colnames(df2) & pos2 %in% colnames(df2)) {
+    if(verbose){print("markers in panel 2")}
+    df <- df2
+  } else {
+    stop("Provide a marker combination that exists in the same panel")
+  }
+  
+  df <- df %>%
+    select(t_number, panel, object_id, contains(marker1), contains(marker2))
+  
+  #Convert positivity logicals into strings
+  df$marker1 <- if_else(df[,pos1]==T, paste0(marker1, "+"), paste0(marker1, "-"))
+  df$marker2 <- if_else(df[,pos2]==T, paste0(marker2, "+"), paste0(marker2, "-"))
+  df <- df %>%
+    mutate(markers = paste0(marker1, marker2)) %>%
+    select(-marker1, -marker2)
+  
+  #Remove double negatives to improve runtime
+  df <- df %>%
+    filter(!(.data[[pos1]]==F & .data[[pos2]]==F))
+
+  df %>%
+    ggplot(aes_string(x = intens1, y = intens2, shape = "panel")) +
+    geom_hex() +
+    scale_fill_viridis_c(trans='log10') +
+    ggtitle(paste(marker1, marker2, "coexpression for", batch))
+  
+
+}
+
+#coexpression_plot("CD3", "CD20", verbose=F)
+```
+
+### Implausible CD3 combinations
+
+Many of the most abundant problematic markers combinations involve either the unexpected presence or the unexpected absence of CD3. Plot CD3 expression alongside problem markers.
+
+```{r cd3_coexpression}
+lapply(c("CD20", "CD138"), function(x){
+  coexpression_plot("CD3", x)
+})
+```
+
+```{r cd3_coexpression-sample, fig.width=7}
+lapply(c("CD20", "CD138"), function(x){
+  coexpression_plot("CD3", x) +
+    facet_wrap(~t_number)
+})
+```
+
+### PanCK-immune coexpression
+
+```{r panck_coexpression}
+lapply(c("CD20", "CD3", "CD8","FoxP3", "CD27"), function(x){
+  coexpression_plot("PanCK", x)
+})
+```
+
+PanCK-CD20 coexpression does show signs of bleedthrough from PanCK into the CD20 channel for some batches. There is a smaller population of CD3 cells for which the same problem occurs. Check these two markers sample-wise.
+
+```{r, fig.width=7}
+lapply(c("CD20", "CD3", "CD8", "FoxP3", "CD27"), function(x){
+  coexpression_plot("PanCK", x) +
+    facet_wrap(~t_number)
+})
+```
+
+Some samples show spectral overlap between PanCK-CD20 coexpression. This is also apparent to a less extent with PanCK and CD3.
+
+### Implausible CD20 coexpression
+
+CD3-CD20 coexpression was covered above, let's look at the other exclusive T cell markers.
+
+```{r, cd20_coexpression}
+lapply(c("CD8", "FoxP3", "CD27"), function(x){
+  coexpression_plot("CD20", x)
+})
+```
+
+
+```{r, cd20_coexpression_sample, fig.width=7}
+lapply(c("CD8", "FoxP3", "CD27"), function(x){
+  coexpression_plot("CD20", x) +
+    facet_wrap(~t_number)
+})
+```
+
+```{r}
+sessionInfo()
+```

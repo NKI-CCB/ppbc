@@ -113,7 +113,6 @@ rule summary_QC:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
 #Convert object results and summary to .nc format
-#Do not invoke directly: use all_objects or object_QC instead
 #On harris, command must read python3 instead of python
 rule load_objects:
   input:
@@ -126,7 +125,8 @@ rule load_objects:
     "export OMP_NUM_THREADS=1\n"
     "python3 {input.script} {input.summary} {input.objects} {output.objects}"
     
-
+#Create a single data frame that includes object info for all samples
+#May be extremely slow to load due to size
 rule aggregrate_objects:
   input:
     object_files = [f"data/vectra/interim/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}.nc"
@@ -136,19 +136,6 @@ rule aggregrate_objects:
     "data/vectra/interim/objects.Rds"
   shell:
     "Rscript {input.script} {input.object_files} {output}"
-    
-
-#Generate an overview of marker combination abundance
-rule count_cells:
-  input:
-    "src/spatial/read_cells.R",
-    objects = "data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
-    script="src/spatial/counts_cells.R",
-  output: "results/spatial/marker_cell_counts/{t_number}_{panel}_{batch}.csv",
-  shell:
-    "mkdir -p results/spatial/marker_cell_counts\n"
-    "Rscript {input.script} {input.objects} {output}"
-
 
 #QC reports based on object files rather than summary files
 rule object_QC:
@@ -162,24 +149,49 @@ rule object_QC:
     "mkdir -p reports/spatial/object_qc_by_batch\n"
     "Rscript -e \"rmarkdown::render('{input.rmd}'," 
     "params=list(batch='{wildcards.batch}'),"
-    "output_file = here::here('{output.html}'))\""  
-
-#Identify and visualize problematic marker combinations
-#TODO rename this notebook: actual correction now takes place elsewhere
-rule report_marker_correction:
+    "output_file = here::here('{output.html}'))\""
+    
+#Generate an overview of marker combination abundance
+rule count_marker_combos:
   input:
-    objects="data/vectra/interim/objects.Rds",
-    cell_count_by_marker="results/spatial/cell_counts_by_marker.csv",
-    rmd="reports/spatial/03a_marker_correction.Rmd",
+    "src/spatial/read_cells.R",
+    objects = "data/vectra/interim/objects/{t_number}_{panel}_{batch}.nc",
+    script="src/spatial/counts_cells.R",
+  output: "results/spatial/marker_cell_counts/{t_number}_{panel}_{batch}.csv",
+  shell:
+    "mkdir -p results/spatial/marker_cell_counts\n"
+    "Rscript {input.script} {input.objects} {output}"
+    
+#Aggregate marker combinations by panel, and report on them
+rule aggregate_markers:
+  input:
+    counts = [f"results/spatial/marker_cell_counts/{s.sample_id}_{s.panel}_{s.batch_HALO}.csv"
+                    for s in vectra_samples],
+    rmd = "reports/spatial/03_coexpression_summary.Rmd",
+    script="src/spatial/aggregate_counts.R"
+  output: 
+    marker_combos = "results/spatial/marker_count_by_panel.csv",
+    html = "reports/spatial/03_coexpression_summary.Rmd"
+  shell: 
+    "Rscript {input.script}"
+
+#Visualize problematic marker combinations by batch
+rule batch_marker_coexpression:
+  input:
+    #FIXME
+    #nc = lambda wildcards: glob(`data/vectra/interim/objects/.*{wildcards.batch}.csv`),
+    rmd="reports/spatial/03_batch_marker_coexpression.Rmd",
     script="src/rmarkdown.R"
   output:
-    html="reports/spatial/03a_marker_correction.html",
+    html="reports/spatial/batch_marker_viz/03_{batch}_marker_coexpression.html",
   shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+    "mkdir -p reports/spatial/batch_marker_viz\n"
+    "Rscript -e \"rmarkdown::render('{input.rmd}'," 
+    "params=list(batch='{wildcards.batch}'),"
+    "output_file = here::here('{output.html}'))\""
 
 #Correct double positivity, deal with disallowed marker pairs,
 #and assign a "cell type" based on marker positivity
-#Do not call this rule alone: it exists to provide input for downstream rules
 rule call_cell_types:
   input:
     script="src/spatial/call_cell_types.R",

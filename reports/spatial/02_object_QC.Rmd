@@ -4,7 +4,7 @@ date: "`r Sys.Date()`"
 params:
   batch: 
     label: "Select batch:"
-    value: "batch3"
+    value: "batch1"
     input: select
     choices: ["batch1", "batch2", "batch3", "batch4", "batch5", "batch6", "batch7"]
 output: 
@@ -80,7 +80,6 @@ end <- Sys.time()
 
 end-start
 ```
-
 
 ## DAPI
 
