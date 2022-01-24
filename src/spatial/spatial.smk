@@ -167,21 +167,21 @@ rule aggregate_markers:
   input:
     counts = [f"results/spatial/marker_cell_counts/{s.sample_id}_{s.panel}_{s.batch_HALO}.csv"
                     for s in vectra_samples],
-    rmd = "reports/spatial/03_coexpression_summary.Rmd",
-    script="src/spatial/aggregate_counts.R"
+    rmd = "reports/spatial/03_aggregate_marker_combos.Rmd",
+    lib="src/spatial/aggregate_counts.R",
+    script="src/rmarkdown.R"
   output: 
-    marker_combos = "results/spatial/marker_count_by_panel.csv",
-    html = "reports/spatial/03_coexpression_summary.Rmd"
+    marker_region="results/spatial/marker_combos_by_region.csv",
+    html = "reports/spatial/03_aggregate_marker_combos.html"
   shell: 
-    "Rscript {input.script}"
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
 #Visualize problematic marker combinations by batch
 rule batch_marker_coexpression:
   input:
     #FIXME
     #nc = lambda wildcards: glob(`data/vectra/interim/objects/.*{wildcards.batch}.csv`),
-    rmd="reports/spatial/03_batch_marker_coexpression.Rmd",
-    script="src/rmarkdown.R"
+    rmd="reports/spatial/03_batch_marker_coexpression.Rmd"
   output:
     html="reports/spatial/batch_marker_viz/03_{batch}_marker_coexpression.html",
   shell:
@@ -203,14 +203,14 @@ rule call_cell_types:
     "Rscript {input.script} {input.objects} {wildcards.panel} {output}"
 
 #Quantify cell types and the marker combinations they represent
-rule define_cell_types_report:
+rule report_cell_types:
   input:
-    mpif26="data/vectra/processed/objects_MPIF26.Rds",
-    mpif27="data/vectra/processed/objects_MPIF27.Rds",
-    rmd="reports/spatial/04_define_cell_types.Rmd",
+    #mpif26="data/vectra/processed/objects_MPIF26.Rds",
+    #mpif27="data/vectra/processed/objects_MPIF27.Rds",
+    rmd="reports/spatial/04_report_cell_types.Rmd",
     script="src/rmarkdown.R"
   output:
-    html="reports/spatial/04_define_cell_types.html"
+    html="reports/spatial/04_report_cell_types.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     

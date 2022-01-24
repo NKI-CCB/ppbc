@@ -1,0 +1,241 @@
+---
+title: 'Aggregate marker combinations'
+author: "Kat Moore and Tycho Bismeijer"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(here)
+library(tidyverse)
+library(ggrepel)
+theme_set(theme_bw())
+```
+
+## Aggregate counts
+
+```{r}
+source(here("src/spatial/aggregate_counts.R"))
+sample_aggregate <- sum_cell_counts()
+
+head(sample_aggregate)
+```
+
+```{r}
+sample_aggregate %>%
+  pull(marker_pos) %>% unique() %>% sort()
+```
+
+Marker counts across the whole dataset.
+
+```{r}
+marker_df <- sample_aggregate %>%
+  rename(region = classifier_label) %>%
+  group_by(marker_pos, region) %>%
+  summarise(n = sum(n), .groups = "drop") %>%
+  arrange(desc(n))
+
+marker_region <- marker_df %>%
+  pivot_wider(names_from = region, values_from = n, values_fill = 0) %>%
+  arrange(desc(Tumor + Stroma)) %>%
+  mutate(marker_pos = ifelse(marker_pos == "DAPI+", "DAPI_only", marker_pos)) %>%
+  mutate(marker_pos = str_remove(str_remove(marker_pos, "DAPI\\+_"),"_DAPI\\+"))
+
+marker_region
+```
+classifier_label
+
+
+```{r}
+write_csv(marker_region, here("results/spatial/marker_combos_by_region.csv"))
+```
+
+
+## Problematic marker combinations
+
+We should not observe:
+
+CD3+ CD20+
+CD8+ CD20+
+FOXP3+ CD20+
+
+In principle, we should also not observe double positivity of PanCK and immune markers, nor CD138 and T cell markers, but these combinations may occur due to the high abundance of these markers, which causes spillover to adjacent cells.
+
+Recall that:
+
+MPIF26 exclusive markers:  CD27, FoxP3
+MPIF27 exclusive markers: CD138, CD8 
+Shared markers: CD20, CD3, PanCK, DAPI
+
+```{r}
+panel_markers <- sample_aggregate %>%
+  rename(region = classifier_label) %>%
+  group_by(marker_pos, panel, region) %>%
+  summarise(n = sum(n), .groups = "drop") %>%
+  pivot_wider(names_from = region, values_from = n, values_fill = 0) %>%
+  mutate(marker_pos = ifelse(marker_pos == "DAPI+", "DAPI_only", marker_pos)) %>%
+  mutate(marker_pos = str_remove(str_remove(marker_pos, "DAPI\\+_"),"_DAPI\\+")) %>%
+  mutate(Total = Stroma + Tumor) %>%
+  arrange(desc(Total))
+
+panel_markers
+```
+
+PanCK/immune marker combinations:
+
+```{r}
+panel_markers %>%
+  filter(str_detect(marker_pos, "PanCK") & str_detect(marker_pos, "CD"))
+```
+
+All possible T-cell combos in MPIF27
+
+```{r}
+panel_markers %>%
+  filter(str_detect(panel, "MPIF27")) %>%
+  filter(str_detect(marker_pos, "CD[83]"))
+```
+
+Also address:
+CD8+CD3- (MPIF27)
+CD27+CD3- (MPIF26)
+CD20+_CD3+_CD8+ (MPIF27)
+CD138+_CD8+ (MPIF27)
+CD20+_CD8+
+
+NK cells may sometimes express [CD8](https://journals.asm.org/doi/10.1128/JVI.01420-14) and [CD27](https://pubmed.ncbi.nlm.nih.gov/18326863/).
+
+```{r}
+panel_markers %>%
+  filter(marker_pos %in% c(
+    "CD20+_CD3+",
+    "CD8+",
+    "CD27+",
+    "CD20+_CD3+_CD8+",
+    "CD20+_CD8+"
+  )) %>%
+  mutate(Total = Stroma + Tumor)
+```
+
+Additional impossible combinations exist within the data, but in relatively low numbers.
+
+## Missing and rare markers
+
+Show samples with more than a few oddball combinations.
+
+```{r}
+plot_abun <- function(df, pt, label_top){
+  df %>% ggplot(aes(x = classifier_label, y = n, shape = panel, color = batch)) +
+      geom_jitter(width = 0.2, height = 0) +
+      ggtitle(pt) +
+      ggrepel::geom_label_repel(data = head(df, label_top),show.legend = F,
+                                aes(label = t_number))
+}
+combo_abundance <- function(df = sample_aggregate, mno=NULL, mno2 = NULL, myes = NULL, myes2=NULL,
+                            min_count = 2000, label_top = 5, returndata=F){
+  
+  nsamples <- length(unique(df$t_number))
+  #Show a combination where a marker that should be present is missing
+  if(!is.null(mno2)){
+ 
+    df <- df %>% filter(
+        !str_detect(marker_pos, fixed(mno)) & !str_detect(marker_pos, fixed(mno2)),
+        str_detect(marker_pos, fixed(myes)),
+        n > min_count) %>%
+      group_by(t_number, panel, batch, classifier_label) %>%
+      summarise(n = sum(n), .groups = "drop") %>%
+      arrange(desc(n)) 
+    
+    if(returndata){return(df)}
+    pt <- paste(paste0(length(unique(df$t_number)), "/", nsamples),
+                "samples have",
+                paste0(myes,str_replace(mno, "\\+", "-"),str_replace(mno2, "\\+", "-")),
+                "count over", min_count)
+    plot_abun(df, pt, label_top)
+  #Show a combination that indicates coexpression that shouldn't exist
+  } else if(!is.null(myes2)) {
+
+    df <- df %>%
+      filter(
+        str_detect(marker_pos, fixed(myes)),
+        str_detect(marker_pos, fixed(myes2)),
+        n > min_count
+        ) %>%
+      group_by(t_number, panel, batch, classifier_label) %>%
+      summarise(n = sum(n), .groups = "drop") %>%
+      arrange(desc(n)) 
+    
+    #if(returndata){return(df)}
+    pt <- paste(paste0(length(unique(df$t_number)), "/", nsamples),
+                "samples have",
+                paste0(myes,myes2),
+                "count over", min_count)
+    
+    plot_abun(df, pt, label_top)
+  
+  #Show a combination where one of two expected markers is missing    
+  } else if(!is.null(mno)){
+      df <- df %>%
+      filter(
+        !str_detect(marker_pos, fixed(mno)),
+        str_detect(marker_pos, fixed(myes)),
+        n > min_count) %>%
+      group_by(t_number, panel, batch, classifier_label) %>%
+      summarise(n = sum(n), .groups = "drop") %>%
+      arrange(desc(n)) 
+    
+    if(returndata){return(df)}
+    pt <- paste(paste0(length(unique(df$t_number)), "/", nsamples),
+                "samples have",
+                paste0(str_replace(mno, "\\+", "-"),myes),
+                "count over", min_count)
+    
+    plot_abun(df, pt, label_top)
+  
+  } else {
+    stop("Provide a valid marker combo")
+  }
+}
+```
+
+
+### CD3-CD8+
+
+```{r samples-that-miss-cd3-but-have-cd8}
+combo_abundance(mno='CD3+', myes='CD8+')
+```
+
+### CD3-FoxP3+
+
+```{r samples-that-miss-cd3-but-have-foxp3}
+combo_abundance(mno='CD3+', myes='FoxP3+', min_count = 1000)
+```
+
+### CD20+CD138+
+
+```{r cd20poscd138pos-samples}
+combo_abundance(myes='CD20+', myes2='CD138+', min_count = 1000)
+```
+
+### CD27+CD3-CD20-
+
+```{r}
+combo_abundance(myes='CD27+', mno='CD3+', mno2='CD20+', min_count = 1000)
+```
+
+
+```{r}
+sessionInfo()
+```
+
+
