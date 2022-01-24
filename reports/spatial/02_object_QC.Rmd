@@ -1,7 +1,12 @@
 ---
-title: "QC Checks of the object files"
 author: "Tycho Bismeijer & Kat Moore"
 date: "`r Sys.Date()`"
+params:
+  batch: 
+    label: "Select batch:"
+    value: "batch3"
+    input: select
+    choices: ["batch1", "batch2", "batch3", "batch4", "batch5", "batch6", "batch7"]
 output: 
   html_document:
     toc: true
@@ -23,6 +28,16 @@ library(fs)
 library(tidyverse)
 ```
 
+```{r,echo=F}
+#params$batch cannot be passed directly to title
+#separate yaml blocks are possible, see below
+batch <- params$batch
+```
+
+---
+title: '`r paste('Object QC for:', batch)`'
+---
+
 In this notebook, we perform a variety of sample-wise sanity checks regarding marker positivity cutoffs, localization, and correlation.
 
 ## Marker intensity by sample
@@ -31,13 +46,41 @@ For every sample, check each marker to ensure that it's localized where it's sup
 
 (In the case of cell counts, this SHOULD be the same as the analysis performed on the summary QC files in the previous notebook. But, check to make sure that the reality within the data frame matches the summary.)
 
-Produce separate dfs per panel.
+Produce separate dfs per panel. This is done by batch.
 
-```{r read_objects}
-objects <- readRDS(here("data/vectra/interim/objects.Rds"))
-mpif26 <- filter(objects, panel == 'MPIF26')
-mpif27 <- filter(objects, panel == 'MPIF27')
+```{r detect_batch_files}
+inDir <- "data/vectra/interim/objects/"
+inFiles26 <- list.files(here(inDir), pattern = paste0("MPIF26_", batch, ".nc"))
+inFiles26
+inFiles27 <- list.files(here(inDir), pattern = paste0("MPIF27_", batch, ".nc"))
+inFiles27
 ```
+
+Load the relevant objects:
+
+```{r read_26}
+source(here("src/spatial/read_cells.R"))
+
+start <- Sys.time()
+mpif26 <- rlang::set_names(here(file.path(inDir, inFiles26))) %>%
+    purrr::map_dfr(~ read_cells(., intensity=T)) %>%
+    dplyr::relocate(t_number, panel, .before = everything())
+end <- Sys.time()
+
+end-start
+```
+
+```{r read_27}
+start <- Sys.time()
+mpif27 <- rlang::set_names(here(file.path(inDir, inFiles27))) %>%
+    purrr::map_dfr(~ read_cells(., intensity=T)) %>%
+    dplyr::relocate(t_number, panel, .before = everything())
+end <- Sys.time()
+
+
+end-start
+```
+
 
 ## DAPI
 

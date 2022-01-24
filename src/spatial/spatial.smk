@@ -153,13 +153,16 @@ rule count_cells:
 #QC reports based on object files rather than summary files
 rule object_QC:
   input:
-    rmd="reports/spatial/02_object_QC.Rmd",
-    script="src/rmarkdown.R",
-    objects="data/vectra/interim/objects.Rds",
+    #For Tycho: something like this?
+    #nc = lambda wildcards: glob(`data/vectra/interim/objects/.*{wildcards.batch}.nc`)
+    rmd = "reports/spatial/02_object_QC.Rmd"
   output:
-    html="reports/spatial/02_object_QC.html",
+    html="reports/spatial/object_qc_by_batch/02_object_QC_{batch}.html"
   shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"      
+    "mkdir -p reports/spatial/object_qc_by_batch\n"
+    "Rscript -e \"rmarkdown::render('{input.rmd}'," 
+    "params=list(batch='{wildcards.batch}'),"
+    "output_file = here::here('{output.html}'))\""  
 
 #Identify and visualize problematic marker combinations
 #TODO rename this notebook: actual correction now takes place elsewhere

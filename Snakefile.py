@@ -29,7 +29,8 @@ rule all:
   input:
     #"reports/16_gene_unity_setup.html", #Pertains to RNAseq analysis, temporary omit
     "src/spatial/organize_vectra_samples.html",
-    "reports/spatial/01_summary_QC.html"#,
+    "reports/spatial/01_summary_QC.html",
+    expand("reports/spatial/object_qc_by_batch/02_object_QC_{batch}.html", batch = ['batch' + str(i) for i in range (1, 7)])
     #"results/spatial/cell_counts_by_marker.csv",
     #"reports/spatial/03a_marker_correction.html",
     #"reports/spatial/03b_test_marker_correction.html",
