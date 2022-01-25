@@ -35,121 +35,21 @@ This notebook reports on the relationship between cell densities and the followi
 
 ```{r}
 outcome <- params$outcome
-print(outcome)
+ptitle <- ifelse(outcome == "OS", "Overall survival", "Distant recurrence")
+print(ptitle)
 ```
 
 ---
-title: "PPBC density"
+title: `r paste("PPBC density:", ptitle)`
 ---
 
 ## Load data
 
 ```{r}
-density <- read_tsv(here("results/spatial/density.tsv"))
-#head(density)
-
-density %>%
-  group_by(panel) %>%
-  count()
+dens <- readRDS(here("data/vectra/processed/density_ppbc.Rds"))
 ```
 
-Fix classifier labels
-
-```{r}
-#density %>% group_by(classifier_label) %>% count()
-
-density <- density %>%
-  mutate(classifier_label = ifelse(classifier_label == "tumor", "Tumor", classifier_label))
-```
-
-
-The metadata is separated into three sheets.
-
-```{r}
-read_sheets_to_list <- function(xlsfile){
-  readxl::excel_sheets(xlsfile) %>% 
-    set_names() %>% 
-    map(readxl::read_excel, path = xlsfile)
-}
-
-meta <- read_sheets_to_list(here("data/metadata/PPBC_metadata.xlsx"))
-```
-
-Here the t_number can be mapped to the patient_ID (via sample_ID).
-
-```{r}
-head(meta$sample_data)
-```
-
-Survival data can be found here.
-
-```{r}
-head(meta$patient_data)
-```
-
-Explanations are in the codebook.
-
-```{r}
-head(meta$codebook)
-```
-
-
-## Survival outcomes in PPBC
-
-Join t_numbers with survival, link to density.
-
-```{r}
-dens <- meta$sample_data %>%
-  filter(experimental_platform != "RNAseq" & !is.na(sample_ID)) %>%
-  select(t_number = sample_ID, patient_ID) %>% distinct() %>%
-  left_join(., meta$patient_data, by = "patient_ID") %>%
-  left_join(density, ., by = "t_number")
-
-stopifnot(nrow(filter(dens, is.na(death)))==0)
-
-head(dens)
-```
-
-Four possible possible PPBC categories exist : 
-
-* nulliparous breast cancer(non_prbc)
-* pregnant breast cancer (prbc)
-* post-partum breast cancer: lactating (ppbc_lac)
-* post-partum breast cancer: involuting (ppbc_inv)
-
-```{r}
-unique(dens$study_group)
-```
-
-Format PPBC and survival categories.
-
-```{r}
-#Grade is sometimes missing
-#dens %>% group_by(study_group, database, grade) %>% count()
-
-dens <- dens %>%
-  mutate(classifier_label = factor(classifier_label,
-                                   levels = c("Stroma", "Tumor")),
-         panel = factor(panel, levels = c("MPIF26", "MPIF27")),
-         #Shorter group names, similar to study_group but clearer 
-         #and with no potential delimiters
-         group = case_when(
-           study_group == "ppbc_inv" ~ "inv",
-           study_group == "non_prbc" ~ "nonprbc",
-           study_group == "ppbc_lac" ~ "lac",
-           TRUE ~ study_group) 
-         ) %>%
-  mutate(group = factor(group, levels = c("nonprbc", "prbc", "lac", "inv"))) %>%
-  relocate(group, .after = study_group) %>%
-  mutate(stage = factor(stage, levels = c("stage I", "stage II",
-                                          "stage III", "stage IV")))
-
-dens %>%
-  select(study_group, group) %>%
-  distinct()
-```
-
-### Cell types by panel:
+## Cell types by panel:
 
 ```{r}
 bind_cols (
@@ -164,9 +64,9 @@ bind_cols (
 )
 ```
 
-## Density by group
+## Samples per group
 
-Number of samples per study group (will improve):
+Number of samples per study group:
 
 ```{r}
 dens %>%
@@ -177,203 +77,6 @@ dens %>%
   pivot_wider(names_from = panel, values_from = n)
 ```
 
-The majority of samples come from the nulliparous and involuting groups: the primary contrast of interest. The relatively few number of samples from pregnant and lactating cancer patients can be used exploratively.
-
-```{r}
-#Reshape results of pairwise wilcox tests between groups, so that
-#every cell type can be reported in a single row
-reshape_pairwise <- function(pairwise_res){
-  pairwise_res$p.value %>%
-    as.data.frame() %>% rownames_to_column("group") %>%
-    pivot_longer(cols = c(-group),names_to = "group2", values_to = "wilcox.bh") %>%
-    filter(!is.na(wilcox.bh)) %>%
-    mutate(pairwise.wilcox = paste(group, group2, sep = "_vs_")) %>%
-    select(-group, -group2) %>%
-    pivot_wider(names_from = pairwise.wilcox, values_from = wilcox.bh,
-                names_glue = "{pairwise.wilcox}_bh")
-}
-
-#Perform both kruskal wallis and pairwise wilcox tests on each cell type and panel
-#for tumor and stroma separately
-stat_density <- function(df,
-                         panel = c("MPIF26", "MPIF27"),
-                         cell_type){
-  
-  stopifnot(cell_type %in% unique(df$cell_type))
-  
-  df <- filter(df, panel == {{panel}})
-  df <- df %>% filter(cell_type == {{cell_type}})
-  #return(df)
-  
-  #Test between all study_group groups together for tumor
-  krusk <- tibble(
-   cell_type = {{cell_type}},
-   panel = {{panel}},
-   kruskal_p = kruskal.test(density ~ group, data = df)$p.value
-  )
-
-  pairwise <- pairwise.wilcox.test(df$density, df$group,
-                 p.adjust.method = "BH", exact = F)
-  pairwise
-  pairwise <- reshape_pairwise(pairwise)
-  
-  res <- cbind(krusk, pairwise)
-  res
-  }
-
-#Testing
-#stat_density(df = filter(dens, classifier_label == "Tumor"), panel = "MPIF26",
-#             cell_type = "CD3+FoxP3-")
-
-combi_dens <- function(df, cell_type){
-  #Separate stroma and tumor
-  tum <- filter(df, classifier_label == "Tumor")
-  strom <- filter(df, classifier_label == "Stroma")
-  #return(tum)
-  
-  mpif26_cells <- df %>% filter(panel == "MPIF26") %>% pull(cell_type) %>%
-    unique()
-  
-  mpif27_cells <- df %>% filter(panel == "MPIF27") %>% pull(cell_type) %>%
-    unique()
-  
-  #Density for stroma and tumor separately, skipping panels if the cell type is absent
-  if(cell_type %in% mpif26_cells & cell_type %in% mpif27_cells){
-    #print("Both panels")
-    
-    tum <- bind_rows(
-      stat_density(tum, panel = "MPIF26", cell_type = cell_type),
-      stat_density(tum, panel = "MPIF27", cell_type = cell_type)
-    ) %>% mutate(classifier_label = "Tumor")
-    
-    strom <- bind_rows(
-      stat_density(strom, panel = "MPIF26", cell_type = cell_type),
-      stat_density(strom, panel = "MPIF27", cell_type = cell_type)
-    ) %>% mutate(classifier_label = "Stroma")
-    
-    res <- bind_rows(tum,strom)
-    
-  } else if (cell_type %in% mpif26_cells) {
-    
-    tum <- stat_density(tum, panel = "MPIF26", cell_type = cell_type) %>%
-      mutate(classifier_label = "Tumor")
-    
-    strom <- stat_density(strom, panel = "MPIF26", cell_type = cell_type) %>%
-                  mutate(classifier_label = "Stroma")
-    
-    res <-  bind_rows(tum, strom)
-      
-  } else if (cell_type %in% mpif27_cells){
-    
-    tum <- stat_density(tum, panel = "MPIF27", cell_type = cell_type) %>%
-      mutate(classifier_label = "Tumor")
-    
-    strom <- stat_density(strom, panel = "MPIF27", cell_type = cell_type) %>%
-                  mutate(classifier_label = "Stroma")
-    
-    res <- bind_rows(tum, strom)
-      
-  } else {
-    stop("Provide a valid cell type")
-  }
-  res %>%
-    relocate(classifier_label, .after = panel)
-  
-}
-
-
-density_by_ppbc <- lapply(unique(dens$cell_type), function(x){
-  combi_dens(df = dens, cell_type = x)
-  }) %>%
-  bind_rows() %>%
-  group_by(panel, classifier_label) %>%
-  mutate(kruskal_bh = p.adjust(kruskal_p), .after = kruskal_p)
-
-density_by_ppbc %>%
-  arrange(kruskal_bh)
-```
-
-Show significant comparisons based on multiple testing correction. Only look further for significance if the Kruskal-Wallis test is significant.
-
-```{r}
-#bhs <- colnames(density_by_ppbc)[str_detect(colnames(density_by_ppbc), "_bh")]
-
-density_by_ppbc %>%
-  select(-kruskal_p) %>%
-  filter(kruskal_bh < 0.05) %>%
-  pivot_longer(cols = kruskal_bh:inv_vs_lac_bh, names_to = "comparison",
-               values_to = "padjust") %>%
-  filter(padjust < 0.05) %>%
-  pivot_wider(names_from = classifier_label, values_from = padjust)
-
-```
-
-### Beehive plots
-
-The p values in these plots do not include multiple testing correction. Kruskal-Wallis for all PPBC groups alongside pairwise Wilcoxon tests are shown. The y axis is square-root-transformed.
-
-```{r}
-plot_density <- function(df = dens,
-                       panel = c("MPIF26", "MPIF27"),
-                       cell_type, colorby){
-  
-  stopifnot(cell_type %in% unique(df$cell_type))
-  
-  df <- filter(df, panel == {{panel}})
-  df <- df %>% filter(cell_type == {{cell_type}})
-  df <- df %>% mutate(
-    death = factor(death, levels = c(0,1)),
-    distant_recurrence = factor(distant_recurrence, levels = c(0,1))
-    )
-  
-  comps <- list(
-    c("inv", "nonprbc")#,
-    #Not really enough samples for these
-    #c("inv", "prbc"),
-    #c("inv", "lac")
-  )
-  
-  df %>%
-    ggplot(aes(x = group, y = density)) +
-    geom_boxplot(alpha = 0) +
-    geom_jitter(aes(color = get(colorby)), height = 0 ) +
-    facet_wrap(~classifier_label) +
-    labs(color = colorby, y = paste({{cell_type}}, "density")) +
-    stat_compare_means() +#KW test all samples
-    stat_compare_means(comparisons = comps) +#pairwise
-    ggtitle(paste({{panel}}, {{cell_type}}))
-  }
-
-#Testing
-#plot_density(panel = "MPIF26", cell_type = "FoxP3+", colorby = "clin_subtype")
-```
-
-MPIF26
-
-```{r}
-cells_to_plot <- unique(filter(dens, panel == "MPIF26")$cell_type)
-cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
-
-lapply(cells_to_plot,
-       function(x) {
-         plot_density(panel = "MPIF26", cell_type = x, colorby = "death") +
-           scale_y_sqrt() +
-           scale_color_viridis_d()
-       })
-```
-
-MPIF27
-
-```{r}
-cells_to_plot <- unique(filter(dens, panel == "MPIF27")$cell_type)
-cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
-
-lapply(cells_to_plot,
-       function(x) {
-         plot_density(panel = "MPIF27", cell_type = x, colorby = "death") +
-           scale_y_sqrt() +scale_color_viridis_d()
-       })
-```
 
 ## Cox regression input
 

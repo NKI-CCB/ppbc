@@ -246,10 +246,35 @@ rule density_report:
     html="reports/spatial/05_density.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+    
+#Link PPBC study group and clinical outcomes to cell densities
+rule process_density:
+  input:
+    densities = "results/spatial/density.tsv",
+    meta="data/metadata/PPBC_metadata.xlsx",
+    #Consider rewriting as a plain Rscript
+    rmd="reports/spatial/06_process_density_outcome.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    density_outcome = "data/vectra/processed/density_ppbc.Rds",
+    html="reports/spatial/06_process_density_outcome.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+
+#Kruskal wallis tests and beehive plots for PPBC association with cell density
+rule kruskal_density:
+  input:
+    density_outcome = "data/vectra/processed/density_ppbc.Rds",
+    rmd="reports/spatial/06_kruskal_density.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    html="reports/spatial/06_kruskal_density.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
 rule ppbc_density:
   input:
-    densities = "results/spatial/density.tsv",
+    density_outcome = "data/vectra/processed/density_ppbc.Rds",
     meta="data/metadata/PPBC_metadata.xlsx",
     rmd="reports/spatial/06_ppbc_density.Rmd",
     script="src/rmarkdown.R"

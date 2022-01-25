@@ -1,0 +1,342 @@
+---
+title: "Kruskal-Wallis and box plots of cell densities"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, libraries}
+library(tidyverse)
+library(here)
+library(ggpubr)
+library(survival)
+library(survminer)
+library(broom) #for converting coxph to tibble
+
+theme_set(theme_bw())
+```
+
+Pairwise Kruskal-Wallis tests are made for the association between cell type density and PPBC study group. Box plots visualize the relative densities of cell types between groups.
+
+## Load data
+
+```{r}
+dens <- readRDS(here("data/vectra/processed/density_ppbc.Rds"))
+```
+
+## Cell types by panel:
+
+```{r}
+bind_cols (
+  dens %>%
+    filter(panel == "MPIF26") %>%
+    select(MPIF26 = cell_type) %>%
+    distinct(),
+  dens %>%
+    filter(panel == "MPIF27") %>%
+    select(MPIF27 = cell_type) %>%
+    distinct()
+)
+```
+
+## Samples per group
+
+Number of samples per study group:
+
+```{r}
+dens %>%
+  select(t_number, panel, study_group, group) %>%
+  distinct() %>%
+  group_by(panel, group) %>%
+  count() %>%
+  pivot_wider(names_from = panel, values_from = n)
+```
+
+## Kruskal-wallis tests
+
+The majority of samples come from the nulliparous and involuting groups: the primary contrast of interest. The relatively few number of samples from pregnant and lactating cancer patients can be used exploratively.
+
+```{r}
+#Reshape results of pairwise wilcox tests between groups, so that
+#every cell type can be reported in a single row
+reshape_pairwise <- function(pairwise_res){
+  pairwise_res$p.value %>%
+    as.data.frame() %>% rownames_to_column("group") %>%
+    pivot_longer(cols = c(-group),names_to = "group2", values_to = "wilcox.bh") %>%
+    filter(!is.na(wilcox.bh)) %>%
+    mutate(pairwise.wilcox = paste(group, group2, sep = "_vs_")) %>%
+    select(-group, -group2) %>%
+    pivot_wider(names_from = pairwise.wilcox, values_from = wilcox.bh,
+                names_glue = "{pairwise.wilcox}_bh")
+}
+
+#Perform both kruskal wallis and pairwise wilcox tests on each cell type and panel
+#for tumor and stroma separately
+stat_density <- function(df,
+                         panel = c("MPIF26", "MPIF27"),
+                         cell_type){
+  
+  stopifnot(cell_type %in% unique(df$cell_type))
+  
+  df <- filter(df, panel == {{panel}})
+  df <- df %>% filter(cell_type == {{cell_type}})
+  #return(df)
+  
+  #Test between all study_group groups together for tumor
+  krusk <- tibble(
+   cell_type = {{cell_type}},
+   panel = {{panel}},
+   kruskal_p = kruskal.test(density ~ group, data = df)$p.value
+  )
+
+  pairwise <- pairwise.wilcox.test(df$density, df$group,
+                 p.adjust.method = "BH", exact = F)
+  pairwise
+  pairwise <- reshape_pairwise(pairwise)
+  
+  res <- cbind(krusk, pairwise)
+  res
+  }
+
+#Testing
+#stat_density(df = filter(dens, classifier_label == "Tumor"), panel = "MPIF26",
+#             cell_type = "CD3+FoxP3-")
+
+combi_dens <- function(df, cell_type){
+  #Separate stroma and tumor
+  tum <- filter(df, classifier_label == "Tumor")
+  strom <- filter(df, classifier_label == "Stroma")
+  #return(tum)
+  
+  mpif26_cells <- df %>% filter(panel == "MPIF26") %>% pull(cell_type) %>%
+    unique()
+  
+  mpif27_cells <- df %>% filter(panel == "MPIF27") %>% pull(cell_type) %>%
+    unique()
+  
+  #Density for stroma and tumor separately, skipping panels if the cell type is absent
+  if(cell_type %in% mpif26_cells & cell_type %in% mpif27_cells){
+    #print("Both panels")
+    
+    tum <- bind_rows(
+      stat_density(tum, panel = "MPIF26", cell_type = cell_type),
+      stat_density(tum, panel = "MPIF27", cell_type = cell_type)
+    ) %>% mutate(classifier_label = "Tumor")
+    
+    strom <- bind_rows(
+      stat_density(strom, panel = "MPIF26", cell_type = cell_type),
+      stat_density(strom, panel = "MPIF27", cell_type = cell_type)
+    ) %>% mutate(classifier_label = "Stroma")
+    
+    res <- bind_rows(tum,strom)
+    
+  } else if (cell_type %in% mpif26_cells) {
+    
+    tum <- stat_density(tum, panel = "MPIF26", cell_type = cell_type) %>%
+      mutate(classifier_label = "Tumor")
+    
+    strom <- stat_density(strom, panel = "MPIF26", cell_type = cell_type) %>%
+                  mutate(classifier_label = "Stroma")
+    
+    res <-  bind_rows(tum, strom)
+      
+  } else if (cell_type %in% mpif27_cells){
+    
+    tum <- stat_density(tum, panel = "MPIF27", cell_type = cell_type) %>%
+      mutate(classifier_label = "Tumor")
+    
+    strom <- stat_density(strom, panel = "MPIF27", cell_type = cell_type) %>%
+                  mutate(classifier_label = "Stroma")
+    
+    res <- bind_rows(tum, strom)
+      
+  } else {
+    stop("Provide a valid cell type")
+  }
+  res %>%
+    relocate(classifier_label, .after = panel)
+  
+}
+
+
+density_by_ppbc <- lapply(unique(dens$cell_type), function(x){
+  combi_dens(df = dens, cell_type = x)
+  }) %>%
+  bind_rows() %>%
+  group_by(panel, classifier_label) %>%
+  mutate(kruskal_bh = p.adjust(kruskal_p), .after = kruskal_p)
+
+density_by_ppbc %>%
+  arrange(kruskal_bh)
+```
+
+### Sig results
+
+Show significant comparisons based on multiple testing correction. Only look further for significance if the Kruskal-Wallis test is significant.
+
+```{r}
+#bhs <- colnames(density_by_ppbc)[str_detect(colnames(density_by_ppbc), "_bh")]
+
+density_by_ppbc %>%
+  select(-kruskal_p) %>%
+  filter(kruskal_bh < 0.05) %>%
+  pivot_longer(cols = kruskal_bh:inv_vs_lac_bh, names_to = "comparison",
+               values_to = "padjust") %>%
+  filter(padjust < 0.05) %>%
+  pivot_wider(names_from = classifier_label, values_from = padjust)
+
+```
+
+## Beehive plots
+
+The p values in these plots do not include multiple testing correction. Kruskal-Wallis for all PPBC groups alongside pairwise Wilcoxon tests are shown. The y axis is square-root-transformed.
+
+```{r}
+plot_density <- function(df = dens,
+                       panel = c("MPIF26", "MPIF27"),
+                       cell_type, colorby, debug=F){
+  
+  stopifnot(cell_type %in% unique(df$cell_type))
+  
+  df <- filter(df, panel == {{panel}})
+  df <- df %>% filter(cell_type == {{cell_type}})
+  df <- df %>% mutate(
+    death = factor(death, levels = c(0,1)),
+    distant_recurrence = factor(distant_recurrence, levels = c(0,1))
+    )
+  
+  #DRS missing for 3 samples
+  df <- df %>%
+    filter(!is.na(.data[[colorby]]))
+  
+  if(debug){return(df)}
+  
+  comps <- list(
+    c("inv", "nonprbc")#,
+    #Not really enough samples for these
+    #c("inv", "prbc"),
+    #c("inv", "lac")
+  )
+  
+  df %>%
+    ggplot(aes(x = group, y = density)) +
+    geom_boxplot(alpha = 0) +
+    geom_jitter(aes(color = get(colorby)), height = 0 ) +
+    facet_wrap(~classifier_label) +
+    labs(color = colorby, y = paste({{cell_type}}, "density")) +
+    stat_compare_means() +#KW test all samples
+    stat_compare_means(comparisons = comps) +#pairwise
+    ggtitle(paste({{panel}}, {{cell_type}}))
+  }
+
+#Testing
+#plot_density(panel = "MPIF26", cell_type = "FoxP3+", colorby = "clin_subtype")
+```
+
+### Overall survival
+
+Color param:
+
+```{r}
+cb <- "death"
+```
+
+#### MPIF26
+
+```{r}
+cells_26 <- unique(filter(dens, panel == "MPIF26")$cell_type)
+cells_26 <- cells_26[!cells_26 %in% c("PanCK+", "Other")]
+
+lapply(cells_26,
+       function(x) {
+         plot_density(panel = "MPIF26", cell_type = x, colorby = cb) +
+           scale_y_sqrt() +
+           scale_color_viridis_d()
+       })
+```
+
+#### MPIF27
+
+```{r}
+cells_27 <- unique(filter(dens, panel == "MPIF27")$cell_type)
+cells_27 <- cells_27[!cells_27 %in% c("PanCK+", "Other")]
+
+lapply(cells_27,
+       function(x) {
+         plot_density(panel = "MPIF27", cell_type = x, colorby = cb) +
+           scale_y_sqrt() +scale_color_viridis_d()
+       })
+```
+
+### Distant recurrence
+
+Color param:
+
+```{r}
+cb <- "distant_recurrence"
+```
+
+#### MPIF26
+
+```{r}
+lapply(cells_26,
+       function(x) {
+         plot_density(panel = "MPIF26", cell_type = x, colorby = cb) +
+           scale_y_sqrt() +
+           scale_color_viridis_d()
+       })
+```
+
+#### MPIF27
+
+```{r}
+lapply(cells_27,
+       function(x) {
+         plot_density(panel = "MPIF27", cell_type = x, colorby = cb) +
+           scale_y_sqrt() + scale_color_viridis_d()
+       })
+```
+
+### Clinical subtype
+
+Color param:
+
+```{r}
+cb <- "clin_subtype"
+```
+
+#### MPIF26
+
+```{r}
+lapply(cells_26,
+       function(x) {
+         plot_density(panel = "MPIF26", cell_type = x, colorby = cb) +
+           scale_y_sqrt() +
+           scale_color_viridis_d()
+       })
+```
+
+#### MPIF27
+
+```{r}
+lapply(cells_27,
+       function(x) {
+         plot_density(panel = "MPIF27", cell_type = x, colorby = cb) +
+           scale_y_sqrt() + scale_color_viridis_d()
+       })
+```
+
+```{r}
+sessionInfo()
+```
+
