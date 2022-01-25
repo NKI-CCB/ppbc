@@ -1,5 +1,4 @@
 ---
-title: "PPBC density"
 author: "Kat Moore"
 date: "`r Sys.Date()`"
 output: 
@@ -9,11 +8,19 @@ output:
     toc_depth: 4
     df_print: paged
     highlight: kate
+params:
+  outcome:
+    label: "Survival outcome type"
+    value: "OS"
+    input: "select"
+    choice: ["OS", "DRS"]
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+```
 
+```{r, libraries}
 library(tidyverse)
 library(here)
 library(ggpubr)
@@ -23,6 +30,17 @@ library(broom) #for converting coxph to tibble
 
 theme_set(theme_bw())
 ```
+
+This notebook reports on the relationship between cell densities and the following clinical outcome:
+
+```{r}
+outcome <- params$outcome
+print(outcome)
+```
+
+---
+title: "PPBC density"
+---
 
 ## Load data
 
@@ -482,7 +500,7 @@ cox_density <- function(df, panel, cell_type, f, testing = F){
 
 #Use the intercept as the reduced formula for univarate analysis
 cox_density(cox_dens, "MPIF27", "CD3-CD8+",
-            f = "Surv(time = FU_time_months, event = death) ~ 1")
+            f = "Surv(time = time_OS_months, event = death) ~ 1")
 ```
 
 #### Results
@@ -522,12 +540,12 @@ relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
 
 univ_cox <- lapply(relevant_cells, function(x){
   all_cox_density(cox_dens, x,
-                  f = "Surv(time = FU_time_months, event = death) ~ 1")
+                  f = "Surv(time = time_OS_months, event = death) ~ 1")
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = FU_time_months, event = death) ~ 1 + Density")
+  mutate(formula = "Surv(time = time_OS_months, event = death) ~ 1 + Density")
 
 univ_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -568,11 +586,11 @@ Stratify PPBC to allow separate baseline hazards functions for each PPBC subgrou
 #it's a comparison between the full and reduced model
 #However, covariate estimates should be different
 cox_density(cox_dens, "MPIF27", "CD3-CD8+",
-            f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage",
+            f = "Surv(time = time_OS_months, event = death) ~ strata(group) + stage",
             testing=T)
 
 cox_density(cox_dens, "MPIF27", "CD3-CD8+",
-            f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage")
+            f = "Surv(time = time_OS_months, event = death) ~ strata(group) + stage")
 
 ```
 
@@ -584,12 +602,12 @@ relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
 
 mult_cox <- lapply(relevant_cells, function(x){
   all_cox_density(cox_dens, x,
-                  f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage")
+                  f = "Surv(time = time_OS_months, event = death) ~ strata(group) + stage")
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + density")
+  mutate(formula = "Surv(time = time_OS_months, event = death) ~ strata(group) + stage + density")
 
 mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -635,7 +653,7 @@ km_plot <- function(df, panel, cell_type, f, outcome){
       facet.by = "study_group",
       xlab = "Months", 
       ylab = paste(outcome, "probability"),
-      title = paste("Unadjusted curve for", cell_type, "tumor density in", panel),
+      title = paste("Kaplan-meier for", cell_type, "tumor density in", panel),
       pval = T #Logrank method
     ),  
     stroma = survminer::ggsurvplot(
@@ -643,7 +661,7 @@ km_plot <- function(df, panel, cell_type, f, outcome){
       facet.by = "study_group",
       xlab = "Months", 
       ylab = paste(outcome, "probability"),
-      title = paste("Unadjusted curve for", cell_type, "stroma density in", panel),
+      title = paste("Kaplan-meier for", cell_type, "stroma density in", panel),
       pval = T #Logrank method
     )
     )
@@ -651,7 +669,7 @@ km_plot <- function(df, panel, cell_type, f, outcome){
 
 #testing
  km_plot(cox_dens, panel = "MPIF26", cell_type = "CD20+", outcome = "Survival",
-         f = "Surv(time = FU_time_months, event = death) ~ ntile")
+         f = "Surv(time = time_OS_months, event = death) ~ ntile")
 ```
 
 MPIF26
@@ -662,7 +680,7 @@ cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
 
 lapply(cells_to_plot, function(x){
   km_plot(cox_dens, panel = "MPIF26", cell_type = x, outcome = "Survival",
-        f = "Surv(time = FU_time_months, event = death) ~ ntile")
+        f = "Surv(time = time_OS_months, event = death) ~ ntile")
 }) %>% set_names(cells_to_plot)
 ```
 
@@ -674,124 +692,10 @@ cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
 
 lapply(cells_to_plot, function(x){
   km_plot(cox_dens, panel = "MPIF27", cell_type = x, outcome = "Survival",
-        f = "Surv(time = FU_time_months, event = death) ~ ntile")
+        f = "Surv(time = time_OS_months, event = death) ~ ntile")
 }) %>% set_names(cells_to_plot)
 ```
 
-### Adjusted Kaplan-Meier plots
-
-See survminer documentation for details of `surv_adjustedcurves`. Two balancing options are available.
-
->For method = "marginal" a survival curve is plotted for each level of a grouping variable selected by variable argument. If this argument is not specified, then it will be extracted from the strata component of fit object. Subpopulations are balanced with respect to variables in the fit formula to keep distributions similar to these in the reference population. If no reference population is specified, then the whole data is used as a reference population instead. The balancing is performed in a following way: (1) for each subpopulation a logistic regression model is created to model the odds of being in the subpopulation against the reference population given the other variables listed in a fit object, (2) reverse probabilities of belonging to a specified subpopulation are used as weights in the Cox model, (3) the Cox model is refitted with weights taken into account, (4) expected survival curves are calculated for each subpopulation based on a refitted weighted model.
-
->For method = "conditional" a separate survival curve is plotted for each level of a grouping variable selected by variable argument. If this argument is not specified, then it will be extracted from the strata component of fit object. Subpopulations are balanced in a following way: (1) the data is replicated as many times as many subpopulations are considered (say k), (2) for each row in original data a set of k copies are created and for every copy a different value of a grouping variable is assigned, this will create a new dataset balanced in terms of grouping variables, (3) expected survival is calculated for each subpopulation based on the new artificial dataset. Here the model fit is not refitted.
-
-Graphs from the two methods are generally very similar. The marginal method sometimes throws errors due to the regression involved: therefore, we stick to conditional.
-
-Although useful for data exploration, these plots should not be used to draw conclusions that cannot also be drawn from the unadjusted curves. The groups are already reasonably well balanced from the start and should not indicate radically different conclusions.
-
-```{r}
-
-adj_km_plot <- function(df, f, region, cell_type, panel, outcome, km_coef, met){
-  
-  coxfit <- survival::coxph(
-      as.formula(f),
-      data = as.data.frame(df))
-  #return(list(coxfit,df))
-  
-  #Extract p value for the relevant coefficient
-  #Ideally would be LRT instead, but since this is explorative, we can be lax
-  fit_ntile <- as.data.frame(summary(coxfit)$coefficients)
-  #return(fit_ntile)
-  p_ntile <- signif(fit_ntile[rownames(fit_ntile) == km_coef, ]$`Pr(>|z|)`, 2)
-  #return(p_ntile)
-  
-  #Calculate adjusted curve
-  survminer::surv_adjustedcurves(
-    fit = coxfit,
-    variable = km_coef, data = as.data.frame(df), method = met) %>%
-    #Plot
-    ggplot(., aes(x = time, y = surv, color = variable)) + 
-    geom_step(size = 1) +
-    scale_y_continuous(limits = c(0,1)) +
-  ylab(label = paste(outcome, "probability")) +
-  labs(color = paste(region, "density\nquantile")) +
-  xlab("Months") +
-  ggtitle(paste("Adjusted curve for", cell_type, tolower(region), "density in", panel)) +
-  annotate(geom = "text", label = paste0("pval ",km_coef, ": ", p_ntile), x= 25, y =0.1)
-}
-
-
-#Utilty function for splitting the data
-density_km <- function(df, panel, cell_type, f, outcome, km_coef, met){
-  
-  df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}})
-  #Separate tumor and stroma densities to prevent unintentional sample duplication
-  tum_df <- cox_reshape(df)$tumor
-  str_df <- cox_reshape(df)$stroma
-  
-  #Add density ntiles
-  tum_df <- tum_df %>%
-    mutate(ntile = dplyr::ntile(Tumor_density, 3), .after=Tumor_density)
-  #return(tum_df)
-  str_df <- str_df %>%
-    mutate(ntile = dplyr::ntile(Stroma_density, 3), .after=Stroma_density)
-  #return(tumor = adj_km_plot(tum_df, f, region = "Tumor", cell_type, panel, outcome, km_coef))
-  reslist <- list(
-    tumor = adj_km_plot(tum_df, f, region = "Tumor", cell_type, panel,
-                        outcome, km_coef, met),
-    stroma = adj_km_plot(str_df, f, region = "Stroma", cell_type, panel,
-                         outcome, km_coef, met)
-  )
-  
-  reslist
- 
-}
-
-density_km(df = cox_dens, panel = "MPIF26", cell_type = "CD20+",
-           f = "Surv(time = FU_time_months, event = death) ~ group",
-           outcome = "Survival", km_coef = "ntile", met = "marginal")
-
-```
-
-MPIF26, conditional
-
-```{r}
-cells_to_plot <- unique(filter(cox_dens, panel == "MPIF26")$cell_type)
-cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
-
-#Compare methods
-lapply(cells_to_plot,
-       function(x) density_km(df = cox_dens, panel = "MPIF26",
-                              f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + ntile",
-                              cell_type = x, outcome = "Survival",
-                              km_coef = "ntile", met = "conditional")) %>%
-  set_names(paste(cells_to_plot, "conditional", sep = "_"))
-```
-
-```{r, include=F, eval=F}
-#MPIF26 marginal, not run
-lapply(cells_to_plot,
-       function(x) density_km(df = cox_dens, panel = "MPIF26",
-                              f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + ntile",
-                              cell_type = x, outcome = "Survival",
-                              km_coef = "ntile", met = "marginal")) %>%
-  set_names(paste(cells_to_plot, "marginal", sep = "_"))
-```
-
-
-MPIF27
-
-```{r}
-cells_to_plot <- unique(filter(cox_dens, panel == "MPIF27")$cell_type)
-cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
-
-lapply(cells_to_plot,
-       function(x) density_km(df = cox_dens, panel = "MPIF27",
-                              f = "Surv(time = FU_time_months, event = death) ~ strata(group) + stage + ntile",
-                              cell_type = x, outcome = "Survival",
-                              km_coef="ntile", met = "conditional"))
-```
 
 ## OS grouped subsets
 
@@ -837,12 +741,12 @@ relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
 
 inv_univ_cox <- lapply(relevant_cells, function(x){
   all_cox_density(inv_dens, x,
-                  f = "Surv(time = FU_time_months, event = death) ~ 1")
+                  f = "Surv(time = time_OS_months, event = death) ~ 1")
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = FU_time_months, event = death) ~ 1 + Density")
+  mutate(formula = "Surv(time = time_OS_months, event = death) ~ 1 + Density")
 
 inv_univ_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -868,7 +772,7 @@ cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
 
 lapply(cells_to_plot, function(x){
   km_plot(inv_dens, panel = "MPIF26", cell_type = x, outcome = "Survival",
-        f = "Surv(time = FU_time_months, event = death) ~ ntile")
+        f = "Surv(time = time_OS_months, event = death) ~ ntile")
 }) %>% set_names(cells_to_plot)
 ```
 
@@ -880,7 +784,7 @@ cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
 
 lapply(cells_to_plot, function(x){
   km_plot(inv_dens, panel = "MPIF27", cell_type = x, outcome = "Survival",
-        f = "Surv(time = FU_time_months, event = death) ~ ntile")
+        f = "Surv(time = time_OS_months, event = death) ~ ntile")
 }) %>% set_names(cells_to_plot)
 ```
 
@@ -892,12 +796,12 @@ relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
 
 np_univ_cox <- lapply(relevant_cells, function(x){
   all_cox_density(np_dens, x,
-                  f = "Surv(time = FU_time_months, event = death) ~ 1")
+                  f = "Surv(time = time_OS_months, event = death) ~ 1")
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = FU_time_months, event = death) ~ 1 + Density")
+  mutate(formula = "Surv(time = time_OS_months, event = death) ~ 1 + Density")
 
 np_univ_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -923,7 +827,7 @@ cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
 
 lapply(cells_to_plot, function(x){
   km_plot(np_dens, panel = "MPIF26", cell_type = x, outcome = "Survival",
-        f = "Surv(time = FU_time_months, event = death) ~ ntile")
+        f = "Surv(time = time_OS_months, event = death) ~ ntile")
 }) %>% set_names(cells_to_plot)
 ```
 
@@ -935,7 +839,7 @@ cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
 
 lapply(cells_to_plot, function(x){
   km_plot(np_dens, panel = "MPIF27", cell_type = x, outcome = "Survival",
-        f = "Surv(time = FU_time_months, event = death) ~ ntile")
+        f = "Surv(time = time_OS_months, event = death) ~ ntile")
 }) %>% set_names(cells_to_plot)
 ```
 
@@ -948,12 +852,12 @@ Given the lack of insight from the adjusted multivariate curves, Kaplan-Meiers a
 ```{r}
 inv_mult_cox <- lapply(relevant_cells, function(x){
   all_cox_density(inv_dens, x,
-                  f = "Surv(time = FU_time_months, event = death) ~  stage")
+                  f = "Surv(time = time_OS_months, event = death) ~  stage")
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = FU_time_months, event = death) ~  stage + density")
+  mutate(formula = "Surv(time = time_OS_months, event = death) ~  stage + density")
 
 inv_mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -976,12 +880,12 @@ inv_mult_cox %>%
 ```{r}
 np_mult_cox <- lapply(relevant_cells, function(x){
   all_cox_density(np_dens, x,
-                  f = "Surv(time = FU_time_months, event = death) ~ stage")
+                  f = "Surv(time = time_OS_months, event = death) ~ stage")
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = FU_time_months, event = death) ~ stage + density")
+  mutate(formula = "Surv(time = time_OS_months, event = death) ~ stage + density")
 
 np_mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -1057,10 +961,10 @@ cox_interaction <- function(df, panel, cell_type, baseform, testing=F){
 }
 #testing
 cox_interaction(cox_dens, "MPIF26", "CD20+",
-                baseform = "Surv(time = FU_time_months, event = death) ~ stage",
+                baseform = "Surv(time = time_OS_months, event = death) ~ stage",
                 testing = T)
 cox_interaction(cox_dens, "MPIF26", "CD20+",
-                baseform = "Surv(time = FU_time_months, event = death) ~ stage")
+                baseform = "Surv(time = time_OS_months, event = death) ~ stage")
 ```
 
 ### Results by significance
@@ -1102,13 +1006,13 @@ relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
 
 interaction_df <- lapply(relevant_cells, function(x){
   all_cox_interaction(cox_dens, x, 
-                      baseform = "Surv(time = FU_time_months, event = death) ~ stage")
+                      baseform = "Surv(time = time_OS_months, event = death) ~ stage")
 }) %>%
  bind_rows() %>%
   #Only show the involution-related interaction terms
   filter(str_detect(term, "inv")) %>%
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = FU_time_months, event = death) ~ stage + group:density")
+  mutate(formula = "Surv(time = time_OS_months, event = death) ~ stage + group:density")
 
 interaction_df %>%
   arrange(lrt.fdr, lrt.pval)
