@@ -272,13 +272,14 @@ rule kruskal_density:
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
-rule ppbc_density:
+#Cox regressions for cell densities, OS and DRS
+rule cox_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
-    meta="data/metadata/PPBC_metadata.xlsx",
-    rmd="reports/spatial/06_ppbc_density.Rmd",
-    script="src/rmarkdown.R"
+    rmd="reports/spatial/06_cox_density.Rmd"
   output:
-    html="reports/spatial/06_ppbc_density.html"
+    html="reports/spatial/06_cox_density_{outcome}.html"
   shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+    "Rscript -e \"rmarkdown::render('{input.rmd}'," 
+    "params=list(outcome='{wildcards.outcome}'),"
+    "output_file = here::here('{output.html}'))\""

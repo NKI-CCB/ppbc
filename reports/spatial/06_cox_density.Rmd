@@ -11,7 +11,7 @@ output:
 params:
   outcome:
     label: "Survival outcome type"
-    value: "OS"
+    value: "DRS"
     input: "select"
     choice: ["OS", "DRS"]
 ---
@@ -26,7 +26,7 @@ library(here)
 library(ggpubr)
 library(survival)
 library(survminer)
-library(broom) #for converting coxph to tibble
+library(broom)
 
 theme_set(theme_bw())
 ```
@@ -40,7 +40,7 @@ print(ptitle)
 ```
 
 ---
-title: `r paste("PPBC density:", ptitle)`
+title: `r paste("Cox regression with cell density:", ptitle)`
 ---
 
 ## Load data
@@ -64,9 +64,9 @@ bind_cols (
 )
 ```
 
-## Samples per group
+## Number of samples by group
 
-Number of samples per study group:
+Per panel:
 
 ```{r}
 dens %>%
@@ -77,10 +77,7 @@ dens %>%
   pivot_wider(names_from = panel, values_from = n)
 ```
 
-
-## Cox regression input
-
-Samples per PPBC study group.
+Per stage:
 
 ```{r}
 dens %>%
@@ -90,6 +87,9 @@ dens %>%
   count() %>%
   pivot_wider(names_from = stage, values_from = n)
 ```
+
+
+## Cox regression input
 
 Not enough samples to include prbc and lac, or stage IV samples.
 
@@ -108,13 +108,51 @@ cox_dens %>%
   pivot_wider(names_from = stage, values_from = n)
 ```
 
-## OS density
+## Clinical outcomes
 
-Overall impact of density independent of study group.
+Detect the appropriate time and clinical outcomes for Cox regressions.
+
+```{r}
+if(outcome == "OS"){
+  timevar <- "time_OS_months"
+  eventvar <- "death"
+} else if (outcome == "DRS"){
+  timevar <- "time_DRS_months"
+  eventvar <- "distant_recurrence"
+}
+
+if(!timevar %in% colnames(cox_dens)){
+  stop(paste("Time variable", timevar,"not found in input data"))
+} else if (!eventvar %in% colnames(cox_dens)){
+  stop(paste("Event variable", eventvar,"not found in input data"))
+}
+
+print(paste0(ptitle, " (", outcome, ")"))
+print(paste("Time variable:", timevar))
+print(paste("Event variable:", eventvar))
+```
+
+Set up the left side of the Cox formula.
+
+```{r}
+survres <- paste0("Surv(time = ", timevar,", event = ", eventvar, ")")
+survres
+```
+
+## Impact of density on all groups
+
+Overall impact of density independent on involution and nulliparous groups combined.
 
 Fit separate models for each cell_type/tumor vs stroma/panel. P value is calculated by a likelihood ratio test (LRT) that compares the fit of the Cox model with the fit of a reduced model that does not contain the covariate of interest. Hazard ratios and confidence intervals are obtained from the covariate of interest in the full model.
 
 ### Univariate
+
+Use the intercept as the reduced formula for univarate analysis
+
+```{r}
+univ_form <- paste0(survres, " ~ 1")
+univ_form
+```
 
 ```{r}
 #Reshapes density data frame prior to running Cox models and separates tumor from stroma
@@ -156,6 +194,7 @@ tidy_cox <- function(reduced_fit, full_fit, cell_type, panel){
            coef.pval = p.value)
 }
 
+#wrapper function
 cox_density <- function(df, panel, cell_type, f, testing = F){
   
   #Subset by panel and celltype
@@ -201,14 +240,15 @@ cox_density <- function(df, panel, cell_type, f, testing = F){
   bind_rows(tum, strom)
 }
 
-#Use the intercept as the reduced formula for univarate analysis
+#Test single cell type
 cox_density(cox_dens, "MPIF27", "CD3-CD8+",
-            f = "Surv(time = time_OS_months, event = death) ~ 1")
+            f = univ_form)
 ```
 
 #### Results
 
 ```{r}
+#Wrapper function to select the appropriate cell types per panel
 all_cox_density <- function(df, cell_type, f, testing = F){
   
   df <- df %>% filter(cell_type == {{cell_type}})
@@ -243,12 +283,12 @@ relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
 
 univ_cox <- lapply(relevant_cells, function(x){
   all_cox_density(cox_dens, x,
-                  f = "Surv(time = time_OS_months, event = death) ~ 1")
+                  f = univ_form)
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = time_OS_months, event = death) ~ 1 + Density")
+  mutate(formula = paste0(univ_form, " + Density"))
 
 univ_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -284,7 +324,13 @@ Probably not PAM50, since that will be correlated with immune cell density. Same
 Stratify PPBC to allow separate baseline hazards functions for each PPBC subgroup.
 
 ```{r}
-#Example one cell type
+multiv_form <- paste0(survres," ~ strata(group) + stage")
+multiv_form
+```
+
+Example one cell type:
+
+```{r}
 #The LRT pval is the same for all the covariates because 
 #it's a comparison between the full and reduced model
 #However, covariate estimates should be different
@@ -300,17 +346,14 @@ cox_density(cox_dens, "MPIF27", "CD3-CD8+",
 #### Results 
 
 ```{r}
-relevant_cells <- unique(cox_dens$cell_type)
-relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
-
 mult_cox <- lapply(relevant_cells, function(x){
   all_cox_density(cox_dens, x,
-                  f = "Surv(time = time_OS_months, event = death) ~ strata(group) + stage")
+                  f = multiv_form)
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = time_OS_months, event = death) ~ strata(group) + stage + density")
+  mutate(formula = paste0(multiv_form, " + density"))
 
 mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -322,21 +365,28 @@ Reshape by region, split by panel
 mult_cox %>%
   select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
   arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval,
-                                                 #n_total
-                                                 )) %>%
+  pivot_wider(names_from = term,
+              values_from = c(lrt.fdr, lrt.pval)) %>%
   split(., .$panel)
 ```
 
-### Standard Kaplan-Meier plots
+## Kaplan-Meier: Density by study group
 
 KMs require categorical variables. Convert density into quantiles.
 
 Separate kaplan meiers are shown for tumor and stroma because the two will be correlated. P values are from logrank tests.
 
 ```{r}
-km_plot <- function(df, panel, cell_type, f, outcome){
-  #Region and km_coef are currently unused, but kept for the wrapper function  
+km_plot <- function(df, panel, cell_type, f, outcome, ngroups = 2, pal = "npg"){
+  
+  stopifnot(ngroups %in% c(2,3,4))
+  
+  labels = switch(as.character(ngroups),
+                  "2" = c("low", "high"),
+                  "3" = c("low", "medium", "high"),
+                  "4" = c("Q1", "Q2", "Q3", "Q4")
+  )
+  
   df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}})
   
   #Separate tumor and stroma densities to prevent unintentional sample duplication
@@ -345,10 +395,12 @@ km_plot <- function(df, panel, cell_type, f, outcome){
   
   #Add density ntiles
   tum_df <- tum_df %>%
-    mutate(ntile = dplyr::ntile(Tumor_density, 3), .after=Tumor_density)
+    mutate(ntile = dplyr::ntile(Tumor_density, ngroups), .after=Tumor_density) %>%
+    mutate(quantile = factor(ntile, labels = labels), .after=ntile)
   #return(tum_df)
   str_df <- str_df %>%
-    mutate(ntile = dplyr::ntile(Stroma_density, 3), .after=Stroma_density)
+    mutate(ntile = dplyr::ntile(Stroma_density, ngroups), .after=Stroma_density) %>%
+    mutate(quantile = factor(ntile, labels = labels), .after=ntile)
   
   list(
     tumor = survminer::ggsurvplot(
@@ -356,51 +408,55 @@ km_plot <- function(df, panel, cell_type, f, outcome){
       facet.by = "study_group",
       xlab = "Months", 
       ylab = paste(outcome, "probability"),
-      title = paste("Kaplan-meier for", cell_type, "tumor density in", panel),
-      pval = T #Logrank method
-    ),  
+      title = paste(ptitle, ": ", cell_type, " tumor density in ", panel),
+      pval = T,
+      pval.method = T,
+      palette = pal
+      ),  
     stroma = survminer::ggsurvplot(
       fit = survminer::surv_fit(as.formula(f), data = as.data.frame(str_df)), 
       facet.by = "study_group",
       xlab = "Months", 
       ylab = paste(outcome, "probability"),
-      title = paste("Kaplan-meier for", cell_type, "stroma density in", panel),
-      pval = T #Logrank method
-    )
+      title = paste0(ptitle, ": ", cell_type, " stroma density in ", panel),
+      pval = T,
+      pval.method = T,
+      palette = pal
+      )
     )
 }
 
 #testing
- km_plot(cox_dens, panel = "MPIF26", cell_type = "CD20+", outcome = "Survival",
-         f = "Surv(time = time_OS_months, event = death) ~ ntile")
+ km_plot(cox_dens, panel = "MPIF26", cell_type = "CD20+", outcome,
+         f = paste0(survres, " ~ quantile"))
 ```
 
 MPIF26
 
 ```{r}
-cells_to_plot <- unique(filter(cox_dens, panel == "MPIF26")$cell_type)
-cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
+cells_26 <- unique(filter(cox_dens, panel == "MPIF26")$cell_type)
+cells_26 <- cells_26[!cells_26 %in% c("PanCK+", "Other")]
 
-lapply(cells_to_plot, function(x){
-  km_plot(cox_dens, panel = "MPIF26", cell_type = x, outcome = "Survival",
-        f = "Surv(time = time_OS_months, event = death) ~ ntile")
-}) %>% set_names(cells_to_plot)
+lapply(cells_26, function(x){
+  km_plot(cox_dens, panel = "MPIF26", cell_type = x, outcome,
+        f = paste0(survres, " ~ quantile"))
+}) %>% set_names(cells_26)
 ```
 
 MPIF27
 
 ```{r}
-cells_to_plot <- unique(filter(cox_dens, panel == "MPIF27")$cell_type)
-cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
+cells_27 <- unique(filter(cox_dens, panel == "MPIF27")$cell_type)
+cells_27 <- cells_27[!cells_27 %in% c("PanCK+", "Other")]
 
-lapply(cells_to_plot, function(x){
+lapply(cells_27, function(x){
   km_plot(cox_dens, panel = "MPIF27", cell_type = x, outcome = "Survival",
-        f = "Surv(time = time_OS_months, event = death) ~ ntile")
-}) %>% set_names(cells_to_plot)
+        f =  paste0(survres, " ~ quantile"))
+}) %>% set_names(cells_27)
 ```
 
 
-## OS grouped subsets
+## Impact of density per study group
 
 Check significance in involution samples and nulliparous samples separately.
 
@@ -434,22 +490,25 @@ np_dens %>%
 
 ### Univariate
 
-As above, but split by group.
+As above, but split by group. Formula:
+
+```{r}
+univ_form
+```
 
 #### Involution
 
-```{r}
-relevant_cells <- unique(cox_dens$cell_type)
-relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
+All cell density results by region and panel, arranged by FDR and P value.
 
+```{r}
 inv_univ_cox <- lapply(relevant_cells, function(x){
   all_cox_density(inv_dens, x,
-                  f = "Surv(time = time_OS_months, event = death) ~ 1")
+                  f = univ_form)
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = time_OS_months, event = death) ~ 1 + Density")
+  mutate(formula = paste0(univ_form, " + Density"))
 
 inv_univ_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -461,50 +520,44 @@ Reshape by region, split by panel
 inv_univ_cox %>%
   select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
   arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval,
-                                                 #n_total
-                                                 )) %>%
+  pivot_wider(names_from = term,
+              values_from = c(lrt.fdr, lrt.pval)) %>%
   split(., .$panel)
 ```
+
+##### Kaplan-Meier
 
 MPIF26
 
 ```{r}
-cells_to_plot <- unique(filter(cox_dens, panel == "MPIF26")$cell_type)
-cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
-
-lapply(cells_to_plot, function(x){
+lapply(cells_26, function(x){
   km_plot(inv_dens, panel = "MPIF26", cell_type = x, outcome = "Survival",
-        f = "Surv(time = time_OS_months, event = death) ~ ntile")
-}) %>% set_names(cells_to_plot)
+        f = paste0(survres, " ~ quantile"))
+}) %>% set_names(cells_26)
 ```
 
 MPIF27
 
 ```{r}
-cells_to_plot <- unique(filter(cox_dens, panel == "MPIF27")$cell_type)
-cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
-
-lapply(cells_to_plot, function(x){
+lapply(cells_27, function(x){
   km_plot(inv_dens, panel = "MPIF27", cell_type = x, outcome = "Survival",
-        f = "Surv(time = time_OS_months, event = death) ~ ntile")
-}) %>% set_names(cells_to_plot)
+        f = paste0(survres, " ~ quantile"))
+}) %>% set_names(cells_27)
 ```
 
 #### Nulliparous
 
-```{r}
-relevant_cells <- unique(cox_dens$cell_type)
-relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
+All cell density results by region and panel, arranged by FDR and P value.
 
+```{r}
 np_univ_cox <- lapply(relevant_cells, function(x){
   all_cox_density(np_dens, x,
-                  f = "Surv(time = time_OS_months, event = death) ~ 1")
+                  f = univ_form)
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = time_OS_months, event = death) ~ 1 + Density")
+  mutate(formula = paste0(" + Density"))
 
 np_univ_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -516,51 +569,54 @@ Reshape by region, split by panel
 np_univ_cox %>%
   select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
   arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval,
-                                                 #n_total
-                                                 )) %>%
+  pivot_wider(names_from = term,
+              values_from = c(lrt.fdr, lrt.pval)) %>%
   split(., .$panel)
 ```
+
+##### Kaplan-Meier
 
 MPIF26
 
 ```{r}
-cells_to_plot <- unique(filter(cox_dens, panel == "MPIF26")$cell_type)
-cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
-
-lapply(cells_to_plot, function(x){
+lapply(cells_26, function(x){
   km_plot(np_dens, panel = "MPIF26", cell_type = x, outcome = "Survival",
         f = "Surv(time = time_OS_months, event = death) ~ ntile")
-}) %>% set_names(cells_to_plot)
+}) %>% set_names(cells_26)
 ```
 
 MPIF27
 
 ```{r}
-cells_to_plot <- unique(filter(cox_dens, panel == "MPIF27")$cell_type)
-cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("PanCK+", "Other")]
-
-lapply(cells_to_plot, function(x){
+lapply(cells_27, function(x){
   km_plot(np_dens, panel = "MPIF27", cell_type = x, outcome = "Survival",
         f = "Surv(time = time_OS_months, event = death) ~ ntile")
-}) %>% set_names(cells_to_plot)
+}) %>% set_names(cells_27)
 ```
 
 ### Multivariate
 
-Given the lack of insight from the adjusted multivariate curves, Kaplan-Meiers are omitted from this analysis.
+Given that we are analysing PPBC groups separately, we can omit `strata_group` from this formula.
+
+```{r}
+multiv_subform <- paste0(survres, " ~ stage")
+multiv_subform
+```
+
 
 #### Involution
+
+All cell density results by region and panel, arranged by FDR and P value.
 
 ```{r}
 inv_mult_cox <- lapply(relevant_cells, function(x){
   all_cox_density(inv_dens, x,
-                  f = "Surv(time = time_OS_months, event = death) ~  stage")
+                  f = multiv_subform)
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = time_OS_months, event = death) ~  stage + density")
+  mutate(formula = paste0(multiv_subform, " + density"))
 
 inv_mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -572,23 +628,24 @@ Reshape by region, split by panel
 inv_mult_cox %>%
   select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
   arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval,
-                                                 #n_total
-                                                 )) %>%
+  pivot_wider(names_from = term,
+              values_from = c(lrt.fdr, lrt.pval)) %>%
   split(., .$panel)
 ```
 
 #### Nulliparous
 
+All cell density results by region and panel, arranged by FDR and P value.
+
 ```{r}
 np_mult_cox <- lapply(relevant_cells, function(x){
   all_cox_density(np_dens, x,
-                  f = "Surv(time = time_OS_months, event = death) ~ stage")
+                  f = multiv_subform)
 }) %>%
   bind_rows() %>%
   # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = time_OS_months, event = death) ~ stage + density")
+  mutate(formula = paste0(multiv_subform, " + density"))
 
 np_mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
@@ -598,23 +655,37 @@ np_mult_cox %>%
 np_mult_cox %>%
   select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
   arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval,
-                                                 #n_total
-                                                 )) %>%
+  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval)) %>%
   split(., .$panel)
 ```
 
-
 ## OS interaction involution
 
-Interaction term between group and cell density. We don't expect much to be significant here due to lack of samples (TODO check with power analysis).
+Interaction term between group and cell density. Maybe be statistically underpowered due to lack of more samples.
 
 ```{r}
-#Ensure we have the two levels we expect
-levels(cox_dens$group)
+cox_dens %>%
+  select(t_number, study_group, group) %>%
+  distinct() %>%
+  group_by(group) %>%
+  count()
 ```
 
-The formula below works very similarly to `cox_density()`, except that a formula with an interaction term is automatically generated.
+The function below works very similarly to `cox_density()`, except that a formula with an interaction term is automatically generated.
+
+The reduced formula will be:
+
+```{r}
+multiv_subform
+```
+
+The interaction term formula is:
+
+```{r}
+paste0(multiv_subform, " + group:density")
+```
+
+`Group` is a binary factor that refers to whether a sample is involuting or nulliparous, and `density` refers to the regional density of a given cell type.
 
 ```{r}
 cox_interaction <- function(df, panel, cell_type, baseform, testing=F){
@@ -663,12 +734,10 @@ cox_interaction <- function(df, panel, cell_type, baseform, testing=F){
     mutate(term = str_remove(term, "group"))
 }
 #testing
-cox_interaction(cox_dens, "MPIF26", "CD20+",
-                baseform = "Surv(time = time_OS_months, event = death) ~ stage",
-                testing = T)
-cox_interaction(cox_dens, "MPIF26", "CD20+",
-                baseform = "Surv(time = time_OS_months, event = death) ~ stage")
+cox_interaction(cox_dens, "MPIF26", "CD20+", baseform = multiv_subform, testing = T)
+cox_interaction(cox_dens, "MPIF26", "CD20+", baseform = multiv_subform)
 ```
+
 
 ### Results by significance
 
@@ -708,29 +777,34 @@ relevant_cells <- unique(cox_dens$cell_type)
 relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
 
 interaction_df <- lapply(relevant_cells, function(x){
-  all_cox_interaction(cox_dens, x, 
-                      baseform = "Surv(time = time_OS_months, event = death) ~ stage")
+  all_cox_interaction(cox_dens, x, baseform = multiv_subform)
 }) %>%
  bind_rows() %>%
   #Only show the involution-related interaction terms
   filter(str_detect(term, "inv")) %>%
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = "Surv(time = time_OS_months, event = death) ~ stage + group:density")
+  mutate(formula = paste0(multiv_subform, " + group:density"))
 
+```
+
+
+All cell density results by region and panel, arranged by FDR and P value.
+
+```{r}
 interaction_df %>%
   arrange(lrt.fdr, lrt.pval)
 ```
+
+Split by panel:
 
 ```{r}
 interaction_df %>%
   select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
   arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval,
-                                                 #n_total
-                                                 )) %>%
+  pivot_wider(names_from = term,
+              values_from = c(lrt.fdr, lrt.pval)) %>%
   split(., .$panel)
 ```
-
 
 Kaplan-meiers are not relevant for Cox formulas that contain interaction terms.
 
