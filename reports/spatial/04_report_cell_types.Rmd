@@ -1,5 +1,5 @@
 ---
-title: "Define cell types"
+title: "Report cell types"
 author: "Kat Moore"
 date: "`r Sys.Date()`"
 output: 
@@ -40,10 +40,54 @@ CD138 in combination with CD20 is a plasma B marker, but it is also [expressed b
 
 ## Load data
 
-```{r load-data}
-mpif26 <- readRDS(here("data/vectra/processed/objects_MPIF26.Rds"))
-mpif27 <- readRDS(here("data/vectra/processed/objects_MPIF27.Rds"))
+Select panel specific files.
+
+```{r}
+inDir <- "data/vectra/processed/objects/"
+inFiles26 <- list.files(here(inDir), pattern = paste0(".*MPIF26.*.Rds"))
+#inFiles26
+inFiles27 <- list.files(here(inDir), pattern = paste0(".*MPIF27.*.Rds"))
+#inFiles27
 ```
+
+Aggregate cell function
+
+```{r}
+agg_cells <- function(filename){
+  info <- tibble(filename)
+  #handle "T20-62169_I1"  "T20-62169_II1"
+  info <- info %>%
+    mutate(filename = str_replace(filename, "_I", "-I"))
+  #extract sample info from filename
+  info <- info %>%
+    tidyr::separate(col = filename, into = c("t_number", "panel", "batch"),
+                    sep = "_") %>%
+    mutate(batch = str_remove(batch, ".Rds"))
+  
+  bind_cols(info, 
+            #Only the necessary columsn for reporting
+            readRDS(here(file.path(inDir, filename))) %>%
+              select(cell_type, object_id, contains("positive"))
+            )
+}
+```
+
+Load panels separately
+
+```{r, load_26}
+start <- Sys.time()
+mpif26 <- lapply(inFiles26, agg_cells) %>% bind_rows()
+end <- Sys.time()
+print(end - start)
+```
+
+```{r, load_27}
+start <- Sys.time()
+mpif27 <- lapply(inFiles27, agg_cells) %>% bind_rows()
+end <- Sys.time()
+print(end - start)
+```
+
 
 ## Cell definitions
 
@@ -62,7 +106,8 @@ summarise_markers <- function (objects) {
   })
   
   objects %>%
-    relocate(markers, .after=panel)
+    relocate(markers, .after=panel) %>%
+    mutate(marker = ifelse(markers == "", "DAPI_only", markers))
 }
 
 mpif26 <- summarise_markers(mpif26)
@@ -77,12 +122,18 @@ Shared markers: CD20, CD3, PanCK, DAPI
 mpif26 %>% 
   group_by(cell_type, markers) %>%
   count() %>%
-  arrange(cell_type)
+  arrange(desc(n)) %>%
+  split(.$cell_type)
 ```
 
 ```{r}
 mpif27 %>% 
   group_by(cell_type, markers) %>%
   count() %>%
-  arrange(cell_type)
+  arrange(desc(n)) %>%
+  split(.$cell_type)
+```
+
+```{r}
+sessionInfo()
 ```

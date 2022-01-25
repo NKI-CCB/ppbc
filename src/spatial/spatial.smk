@@ -205,8 +205,8 @@ rule call_cell_types:
 #Quantify cell types and the marker combinations they represent
 rule report_cell_types:
   input:
-    #mpif26="data/vectra/processed/objects_MPIF26.Rds",
-    #mpif27="data/vectra/processed/objects_MPIF27.Rds",
+    cells = [f"data/vectra/processed/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}.Rds"
+                    for s in vectra_samples],
     rmd="reports/spatial/04_report_cell_types.Rmd",
     script="src/rmarkdown.R"
   output:
