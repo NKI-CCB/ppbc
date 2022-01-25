@@ -34,7 +34,7 @@ rule all:
     expand("reports/spatial/batch_marker_viz/03_{batch}_marker_coexpression.html", batch = ['batch' + str(i) for i in range (1, 7)]),
     "reports/spatial/03_aggregate_marker_combos.html",
     "reports/spatial/04_report_cell_types.html",
-    #"reports/spatial/05_density.html",
+    "reports/spatial/05_density.html",
     "reports/spatial/06_ppbc_density.html"
 
 

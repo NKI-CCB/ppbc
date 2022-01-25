@@ -226,7 +226,7 @@ rule cell_type_density:
     "mkdir -p results/spatial/density\n"
     "Rscript {input.script} {input.objects} {output}"
 
-
+#combine densities for reporting
 rule aggregrate_densities:
   input:
     tsv=[f"results/spatial/density/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
@@ -239,7 +239,7 @@ rule aggregrate_densities:
 #Histograms, scatterplots and heatmaps of cell types by tumor/stroma and panel
 rule density_report:
   input:
-    "results/spatial/density.tsv",  # TODO: aggregate densities
+    "results/spatial/density.tsv",
     rmd="reports/spatial/05_density.Rmd",
     script="src/rmarkdown.R",
   output:
