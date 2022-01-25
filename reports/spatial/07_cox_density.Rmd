@@ -370,6 +370,170 @@ mult_cox %>%
   split(., .$panel)
 ```
 
+## Impact of density per study group
+
+Check significance in involution samples and nulliparous samples separately.
+
+Involution samples:
+
+```{r}
+inv_dens <- filter(cox_dens, group == "inv")
+inv_dens <- droplevels(inv_dens)
+
+inv_dens %>%
+  select(t_number, stage, study_group, group) %>%
+  distinct() %>%
+  group_by(group, stage) %>%
+  distinct() %>%
+  count()
+```
+
+Nulliparous samples:
+
+```{r}
+np_dens <- filter(cox_dens, group == "nonprbc")
+np_dens <- droplevels(np_dens)
+
+np_dens %>%
+  select(t_number, stage, study_group, group) %>%
+  distinct() %>%
+  group_by(group, stage) %>%
+  distinct() %>%
+  count()
+```
+
+### Univariate
+
+As above, but split by group. Formula:
+
+```{r}
+univ_form
+```
+
+#### Involution
+
+All cell density results by region and panel, arranged by FDR and P value.
+
+```{r}
+inv_univ_cox <- lapply(relevant_cells, function(x){
+  all_cox_density(inv_dens, x,
+                  f = univ_form)
+}) %>%
+  bind_rows() %>%
+  # group_by(panel) %>% #Debatable
+  mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
+  mutate(formula = paste0(univ_form, " + Density"))
+
+inv_univ_cox %>%
+  arrange(lrt.fdr, lrt.pval)
+```
+
+Reshape by region, split by panel
+
+```{r}
+inv_univ_cox %>%
+  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
+  arrange(lrt.fdr, lrt.pval) %>%
+  pivot_wider(names_from = term,
+              values_from = c(lrt.fdr, lrt.pval)) %>%
+  split(., .$panel)
+```
+
+#### Nulliparous
+
+All cell density results by region and panel, arranged by FDR and P value.
+
+```{r}
+np_univ_cox <- lapply(relevant_cells, function(x){
+  all_cox_density(np_dens, x,
+                  f = univ_form)
+}) %>%
+  bind_rows() %>%
+  # group_by(panel) %>% #Debatable
+  mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
+  mutate(formula = paste0(" + Density"))
+
+np_univ_cox %>%
+  arrange(lrt.fdr, lrt.pval)
+```
+
+Reshape by region, split by panel
+
+```{r}
+np_univ_cox %>%
+  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
+  arrange(lrt.fdr, lrt.pval) %>%
+  pivot_wider(names_from = term,
+              values_from = c(lrt.fdr, lrt.pval)) %>%
+  split(., .$panel)
+```
+
+
+### Multivariate
+
+Given that we are analysing PPBC groups separately, we can omit `strata_group` from this formula.
+
+```{r}
+multiv_subform <- paste0(survres, " ~ stage")
+multiv_subform
+```
+
+
+#### Involution
+
+All cell density results by region and panel, arranged by FDR and P value.
+
+```{r}
+inv_mult_cox <- lapply(relevant_cells, function(x){
+  all_cox_density(inv_dens, x,
+                  f = multiv_subform)
+}) %>%
+  bind_rows() %>%
+  # group_by(panel) %>% #Debatable
+  mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
+  mutate(formula = paste0(multiv_subform, " + density"))
+
+inv_mult_cox %>%
+  arrange(lrt.fdr, lrt.pval)
+```
+
+Reshape by region, split by panel
+
+```{r}
+inv_mult_cox %>%
+  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
+  arrange(lrt.fdr, lrt.pval) %>%
+  pivot_wider(names_from = term,
+              values_from = c(lrt.fdr, lrt.pval)) %>%
+  split(., .$panel)
+```
+
+#### Nulliparous
+
+All cell density results by region and panel, arranged by FDR and P value.
+
+```{r}
+np_mult_cox <- lapply(relevant_cells, function(x){
+  all_cox_density(np_dens, x,
+                  f = multiv_subform)
+}) %>%
+  bind_rows() %>%
+  # group_by(panel) %>% #Debatable
+  mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
+  mutate(formula = paste0(multiv_subform, " + density"))
+
+np_mult_cox %>%
+  arrange(lrt.fdr, lrt.pval)
+```
+
+```{r}
+np_mult_cox %>%
+  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
+  arrange(lrt.fdr, lrt.pval) %>%
+  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval)) %>%
+  split(., .$panel)
+```
+
 ## Kaplan-Meier: Density by study group
 
 KMs require categorical variables. Convert density into quantiles.
@@ -455,213 +619,9 @@ lapply(cells_27, function(x){
 }) %>% set_names(cells_27)
 ```
 
+## Density interaction
 
-## Impact of density per study group
-
-Check significance in involution samples and nulliparous samples separately.
-
-Involution samples:
-
-```{r}
-inv_dens <- filter(cox_dens, group == "inv")
-inv_dens <- droplevels(inv_dens)
-
-inv_dens %>%
-  select(t_number, stage, study_group, group) %>%
-  distinct() %>%
-  group_by(group, stage) %>%
-  distinct() %>%
-  count()
-```
-
-Nulliparous samples:
-
-```{r}
-np_dens <- filter(cox_dens, group == "nonprbc")
-np_dens <- droplevels(np_dens)
-
-np_dens %>%
-  select(t_number, stage, study_group, group) %>%
-  distinct() %>%
-  group_by(group, stage) %>%
-  distinct() %>%
-  count()
-```
-
-### Univariate
-
-As above, but split by group. Formula:
-
-```{r}
-univ_form
-```
-
-#### Involution
-
-All cell density results by region and panel, arranged by FDR and P value.
-
-```{r}
-inv_univ_cox <- lapply(relevant_cells, function(x){
-  all_cox_density(inv_dens, x,
-                  f = univ_form)
-}) %>%
-  bind_rows() %>%
-  # group_by(panel) %>% #Debatable
-  mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = paste0(univ_form, " + Density"))
-
-inv_univ_cox %>%
-  arrange(lrt.fdr, lrt.pval)
-```
-
-Reshape by region, split by panel
-
-```{r}
-inv_univ_cox %>%
-  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
-  arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term,
-              values_from = c(lrt.fdr, lrt.pval)) %>%
-  split(., .$panel)
-```
-
-##### Kaplan-Meier
-
-MPIF26
-
-```{r}
-lapply(cells_26, function(x){
-  km_plot(inv_dens, panel = "MPIF26", cell_type = x, outcome = "Survival",
-        f = paste0(survres, " ~ quantile"))
-}) %>% set_names(cells_26)
-```
-
-MPIF27
-
-```{r}
-lapply(cells_27, function(x){
-  km_plot(inv_dens, panel = "MPIF27", cell_type = x, outcome = "Survival",
-        f = paste0(survres, " ~ quantile"))
-}) %>% set_names(cells_27)
-```
-
-#### Nulliparous
-
-All cell density results by region and panel, arranged by FDR and P value.
-
-```{r}
-np_univ_cox <- lapply(relevant_cells, function(x){
-  all_cox_density(np_dens, x,
-                  f = univ_form)
-}) %>%
-  bind_rows() %>%
-  # group_by(panel) %>% #Debatable
-  mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = paste0(" + Density"))
-
-np_univ_cox %>%
-  arrange(lrt.fdr, lrt.pval)
-```
-
-Reshape by region, split by panel
-
-```{r}
-np_univ_cox %>%
-  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
-  arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term,
-              values_from = c(lrt.fdr, lrt.pval)) %>%
-  split(., .$panel)
-```
-
-##### Kaplan-Meier
-
-MPIF26
-
-```{r}
-lapply(cells_26, function(x){
-  km_plot(np_dens, panel = "MPIF26", cell_type = x, outcome = "Survival",
-        f = "Surv(time = time_OS_months, event = death) ~ ntile")
-}) %>% set_names(cells_26)
-```
-
-MPIF27
-
-```{r}
-lapply(cells_27, function(x){
-  km_plot(np_dens, panel = "MPIF27", cell_type = x, outcome = "Survival",
-        f = "Surv(time = time_OS_months, event = death) ~ ntile")
-}) %>% set_names(cells_27)
-```
-
-### Multivariate
-
-Given that we are analysing PPBC groups separately, we can omit `strata_group` from this formula.
-
-```{r}
-multiv_subform <- paste0(survres, " ~ stage")
-multiv_subform
-```
-
-
-#### Involution
-
-All cell density results by region and panel, arranged by FDR and P value.
-
-```{r}
-inv_mult_cox <- lapply(relevant_cells, function(x){
-  all_cox_density(inv_dens, x,
-                  f = multiv_subform)
-}) %>%
-  bind_rows() %>%
-  # group_by(panel) %>% #Debatable
-  mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = paste0(multiv_subform, " + density"))
-
-inv_mult_cox %>%
-  arrange(lrt.fdr, lrt.pval)
-```
-
-Reshape by region, split by panel
-
-```{r}
-inv_mult_cox %>%
-  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
-  arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term,
-              values_from = c(lrt.fdr, lrt.pval)) %>%
-  split(., .$panel)
-```
-
-#### Nulliparous
-
-All cell density results by region and panel, arranged by FDR and P value.
-
-```{r}
-np_mult_cox <- lapply(relevant_cells, function(x){
-  all_cox_density(np_dens, x,
-                  f = multiv_subform)
-}) %>%
-  bind_rows() %>%
-  # group_by(panel) %>% #Debatable
-  mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = paste0(multiv_subform, " + density"))
-
-np_mult_cox %>%
-  arrange(lrt.fdr, lrt.pval)
-```
-
-```{r}
-np_mult_cox %>%
-  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
-  arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval)) %>%
-  split(., .$panel)
-```
-
-## OS interaction involution
-
-Interaction term between group and cell density. Maybe be statistically underpowered due to lack of more samples.
+Interaction term between group and cell density. Aims to answer the question: which cell densities affect outcome *differently* in involuting vs nulliparous patients. Maybe be statistically underpowered due to lack of more samples.
 
 ```{r}
 cox_dens %>%
