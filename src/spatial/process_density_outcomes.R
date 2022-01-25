@@ -1,49 +1,24 @@
----
-title: "Link cell density to outcome"
-author: "Kat Moore"
-date: "`r Sys.Date()`"
-output: 
-  html_document:
-    toc: true
-    toc_float: true
-    toc_depth: 4
-    df_print: paged
-    highlight: kate
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-library(here)
-library(tidyverse)
-```
-
-Prepare cell densities for survival analysis by linking them to PPBC subtypes and clinical outcomes.
+#Prepare cell densities for survival analysis by linking them to PPBC subtypes and clinical outcomes.
 
 ## Load data
 
-```{r}
 density <- read_tsv(here("results/spatial/density.tsv"), show_col_types = F)
 #head(density)
 
 density %>%
   group_by(panel) %>%
   count()
-```
 
-Fix classifier labels
+#Fix classifier labels
 
-```{r}
 #density %>% group_by(classifier_label) %>% count()
 
 density <- density %>%
   mutate(classifier_label = ifelse(classifier_label == "tumor", "Tumor",
                                    classifier_label))
-```
 
 
-The metadata is separated into three sheets.
-
-```{r}
+#The metadata is separated into three sheets.
 read_sheets_to_list <- function(xlsfile){
   readxl::excel_sheets(xlsfile) %>% 
     set_names() %>% 
@@ -51,31 +26,21 @@ read_sheets_to_list <- function(xlsfile){
 }
 
 meta <- read_sheets_to_list(here("data/metadata/PPBC_metadata.xlsx"))
-```
 
-Here the t_number can be mapped to the patient_ID (via sample_ID).
+#Here the t_number can be mapped to the patient_ID (via sample_ID).
+#head(meta$sample_data)
 
-```{r}
-head(meta$sample_data)
-```
+#Survival data can be found here.
+#head(meta$patient_data)
 
-Survival data can be found here.
+#Explanations are in the codebook.
+#head(meta$codebook)
 
-```{r}
-head(meta$patient_data)
-```
-
-Explanations are in the codebook.
-
-```{r}
-head(meta$codebook)
-```
 
 ## Survival outcomes in PPBC
 
-Join t_numbers with survival, link to density.
+# Join t_numbers with survival, link to density.
 
-```{r}
 dens <- meta$sample_data %>%
   filter(experimental_platform != "RNAseq" & !is.na(sample_ID)) %>%
   select(t_number = sample_ID, patient_ID) %>% distinct() %>%
@@ -84,23 +49,18 @@ dens <- meta$sample_data %>%
 
 stopifnot(nrow(filter(dens, is.na(death)))==0)
 
-head(dens)
-```
+#head(dens)
 
-Four possible possible PPBC categories exist : 
+#Four possible possible PPBC categories exist : 
+  
+#* nulliparous breast cancer(non_prbc)
+#* pregnant breast cancer (prbc)
+#* post-partum breast cancer: lactating (ppbc_lac)
+#* post-partum breast cancer: involuting (ppbc_inv)
 
-* nulliparous breast cancer(non_prbc)
-* pregnant breast cancer (prbc)
-* post-partum breast cancer: lactating (ppbc_lac)
-* post-partum breast cancer: involuting (ppbc_inv)
-
-```{r}
 unique(dens$study_group)
-```
 
-Format PPBC and survival categories.
-
-```{r}
+#Format PPBC and survival categories.
 #Grade is sometimes missing
 #dens %>% group_by(study_group, database, grade) %>% count()
 
@@ -115,7 +75,7 @@ dens <- dens %>%
            study_group == "non_prbc" ~ "nonprbc",
            study_group == "ppbc_lac" ~ "lac",
            TRUE ~ study_group) 
-         ) %>%
+  ) %>%
   mutate(group = factor(group, levels = c("nonprbc", "prbc", "lac", "inv"))) %>%
   relocate(group, .after = study_group) %>%
   mutate(stage = factor(stage, levels = c("stage I", "stage II",
@@ -124,16 +84,8 @@ dens <- dens %>%
 dens %>%
   select(study_group, group) %>%
   distinct()
-```
 
 ## Write data
-
-```{r}
 saveRDS(dens, here("data/vectra/processed/density_ppbc.Rds"))
-```
 
-
-```{r}
 sessionInfo()
-```
-

@@ -11,7 +11,7 @@ output:
 params:
   outcome:
     label: "Survival outcome type"
-    value: "DRS"
+    value: "OS"
     input: "select"
     choice: ["OS", "DRS"]
 ---
@@ -20,7 +20,7 @@ params:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, libraries}
+```{r, libraries, echo=F}
 library(tidyverse)
 library(here)
 library(ggpubr)
@@ -40,7 +40,7 @@ print(ptitle)
 ```
 
 ---
-title: `r paste("Cox regression with cell density:", ptitle)`
+title: '`r paste('Cox regression with cell density:', ptitle)`'
 ---
 
 ## Load data

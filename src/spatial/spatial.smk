@@ -252,14 +252,11 @@ rule process_density:
   input:
     densities = "results/spatial/density.tsv",
     meta="data/metadata/PPBC_metadata.xlsx",
-    #Consider rewriting as a plain Rscript
-    rmd="reports/spatial/06_process_density_outcome.Rmd",
-    script="src/rmarkdown.R"
+    script="reports/spatial/06_process_density_outcome.Rmd"
   output:
-    density_outcome = "data/vectra/processed/density_ppbc.Rds",
-    html="reports/spatial/06_process_density_outcome.html"
+    density_outcome = "data/vectra/processed/density_ppbc.Rds"
   shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+    "Rscript {input.script}"
 
 #Kruskal wallis tests and beehive plots for PPBC association with cell density
 rule kruskal_density:
@@ -276,9 +273,9 @@ rule kruskal_density:
 rule cox_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
-    rmd="reports/spatial/06_cox_density.Rmd"
+    rmd="reports/spatial/07_cox_density.Rmd"
   output:
-    html="reports/spatial/06_cox_density_{outcome}.html"
+    html="reports/spatial/07_cox_density_{outcome}.html"
   shell:
     "Rscript -e \"rmarkdown::render('{input.rmd}'," 
     "params=list(outcome='{wildcards.outcome}'),"
