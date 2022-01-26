@@ -6,7 +6,7 @@ rm(list = ls())
 
 #List of genes from which to generate reports
 genes_to_report = read_csv(
-  here("reports", "genes_to_report")
+  here("reports", "genes_to_report.txt")
 )
 
 #Allows naming report with both gene symbol and ensembl_id

@@ -118,6 +118,16 @@ MPIF26 exclusive markers:  CD27, FoxP3
 MPIF27 exclusive markers: CD138, CD8 
 Shared markers: CD20, CD3, PanCK, DAPI
 
+### MPIF26 counts
+
+```{r}
+mpif26 %>% 
+  group_by(cell_type) %>%
+  count() %>%
+  arrange(desc(n))
+```
+
+
 ```{r}
 mpif26 %>% 
   group_by(cell_type, markers) %>%
@@ -126,12 +136,21 @@ mpif26 %>%
   split(.$cell_type)
 ```
 
+### MPIF27 counts
+
 ```{r}
 mpif27 %>% 
   group_by(cell_type, markers) %>%
   count() %>%
   arrange(desc(n)) %>%
   split(.$cell_type)
+```
+
+```{r}
+mpif27 %>% 
+  group_by(cell_type) %>%
+  count() %>%
+  arrange(desc(n))
 ```
 
 ```{r}

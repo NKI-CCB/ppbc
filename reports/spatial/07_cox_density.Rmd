@@ -335,11 +335,11 @@ Example one cell type:
 #it's a comparison between the full and reduced model
 #However, covariate estimates should be different
 cox_density(cox_dens, "MPIF27", "CD3-CD8+",
-            f = "Surv(time = time_OS_months, event = death) ~ strata(group) + stage",
+            f = paste0(survres," ~ strata(group) + stage"),
             testing=T)
 
 cox_density(cox_dens, "MPIF27", "CD3-CD8+",
-            f = "Surv(time = time_OS_months, event = death) ~ strata(group) + stage")
+            f = paste0(survres," ~ strata(group) + stage"))
 
 ```
 
@@ -614,7 +614,7 @@ cells_27 <- unique(filter(cox_dens, panel == "MPIF27")$cell_type)
 cells_27 <- cells_27[!cells_27 %in% c("PanCK+", "Other")]
 
 lapply(cells_27, function(x){
-  km_plot(cox_dens, panel = "MPIF27", cell_type = x, outcome = "Survival",
+  km_plot(cox_dens, panel = "MPIF27", cell_type = x, outcome,
         f =  paste0(survres, " ~ quantile"))
 }) %>% set_names(cells_27)
 ```

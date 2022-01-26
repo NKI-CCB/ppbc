@@ -180,6 +180,13 @@ density_by_ppbc %>%
   arrange(kruskal_bh)
 ```
 
+```{r}
+filter(arrange(density_by_ppbc, kruskal_bh, kruskal_p), 
+             !cell_type %in% c("Other", "PanCK+")) %>%
+  split(., .$panel)
+```
+
+
 ### Sig results
 
 Show significant comparisons based on multiple testing correction. Only look further for significance if the Kruskal-Wallis test is significant.

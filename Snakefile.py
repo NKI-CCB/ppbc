@@ -846,7 +846,7 @@ rule gene_reports:
   input:
     aggdata="data/Rds/16_gene_report_environment.RData",
     script="src/17_batch_gene_reports.R",
-    genes=ancient("reports/genes_to_report")
+    genes=ancient("reports/genes_to_report.txt")
   #output:
   #  directory("reports/gene_reports")
   shell:

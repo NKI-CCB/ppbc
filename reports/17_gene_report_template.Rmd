@@ -9,8 +9,6 @@ output:
     fig_width: 7
     fig_height: 6
     df_print: paged
-    theme: darkly
-    highlight: breezedark
     canon: true
 params:
   gene:
