@@ -36,7 +36,8 @@ rule all:
     "reports/spatial/04_report_cell_types.html",
     "reports/spatial/05_density.html",
     "reports/spatial/06_kruskal_density.html",
-    expand("reports/spatial/07_cox_density_{outcome}.html", outcome = ['OS','DRS'])
+    expand("reports/spatial/07_cox_density_{outcome}.html", outcome = ['OS','DRS']),
+    "reports/spatial/08_ig_clusters_cd20.html"
 
 
 ### RNAseq analyses ###

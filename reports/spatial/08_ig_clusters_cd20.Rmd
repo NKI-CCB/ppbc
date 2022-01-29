@@ -1,0 +1,133 @@
+---
+title: "IG clusters and CD20"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, echo = F}
+library(here)
+library(tidyverse)
+library(ggpubr)
+theme_set(theme_bw())
+```
+
+Check to see whether the low, medium and high IG clusters from differential expression correspond to CD20 marker density.
+
+Contains marker density info and sample names:
+
+```{r}
+dens <- readRDS(here("data/vectra/processed/density_ppbc.Rds"))
+```
+
+We have regional density for stroma and tumor. Also calculate total density.
+
+```{r}
+cd20 <- dens %>%
+  filter(cell_type == "CD20+") %>%
+  group_by(t_number, panel, cell_type, patient_ID, sample_name) %>%
+  summarise(density = (sum(n)/sum(area)), .groups = "drop") %>%
+  mutate(classifier_label = "Total", .before = everything()) %>%
+  bind_rows(., select(filter(dens, cell_type == "CD20+"),
+                      classifier_label, t_number, panel,
+                      cell_type, patient_ID, sample_name, density)) %>%
+  rename(region=classifier_label) %>%
+  mutate(region = factor(region, levels = c("Stroma", "Tumor", "Total"))) %>%
+  arrange(t_number, region)
+
+head(cd20)
+```
+
+Average area tumor vs stroma:
+
+```{r}
+dens %>%
+  group_by(t_number, panel, classifier_label) %>%
+  summarise(av_area = mean(area), .groups="drop") %>%
+  ggplot(aes(x = classifier_label, y = av_area)) +
+  geom_jitter(aes(color = panel), height = 0 ) +
+  geom_boxplot(alpha = 0) +
+  ggtitle("Average area of tumor and stroma by panel") +
+  ggpubr::stat_compare_means(
+    label = "p.signif",
+    comparisons = list(
+      c("Stroma", "Tumor")
+    )) +
+  scale_y_sqrt()
+```
+
+
+Contains IG cluster identities and sample names:
+
+```{r}
+igclust <- readxl::read_excel(here("results/clustering/11_inv_clusters.xlsx"),
+                              sheet="col_clusters") %>%
+  mutate(IG_col_cluster = factor(IG_col_cluster,
+                                 levels = c("low", "medium", "high")))
+```
+
+Combine
+
+```{r}
+cd20 <- inner_join(cd20,igclust, by = "sample_name")
+```
+
+The result of join should not have missing values
+
+```{r}
+rowAny <- function(x) rowSums(x) > 0 
+stopifnot(nrow(filter(cd20,rowAny(across(.cols = everything(),
+                                         .fns = ~ is.na(.x)))))==0)
+```
+
+```{r}
+head(cd20)
+```
+
+Box plot
+
+```{r}
+cd20 %>%
+  ggplot(aes(x = IG_col_cluster, y = density)) +
+  geom_jitter(height = 0, aes(color = panel)) +
+  geom_boxplot(alpha = 0.1, outlier.shape = NA) +
+  facet_wrap(~region) +
+  scale_y_sqrt() +
+  xlab("Immunoglobulin expression cluster derived from RNAseq") +
+  ylab("CD20 Vectra density") +
+  ggtitle("Relationship between IG cluster status and CD20 density by sample and panel") +
+  ggpubr::stat_compare_means(
+    label = "p.signif",
+    comparisons = list(
+      c("low", "medium"), c("medium", "high"), c("low", "high")
+    ))
+```
+
+How well do the regression coefficients line up?
+
+```{r}
+lapply(unique(cd20$region), function(x){
+  sub <- filter(cd20, region == x)
+  #return(unique(sub$IG_col_cluster))
+  fitcd20 <- glm(col_cluster ~ density, family = "poisson", data = sub)
+  summary(fitcd20)
+  #broom::tidy(fitcd20)
+}) %>% set_names(unique(cd20$region))
+  
+```
+
+```{r}
+sessionInfo()
+```
+
+

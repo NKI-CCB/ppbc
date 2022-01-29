@@ -280,3 +280,13 @@ rule cox_density:
     "Rscript -e \"rmarkdown::render('{input.rmd}'," 
     "params=list(outcome='{wildcards.outcome}'),"
     "output_file = here::here('{output.html}'))\""
+    
+rule cd20_clusters:
+  input:
+    density_outcome = "data/vectra/processed/density_ppbc.Rds",
+    rmd="reports/spatial/08_ig_clusters_cd20.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    html="reports/spatial/08_ig_clusters_cd20.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
