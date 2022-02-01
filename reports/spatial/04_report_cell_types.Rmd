@@ -15,28 +15,42 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r packages}
+```{r packages, echo=F}
 library(here)
 library(tidyverse)
 
 theme_set(theme_bw())
 ```
 
-We broadly define the following cell types:
+We broadly define the following cell types. Parenthetical cell identities are putative. 
 
-* Cytotoxic T-cell (CD8+, CD3+)
-* T-reg (CD3+, FoxP3+)
-* Helper T-cell (CD3+, CD8-, FoxP3-)
-* B-cell (CD20+, CD138-)
-* Plasma B-cell (CD20+, CD138+)
-* NK cell (CD8+, CD3- or CD27+, CD3-)
-* Epithelial cell (PanCK+ and negative for immune markers)
+CD27 positivity is tracked for downstream analysis given that it was highly associated with positive outcome for involuting patients within the RNA expression data. It may be found on both B and T cells. 
 
-Here we are assuming that CD3+CD8-FoxP3- are *probably* CD4+, since double-negative T-cells represent a [small (1-5%) populatoin of lymphocytes](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3269300/). One may also argue that not all CD8+ T-cells are by definition cytotoxic, but we lack the data to make such distinctions here.
+CD138 in combination with CD20 is a plasma B marker, but it is also [expressed by T cells](https://www.biorxiv.org/content/10.1101/2020.03.25.008995v1) and [malignant cells](https://pubmed.ncbi.nlm.nih.gov/14983940/). Due to its ubiquitous expression both on cells and in the ECM, it is not used in cell type calling.
 
-CD27 is an early immune activation marker and is highly associated with a positive outcome in the PPBC cohort, especially among involuting patients. We therefore consider it as an additional characteristic of immune cells. 
+We assume that CD3+CD8-FoxP3- are *probably* CD4+, since double-negative T-cells represent a [small (1-5%) population of lymphocytes](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3269300/).
 
-CD138 in combination with CD20 is a plasma B marker, but it is also [expressed by T cells](https://www.biorxiv.org/content/10.1101/2020.03.25.008995v1) and [malignant cells](https://pubmed.ncbi.nlm.nih.gov/14983940/).
+See `src/spatial/call_cell_types.R` for exact cell definitions.
+
+MPIF26: 
+
+* FoxP3+ (Treg, assumed to be CD3 positive)
+* CD3+CD27+FoxP3- (T cell, CD4 or CD8)
+* CD3+CD27-FoxP3- (T cell, CD4 or CD8)
+* CD20+CD27+ (B cell)
+* CD20+CD27- (B cell)
+* CD27+CD20-CD3- (possibly NK cells, or B/T with failed CD3/CD20 staining)
+* PanCK+ (cancer cell)
+* Other
+
+MPIF27:
+
+* CD3+CD8+ (CD8+ T cell, with non-zero CD3 intensity)
+* CD3+CD8- (CD4+ T cell)
+* CD3-CD8+ (NK cell or T cell with completely failed CD3 staining)
+* CD20+ (B cell)
+* PanCK+ (cancer cell)
+* Other
 
 ## Load data
 
