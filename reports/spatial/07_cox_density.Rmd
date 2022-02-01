@@ -14,6 +14,8 @@ params:
     value: "OS"
     input: "select"
     choice: ["OS", "DRS"]
+  min_cell_count:
+    value: 20000
 ---
 
 ```{r setup, include=FALSE}
@@ -52,16 +54,54 @@ dens <- readRDS(here("data/vectra/processed/density_ppbc.Rds"))
 ## Cell types by panel:
 
 ```{r}
-bind_cols (
-  dens %>%
+list(
+  mpif26 = dens %>%
     filter(panel == "MPIF26") %>%
     select(MPIF26 = cell_type) %>%
     distinct(),
-  dens %>%
+  mpif27 = dens %>%
     filter(panel == "MPIF27") %>%
     select(MPIF27 = cell_type) %>%
     distinct()
 )
+```
+
+## Cell counts by panel
+
+```{r}
+dens %>%
+  group_by(cell_type, panel) %>%
+  summarise(n = sum(n), .groups="drop") %>%
+  pivot_wider(names_from = panel, values_from = n, values_fill = 0) %>%
+  arrange(desc(MPIF27+MPIF26))
+```
+
+## Cell groups excluded
+
+The minimum number of cells of a given type that must be present across the whole dataset is:
+
+```{r}
+min_cell_count <- as.integer(params$min_cell_count)
+min_cell_count
+```
+
+Cell types which fail this threshold:
+
+```{r}
+excluded_cells <- dens %>%
+  group_by(cell_type, panel) %>%
+  summarise(n = sum(n), .groups="drop") %>%
+  filter(n < min_cell_count) %>%
+  pull(cell_type)
+
+excluded_cells
+```
+
+Remaining cell groups:
+
+```{r}
+dens <- dens %>% filter(!cell_type %in% excluded_cells)
+unique(dens$cell_type)
 ```
 
 ## Number of samples by group

@@ -252,7 +252,7 @@ rule process_density:
   input:
     densities = "results/spatial/density.tsv",
     meta="data/metadata/PPBC_metadata.xlsx",
-    script="reports/spatial/06_process_density_outcome.Rmd"
+    script="src/spatial/process_density_outcomes.R"
   output:
     density_outcome = "data/vectra/processed/density_ppbc.Rds"
   shell:
@@ -264,21 +264,26 @@ rule kruskal_density:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
     rmd="reports/spatial/06_kruskal_density.Rmd",
     script="src/rmarkdown.R"
+  params:
+    min_cell_count = 20000
   output:
     html="reports/spatial/06_kruskal_density.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+    " --min_cell_count '{params.min_cell_count}'"
 
 #Cox regressions for cell densities, OS and DRS
 rule cox_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
     rmd="reports/spatial/07_cox_density.Rmd"
+  params:
+    min_cell_count = 20000
   output:
     html="reports/spatial/07_cox_density_{outcome}.html"
   shell:
     "Rscript -e \"rmarkdown::render('{input.rmd}'," 
-    "params=list(outcome='{wildcards.outcome}'),"
+    "params=list(outcome='{wildcards.outcome}',min_cell_count='{params.min_cell_count}'),"
     "output_file = here::here('{output.html}'))\""
     
 rule cd20_clusters:
