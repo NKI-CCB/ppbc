@@ -5,12 +5,12 @@ import openpyxl
 # The spatial analysis gets its own subdirectory in ./reports and within the data (sub)directories
 # Raw data is in data/vectra
 
-
 wildcard_constraints:
     # T numbers, with a possible block ID appended
     t_number="T[0-9]+-[0-9]+(_[I0-9]+)?",
     panel="MPIF[0-9]+",
-    batch="batch[0-9]+"
+    batch="batch[0-9]+",
+    tissue="stroma|tumor"
 
 
 ###################
@@ -150,6 +150,11 @@ rule object_QC:
     "Rscript -e \"rmarkdown::render('{input.rmd}'," 
     "params=list(batch='{wildcards.batch}'),"
     "output_file = here::here('{output.html}'))\""
+
+
+#####################
+# Cell Type Calling #
+#####################
     
 #Generate an overview of marker combination abundance
 rule count_marker_combos:
@@ -213,6 +218,35 @@ rule report_cell_types:
     html="reports/spatial/04_report_cell_types.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+
+#######################
+# Tissue Segmentation #
+#######################
+
+rule segment_tissue_density:
+  input:
+    cells = "data/vectra/processed/objects/{sample}_{panel}_{batch}.Rds",
+    config = "src/spatial/segment_tissue_density_config.yaml",
+    script = "src/spatial/segment_tissue_density.R",
+  output: "data/vectra/processed/segmentation/{sample}_{panel}_{batch}.Rds"
+  shell:
+    "mkdir -p data/vectra/processed/segmentation/\n"
+    "Rscript {input.script} {input.cells} {input.config} {output}"
+
+rule plot_segmentations:
+  input:
+    segmentations = [
+        f"data/vectra/processed/segmentation/{s.sample_id}_{s.panel}_{s.batch_HALO}.Rds"
+        for s in vectra_samples],
+    script = "src/spatial/plot_segmentation.R",
+  output: "figures/spatial/segmentation.pdf"
+  shell:
+    "mkdir -p figures/spatial/\n"
+    "Rscript {input.script} {input.segmentations} {output}"
+
+############################################
+# Spatial density of cell types in tissues #
+############################################
     
 #Model overall marker combination density by panel
 #Use aggregrate_densities instead of invoking this rule directly
