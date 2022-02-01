@@ -281,7 +281,7 @@ cox_density <- function(df, panel, cell_type, f, testing = F){
 }
 
 #Test single cell type
-cox_density(cox_dens, "MPIF27", "CD3-CD8+",
+cox_density(cox_dens, "MPIF27", "CD3+CD8+",
             f = univ_form)
 ```
 
@@ -374,11 +374,11 @@ Example one cell type:
 #The LRT pval is the same for all the covariates because 
 #it's a comparison between the full and reduced model
 #However, covariate estimates should be different
-cox_density(cox_dens, "MPIF27", "CD3-CD8+",
+cox_density(cox_dens, "MPIF27", "CD3+CD8+",
             f = paste0(survres," ~ strata(group) + stage"),
             testing=T)
 
-cox_density(cox_dens, "MPIF27", "CD3-CD8+",
+cox_density(cox_dens, "MPIF27", "CD3+CD8+",
             f = paste0(survres," ~ strata(group) + stage"))
 
 ```
@@ -407,6 +407,8 @@ mult_cox %>%
   arrange(lrt.fdr, lrt.pval) %>%
   pivot_wider(names_from = term,
               values_from = c(lrt.fdr, lrt.pval)) %>%
+  arrange(lrt.fdr_Stroma_density + lrt.fdr_Tumor_density,
+          lrt.pval_Stroma_density + lrt.pval_Tumor_density) %>%
   split(., .$panel)
 ```
 
