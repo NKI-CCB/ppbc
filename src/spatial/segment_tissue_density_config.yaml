@@ -1,0 +1,14 @@
+# All in millimeters
+resolution: 0.01
+minimum_density: 1.0
+tissues:
+    tumor:
+        kernel_bandwith: 0.1
+        cell_types:
+            - "PanCK+"
+        weight: 1
+    stroma:
+        kernel_bandwith: 0.1
+        cell_types:
+            - "Other"
+        weight: 0.25
