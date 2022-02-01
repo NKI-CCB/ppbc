@@ -62,7 +62,7 @@ density_aggs <- function(density, aggs){
   # Handle an edge case in which a sample is present is only one panel
   # (and not the one that contains the cell groups to be aggregated)
   if(!all(sapply(oldgroups, function(x){x %in% unique(density$cell_type)}))){
-    return(density)
+    stop("This cell type is not found in this panel")
   }
   
   df <- density %>%
@@ -77,24 +77,25 @@ density_aggs <- function(density, aggs){
 
 #Loop over all aggregate groups
 aggregate_densities <- function(density) {
-  #Avoid duplicating entries if one row is absent
-  res <- 0
-  lapply(names(agg_cells), function(x){
-    if(!all(sapply(agg_cells[x], function(y){y %in% unique(density$cell_type)}))){
-      paste(paste0(unlist(agg_cells[[x]]), collapse = " and "), "not found")
-    } else {
-      res <- lapply(names(agg_cells), function(groups){
-        density_aggs(density, aggs = agg_cells[groups])
-      }) %>%
-        #return aggregates
-        bind_rows() %>%
-        #recombine with input
-        bind_rows(density, .)  
-    }
-  })
   
-  if(res == 0){res <- density}
-  res
+  #check to see whether the cells to be aggregated are present
+  cell_presence <- sapply(agg_cells, function(x){x %in% unique(density$cell_type)})
+  groups_kept <- colnames(cell_presence)[apply(cell_presence, 1, function(x){sum(x) == length(x)})]
+  used_agg_cells <- agg_cells[names(agg_cells) %in% groups_kept]
+  
+  if(length(used_agg_cells)==0){return(density)}
+  
+  #Avoid duplicating entries if one row is absent
+  res <- lapply(names(used_agg_cells), function(x){
+      density_aggs(density, aggs = used_agg_cells[x])
+    }) %>%
+    #return aggregates
+    bind_rows() %>%
+  #recombine with input
+  bind_rows(density, .) 
+  
+  #if(res == 0){res <- density}
+  res 
 }
 
 if (sys.nframe() == 0) {
