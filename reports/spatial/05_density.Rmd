@@ -25,6 +25,7 @@ library(here)
 library(purrr)
 library(readr)
 library(tidyr)
+library(stringr)
 ```
 
 ```{r conf}
@@ -33,18 +34,22 @@ panels = c('MPIF26', 'MPIF27')
 ```
 
 ```{r load_data}
+#Tumor is sometimes spelled with a lower case t
 density_col_types <- cols(
-    classifier_label = col_factor(levels = classifier_labels),
+    #classifier_label = col_factor(levels = classifier_labels),
+    classifier_label = col_character(),
     t_number = col_factor(),
     panel = col_factor(levels = panels),
     cell_type = col_factor(),
     area = col_double(),
     n = col_integer(),
     density = col_double())
-density <- map_dfr(panels, function (p) {
-  read_tsv(here(glue('results/spatial/density/{p}.tsv')),
-           col_types = density_col_types)
-})
+
+density <- read_tsv(here("results/spatial/density.tsv"),
+                    col_types = density_col_types) %>%
+  mutate(classifier_label = factor(
+    str_replace(classifier_label, "tumor", "Tumor"),
+    levels = classifier_labels))
 ```
 
 ## Histograms
