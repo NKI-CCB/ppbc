@@ -16,6 +16,8 @@ params:
     choice: ["OS", "DRS"]
   min_cell_count:
     value: 20000
+  show_cell_subgroups:
+    value: FALSE
 ---
 
 ```{r setup, include=FALSE}
@@ -104,6 +106,77 @@ dens <- dens %>% filter(!cell_type %in% excluded_cells)
 unique(dens$cell_type)
 ```
 
+## Cell subgroup inclusion
+
+CD27 is an early activation marker in B and T cells. We can choose to include or exclude these subgroups and other from the analysis below. The following is a list of cell subgroups and their aggregate categories:
+
+```{r}
+agg_cells <- list(
+  MPIF26 = list("CD3+FoxP3-" = c("CD3+CD27+FoxP3-", "CD3+CD27-FoxP3-"),
+                "CD20+" = c("CD20+CD27+", "CD20+CD27-")),
+  MPIF27 = list() #none currently
+)
+
+```
+
+Parameter setting:
+
+```{r}
+show_cell_subgroups <- as.logical(params$show_cell_subgroups)
+show_cell_subgroups
+```
+
+Only show either the subgroups or their parent groups, but not both.
+
+```{r}
+filter_cell_groups <- function(df = dens, cellgroups = agg_cells, show_cell_subgroups){
+  
+  mpif26_parents <- names(cellgroups$MPIF26)
+  mpif26_subgroups <- unlist(cellgroups$MPIF26)
+  #mpif27_parents <- names(cellgroups$MPIF27)
+  #mpif27_subgroups <- unlist(cellgroups$MPIF27)
+  
+  if(show_cell_subgroups){
+    print("MPIF26:")
+    print(paste("Including cell subtypes:", paste0(mpif26_subgroups, collapse = ", ")))
+    print(paste("Excluding parent groups:", paste0(mpif26_parents, collapse = ", ")))
+    df <- df[-which(df$panel == "MPIF26" & df$cell_type %in% mpif26_parents),]
+    #print("MPIF27:")
+    #print(paste("Including cell subtypes:", paste0(mpif27_subgroups, collapse = ", ")))
+    #print(paste("Excluding parent groups:", paste0(mpif27_parents, collapse = ", ")))
+    #df <- df[-which(df$panel == "MPIF27" & df$cell_type %in% mpif27_parents),]
+  } else {
+    print("MPIF26:")
+    print(paste("Excluding cell subtypes:", paste0(mpif26_subgroups, collapse = ", ")))
+    print(paste("Including parent groups:", paste0(mpif26_parents, collapse = ", ")))
+    df <- df[-which(df$panel == "MPIF26" & df$cell_type %in% mpif26_subgroups),]
+    #print("MPIF27:")
+    #print(paste("Excluding cell subtypes:", paste0(mpif27_subgroups, collapse = ", ")))
+    #print(paste("Including parent groups:", paste0(mpif27_parents, collapse = ", ")))
+    #df <- df[-which(df$panel == "MPIF27" & df$cell_type %in% mpif27_subgroups),]
+  }
+  
+  df
+}
+
+dens <- filter_cell_groups(show_cell_subgroups = show_cell_subgroups)
+```
+
+Remaining cell types by panel:
+
+```{r}
+list(
+  mpif26 = dens %>%
+    filter(panel == "MPIF26") %>%
+    select(MPIF26 = cell_type) %>%
+    distinct(),
+  mpif27 = dens %>%
+    filter(panel == "MPIF27") %>%
+    select(MPIF27 = cell_type) %>%
+    distinct()
+)
+```
+
 ## Number of samples by group
 
 Per panel:
@@ -127,7 +200,6 @@ dens %>%
   count() %>%
   pivot_wider(names_from = stage, values_from = n)
 ```
-
 
 ## Cox regression input
 
@@ -633,7 +705,7 @@ km_plot <- function(df, panel, cell_type, f, outcome, ngroups = 2, pal = "npg"){
 }
 
 #testing
- km_plot(cox_dens, panel = "MPIF26", cell_type = "CD20+", outcome,
+ km_plot(cox_dens, panel = "MPIF27", cell_type = "CD20+", outcome,
          f = paste0(survres, " ~ quantile"))
 ```
 
@@ -736,8 +808,8 @@ cox_interaction <- function(df, panel, cell_type, baseform, testing=F){
     mutate(term = str_remove(term, "group"))
 }
 #testing
-cox_interaction(cox_dens, "MPIF26", "CD20+", baseform = multiv_subform, testing = T)
-cox_interaction(cox_dens, "MPIF26", "CD20+", baseform = multiv_subform)
+cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform, testing = T)
+cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform)
 ```
 
 

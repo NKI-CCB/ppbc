@@ -299,7 +299,8 @@ rule kruskal_density:
     rmd="reports/spatial/06_kruskal_density.Rmd",
     script="src/rmarkdown.R"
   params:
-    min_cell_count = 20000
+    min_cell_count = 20000,
+    show_cell_subgroups = "TRUE"
   output:
     html="reports/spatial/06_kruskal_density.html"
   shell:
@@ -312,7 +313,8 @@ rule cox_density:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
     rmd="reports/spatial/07_cox_density.Rmd"
   params:
-    min_cell_count = 20000
+    min_cell_count = 20000,
+    show_cell_subgroups = "FALSE"
   output:
     html="reports/spatial/07_cox_density_{outcome}.html"
   shell:
