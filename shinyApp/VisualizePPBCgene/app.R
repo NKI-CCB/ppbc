@@ -1,12 +1,3 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
-
 library(shiny)
 library(shinyalert)
 library(shinycssloaders)
@@ -87,7 +78,6 @@ ui <- fluidPage(
           
           #### Survival panel----
             tabPanel("Survival",
-                     useShinyalert(),
                      hr(),
                      h3("Genewise survival results"),
                      tags$p("Model types 'overall survival' and 'distant recurrence' will identify genes associated with OS/DRS in all study groups",
@@ -119,19 +109,21 @@ ui <- fluidPage(
                        "Shown are user-defined quantiles ranging from 2-4 for the selected gene.",
                        "Samples are allocated to a ntile category using", tags$code("dplyr::ntile()"), ".",
                        br(),
-                       "Unadjusted (univariate) curves, are created using",
+                       br(),
+                       "Unadjusted (univariate) curves are created using",
                        tags$code("survminer::ggsurvplot()"), ".",
                        "Displayed is the logrank p value.",
                        br(),
                        br(),
-                       "Adjusted curves are created via", tags$code("survminer::ggadjustedcurves()"), "using the conditional method.",
-                       "The conditional method seeks to correct for group size along with confounders.",
+                       "Adjusted curves are created via", tags$code("survminer::ggadjustedcurves()"), "using the marginal method.",
+                       "The marginal method uses a regression strategy to balance subpopulations.",
                        "A detailed description of the methodology can be found",
                        tags$a(href="https://cran.r-project.org/web/packages/survival/vignettes/adjcurve.pdf", "here"), ".",
                        br(),
-                       "For adjusted curves, the p value is calculated via an anova that compares the formula",
+                       br(),
+                       "For adjusted curves, the p value is calculated via an anova that compares the fit from formula",
                        tags$code("survival ~ clinical covariate + gene ntile"),
-                       "to the reduced formula", tags$code("survival ~ clinical covariates"), ".",
+                       "to the reduced formula fit", tags$code("survival ~ clinical covariates"), ".",
                        br(),
                        "Hormonetherapy is stratified to account for ER status, but PAM50 is not, as doing so introduces too many NA points."
                        
