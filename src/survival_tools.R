@@ -74,17 +74,18 @@ gene_ntile <- function(gene_id, id_type, gene_dict = gx_annot, geneEx = ens_mat,
 #' @param gene_dict A data frame containing a column "gene name" with gene symbols and a column "ensembl_gene_id" with ensembl gene ids
 #' @param geneEx A gene expression matrix with ensembl IDs as row names. Should be tmm/log2 normalized for compatibility with other functions (this function will work with any metric).
 #' @param n The number of desired ntiles. Choices: 2, 3 or 4. Default = 3.
+#' @param adj_met The method for producing adjusted survival curves: single, average, marginal, or conditional. See doc for "ggadjustedsurv()".
 #' @param sampledata A data frame containing the sample annotation data. Must contain both sample names and the faceted group "PPBC".
 #' @param survival_type Must be either "os" (overall survival) or "drs" (distant recurrence) 
 #'
-#' @return A list of two plots, one with the unadjusted survival curves by PPBC group, and one with the conditionally 
+#' @return A list of two plots, one with the unadjusted survival curves by PPBC group, and one with the 
 #' adjusted for clinical covariates survival curves for the entire dataset. See survminer::ggadjustedcurves for details.
 #' @export
 #'
 #' @examples km_ntiles("MS4A1")
 #' 
 km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx = ens_mat,
-                      n = 3,
+                      n = 3, adj_met = "marginal",
                       sampledata = sample_data, survival_type = "os"){
   
   stopifnot(survival_type %in% c("os", "drs"))
@@ -153,7 +154,7 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
   #Adjusted survival curve for all 4 PPBC groups
   #B too small to show groupwise
   #Use surv_adjustedcurves to get data and the then manually plot for more control over appearance
-  adj_curv <- survminer::surv_adjustedcurves(fit = c, variable = "ntile", data = as.data.frame(sd), method = "conditional") %>%
+  adj_curv <- survminer::surv_adjustedcurves(fit = c, variable = "ntile", data = as.data.frame(sd), method = adj_met) %>%
     left_join(select(mutate(sd, ntile = as.factor(ntile)), ntile, labels), by = c("variable" = "ntile")) %>%
     ggplot(., aes(x = time, y = surv, color = labels)) + 
     geom_step(size = 1) + theme_survminer() + scale_y_continuous(limits = c(0,1)) + 
@@ -175,6 +176,7 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
 #' @param gene_dict A data frame containing a column "gene name" with gene symbols and a column "ensembl_gene_id" with ensembl gene ids
 #' @param geneEx A gene expression matrix with ensembl IDs as row names. Should be tmm/log2 normalized for compatibility with other functions 
 #' (this function will work with any metric).
+#' @param adj_met The method for producing adjusted survival curves: single, average, marginal, or conditional. See doc for "ggadjustedsurv()".
 #' @param n The number of desired ntiles. Choices: 2, 3 or 4. Default = 3.
 #' @param sampledata A data frame containing the sample annotation data.
 #'  Must contain both sample names and the column representing one vs rest comparison (1 and 0).
@@ -186,14 +188,14 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
 #' @param legend Where to show the legend of each of the 4 plots produced. Must be
 #' "none", "top", "bottom", "left" or "right"
 #'
-#' @return Four plots arranged together: the unadjusted survival curves faceted by one vs rest group, the conditionally 
+#' @return Four plots arranged together: the unadjusted survival curves faceted by one vs rest group,
 #' adjusted for clinical covariates survival curves for the group of interest, OR a list with each plot as an individual element.
 #' and the adjusted plot for the other groups. See survminer::ggadjustedcurves for details.
 #' @export
 #'
 #' @examples km_ntiles("MS4A1")
 
-km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx = ens_mat,
+km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx = ens_mat, adj_met = "marginal",
                           n = 3, ovr_column = "involution", line_colors = viridis::scale_color_viridis(discrete = T),
                           sampledata = sample_data, survival_type = "os", legend_positions = c("none","none", "bottom","bottom"),
                           p_method = "anova", return_list = F){
@@ -319,7 +321,7 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
   
   #Adjusted survival curve for samples belonging to group of interest
   #Use surv_adjustedcurves to get data and the then manually plot for more control over appearance
-  adj_curv1 <- survminer::surv_adjustedcurves(fit = c, variable = "ntile", data = as.data.frame(sd1), method = "conditional") %>%
+  adj_curv1 <- survminer::surv_adjustedcurves(fit = c, variable = "ntile", data = as.data.frame(sd1), method = adj_met) %>%
     left_join(select(mutate(sd1, ntile = as.factor(ntile)), ntile, labels), by = c("variable" = "ntile")) %>%
     ggplot(., aes(x = time, y = surv, color = labels)) + 
     geom_step(size = 1) +
@@ -369,7 +371,7 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
   
   #Adjusted survival curve for samples belonging to group of interest
   #Use surv_adjustedcurves to get data and the then manually plot for more control over appearance
-  adj_curv0 <- survminer::surv_adjustedcurves(fit = c, variable = "ntile", data = as.data.frame(sd0), method = "conditional") %>%
+  adj_curv0 <- survminer::surv_adjustedcurves(fit = c, variable = "ntile", data = as.data.frame(sd0), method = adj_met) %>%
     left_join(select(mutate(sd0, ntile = as.factor(ntile)), ntile, labels), by = c("variable" = "ntile")) %>%
     ggplot(., aes(x = time, y = surv, color = labels)) + 
     geom_step(size = 1) + 

@@ -12,7 +12,7 @@ output:
     canon: true
 params:
   gene:
-    value: "ENSG00000277219"
+    value: "MS4A1"
     label: "Gene ID (ensembl or symbol): "
     input: "text"
   show_functions:
@@ -472,7 +472,7 @@ gene_ntile <- function(gene_id, gEx = geneEx, gene_dict = gx_annot,
 Creates 4 separate kaplan meiers based on quantiles of a given gene, based on `survival_type`.
 (Either overall survival or distant recurrence is allowed.)
 The KMs will be shown for involution samples or for all non-involuting samples separately.
-Adjusted curves are shown alongside unadjusted curves, using the *conditional* method of `survminer::surv_adjustedcurves`.
+Adjusted curves are shown alongside unadjusted curves, using the *marginal* method of `survminer::surv_adjustedcurves`.
 Adjusted curves are corrected for the following covariates:
 
 ```{r}
@@ -489,7 +489,7 @@ For adjusted curves, the p value is from an anova between a model that includes 
 
 ```{r, include=params$show_functions, fig.height=7, fig.width=10}
 km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
-                          n = 3, ovr_column = "involution",
+                          n = 3, ovr_column = "involution", adj_met = "marginal",
                           line_colors = viridis::scale_color_viridis(discrete = T),
                           sampledata = sample_data, survival_type = "os",
                           legend_positions = c("none","none", "bottom","bottom"),
@@ -553,7 +553,8 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
   #Split sample data into those samples belonging to the group of interest (or not)
   sd1 = sd[sd[[ovr_column]] == 1,]
   sd0 = sd[sd[[ovr_column]] == 0,]
-  
+  sd1 = droplevels(sd1)
+  sd0 = droplevels(sd0)
   
   curv1 <- survminer::ggsurvplot(
     fit = survminer::surv_fit(facet_formula, data = as.data.frame(sd1)), 
@@ -602,7 +603,7 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
   
   #Cox models for involution group, adjusted for all covariates and ntile gene expression
   c <- suppressWarnings(survival::coxph(formula, data = sd1))
-  #print(c)
+  #return(c)
   
   #Store p value associated with the coefficient of the ntile
   fit_ntile <- as.data.frame(summary(c)$coefficients)
@@ -628,7 +629,10 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
   
   #Adjusted survival curve for samples belonging to group of interest
   #Use surv_adjustedcurves to get data and the then manually plot for more control over appearance
-  adj_curv1 <- survminer::surv_adjustedcurves(fit = c, variable = "ntile", data = as.data.frame(sd1), method = "conditional") %>%
+  
+  adj_curv1 <- survminer::surv_adjustedcurves(
+    fit = c, variable = "ntile", data = as.data.frame(sd1), method = adj_met
+  ) %>%
     left_join(select(mutate(sd1, ntile = as.factor(ntile)), ntile, labels), by = c("variable" = "ntile")) %>%
     ggplot(., aes(x = time, y = surv, color = labels)) + 
     geom_step(size = 1) +
@@ -676,9 +680,12 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
     p <- p_ntile
   }
   
+  
   #Adjusted survival curve for samples belonging to group of interest
   #Use surv_adjustedcurves to get data and the then manually plot for more control over appearance
-  adj_curv0 <- survminer::surv_adjustedcurves(fit = c, variable = "ntile", data = as.data.frame(sd0), method = "conditional") %>%
+  adj_curv0 <- survminer::surv_adjustedcurves(
+    fit = c, variable = "ntile", data = as.data.frame(sd0), method = "marginal"
+    ) %>%
     left_join(select(mutate(sd0, ntile = as.factor(ntile)), ntile, labels), by = c("variable" = "ntile")) %>%
     ggplot(., aes(x = time, y = surv, color = labels)) + 
     geom_step(size = 1) + 
@@ -698,7 +705,7 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
           axis.title.y=element_blank(),
           legend.position = legend_positions[4]
           )
-  
+ 
   reslist$adj_curv0 <- adj_curv0
   
   if(return_list == T){
@@ -714,9 +721,7 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
                   bottom = text_grob(paste0("Time (Months)\n\nClinical covariates: ",
                                             paste(cov_legend, collapse=", ")),
                                      size = 12),
-                  left = text_grob(ylab, rot = 90),
-                  #right = "I'm done, thanks :-)!",
-                  #fig.lab = "Figure 1", fig.lab.face = "bold"
+                  left = text_grob(ylab, rot = 90)
   )
   
   return(arplot)
@@ -724,7 +729,6 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
 }
 
 #km_ntiles_ovr("NOTCH4")
-
 ```
 
 ## Retrieve gene summaries
@@ -765,12 +769,6 @@ get_entrez_summary <- function(gene_id, dict=bx_annot,
 #get_entrez_summary(params$gene)
 ```
 
-tryCatch(
-  xml2::read_html(url) %>%
-    rvest::html_node(xpath='/html/body/main/div/div[3]/div[3]/div[1]') %>%
-    rvest::html_text(),
-    error = function(e){NA} 
-  )
 
 Alternative for uniprot: Use proteinatlas.org.
 Also shows known prognostics.
