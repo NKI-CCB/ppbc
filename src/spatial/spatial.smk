@@ -244,6 +244,19 @@ rule plot_segmentations:
     "mkdir -p figures/spatial/\n"
     "Rscript {input.script} {input.segmentations} {output}"
 
+
+rule report_segmentation:
+  input:
+    "data/vectra/processed/objects/T21-60303_MPIF26_batch2.Rds",
+    "data/vectra/processed/objects/T21-60303_MPIF27_batch2.Rds",
+    "src/spatial/segment_tissue_density_config.yaml",
+    rmd="reports/spatial/09_tissue_segmentation.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    html="reports/spatial/09_tissue_segmentation.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+
 ############################################
 # Spatial density of cell types in tissues #
 ############################################
