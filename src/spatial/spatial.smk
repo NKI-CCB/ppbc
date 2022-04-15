@@ -112,6 +112,15 @@ rule summary_QC:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
+rule load_annotations:
+    input:
+        script = "src/spatial/import_halo_annotation_wkb.py",
+        xml = "data/vectra/raw/annotations/{t_number}_{panel}_{batch}_annotations.xml",
+    output:
+        "data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb"
+    shell:
+        "python3 {input.script} {input.xml} '[tT]umor.*' {output}"
+
 #Convert object results and summary to .nc format
 #On harris, command must read python3 instead of python
 rule load_objects:
@@ -334,6 +343,8 @@ rule cox_density:
     "Rscript -e \"rmarkdown::render('{input.rmd}'," 
     "params=list(outcome='{wildcards.outcome}',min_cell_count='{params.min_cell_count}'),"
     "output_file = here::here('{output.html}'))\""
+
+
     
 rule cd20_clusters:
   input:
