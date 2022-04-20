@@ -3,6 +3,7 @@ library(conflicted)
 library(dplyr)
 library(purrr)
 library(readr)
+library(stringr)
 library(tidyr)
 
 options(
@@ -30,6 +31,10 @@ ensure_one_value <- function(x) {
 }
 
 model_density <- function(objects) {
+  
+  #Fix incidental lowercasing
+  objects <- objects %>%
+    mutate(classifier_label = stringr::str_to_sentence(classifier_label))
   
   region <- objects %>%
     mutate(
