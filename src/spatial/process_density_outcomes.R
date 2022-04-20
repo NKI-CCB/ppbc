@@ -12,15 +12,6 @@ density %>%
   group_by(panel) %>%
   count()
 
-#Fix classifier labels
-
-#density %>% group_by(classifier_label) %>% count()
-
-density <- density %>%
-  mutate(classifier_label = ifelse(classifier_label == "tumor", "Tumor",
-                                   classifier_label))
-
-
 #The metadata is separated into three sheets.
 read_sheets_to_list <- function(xlsfile){
   readxl::excel_sheets(xlsfile) %>% 
@@ -69,7 +60,7 @@ unique(dens$study_group)
 
 dens <- dens %>%
   mutate(classifier_label = factor(classifier_label,
-                                   levels = c("Stroma", "Tumor")),
+                                   levels = c("Stroma", "Tumor", "Total")),
          panel = factor(panel, levels = c("MPIF26", "MPIF27")),
          #Shorter group names, similar to study_group but clearer 
          #and with no potential delimiters
@@ -82,7 +73,8 @@ dens <- dens %>%
   mutate(group = factor(group, levels = c("nonprbc", "prbc", "lac", "inv"))) %>%
   relocate(group, .after = study_group) %>%
   mutate(stage = factor(stage, levels = c("stage I", "stage II",
-                                          "stage III", "stage IV")))
+                                          "stage III", "stage IV"))) %>%
+  mutate(grade = factor(grade, levels = c("grade I", "grade II", "grade III")))
 
 dens %>%
   select(study_group, group) %>%

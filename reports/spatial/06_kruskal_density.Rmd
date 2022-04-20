@@ -7,6 +7,10 @@ params:
     value: 20000
   show_cell_subgroups:
     value: TRUE
+  tissue_segmentation:
+    value: "Total"
+    input: select
+    choices: ["regional", "total"]
 output: 
   html_document:
     toc: true
@@ -24,19 +28,47 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(here)
 library(ggpubr)
-library(survival)
-library(survminer)
-library(broom) #for converting coxph to tibble
 
 theme_set(theme_bw())
 ```
 
 Pairwise Kruskal-Wallis tests are made for the association between cell type density and PPBC study group. Box plots visualize the relative densities of cell types between groups.
 
-## Load data
+## Select regions
+
+Load data.
 
 ```{r}
 dens <- readRDS(here("data/vectra/processed/density_ppbc.Rds"))
+head(dens)
+```
+
+We can either look at regional (tumor and stroma) density, or at total density.
+
+```{r}
+if(params$tissue_segmentation == "regional"){
+  regional <- T
+} else if (params$tissue_segmentation == "total") {
+  regional <- F
+} else {
+  stop("Tissue segmentation parameter must be either regional or total")
+}
+
+regional
+```
+
+Discard the unused regions.
+
+```{r}
+if(regional){
+  dens <- dens %>%
+    filter(classifier_label %in% c("Tumor", "Stroma"))
+} else {
+  dens <- dens %>%
+    filter(classifier_label %in% c("Total"))
+}
+
+dens$classifier_label %>% unique()
 ```
 
 ## Cell types by panel:
@@ -129,19 +161,11 @@ filter_cell_groups <- function(df = dens, cellgroups = agg_cells, show_cell_subg
     print(paste("Including cell subtypes:", paste0(mpif26_subgroups, collapse = ", ")))
     print(paste("Excluding parent groups:", paste0(mpif26_parents, collapse = ", ")))
     df <- df[-which(df$panel == "MPIF26" & df$cell_type %in% mpif26_parents),]
-    #print("MPIF27:")
-    #print(paste("Including cell subtypes:", paste0(mpif27_subgroups, collapse = ", ")))
-    #print(paste("Excluding parent groups:", paste0(mpif27_parents, collapse = ", ")))
-    #df <- df[-which(df$panel == "MPIF27" & df$cell_type %in% mpif27_parents),]
   } else {
     print("MPIF26:")
     print(paste("Excluding cell subtypes:", paste0(mpif26_subgroups, collapse = ", ")))
     print(paste("Including parent groups:", paste0(mpif26_parents, collapse = ", ")))
     df <- df[-which(df$panel == "MPIF26" & df$cell_type %in% mpif26_subgroups),]
-    #print("MPIF27:")
-    #print(paste("Excluding cell subtypes:", paste0(mpif27_subgroups, collapse = ", ")))
-    #print(paste("Including parent groups:", paste0(mpif27_parents, collapse = ", ")))
-    #df <- df[-which(df$panel == "MPIF27" & df$cell_type %in% mpif27_subgroups),]
   }
   
   df
@@ -224,8 +248,8 @@ stat_density <- function(df,
   res
   }
 
-#Testing
-#stat_density(df = filter(dens, classifier_label == "Tumor"), panel = "MPIF26",
+# Testing
+# stat_density(df = filter(dens, classifier_label == "Tumor"), panel = "MPIF26",
 #             cell_type = "CD3+FoxP3-")
 
 combi_dens <- function(df, cell_type){
@@ -284,8 +308,8 @@ combi_dens <- function(df, cell_type){
   
 }
 
-
-density_by_ppbc <- lapply(unique(dens$cell_type), function(x){
+if(regional){
+  density_by_ppbc <- lapply(unique(dens$cell_type), function(x){
   combi_dens(df = dens, cell_type = x)
   }) %>%
   bind_rows() %>%
@@ -294,6 +318,19 @@ density_by_ppbc <- lapply(unique(dens$cell_type), function(x){
 
 density_by_ppbc %>%
   arrange(kruskal_bh, kruskal_p)
+} else {
+  density_by_ppbc <- lapply(unique(dens$cell_type), function(x){
+    lapply(unique(filter(dens, cell_type == x)$panel), function(y){
+      stat_density(df = filter(dens, classifier_label == "Total"), panel = y,
+                   cell_type = x)
+    }) %>% bind_rows()
+  }) %>% bind_rows() %>%
+    group_by(panel) %>%
+    mutate(kruskal_bh = p.adjust(kruskal_p), .after = kruskal_p) %>%
+    arrange(kruskal_bh, kruskal_p)
+  density_by_ppbc
+}
+
 ```
 
 ```{r}
@@ -302,22 +339,25 @@ filter(arrange(density_by_ppbc, kruskal_bh, kruskal_p),
   split(., .$panel)
 ```
 
-
 ### Sig results
 
-Show significant comparisons based on multiple testing correction. Only look further for significance if the Kruskal-Wallis test is significant.
+Show significant comparisons (FDR 0.1) based on multiple testing correction. Only look further for significance if the Kruskal-Wallis test is significant.
 
 ```{r}
-#bhs <- colnames(density_by_ppbc)[str_detect(colnames(density_by_ppbc), "_bh")]
-
-density_by_ppbc %>%
+sigdens <- density_by_ppbc %>%
   select(-kruskal_p) %>%
-  filter(kruskal_bh < 0.05) %>%
+  filter(kruskal_bh < 0.1) %>%
   pivot_longer(cols = kruskal_bh:inv_vs_lac_bh, names_to = "comparison",
                values_to = "padjust") %>%
-  filter(padjust < 0.05) %>%
-  pivot_wider(names_from = classifier_label, values_from = padjust)
+  filter(padjust < 0.1) %>%
+  arrange(padjust)
 
+if(regional){
+   sigdens %>%
+    pivot_wider(names_from = classifier_label, values_from = padjust)
+} else {
+  sigdens
+}
 ```
 
 ## Beehive plots
