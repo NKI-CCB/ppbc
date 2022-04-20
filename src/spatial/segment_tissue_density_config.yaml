@@ -6,9 +6,9 @@ tissues:
         kernel_bandwith: 0.001
         cell_types:
             - "PanCK+"
-        weight: 1
+        weight: 1 #Per square mm there should be at least 1 tumor cell
     stroma:
         kernel_bandwith: 0.001
         cell_types:
             - "Other"
-        weight: 0.25
+        weight: 0.25 # Per square mm there should be 4 or more stroma cells
