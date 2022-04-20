@@ -37,7 +37,8 @@ rule all:
     "reports/spatial/05_density.html",
     "reports/spatial/06_kruskal_density.html",
     expand("reports/spatial/07_cox_density_{outcome}.html", outcome = ['OS','DRS']),
-    "reports/spatial/08_ig_clusters_cd20.html"
+    "reports/spatial/08_ig_clusters_cd20.html",
+    "reports/spatial/09_tissue_segmentation.html"
 
 
 ### RNAseq analyses ###
@@ -897,5 +898,16 @@ rule trust_report:
     trustdata="data/Rds/18_trustdata.Rds",
     trustexcel="results/TRUST/18_TRUST_results.xlsx",
     html="reports/18_BCR_clonality.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}" 
+    
+rule antibody_isotypes:
+  input:
+    script="src/rmarkdown.R",
+    rmd="reports/18b_antibody_isotypes.Rmd",
+    bx_annot=ancient("shinyApp/VisualizePPBCgene/data/app_gx_annot.Rds"),
+    dds=ancient("data/Rds/08_dds_ovr_inv_vs_rest.Rds")
+  output:
+    html="reports/18b_antibody_isotypes.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"  

@@ -1,0 +1,103 @@
+---
+title: "Top patients"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages, echo=F}
+library(here)
+library(tidyverse)
+```
+
+Upon request, report
+
+ 1. The 15 patients with highest count of these CD3-CD8+ cells
+
+ 2. The 15 patients with the highest CD20 count.
+ 
+Given that there are hardly any CD3-CD8+ cells left under the new definition, we report the top patients with CD27+CD20-CD3- instead, since these may also be NK cells.
+
+## Load data
+
+```{r}
+dens <- read_tsv(here("results/spatial/density.tsv"))
+```
+
+## CD20
+
+```{r}
+cd20df <- dens %>%
+  filter(str_detect(cell_type, "CD20\\+")) %>%
+  filter(!str_detect(cell_type, "CD27")) %>%
+  group_by(t_number, panel, cell_type) %>%
+  summarise(total_n = sum(n), total_density = sum(density), .groups = "drop") %>%
+  pivot_wider(names_from = c(cell_type, panel), values_from = c(total_n, total_density),
+              values_fill =  0)
+
+head(cd20df)
+```
+
+Top 15 patients for total number (combine MPIF26 and 27)
+
+```{r}
+cd20df %>%
+  select(t_number, `total_n_CD20+_MPIF26`, `total_n_CD20+_MPIF27`) %>%
+  arrange(desc(`total_n_CD20+_MPIF26` + `total_n_CD20+_MPIF27`)) %>%
+  head(15)
+```
+
+Top 15 patients for density (both panels combined:
+
+```{r}
+cd20df %>%
+  select(t_number, `total_density_CD20+_MPIF26`, `total_density_CD20+_MPIF27`) %>%
+  arrange(desc(`total_density_CD20+_MPIF26` + `total_density_CD20+_MPIF27`)) %>% 
+  head(15)
+```
+
+## CD27+CD20-CD3-
+
+```{r}
+maybeNK <- dens %>%
+  filter(cell_type == "CD27+CD20-CD3-") %>%
+  group_by(t_number, panel, cell_type) %>%
+  summarise(total_n = sum(n), total_density = sum(density), .groups = "drop") %>%
+  pivot_wider(names_from = c(cell_type, panel), values_from = c(total_n, total_density),
+              values_fill =  0)
+
+maybeNK
+```
+
+Top 15 total number:
+
+```{r}
+maybeNK %>%
+  select(t_number, `total_n_CD27+CD20-CD3-_MPIF26`) %>%
+  arrange(desc(`total_n_CD27+CD20-CD3-_MPIF26`)) %>%
+  head(15)
+```
+
+Top 15 density
+
+```{r}
+maybeNK %>%
+  select(t_number, `total_density_CD27+CD20-CD3-_MPIF26`) %>%
+  arrange(desc(`total_density_CD27+CD20-CD3-_MPIF26`)) %>%
+  head(15)
+```
+
+```{r}
+sessionInfo()
+```
+
