@@ -8,7 +8,7 @@ params:
   show_cell_subgroups:
     value: TRUE
   tissue_segmentation:
-    value: "Total"
+    value: "total"
     input: select
     choices: ["regional", "total"]
 output: 

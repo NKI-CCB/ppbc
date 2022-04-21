@@ -324,22 +324,6 @@ rule kruskal_density:
     " --show_cell_subgroups '{params.show_cell_subgroups}'"
     " --tissue_segmentation '{wildcards.seg}'"
     
-# rule kruskal_total_density:
-#   input:
-#     density_outcome = "data/vectra/processed/density_ppbc.Rds",
-#     rmd="reports/spatial/06_kruskal_density.Rmd",
-#     script="src/rmarkdown.R"
-#   params:
-#     min_cell_count = 20000,
-#     show_cell_subgroups = "TRUE",
-#     tissue_segmentation = "Total" #Can be Regional or Total
-#   output:
-#     html="reports/spatial/06_kruskal_total_density.html"
-#   shell:
-#     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
-#     " --min_cell_count '{params.min_cell_count}'"
-#     " --show_cell_subgroups '{params.show_cell_subgroups}'"
-#     " --tissue_segmentation '{params.tissue_segmentation}'"
 
 #Cox regressions for cell densities, OS and DRS
 rule cox_density:
@@ -350,12 +334,16 @@ rule cox_density:
     min_cell_count = 20000,
     show_cell_subgroups = "FALSE"
   output:
-    html="reports/spatial/07_cox_density_{outcome}.html"
+    html="reports/spatial/07_cox_{seg}_density_{outcome}.html"
   shell:
     "Rscript -e \"rmarkdown::render('{input.rmd}'," 
-    "params=list(outcome='{wildcards.outcome}',min_cell_count='{params.min_cell_count}'),"
+    "params=list(outcome='{wildcards.outcome}',"
+    " tissue_segmentation='{wildcards.seg}',"
+    " min_cell_count='{params.min_cell_count}'),"
     "output_file = here::here('{output.html}'))\""
     
+
+#Check whether CD20 intensity in Vectra is correlated with CD20 RNAseq expression    
 rule cd20_clusters:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
