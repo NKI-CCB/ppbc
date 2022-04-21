@@ -306,8 +306,6 @@ rule process_density:
     "Rscript {input.script}"
 
 #Kruskal wallis tests and beehive plots for PPBC association with cell density
-
-#Preserve the original tumor/stroma regional densities
 rule kruskal_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
@@ -323,8 +321,23 @@ rule kruskal_density:
     " --min_cell_count '{params.min_cell_count}'"
     " --show_cell_subgroups '{params.show_cell_subgroups}'"
     " --tissue_segmentation '{wildcards.seg}'"
-    
 
+#Relationship between involution and breastfeeding duration and immune density
+rule invbf_time_density:
+  input:
+    density_outcome = "data/vectra/processed/density_ppbc.Rds",
+    rmd="reports/spatial/06b_inv_time_density.Rmd",
+    script="src/rmarkdown.R"
+  params:
+    min_cell_count = 20000,
+    show_cell_subgroups = "FALSE"
+  output:
+    html="reports/spatial/06b_inv_time_density.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+    " --min_cell_count '{params.min_cell_count}'"
+    " --show_cell_subgroups '{params.show_cell_subgroups}'"
+    
 #Cox regressions for cell densities, OS and DRS
 rule cox_density:
   input:

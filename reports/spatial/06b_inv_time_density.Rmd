@@ -1,0 +1,279 @@
+---
+title: "Involution duration and immune density"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+params:
+  min_cell_count:
+    value: 20000
+  show_cell_subgroups:
+    value: FALSE
+  tissue_segmentation:
+    value: "total"
+    input: select
+    choices: ["regional", "total"]
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+---
+
+Explore the relationship between involution or breastfeeding duration and immune cell density within PPBC-inv patients.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, libraries, echo=F}
+library(tidyverse)
+library(here)
+library(ggpubr)
+library(broom)
+
+theme_set(theme_bw())
+```
+
+Pairwise Kruskal-Wallis tests are made for the association between cell type density and PPBC study group. Box plots visualize the relative densities of cell types between groups.
+
+## Set up
+
+### Select regions
+
+Load data.
+
+```{r}
+dens <- readRDS(here("data/vectra/processed/density_ppbc.Rds"))
+head(dens)
+```
+
+We can either look at regional (tumor and stroma) density, or at total density.
+
+```{r}
+if(params$tissue_segmentation == "regional"){
+  regional <- T
+} else if (params$tissue_segmentation == "total") {
+  regional <- F
+} else {
+  stop("Tissue segmentation parameter must be either regional or total")
+}
+
+regional
+```
+
+Discard the unused regions.
+
+```{r}
+if(regional){
+  dens <- dens %>%
+    filter(classifier_label %in% c("Tumor", "Stroma"))
+} else {
+  dens <- dens %>%
+    filter(classifier_label %in% c("Total"))
+}
+
+dens$classifier_label %>% unique()
+```
+
+### Cell groups excluded
+
+The minimum number of cells of a given type that must be present across the whole dataset is:
+
+```{r}
+min_cell_count <- as.integer(params$min_cell_count)
+min_cell_count
+```
+
+Cell types which fail this threshold:
+
+```{r}
+excluded_cells <- dens %>%
+  group_by(cell_type, panel) %>%
+  summarise(n = sum(n), .groups="drop") %>%
+  filter(n < min_cell_count) %>%
+  pull(cell_type)
+
+excluded_cells
+```
+
+Remaining cell groups:
+
+```{r}
+dens <- dens %>% filter(!cell_type %in% excluded_cells)
+unique(dens$cell_type)
+```
+
+### Cell subgroup inclusion
+
+CD27 is an early activation marker in B and T cells. We can choose to include or exclude these subgroups and other from the analysis below. The following is a list of cell subgroups and their aggregate categories:
+
+```{r}
+agg_cells <- list(
+  MPIF26 = list("CD3+FoxP3-" = c("CD3+CD27+FoxP3-", "CD3+CD27-FoxP3-"),
+                "CD20+" = c("CD20+CD27+", "CD20+CD27-")),
+  MPIF27 = list() #none currently
+)
+
+```
+
+Parameter setting:
+
+```{r}
+show_cell_subgroups <- as.logical(params$show_cell_subgroups)
+show_cell_subgroups
+```
+
+Only show either the subgroups or their parent groups, but not both.
+
+```{r}
+filter_cell_groups <- function(df = dens, cellgroups = agg_cells, show_cell_subgroups){
+  
+  mpif26_parents <- names(cellgroups$MPIF26)
+  mpif26_subgroups <- unlist(cellgroups$MPIF26)
+  #mpif27_parents <- names(cellgroups$MPIF27)
+  #mpif27_subgroups <- unlist(cellgroups$MPIF27)
+  
+  if(show_cell_subgroups){
+    print("MPIF26:")
+    print(paste("Including cell subtypes:", paste0(mpif26_subgroups, collapse = ", ")))
+    print(paste("Excluding parent groups:", paste0(mpif26_parents, collapse = ", ")))
+    df <- df[-which(df$panel == "MPIF26" & df$cell_type %in% mpif26_parents),]
+  } else {
+    print("MPIF26:")
+    print(paste("Excluding cell subtypes:", paste0(mpif26_subgroups, collapse = ", ")))
+    print(paste("Including parent groups:", paste0(mpif26_parents, collapse = ", ")))
+    df <- df[-which(df$panel == "MPIF26" & df$cell_type %in% mpif26_subgroups),]
+  }
+  
+  df
+}
+
+dens <- filter_cell_groups(show_cell_subgroups = show_cell_subgroups)
+```
+
+Remaining cell types by panel:
+
+```{r}
+list(
+  mpif26 = dens %>%
+    filter(panel == "MPIF26") %>%
+    select(MPIF26 = cell_type) %>%
+    distinct(),
+  mpif27 = dens %>%
+    filter(panel == "MPIF27") %>%
+    select(MPIF27 = cell_type) %>%
+    distinct()
+)
+```
+
+### Subset involution samples
+
+Samples remaining by panel
+
+```{r}
+inv_dens <- dens %>%
+  filter(group == "inv") %>%
+  #This subset leaves only numeric values and NAs
+  mutate(months_involution = as.numeric(months_involution),
+         months_breastfeeding = as.numeric(months_breastfeeding))
+
+inv_dens %>%
+  select(t_number, panel, study_group, group) %>%
+  distinct() %>%
+  group_by(panel, group) %>%
+  count() %>%
+  pivot_wider(names_from = panel, values_from = n)
+```
+
+## Months involution
+
+### Dot plot
+
+A few samples have missing values for duration involution or breastfeeding.
+
+```{r}
+duration_density_plot <- function(df, time, cell, colorby){
+  
+  df <- filter(df, cell_type == cell) %>%
+    mutate(death = factor(death, levels = c(0,1))) %>%
+    mutate(distant_recurrence = factor(distant_recurrence, levels = c(0,1)))
+  
+  time_title <- str_to_sentence(str_replace(time, "_", " "))
+  cell_title <- paste(cell, "density")
+  colortitle <- str_to_sentence(str_replace(colorby, "_", " "))
+  
+  df %>%
+    ggplot(aes(x = get(time), y = density)) +
+    geom_point(aes(color = get(colorby))) +
+    geom_smooth(method = lm, se = FALSE) +
+    facet_wrap(~classifier_label) +
+    xlab(time_title) + ylab(cell_title) + labs(color = colortitle) +
+    ggtitle(paste(time_title, "and", cell_title)) +
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..rr.label.., ..r.label.., sep = "~`,`~")))
+  
+}
+
+cells_to_plot <- unique(inv_dens$cell_type)
+cells_to_plot <- cells_to_plot[!cells_to_plot %in% c("Other", "PanCK+")]
+
+lapply(cells_to_plot, function(x){
+  duration_density_plot(inv_dens, time = "months_involution",
+                      cell = x, colorby = "clin_subtype")
+  })
+```
+
+### Linear regression
+
+How well do the regression coefficients line up in the whole dataset?
+
+```{r}
+reg_time_dens <- function(df, time, cell){
+   df <- filter(df, cell_type == cell) %>%
+     select(t_number, panel, time = !!time, cell_type, density)
+   #return(df)
+   fit <- glm(time ~ density, family = "poisson", data = df)
+   broom::tidy(fit) %>%
+     filter(term != "(Intercept)") %>%
+     select(-term) %>%
+     mutate(cell_density = cell, predictor = time, .before = everything()) %>%
+     relocate(p.value, .after = predictor)
+}
+
+lapply(cells_to_plot, function(x){
+  reg_time_dens(inv_dens, time = "months_involution", cell = x)}) %>%
+  bind_rows() %>%
+  mutate(fdr = p.adjust(p.value, method = "fdr"), .before = p.value) %>%
+  arrange(fdr) %>%
+  mutate(sig = fdr < 0.05, .before = fdr)
+```
+
+## Months breastfeeding
+
+### Dot plot
+
+```{r}
+lapply(cells_to_plot, function(x){
+  duration_density_plot(inv_dens, time = "months_breastfeeding",
+                      cell = x, colorby = "clin_subtype") +
+    scale_x_log10()
+  })
+```
+
+### Linear regression
+
+```{r}
+lapply(cells_to_plot, function(x){
+  reg_time_dens(inv_dens, time = "months_breastfeeding", cell = x)}) %>%
+  bind_rows() %>%
+  mutate(fdr = p.adjust(p.value, method = "fdr"), .before = p.value) %>%
+  arrange(fdr) %>%
+  mutate(sig = fdr < 0.05, .before = fdr)
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```
