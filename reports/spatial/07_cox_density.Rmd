@@ -322,10 +322,6 @@ if(!regional){
     df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}}) %>%
       rename(Total_density = density)
     
-    #Reshape the data frame for Cox regression
-    #tum_df <- cox_reshape(df)$tumor
-    #str_df <- cox_reshape(df)$stroma
-    
     #If t_numbers are duplicated, something is wrong
     stopifnot(nrow(filter(df, duplicated(t_number)))==0)
     
@@ -418,7 +414,9 @@ if(regional){
     stopifnot(nrow(filter(tum_df, duplicated(t_number)))==0 &
                 nrow(filter(str_df, duplicated(t_number)))==0)
     
-    #testing
+    # for comparing broom output to original call
+    # also allows checking effect of performing an anova instead of 
+    # taking the relevant covariate p value in a full rank model
     if(testing){
       reduced_fit = coxph(as.formula(f), data = as.data.frame(tum_df))
       full_fit = coxph(as.formula(paste(f, "Tumor_density", sep = "+")),
