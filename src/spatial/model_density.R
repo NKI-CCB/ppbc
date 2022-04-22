@@ -64,7 +64,7 @@ model_density <- function(objects) {
     mutate(density = if_else(n==0, 0, n / area))
   
   
-  bind_rows(region, totals)
+  bind_rows(density_per_region, totals)
 }
 
 #Some aggregate groups for density (currently just for CD27+/- B and T cells)
@@ -126,5 +126,3 @@ if (sys.nframe() == 0) {
   all_densities <- aggregate_densities(density)
   write_tsv(all_densities, args$out)
 }
-
-
