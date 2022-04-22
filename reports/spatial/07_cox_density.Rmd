@@ -756,7 +756,7 @@ if(regional){
     tum_df <- tum_df %>%
       mutate(ntile = dplyr::ntile(Tumor_density, ngroups), .after=Tumor_density) %>%
       mutate(quantile = factor(ntile, labels = labels), .after=ntile)
-    #return(tum_df)
+    
     str_df <- str_df %>%
       mutate(ntile = dplyr::ntile(Stroma_density, ngroups), .after=Stroma_density) %>%
       mutate(quantile = factor(ntile, labels = labels), .after=ntile)
@@ -811,8 +811,7 @@ if(!regional){
     df <- df %>%
       mutate(ntile = dplyr::ntile(Total_density, ngroups), .after=Total_density) %>%
       mutate(quantile = factor(ntile, labels = labels), .after=ntile)
-    #return(df)
-    
+      
     survminer::ggsurvplot(
         fit = survminer::surv_fit(as.formula(f), data = as.data.frame(df)), 
         facet.by = "study_group",
@@ -897,8 +896,6 @@ if(regional){
                 nrow(filter(str_df, duplicated(t_number)))==0)
     f_tumor <- as.formula(paste(baseform, paste("group", "Tumor_density",sep=":"), sep = "+"))
     f_stroma <- as.formula(paste(baseform, paste("group", "Stroma_density",sep=":"), sep = "+"))
-    #return(f_tumor)
-    
     
     if(testing){
       reduced_fit = coxph(as.formula(baseform), data = as.data.frame(tum_df))
@@ -950,7 +947,6 @@ if(!regional){
     f_total <- as.formula(
       paste(baseform, paste("group", "Total_density",sep=":"), sep = "+")
       )
-    #return(f_tumor)
     
     if(testing){
       reduced_fit = coxph(as.formula(baseform), data = as.data.frame(df))
