@@ -380,25 +380,7 @@ if(regional){
     
     return(list(tumor = tum_df, stroma = str_df))
   }
-  
-  #performs both an LRT between the full and reduced Cox models and
-  #extracts estimates and HR from the coefficient of interest, then tidies results
-  tidy_cox <- function(reduced_fit, full_fit, cell_type, panel){
-    lrt <- anova(reduced_fit, full_fit) %>% broom::tidy()
-    full_fit %>%
-      broom::tidy(conf.int = T) %>%
-      mutate(HR = exp(estimate),.after=estimate) %>%
-      mutate(cell_type = {{cell_type}},
-             panel = {{panel}},
-             .after=term) %>%
-      mutate(lrt.pval = lrt$p.value[[2]],
-             lrt.logLik = lrt$logLik[[2]],
-             lrt.statistic =  lrt$statistic[[2]],
-             .after = panel) %>%
-      rename(coef.estimate = estimate,
-             coef.statistic = statistic,
-             coef.pval = p.value)
-  }
+
   
   #wrapper function
   cox_density <- function(df, panel, cell_type, f, testing = F){
