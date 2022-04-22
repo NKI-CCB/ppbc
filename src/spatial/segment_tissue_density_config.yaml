@@ -11,4 +11,4 @@ tissues:
         kernel_bandwith: 0.001
         cell_types:
             - "Other"
-        weight: 0.25 # Per square mm there should be 4 or more stroma cells
+        weight: 0.25 # Density of stroma cells should be 4 times the density of tumor for a pixel to be called as Stroma.
