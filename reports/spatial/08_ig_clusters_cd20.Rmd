@@ -38,17 +38,12 @@ We have regional density for stroma and tumor. Also calculate total density.
 ```{r}
 cd20 <- dens %>%
   filter(cell_type == "CD20+") %>%
-  group_by(t_number, panel, cell_type, patient_ID, sample_name) %>%
-  summarise(density = (sum(n)/sum(area)), .groups = "drop") %>%
-  mutate(classifier_label = "Total", .before = everything()) %>%
-  bind_rows(., select(filter(dens, cell_type == "CD20+"),
-                      classifier_label, t_number, panel,
-                      cell_type, patient_ID, sample_name, density)) %>%
   rename(region=classifier_label) %>%
   mutate(region = factor(region, levels = c("Stroma", "Tumor", "Total"))) %>%
-  arrange(t_number, region) %>%
-  left_join(., distinct(select(dens, sample_name, death, distant_recurrence)),
-            by = "sample_name")
+  arrange(t_number, region) #%>%
+  #select(-distant_recurrence, time_DRS_months) %>%
+  #left_join(., distinct(select(dens, sample_name, death, distant_recurrence)),
+            #by = "sample_name")
 
 #DRS is NA in a few samples
 head(cd20)
@@ -67,15 +62,7 @@ igclust <- readxl::read_excel(here("results/clustering/11_inv_clusters.xlsx"),
 Combine
 
 ```{r}
-cd20 <- inner_join(cd20,igclust, by = "sample_name")
-```
-
-The result of join should not have missing values (except in DRS).
-
-```{r}
-rowAny <- function(x) rowSums(x) > 0 
-stopifnot(nrow(filter(cd20,rowAny(across(.cols = -one_of("distant_recurrence"),
-                                         .fns = ~ is.na(.x)))))==0)
+cd20 <- inner_join(cd20,select(igclust, -study_group), by = "sample_name")
 ```
 
 Response variables should be factors for plotting.
@@ -97,6 +84,7 @@ Average area tumor vs stroma:
 
 ```{r}
 dens %>%
+  filter(classifier_label != "Total") %>%
   group_by(t_number, panel, classifier_label) %>%
   summarise(av_area = mean(area), .groups="drop") %>%
   ggplot(aes(x = classifier_label, y = av_area)) +

@@ -6,9 +6,9 @@ tissues:
         kernel_bandwith: 0.001
         cell_types:
             - "PanCK+"
-        weight: 1
+        weight: 1 #Per square mm there should be at least this many tumor cell(s)
     stroma:
         kernel_bandwith: 0.001
         cell_types:
             - "Other"
-        weight: 0.25
+        weight: 0.25 # Density of stroma cells should be 4 times the density of tumor for a pixel to be called as Stroma.

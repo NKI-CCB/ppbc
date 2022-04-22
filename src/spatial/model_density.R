@@ -3,6 +3,7 @@ library(conflicted)
 library(dplyr)
 library(purrr)
 library(readr)
+library(stringr)
 library(tidyr)
 
 options(
@@ -30,7 +31,12 @@ ensure_one_value <- function(x) {
 }
 
 model_density <- function(objects) {
-  objects %>%
+  
+  #Fix incidental lowercasing
+  objects <- objects %>%
+    mutate(classifier_label = stringr::str_to_sentence(classifier_label))
+  
+  density_per_region <- objects %>%
     mutate(
       t_number = factor(t_number),
       batch = factor(batch),
@@ -44,6 +50,21 @@ model_density <- function(objects) {
       area = ensure_one_value(area), # Fill in area when n==0
     ) %>%
     mutate(density = if_else(n==0, 0, n / area)) # Edge case if there are no cells at all
+  
+  # Also perform total aggregation on combined tumor and stroma
+  totals <- region %>%
+    group_by(t_number, panel, cell_type, batch) %>%
+    summarise(area = sum(area), n = sum(n), .groups = "drop") %>%
+    mutate(classifier_label = "Total", .before = everything()) %>%
+    group_by(classifier_label) %>%
+    mutate(
+      area = ensure_one_value(area), # Fill in area when n==0
+      classifier_label = factor(classifier_label, levels = c("Stroma", "Tumor", "Total"))
+    ) %>%
+    mutate(density = if_else(n==0, 0, n / area))
+  
+  
+  bind_rows(density_per_region, totals)
 }
 
 #Some aggregate groups for density (currently just for CD27+/- B and T cells)
@@ -95,7 +116,7 @@ aggregate_densities <- function(density) {
   bind_rows(density, .) 
   
   #if(res == 0){res <- density}
-  res 
+  res %>% arrange(classifier_label, cell_type)
 }
 
 if (sys.nframe() == 0) {

@@ -29,7 +29,7 @@ library(stringr)
 ```
 
 ```{r conf}
-classifier_labels = c('Stroma', 'Tumor')
+classifier_labels = c('Stroma', 'Tumor', 'Total')
 panels = c('MPIF26', 'MPIF27')
 ```
 
