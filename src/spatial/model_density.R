@@ -36,7 +36,7 @@ model_density <- function(objects) {
   objects <- objects %>%
     mutate(classifier_label = stringr::str_to_sentence(classifier_label))
   
-  region <- objects %>%
+  density_per_region <- objects %>%
     mutate(
       t_number = factor(t_number),
       batch = factor(batch),
