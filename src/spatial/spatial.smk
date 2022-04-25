@@ -119,7 +119,7 @@ rule load_annotations:
     output:
         "data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb"
     shell:
-        "python3 {input.script} {input.xml} '[tT]umor.*' {output}"
+        "python3 {input.script} {input.xml} '.*[tT]umor.*' {output}"
 
 #Convert object results and summary to .nc format
 #On harris, command must read python3 instead of python
