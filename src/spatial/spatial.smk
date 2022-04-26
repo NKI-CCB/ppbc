@@ -344,6 +344,26 @@ rule cox_density:
     "params=list(outcome='{wildcards.outcome}',min_cell_count='{params.min_cell_count}'),"
     "output_file = here::here('{output.html}'))\""
 
+#################################
+# Second order spatial measures #
+#################################
+
+rule compute_l:
+  input:
+    script="src/spatial/model_l.R",
+    objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
+    annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
+  output:
+    tsv="results/spatial/k/{t_number}_{panel}_{batch}.tsv",
+  shell:
+    "mkdir -p results/spatial/density\n"
+    "Rscript {input.script} {input.objects} {input.annotation} {output} F"
+
+rule all_k:
+  input:
+    [f"results/spatial/k/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
+       for s in vectra_samples]
+
 
     
 rule cd20_clusters:
