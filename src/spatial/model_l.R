@@ -77,7 +77,7 @@ compute_spatstats <- function(cells, progress_bars, nsim=100) {
   # Set the radii to compute, such they can later be aligned over multiple samples.
   radius_step <- 0.001
   radii <- seq(0, radius_max, radius_step)
-  purrr::map_dfr(immune_cell_types, function (ct) {
+  purrr::map_dfr(rlang::set_names(immune_cell_types), function (ct) {
       with_poisson_null(subset(cells, marks==ct), nsim, compute_L, radii = radii,
                         .progress_bar = progress_bar)
     }, .id = 'cell_type')
