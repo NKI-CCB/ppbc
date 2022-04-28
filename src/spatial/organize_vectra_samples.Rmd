@@ -238,10 +238,72 @@ summary_files %>%
   arrange(t_number, panel)
 ```
 
+### Annotation files
+
+This file is has an extension of `.annotations` and is an XML file in the `Images` directory.
+
+```{r}
+annotations_files <- tibble(
+  annotations_path = list.files(
+    here(params$vectra_dir, 'halo', batches),
+    recursive = T, full.names = T, pattern = ".annotations"
+  )) %>%
+  #Extract the t_number, batch and panel from the annotations results
+  mutate(
+    split_annotations_path=fs::path_split(annotations_path),
+    HALO_archive = map_chr(split_annotations_path, ~ .[[length(.)-6]]),
+    HALO_batch = map_chr(split_annotations_path, ~ .[[length(.)-5]]) %>%
+        str_to_lower() %>%
+        str_remove_all(" "),
+    panel = map_chr(split_annotations_path, ~ .[[length(.)-4]]),
+    t_number = map_chr(split_annotations_path, ~ .[[length(.)-3]]),
+    job = grepl('job[0-9]+\\.annotations', annotations_path)) %>%
+  select(-split_annotations_path) %>%
+  relocate(annotations_path, .after = everything()) %>%
+  relocate(t_number, .before = everything()) %>%
+  arrange(t_number)
+
+head(annotations_files)
+```
+
+The number of sample-panel combinations with an annotations file is `r nrow(annotations_files)` for
+`r length(unique(annotations_files$t_number))` samples.
+
+Sample-panel combinations for which we did not find an annotations file:
+
+```{r}
+anti_join(
+  filter(sample_annotation, sample_type == 'slide' & Included == 1),
+  annotations_files,
+  by = c(sample_ID = 't_number', experimental_platform = 'panel'))
+```
+
+and those for which we have a file, but don't expect it:
+
+```{r}
+anti_join(
+  annotations_files,
+  filter(sample_annotation, sample_type == 'slide' & Included == 1),
+  by=c(t_number = 'sample_ID', panel = 'experimental_platform'))
+```
+
+and check for doubles. Some samples have an extra file with job in the name.
+
+```{r}
+annotations_files %>%
+  group_by(t_number, panel, job) %>%
+  count() %>%
+  filter(n > 1) %>%
+  left_join(annotations_files, by=c('t_number', 'panel')) %>%
+  arrange(t_number, panel)
+```
+
 ### File dictionary
 
 ```{r}
 filedict <- full_join(object_files, summary_files,
+                      by=c("t_number", "panel", "HALO_batch", "HALO_archive"))
+filedict <- full_join(filedict, filter(annotations_files, job == FALSE),
                       by=c("t_number", "panel", "HALO_batch", "HALO_archive"))
 ```
 
@@ -318,6 +380,30 @@ Create the symbolic links.
 suppressWarnings(file.symlink(
   from = filedict$summary_path,
   to = filedict$summary_link
+))
+```
+
+### Annotations
+
+Add symlinks to file dict.
+
+```{r, eval=T}
+filedict$annotations_link <- file.path(
+  symdir, "annotations",
+  paste(
+    filedict$t_number,
+    filedict$panel,
+    filedict$HALO_batch,
+    "annotations.xml",
+    sep = "_"))
+```
+
+Create the symbolic links.
+
+```{r}
+suppressWarnings(file.symlink(
+  from = filedict$annotations_path,
+  to = filedict$annotations_link
 ))
 ```
 

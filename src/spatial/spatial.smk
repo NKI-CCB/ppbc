@@ -112,6 +112,15 @@ rule summary_QC:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
+rule load_annotations:
+    input:
+        script = "src/spatial/import_halo_annotation_wkb.py",
+        xml = "data/vectra/raw/annotations/{t_number}_{panel}_{batch}_annotations.xml",
+    output:
+        "data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb"
+    shell:
+        "python3 {input.script} {input.xml} '.*[tT]umor.*' {output}"
+
 #Convert object results and summary to .nc format
 #On harris, command must read python3 instead of python
 rule load_objects:
@@ -354,6 +363,28 @@ rule cox_density:
     " tissue_segmentation='{wildcards.seg}',"
     " min_cell_count='{params.min_cell_count}'),"
     "output_file = here::here('{output.html}'))\""
+
+#################################
+# Second order spatial measures #
+#################################
+
+rule compute_l:
+  input:
+    script="src/spatial/model_l.R",
+    objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
+    annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
+  output:
+    tsv="results/spatial/k/{t_number}_{panel}_{batch}.tsv",
+  shell:
+    "mkdir -p results/spatial/density\n"
+    "Rscript {input.script} {input.objects} {input.annotation} {output} F"
+
+rule all_k:
+  input:
+    [f"results/spatial/k/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
+       for s in vectra_samples]
+
+
     
 
 #Check whether CD20 intensity in Vectra is correlated with CD20 RNAseq expression    
