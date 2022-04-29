@@ -52,7 +52,7 @@ model_density <- function(objects) {
     mutate(density = if_else(n==0, 0, n / area)) # Edge case if there are no cells at all
   
   # Also perform total aggregation on combined tumor and stroma
-  totals <- region %>%
+  totals <- density_per_region %>%
     group_by(t_number, panel, cell_type, batch) %>%
     summarise(area = sum(area), n = sum(n), .groups = "drop") %>%
     mutate(classifier_label = "Total", .before = everything()) %>%
