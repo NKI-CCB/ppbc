@@ -33,20 +33,23 @@ with_poisson_null <- function(cells, nsim, fun, ..., .progress_bar=NULL) {
   # is compared to distribution under the null hypothesis, for example when calculating
   # significance.
   observed_res <- fun(cells, ...)
+  n_cells <- spatstat.geom::npoints(cells)
+  ow <- spatstat.geom::as.owin(cells)
   if (!is.null(progress_bar)) progress_bar$tick()
-  null_res <- purrr::map_dfr(rpois(nsim, spatstat.geom::npoints(cells)), function (n_cells_sim)  {
-      cells_sim <- spatstat.core::rpoint(n_cells_sim, win=spatstat.geom::as.owin(cells))
+  null_res <- purrr::map_dfr(1:nsim, function (isim)  {
+      cells_sim <- spatstat.core::rpoint(n_cells, win=ow)
       res <- fun(cells_sim, ...)
       if (!is.null(progress_bar)) progress_bar$tick()
       res
     }, .id='simulation') %>%
     group_by(across(-c(simulation, estimate))) %>%
-    summarise(null_estimate = mean(estimate), .groups = 'drop')
+    summarise(null_estimate = mean(estimate, na.rm=T), .groups = 'drop')
   left_join(observed_res, null_res, by = setdiff(colnames(observed_res), 'estimate')) %>%
     mutate(
       observed_estimate = estimate,
       delta_estimate = estimate - null_estimate,
-      model = 'Poisson')
+      model = 'Poisson') %>%
+    select(-estimate)
 }
 
 compute_L <- function(cells, radii) {

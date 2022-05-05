@@ -379,11 +379,17 @@ rule compute_l:
     "mkdir -p results/spatial/density\n"
     "Rscript {input.script} {input.objects} {input.annotation} {output} F"
 
-rule all_k:
+
+rule report_spatstat:
   input:
     [f"results/spatial/k/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
-       for s in vectra_samples]
-
+         for s in vectra_samples],
+    rmd="reports/spatial/11_spatstat_overview.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    html="reports/spatial/11_spatstat_overview.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
     
 
