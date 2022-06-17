@@ -37,7 +37,14 @@ with_poisson_null <- function(cells, nsim, fun, ..., .progress_bar=NULL) {
   ow <- spatstat.geom::as.owin(cells)
   if (!is.null(progress_bar)) progress_bar$tick()
   null_res <- purrr::map_dfr(1:nsim, function (isim)  {
-      cells_sim <- spatstat.core::rpoint(n_cells, win=ow)
+      cells_sim <- withCallingHandlers(
+        spatstat.core::rpoint(n_cells, win=ow),
+        # Ignore warning of creating a large number of points
+        warning = function (cond) {
+          if (stringr::str_starts(cond$message, "Attempting to generate ")) {
+            invokeRestart("muffleWarning")
+          }
+        })
       res <- fun(cells_sim, ...)
       if (!is.null(progress_bar)) progress_bar$tick()
       res
@@ -52,7 +59,7 @@ with_poisson_null <- function(cells, nsim, fun, ..., .progress_bar=NULL) {
     select(-estimate)
 }
 
-compute_L <- function(cells, radii) {
+compute_L <- function(cells, radii, cell_type) {
   spatstat.core::Lest(cells, r=radii, correction='none') %>%
     as_tibble() %>%
     transmute(
@@ -81,7 +88,7 @@ compute_spatstats <- function(cells, progress_bars, nsim=100) {
   radius_step <- 0.001
   radii <- seq(0, radius_max, radius_step)
   purrr::map_dfr(rlang::set_names(immune_cell_types), function (ct) {
-      with_poisson_null(subset(cells, marks==ct), nsim, compute_L, radii = radii,
+      with_poisson_null(cells, nsim, compute_L, radii = radii, cell_type = ct,
                         .progress_bar = progress_bar)
     }, .id = 'cell_type')
 }
