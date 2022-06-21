@@ -31,25 +31,42 @@ source(here('src/spatial/outcome.R'))
 ```
 
 ```{r load-data-spatstat}
-k_col_spec <- cols_only(
-  cell_type = col_character(),
-  measure = col_character(),
-  model = col_character(),
-  null_estimate = col_double(),
-  observed_estimate = col_double(),
-  radius = col_double(),
-  delta_estimate = col_double())
-spatstat <- list.files(here('results/spatial/k'), '*.tsv', full.names=T) %>%
-  set_names() %>%
-  map_dfr(read_tsv, col_types = k_col_spec, .id = 'filename') %>%
-  mutate(
-    cell_type = factor(cell_type),
-    measure = factor(measure),
-    model = factor(model)) %>%
-  tidyr::extract(filename, c('sample_ID', '_slide', 'experimental_platform', 'batch_HALO'),
-                 '(T[0-9]+-[0-9]+(_I+[0-9]+)?)_(MPIF[0-9]+)_(batch[0-9]+)') %>%
-  select(-`_slide`)
+read_spatstat <- function(fn, cross) {
+  col_spec <- list( 
+    measure = col_character(),
+    model = col_character(),
+    null_estimate = col_double(),
+    observed_estimate = col_double(),
+    radius = col_double(),
+    delta_estimate = col_double())
+  if (cross) {
+    col_spec[['cell_type1']] = col_character()
+    col_spec[['cell_type2']] = col_character()
+  } else {
+    col_spec[['cell_type']] = col_character()
+  }
+  col_spec <- do.call(cols_only, col_spec)
+  df <- list.files(fn, '*.tsv', full.names=T) %>%
+    set_names() %>%
+    map_dfr(read_tsv, col_types = col_spec, .id = 'filename') %>%
+    mutate(
+      measure = factor(measure),
+      model = factor(model)) %>%
+    tidyr::extract(filename, c('sample_ID', '_slide', 'experimental_platform', 'batch_HALO'),
+                   '(T[0-9]+-[0-9]+(_I+[0-9]+)?)_(MPIF[0-9]+)_(batch[0-9]+)') %>%
+      select(-`_slide`)
+  if (cross) {
+    df <- mutate(df, cell_type1 = factor(cell_type1), cell_type2 = factor(cell_type2))
+  } else {
+    df <- mutate(df, cell_type = factor(cell_type))
+  }
+  df
+}
 sample_id_vars <- c('sample_ID', 'experimental_platform', 'batch_HALO')
+spatstat_l <- read_spatstat(here('results/spatial/l'), cross = F)
+spatstat_lcross_panck <- read_spatstat(here('results/spatial/lcross_panck'), cross = T)
+spatstat <- bind_rows(spatstat_l, spatstat_lcross_panck) %>%
+  mutate(cell_types = coalesce(cell_type, paste0(cell_type1, "/", cell_type2)))
 ```
 
 ```{r load-data-outcome}
@@ -58,12 +75,16 @@ outcome <- read_outcome(here('data/metadata/PPBC_metadata.xlsx'))
 
 Samples with outcome but no spatstat:
 ```{r missing-a}
-print(anti_join(outcome, spatstat, by = c('sample_ID', 'batch_HALO', 'experimental_platform')))
+print(anti_join(outcome, spatstat_l,
+                by = c('sample_ID', 'batch_HALO', 'experimental_platform')))
+print(anti_join(outcome, spatstat_lcross_panck,
+                by = c('sample_ID', 'batch_HALO', 'experimental_platform')))
 ```
 
 Samples with spatstat but no outcome:
 ```{r missing-b}
-print(anti_join(spatstat, outcome, by = c('sample_ID', 'batch_HALO', 'experimental_platform')))
+print(anti_join(spatstat, outcome,
+                by = c('sample_ID', 'batch_HALO', 'experimental_platform')))
 ```
 
 ```{r filter-patients}
@@ -72,11 +93,11 @@ outcome <- dplyr::filter(outcome,
   stage != "stage IV")
 ```
 
-## Overview of L
+## Overview
 
 ### L over radius
 
-```{r l-overview, cache=T}
+```{r l-plot}
 for (ct in levels(spatstat$cell_type)) {
   plt <- spatstat %>%
     dplyr::filter(measure == 'L', cell_type == ct) %>%
@@ -85,6 +106,21 @@ for (ct in levels(spatstat$cell_type)) {
     scale_x_continuous('Radius (mm)') +
     scale_y_discrete('Sample') +
     ggtitle(paste0('L estimate of ', ct))
+  print(plt)
+}
+```
+
+### Lcross panCK+ over radius
+
+```{r lcross-panck-plot}
+for (ct in levels(spatstat$cell_type2)) {
+  plt <- spatstat %>%
+    dplyr::filter(measure == 'Lcross', cell_type1 == 'PanCK+', cell_type2 == ct) %>%
+    ggplot(aes(x = radius, y = sample_ID)) +
+    geom_tile(aes(fill = observed_estimate)) +
+    scale_x_continuous('Radius (mm)') +
+    scale_y_discrete('Sample') +
+    ggtitle(paste0('Lcross estimate of ', ct, ' to panCK+'))
   print(plt)
 }
 ```
@@ -98,7 +134,7 @@ inner_join(outcome, spatstat, by = sample_id_vars) %>%
     !is.na(death),
     !is.na(time_OS_months),
     !is.na(delta_estimate)) %>%
-  group_by(cell_type, measure, model, radius) %>%
+  group_by(cell_types, measure, model, radius) %>%
   group_walk(function (df_group, key) {
     plt <- ggplot(df_group, aes(x = delta_estimate)) +
       geom_histogram() +
@@ -125,19 +161,15 @@ non_par_test <- function(x, y) {
 
 inner_join(outcome, spatstat, by = sample_id_vars) %>%
   dplyr::filter(radius == 0.03) %>%
-  group_by(cell_type, measure, model, radius) %>%
-  summarize(non_par_test(delta_estimate, study_group)) #%>%
-#  group_by(cell_type, measure, model) %>%
-#  mutate(fdr_per_ct = p.adjust(p.value, 'fdr')) %>%
-#  ungroup() %>%
-#  mutate(fdr = fdr_per_ct / n_distinct(cell_type, measure, model))
+  group_by(cell_types, measure, model, radius) %>%
+  summarize(non_par_test(delta_estimate, study_group))
 ```
 
 
 
 ## Cox-models ##
 
-```{r fit-cox, cache=T}
+```{r fit-cox}
 fit_cox <- function(survival, predictor) {
   model <- coxph(survival ~ predictor)
   model_summary <- summary(model)
@@ -157,7 +189,8 @@ fit_cox <- function(survival, predictor) {
 }
 
 cox_results <- inner_join(outcome, spatstat, by = sample_id_vars) %>%
-  group_by(cell_type, measure, model, radius) %>%
+  dplyr::filter(radius < 0.1) %>%
+  group_by(cell_types, measure, model, radius) %>%
   summarize(
     fit_cox(Surv(time = time_OS_months, event = death), delta_estimate),
     n = n(),
@@ -168,11 +201,21 @@ cox_results <- inner_join(outcome, spatstat, by = sample_id_vars) %>%
 
 ```{r}
 cox_results <- cox_results %>%
-  group_by(cell_type, measure, model) %>%
+  dplyr::filter(!is.na(nominal_p)) %>%
+  group_by(cell_types, measure, model) %>%
   mutate(fdr_per_ct = p.adjust(nominal_p, 'fdr')) %>%
   ungroup() %>%
-  mutate(fdr = fdr_per_ct / n_distinct(cell_type, measure, model))
-cox_results
+  mutate(fdr = fdr_per_ct / n_distinct(cell_types, measure, model))
+```
+
+```{r}
+cox_results %>%
+  group_by(cell_types, measure, model) %>%
+  arrange(-fdr)
+cox_results %>%
+  group_by(cell_types, measure, model) %>%
+  summarize(min_fdr = min(fdr)) %>%
+  arrange(-min_fdr)
 ```
 
 ```{r, fig.height=20, fig.width=10}
@@ -180,11 +223,9 @@ plt <- cox_results %>%
   ggplot(aes(x=radius, y=hr, group='')) +
   geom_ribbon(aes(ymin=hr_min, ymax=hr_max), fill = 'grey70') +
   geom_line(aes(color=!is.na(fdr) & fdr < 0.05)) +
-  facet_grid(rows = vars(cell_type), cols = vars(model, measure)) +
+  facet_grid(rows = vars(cell_types), cols = vars(measure)) +
   scale_y_continuous(trans = scales::log_trans(base=2)) + 
   geom_hline(yintercept=1.0)
-print(plt +
-  coord_cartesian(ylim = c(1/50, 50), xlim = c(0, 1.0)))
 print(plt +
   coord_cartesian(ylim = c(1/10, 10), xlim = c(0, 0.1)))
 ```
@@ -201,7 +242,7 @@ inner_join(outcome, spatstat, by = sample_id_vars) %>%
     !is.na(death),
     !is.na(time_OS_months),
     !is.na(delta_estimate)) %>%
-  group_by(cell_type, measure, model, radius) %>%
+  group_by(cell_types, measure, model, radius) %>%
   group_walk(function (df_group, key) {
     df_group$de_split <- df_group$delta_estimate > median(df_group$delta_estimate, na.rm=T)
     fit = survfit(Surv(time = time_OS_months, event = death) ~ de_split, data = df_group)
