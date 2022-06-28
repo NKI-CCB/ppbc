@@ -56,30 +56,22 @@ define_cell_types <- list(
     mutate(objects, cell_type = case_when_fct(
       # If a cell is FoxP3 positive, we assume it must be CD3+
       FoxP3_positive ~ "FoxP3+",
-      # CD27 status is tracked on putative B and T cells
-      # These cells can be aggregated downstream
-      CD3_positive & CD27_positive ~ "CD3+CD27+FoxP3-",
-      CD3_positive ~ "CD3+CD27-FoxP3-",
-      CD20_positive & CD27_positive ~ "CD20+CD27+",
-      CD20_positive ~ "CD20+CD27-",
-      #Possibly NK cells? Consider low threshold for CD20 and CD3
-      CD27_positive ~ "CD27+CD20-CD3-", 
+      CD3_positive ~ "CD3+FoxP3-",
+      CD20_positive ~ "CD20+",
       PanCK_positive ~ "PanCK+",
-      !CD27_positive & !FoxP3_positive & !CD3_positive & !CD20_positive
-        & !PanCK_positive ~ "Other"),
+      !FoxP3_positive & !CD3_positive & !CD20_positive & !PanCK_positive ~ "Other"),
       .after=object_id)
   },
   MPIF27 = function(objects) {
     mutate(objects, cell_type = case_when_fct(
       # Redefine CD8+CD3+ to reflect the observation that partial CD3 staining
       # sometimes leads to false negatives
-      # Cells with absolutely no CD3 staining will still get called CD3-CD8+
+      # Cells with absolutely no CD3 staining will not get called as immune cells.
       CD8_positive & CD3_intensity > 0 ~ "CD3+CD8+",
       CD3_positive ~ "CD3+CD8-",
-      CD8_positive ~ "CD3-CD8+",
       CD20_positive ~ "CD20+",
       PanCK_positive ~ "PanCK+",
-      !CD8_positive & !CD3_positive & !CD20_positive & !PanCK_positive ~ "Other"),
+      !CD3_positive & !CD20_positive & !PanCK_positive ~ "Other"),
       .after=object_id)
   })
 

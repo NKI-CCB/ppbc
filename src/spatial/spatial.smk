@@ -365,21 +365,37 @@ rule cox_density:
 # Second order spatial measures #
 #################################
 
-rule compute_l:
+rule model_l:
+  "L measure of the immune cell types"
   input:
     script="src/spatial/model_l.R",
     objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
     annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
   output:
-    tsv="results/spatial/k/{t_number}_{panel}_{batch}.tsv",
+    tsv="results/spatial/l/{t_number}_{panel}_{batch}.tsv",
   shell:
-    "mkdir -p results/spatial/density\n"
+    "mkdir -p results/spatial/l\n"
+    "Rscript {input.script} {input.objects} {input.annotation} {output} F"
+
+
+rule model_lcross_panck:
+  "L cross measure between panCK and immune cell types"
+  input:
+    script="src/spatial/model_lcross_panck.R",
+    objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
+    annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
+  output:
+    tsv="results/spatial/lcross_panck/{t_number}_{panel}_{batch}.tsv",
+  shell:
+    "mkdir -p results/spatial/lcross_panck\n"
     "Rscript {input.script} {input.objects} {input.annotation} {output} F"
 
 
 rule report_spatstat:
   input:
-    [f"results/spatial/k/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
+    [f"results/spatial/l/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
+         for s in vectra_samples],
+    [f"results/spatial/lcross_panck/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
          for s in vectra_samples],
     rmd="reports/spatial/11_spatstat_overview.Rmd",
     script="src/rmarkdown.R"
@@ -388,7 +404,6 @@ rule report_spatstat:
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
-    
 
 #Check whether CD20 intensity in Vectra is correlated with CD20 RNAseq expression    
 rule cd20_clusters:
