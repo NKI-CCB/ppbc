@@ -353,16 +353,13 @@ rule cox_density:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
     rmd="reports/spatial/07_cox_density.Rmd"
   params:
-    min_cell_count = 20000,
-    show_cell_subgroups = "FALSE"
+    min_cell_count = 20000
   output:
     html="reports/spatial/07_cox_{seg}_density_{outcome}.html"
   shell:
-    "Rscript -e \"rmarkdown::render('{input.rmd}'," 
-    "params=list(outcome='{wildcards.outcome}',"
-    " tissue_segmentation='{wildcards.seg}',"
-    " min_cell_count='{params.min_cell_count}'),"
-    "output_file = here::here('{output.html}'))\""
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+    " --min_cell_count '{params.min_cell_count}'"
+    " --show_cell_subgroups '{params.show_cell_subgroups}'"
 
 #################################
 # Second order spatial measures #
