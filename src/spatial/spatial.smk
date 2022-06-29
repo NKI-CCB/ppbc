@@ -393,12 +393,26 @@ rule model_lcross_panck:
     "mkdir -p results/spatial/lcross_panck\n"
     "Rscript {input.script} {input.objects} {input.annotation} {output} F"
 
+rule model_lcross_immune:
+  "L cross measure between immune cell types"
+  input:
+    script="src/spatial/model_lcross_immune_cells.R",
+    objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
+    annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
+  output:
+    tsv="results/spatial/lcross_immune/{t_number}_{panel}_{batch}.tsv",
+  shell:
+    "mkdir -p results/spatial/lcross_immune\n"
+    "Rscript {input.script} {input.objects} {input.annotation} {output} F"
+
 
 rule report_spatstat:
   input:
     [f"results/spatial/l/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
          for s in vectra_samples],
     [f"results/spatial/lcross_panck/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
+         for s in vectra_samples],
+    [f"results/spatial/lcross_immune/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
          for s in vectra_samples],
     rmd="reports/spatial/11_spatstat_overview.Rmd",
     script="src/rmarkdown.R"
