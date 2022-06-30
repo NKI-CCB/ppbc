@@ -64,22 +64,9 @@ dens <- dens %>%
 dens$classifier_label %>% unique()
 ```
 
-### Cell types by panel:
+### Cell count threshold
 
-```{r}
-list(
-  mpif26 = dens %>%
-    filter(panel == "MPIF26") %>%
-    select(MPIF26 = cell_type) %>%
-    distinct(),
-  mpif27 = dens %>%
-    filter(panel == "MPIF27") %>%
-    select(MPIF27 = cell_type) %>%
-    distinct()
-)
-```
-
-### Cell counts by panel
+Counts per panel at start:
 
 ```{r}
 dens %>%
@@ -89,7 +76,7 @@ dens %>%
   arrange(desc(MPIF27+MPIF26))
 ```
 
-### Cell groups excluded
+### Cell count threshold
 
 The minimum number of cells of a given type that must be present across the whole dataset is:
 
@@ -117,59 +104,9 @@ dens <- dens %>% filter(!cell_type %in% excluded_cells)
 unique(dens$cell_type)
 ```
 
-### Cell subgroup inclusion
+### Sample count threshold
 
-CD27 is an early activation marker in B and T cells. We can choose to include or exclude these subgroups and other from the analysis below. The following is a list of cell subgroups and their aggregate categories:
-
-```{r}
-agg_cells <- list(
-  MPIF26 = list("CD3+FoxP3-" = c("CD3+CD27+FoxP3-", "CD3+CD27-FoxP3-"),
-                "CD20+" = c("CD20+CD27+", "CD20+CD27-")),
-  MPIF27 = list() #none currently
-)
-
-```
-
-Use parent cell groups for Cox regressions.
-
-```{r}
-filter_cell_groups <- function(df = dens, cellgroups = agg_cells,
-                               show_cell_subgroups = F){
-  
-  mpif26_parents <- names(cellgroups$MPIF26)
-  mpif26_subgroups <- unlist(cellgroups$MPIF26)
-  
-  if(show_cell_subgroups){
-    print("MPIF26:")
-    print(paste("Including cell subtypes:", paste0(mpif26_subgroups, collapse = ", ")))
-    print(paste("Excluding parent groups:", paste0(mpif26_parents, collapse = ", ")))
-    df <- df[-which(df$panel == "MPIF26" & df$cell_type %in% mpif26_parents),]
-  } else {
-    print("MPIF26:")
-    print(paste("Excluding cell subtypes:", paste0(mpif26_subgroups, collapse = ", ")))
-    print(paste("Including parent groups:", paste0(mpif26_parents, collapse = ", ")))
-    df <- df[-which(df$panel == "MPIF26" & df$cell_type %in% mpif26_subgroups),]
-  }
-  
-  df
-}
-
-dens <- filter_cell_groups(show_cell_subgroups = F)
-```
-
-Remaining cell types by panel:
-
-```{r}
-dens %>%
-  group_by(cell_type, panel) %>%
-  summarise(n = sum(n), .groups = "drop") %>%
-  pivot_wider(names_from = panel, values_from = n, values_fill = 0) %>%
-  arrange(desc(MPIF26 + MPIF27))
-```
-
-### Number of samples by group
-
-Per panel:
+Number of samples per panel:
 
 ```{r}
 dens %>%
@@ -188,16 +125,14 @@ dens %>%
   distinct() %>%
   group_by(stage, group) %>%
   count() %>%
-  pivot_wider(names_from = stage, values_from = n)
+  pivot_wider(names_from = stage, values_from = n, values_fill = 0)
 ```
-
-### Cox regression input
 
 Not enough samples to include prbc and lac, or stage IV samples.
 
 ```{r}
 cox_dens <- dens %>%
-  filter(! group %in% c("prbc", "lac")) %>%
+  filter(!group %in% c("prbc", "lac")) %>%
   filter(stage != "stage IV")
 
 cox_dens <- droplevels(cox_dens)
@@ -249,12 +184,21 @@ survres
 source(here("src/spatial/cox_spatial.R"))
 ```
 
-
-## Impact of density on all groups
+## Cox: all samples
 
 Overall impact of density independent on involution and nulliparous groups combined.
 
 Fit separate models for each cell_type/tumor vs stroma/panel. P value is calculated by a likelihood ratio test (LRT) that compares the fit of the Cox model with the fit of a reduced model that does not contain the covariate of interest. Hazard ratios and confidence intervals are obtained from the covariate of interest in the full model.
+
+### Relevant cells
+
+We are only interested in the association of putative immune cells and clinical outcome.
+
+```{r}
+relevant_cells <- unique(cox_dens$cell_type)
+relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
+relevant_cells
+```
 
 ### Univariate
 
@@ -265,137 +209,23 @@ univ_form <- paste0(survres, " ~ 1")
 univ_form
 ```
 
+Example Cox output for single cell type.
+
 ```{r}
-source(here("src/spatial/cox_spatial.R"))
-  
-#Test single cell type
 cox_density(cox_dens, "MPIF27", "CD3+CD8+",
             f = univ_form, tidied = T)
- 
 ```
-
-```{r, include = regional, eval=regional}
-#Regional regressions require separating tumor and stroma
-
-if(regional){
-  #Reshapes density data frame prior to running Cox models and separates tumor from stroma
-  cox_reshape <- function(df){
-    #Separate tumor and stroma densities to prevent unintentional sample duplication
-    tum_df <- df %>%
-      select(-n, -area) %>%
-      filter(classifier_label == "Tumor") %>%
-      pivot_wider(names_from = classifier_label, values_from = density,
-                  values_fill = 0, names_glue = "{classifier_label}_density") %>%
-      relocate(Tumor_density, .before = everything())
-    
-    str_df <- df %>%
-      select(-n, -area) %>%
-      filter(classifier_label == "Stroma") %>%
-      pivot_wider(names_from = classifier_label, values_from = density,
-                  values_fill = 0, names_glue = "{classifier_label}_density") %>%
-      relocate(Stroma_density, .before = everything())
-    
-    return(list(tumor = tum_df, stroma = str_df))
-  }
-
-  
-  #wrapper function
-  cox_density <- function(df, panel, cell_type, f, testing = F){
-    
-    #Subset by panel and celltype
-    df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}})
-    
-    #Reshape the data frame for Cox regression
-    tum_df <- cox_reshape(df)$tumor
-    str_df <- cox_reshape(df)$stroma
-    
-    #If t_numbers are duplicated, something is wrong
-    stopifnot(nrow(filter(tum_df, duplicated(t_number)))==0 &
-                nrow(filter(str_df, duplicated(t_number)))==0)
-    
-    # for comparing broom output to original call
-    # also allows checking effect of performing an anova instead of 
-    # taking the relevant covariate p value in a full rank model
-    if(testing){
-      reduced_fit = coxph(as.formula(f), data = as.data.frame(tum_df))
-      full_fit = coxph(as.formula(paste(f, "Tumor_density", sep = "+")),
-                       data = as.data.frame(tum_df))
-      return(
-        list(fulltumor = coxph(as.formula(paste(f, "Tumor_density", sep = "+")),
-                               data = as.data.frame(tum_df)),
-             anovatumor = anova(reduced_fit, full_fit)
-        ))
-    }
-    
-    #Perform Cox regression and LRT for tumor and stroma
-    tum <- tidy_cox(
-      reduced_fit = coxph(as.formula(f), data = as.data.frame(tum_df)),
-      full_fit = coxph(as.formula(paste(f, "Tumor_density", sep = "+")),
-                       data = as.data.frame(tum_df)),
-      cell_type, panel
-    ) %>%
-      mutate(term = str_replace(term, "stage", "tumor "))
-    
-    strom <- tidy_cox(
-      reduced_fit = coxph(as.formula(f), data = as.data.frame(str_df)),
-      full_fit = coxph(as.formula(paste(f, "Stroma_density", sep = "+")),
-                       data = as.data.frame(str_df)),
-      cell_type, panel
-    ) %>%
-      mutate(term = str_replace(term, "stage", "tumor "))
-    
-    bind_rows(tum, strom)
-  }
-  
-  #Test single cell type
-  cox_density(cox_dens, "MPIF27", "CD3+CD8+",
-              f = univ_form)
-}
-```
-
 
 #### Results
 
+Loop over all cell types, while auto-detecting which panel to use.
+
 ```{r}
-#Wrapper function to select the appropriate cell types per panel
-all_cox_density <- function(df, cell_type, f, testing = F){
-  
-  df <- df %>% filter(cell_type == {{cell_type}})
-  
-  mpif26_cells <- df %>% filter(panel == "MPIF26") %>% pull(cell_type) %>%
-    unique()
-  
-  mpif27_cells <- df %>% filter(panel == "MPIF27") %>% pull(cell_type) %>%
-    unique()
-  
-  #Skip regression if cell type is absent in that panel
-  if(cell_type %in% mpif26_cells & cell_type %in% mpif27_cells){
-    res <- bind_rows(
-      cox_density(df, "MPIF26", cell_type, f),
-      cox_density(df, "MPIF27", cell_type, f)
-    )
-  } else if (cell_type %in% mpif26_cells) {
-    res <- cox_density(df, "MPIF26", cell_type, f)
-  } else if (cell_type %in% mpif27_cells){
-    res <- cox_density(df, "MPIF27", cell_type, f)
-  } else {
-    stop("Provide a valid cell type")
-  }
-  
-  #Remove non-density entries from output
-  res <- res %>% filter(str_detect(term, "density"))
-  res
-}
-
-relevant_cells <- unique(cox_dens$cell_type)
-relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
-
 univ_cox <- lapply(relevant_cells, function(x){
   all_cox_density(cox_dens, x,
                   f = univ_form)
 }) %>%
   bind_rows() %>%
-  # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
   mutate(formula = paste0(univ_form, " + Density"))
 
@@ -403,22 +233,11 @@ univ_cox %>%
   arrange(lrt.fdr, lrt.pval)
 ```
 
-Reshape by region, split by panel
-
-```{r}
-univ_cox %>%
-  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
-  arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval,
-                                                 #n_total
-                                                 )) %>%
-  split(., .$panel)
-```
-
 ### Multivariate
 
 Start with a limited number of covariates. Potential covariates (see `12_genewise_survival.R`): 
 
+group (PPBC study group)
 stage
 age_at_diagnosis
 grade
@@ -429,7 +248,7 @@ chemotherapy
 herceptin
 strata(PAM50)
 
-Probably not PAM50, since that will be correlated with immune cell density. Same is possibly true of treatment interventions.
+PAM50 is not suitable, since that will be correlated with immune cell density. Same is likely true of treatment interventions.
 Stratify PPBC to allow separate baseline hazards functions for each PPBC subgroup.
 
 ```{r}
@@ -444,11 +263,12 @@ Example one cell type:
 #it's a comparison between the full and reduced model
 #However, covariate estimates should be different
 cox_density(cox_dens, "MPIF27", "CD3+CD8+",
-            f = paste0(survres," ~ strata(group) + stage"),
-            testing=T)
+            f = multiv_form,
+            tidied=F)
 
 cox_density(cox_dens, "MPIF27", "CD3+CD8+",
-            f = paste0(survres," ~ strata(group) + stage"))
+            f = multiv_form,
+            tidied=T)
 
 ```
 
@@ -468,22 +288,7 @@ mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
 ```
 
-```{r, eval=regional, include=regional}
-#Reshape by region, split by panel
-if(regional){
-  mult_cox %>%
-    select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
-    arrange(lrt.fdr, lrt.pval) %>%
-    pivot_wider(names_from = term,
-                values_from = c(lrt.fdr, lrt.pval)) %>%
-    arrange(lrt.fdr_Stroma_density + lrt.fdr_Tumor_density,
-            lrt.pval_Stroma_density + lrt.pval_Tumor_density) %>%
-    split(., .$panel)
-}
-
-```
-
-## Impact of density per study group
+## Cox: inv and np subgroups
 
 Check significance in involution samples and nulliparous samples separately.
 
@@ -523,9 +328,14 @@ As above, but split by group. Formula:
 univ_form
 ```
 
-#### Involution
+Example single cell type.
 
-All cell density results by region and panel, arranged by FDR and P value.
+```{r}
+cox_density(df = inv_dens, panel = "MPIF26", cell_type = "CD20+",
+            f = univ_form, tidied=F)
+```
+
+#### Involution
 
 ```{r}
 inv_univ_cox <- lapply(relevant_cells, function(x){
@@ -533,23 +343,12 @@ inv_univ_cox <- lapply(relevant_cells, function(x){
                   f = univ_form)
 }) %>%
   bind_rows() %>%
-  # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = paste0(univ_form, " + Density"))
+  mutate(formula = paste0(univ_form, " + Density")) %>%
+  mutate(subset = "inv", .before = everything())
 
 inv_univ_cox %>%
   arrange(lrt.fdr, lrt.pval)
-```
-
-Reshape by region, split by panel
-
-```{r}
-inv_univ_cox %>%
-  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
-  arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term,
-              values_from = c(lrt.fdr, lrt.pval)) %>%
-  split(., .$panel)
 ```
 
 #### Nulliparous
@@ -562,23 +361,11 @@ np_univ_cox <- lapply(relevant_cells, function(x){
                   f = univ_form)
 }) %>%
   bind_rows() %>%
-  # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
   mutate(formula = paste0(" + Density"))
 
 np_univ_cox %>%
   arrange(lrt.fdr, lrt.pval)
-```
-
-Reshape by region, split by panel
-
-```{r}
-np_univ_cox %>%
-  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
-  arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term,
-              values_from = c(lrt.fdr, lrt.pval)) %>%
-  split(., .$panel)
 ```
 
 ### Multivariate
@@ -600,7 +387,6 @@ inv_mult_cox <- lapply(relevant_cells, function(x){
                   f = multiv_subform)
 }) %>%
   bind_rows() %>%
-  # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
   mutate(formula = paste0(multiv_subform, " + density"))
 
@@ -629,7 +415,6 @@ np_mult_cox <- lapply(relevant_cells, function(x){
                   f = multiv_subform)
 }) %>%
   bind_rows() %>%
-  # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
   mutate(formula = paste0(multiv_subform, " + density"))
 
@@ -637,116 +422,9 @@ np_mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
 ```
 
-```{r}
-np_mult_cox %>%
-  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
-  arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term, values_from = c(lrt.fdr, lrt.pval)) %>%
-  split(., .$panel)
-```
-
 ## Kaplan-Meier: Density by study group
 
-KMs require categorical variables. Convert density into quantiles.
-
-Separate kaplan meiers are shown for tumor and stroma because the two will be correlated. P values are from logrank tests.
-
-```{r, include = regional, eval = regional}
-if(regional){
-  km_plot <- function(df, panel, cell_type, f, outcome, ngroups = 2, pal = "npg"){
-    
-    stopifnot(ngroups %in% c(2,3,4))
-    
-    labels = switch(as.character(ngroups),
-                    "2" = c("low", "high"),
-                    "3" = c("low", "medium", "high"),
-                    "4" = c("Q1", "Q2", "Q3", "Q4")
-    )
-    
-    df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}})
-    
-    #Separate tumor and stroma densities to prevent unintentional sample duplication
-    tum_df <- cox_reshape(df)$tumor
-    str_df <- cox_reshape(df)$stroma
-    
-    #Add density ntiles
-    tum_df <- tum_df %>%
-      mutate(ntile = dplyr::ntile(Tumor_density, ngroups), .after=Tumor_density) %>%
-      mutate(quantile = factor(ntile, labels = labels), .after=ntile)
-    
-    str_df <- str_df %>%
-      mutate(ntile = dplyr::ntile(Stroma_density, ngroups), .after=Stroma_density) %>%
-      mutate(quantile = factor(ntile, labels = labels), .after=ntile)
-    
-    list(
-      tumor = survminer::ggsurvplot(
-        fit = survminer::surv_fit(as.formula(f), data = as.data.frame(tum_df)), 
-        facet.by = "study_group",
-        xlab = "Months", 
-        ylab = paste(outcome, "probability"),
-        title = paste(ptitle, ": ", cell_type, " tumor density in ", panel),
-        pval = T,
-        pval.method = T,
-        palette = pal
-      ),  
-      stroma = survminer::ggsurvplot(
-        fit = survminer::surv_fit(as.formula(f), data = as.data.frame(str_df)), 
-        facet.by = "study_group",
-        xlab = "Months", 
-        ylab = paste(outcome, "probability"),
-        title = paste0(ptitle, ": ", cell_type, " stroma density in ", panel),
-        pval = T,
-        pval.method = T,
-        palette = pal
-      )
-    )
-  }
-  
-  #testing
-  km_plot(cox_dens, panel = "MPIF27", cell_type = "CD20+", outcome,
-          f = paste0(survres, " ~ quantile"))
-}
-
-```
-
-```{r, include = !regional, eval = !regional}
-if(!regional){
-  km_plot <- function(df, panel, cell_type, f, outcome, ngroups = 2, pal = "npg"){
-    
-    stopifnot(ngroups %in% c(2,3,4))
-    
-    labels = switch(as.character(ngroups),
-                    "2" = c("low", "high"),
-                    "3" = c("low", "medium", "high"),
-                    "4" = c("Q1", "Q2", "Q3", "Q4")
-    )
-    
-    df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}}) %>%
-      rename(Total_density = density)
-    
-    #Add density ntiles
-    df <- df %>%
-      mutate(ntile = dplyr::ntile(Total_density, ngroups), .after=Total_density) %>%
-      mutate(quantile = factor(ntile, labels = labels), .after=ntile)
-      
-    survminer::ggsurvplot(
-        fit = survminer::surv_fit(as.formula(f), data = as.data.frame(df)), 
-        facet.by = "study_group",
-        xlab = "Months", 
-        ylab = paste(outcome, "probability"),
-        title = paste(ptitle, ": ", cell_type, " total density in ", panel),
-        pval = T,
-        pval.method = T,
-        palette = pal
-    )
-  }
-  
-  #testing
-  km_plot(cox_dens, panel = "MPIF27", cell_type = "CD20+", outcome,
-          f = paste0(survres, " ~ quantile"))
-}
-
-```
+KMs require categorical variables. Convert density into quantiles. P values are from logrank tests.
 
 MPIF26
 
@@ -772,7 +450,7 @@ lapply(cells_27, function(x){
 }) %>% set_names(cells_27)
 ```
 
-## Density interaction
+## Cox: interaction
 
 Interaction term between group and cell density. Aims to answer the question: which cell densities affect outcome *differently* in involuting vs nulliparous patients. Maybe be statistically underpowered due to lack of more samples.
 
@@ -800,98 +478,46 @@ paste0(multiv_subform, " + group:density")
 
 `Group` is a binary factor that refers to whether a sample is involuting or nulliparous, and `density` refers to the regional density of a given cell type.
 
-```{r, include = regional, eval = regional}
-if(regional){
-  cox_interaction <- function(df, panel, cell_type, baseform, testing=F){
-    
-    df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}})
-    
-    tum_df <- cox_reshape(df)$tumor
-    str_df <- cox_reshape(df)$stroma
-    
-    stopifnot(nrow(filter(tum_df, duplicated(t_number)))==0 &
-                nrow(filter(str_df, duplicated(t_number)))==0)
-    f_tumor <- as.formula(paste(baseform, paste("group", "Tumor_density",sep=":"), sep = "+"))
-    f_stroma <- as.formula(paste(baseform, paste("group", "Stroma_density",sep=":"), sep = "+"))
-    
-    if(testing){
-      reduced_fit = coxph(as.formula(baseform), data = as.data.frame(tum_df))
-      full_fit = coxph(as.formula(f_tumor),
-                       data = as.data.frame(tum_df))
-      return(
-        list(fulltumor = coxph(as.formula(f_tumor),
-                               data = as.data.frame(tum_df)),
-             anovatumor = anova(reduced_fit, full_fit)
-        ))
-    }
-    
-    #Perform Cox regression and LRT for tumor and stroma
-    tum <- tidy_cox(
-      reduced_fit = coxph(as.formula(baseform), data = as.data.frame(tum_df)),
-      full_fit = coxph(as.formula(f_tumor),
-                       data = as.data.frame(tum_df)),
-      cell_type, panel
-    ) %>%
-      mutate(term = str_replace(term, "stage", "tumor "))
-    
-    strom <- tidy_cox(
-      reduced_fit = coxph(as.formula(baseform), data = as.data.frame(str_df)),
-      full_fit = coxph(as.formula(f_stroma),
-                       data = as.data.frame(str_df)),
-      cell_type, panel
-    ) %>%
-      mutate(term = str_replace(term, "stage", "tumor "))
-    
-    bind_rows(tum, strom) %>%
-      mutate(term = str_remove(term, "group"))
-  }
-  #testing
-  cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform, testing = T)
-  cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform)
-}
+```{r}
 
-```
-
-```{r, include = !regional, eval = !regional}
-if(!regional){
-  cox_interaction <- function(df, panel, cell_type, baseform, testing=F){
-    
-    df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}}) %>%
-      rename(Total_density = density)
-    
-    
-    stopifnot(nrow(filter(df, duplicated(t_number)))==0)
-    f_total <- as.formula(
-      paste(baseform, paste("group", "Total_density",sep=":"), sep = "+")
-      )
-    
-    if(testing){
-      reduced_fit = coxph(as.formula(baseform), data = as.data.frame(df))
-      full_fit = coxph(as.formula(f_total),
-                       data = as.data.frame(df))
-      return(
-        list(full = coxph(as.formula(f_total),
-                               data = as.data.frame(df)),
-             anova = anova(reduced_fit, full_fit)
-        ))
-    }
-    
-    #Perform Cox regression and LRT 
-    res <- tidy_cox(
-      reduced_fit = coxph(as.formula(baseform), data = as.data.frame(df)),
-      full_fit = coxph(as.formula(f_total),
-                       data = as.data.frame(df)),
-      cell_type, panel
-    ) %>%
-      mutate(term = str_replace(term, "stage", "tumor "))
-    
-    res %>%
-      mutate(term = str_remove(term, "group"))
+cox_interaction <- function(df, panel, cell_type, baseform, tidied=T){
+  
+  df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}}) %>%
+    rename(Total_density = density)
+  
+  
+  stopifnot(nrow(filter(df, duplicated(t_number)))==0)
+  f_total <- as.formula(
+    paste(baseform, paste("group", "Total_density",sep=":"), sep = "+")
+  )
+  
+  if(!tidied){
+    reduced_fit = coxph(as.formula(baseform), data = as.data.frame(df))
+    full_fit = coxph(as.formula(f_total),
+                     data = as.data.frame(df))
+    return(
+      list(full = coxph(as.formula(f_total),
+                        data = as.data.frame(df)),
+           anova = anova(reduced_fit, full_fit)
+      ))
   }
-  #testing
-  cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform, testing = T)
-  #cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform)
+  
+  #Perform Cox regression and LRT 
+  res <- tidy_cox(
+    reduced_fit = coxph(as.formula(baseform), data = as.data.frame(df)),
+    full_fit = coxph(as.formula(f_total),
+                     data = as.data.frame(df)),
+    cell_type, panel
+  ) %>%
+    mutate(term = str_replace(term, "stage", "tumor "))
+  
+  res %>%
+    mutate(term = str_remove(term, "group"))
 }
+#testing
+cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform, tidied = F)
+#cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform)
+
 
 ```
 
@@ -950,17 +576,6 @@ All cell density results by region and panel, arranged by FDR and P value.
 ```{r}
 interaction_df %>%
   arrange(lrt.fdr, lrt.pval)
-```
-
-Split by panel:
-
-```{r}
-interaction_df %>%
-  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
-  arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term,
-              values_from = c(lrt.fdr, lrt.pval)) %>%
-  split(., .$panel)
 ```
 
 Kaplan-meiers are not relevant for Cox formulas that contain interaction terms.

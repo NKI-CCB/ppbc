@@ -351,7 +351,8 @@ rule invbf_time_density:
 rule cox_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
-    rmd="reports/spatial/07_cox_density.Rmd"
+    rmd="reports/spatial/07_cox_density.Rmd",
+    script="src/rmarkdown.R"
   params:
     min_cell_count = 20000
   output:
