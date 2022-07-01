@@ -41,7 +41,7 @@ tidy_cox <- function(reduced_fit, full_fit, cell_type, panel){
            coef.pval = p.value)
 }
 
-#' Perform Cox regressions on on cell type density
+#' Perform LRTs on Cox regressions based on cell type density
 #' 
 #' @description Performs an anova between coxph fit produced by formula `f` and
 #' `f + Total_density` of a given cell type and panel 
@@ -142,7 +142,7 @@ all_cox_density <- function(df, cell_type, f){
 #' Kaplan-meier plots for density
 #'
 #' @param df A data frame containing columns which match formula `f`
-#' @param panel  panel Character, the IF panel
+#' @param panel Character, the IF panel
 #' @param cell_type Character, the cell type density to model
 #' @param f Character, the Surv formula containing at least a quantile term. I.e.,
 #' "Surv(time = time_OS_months, event = death) ~ quantile"
@@ -185,8 +185,105 @@ km_plot <- function(df, panel, cell_type, f, outcome, ngroups = 2, pal = "npg"){
   )
 }
 
-#testing
+#' Perform LRTs on Cox regressions testing the interaction term group:Total_density
+#'
+#' @param df Data frame containing columns which match formula `baseform`.
+#' @param panel Character, the IF panel
+#' @param cell_type Character, the cell type density to model
+#' @param baseform Character, the Surv formula containing the base formula
+#'  in the LRT, excluding the interaction term. For example, if the full formula is 
+#'  "Surv(time_OS_months, death) ~ stage + group + Total_density + group:Total_density",
+#'  the base formula would be "Surv(time_OS_months, death) ~ stage + group + Total_density"
+#' @param tidied Logical, whether to return a data frame or print the LRT summary
+#'
+#' @return A tibble if tidied, or the printed summary of the LRT if not
+#' @export
+#'
+#' @examples cox_interaction(cox_dens, "MPIF27", "CD20+",
+#' baseform = inv_baseform, tidied = F)
+cox_interaction <- function(df, panel, cell_type, baseform, tidied=T){
+  
+  df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}}) %>%
+    rename(Total_density = density)
+  
+  
+  stopifnot(nrow(filter(df, duplicated(t_number)))==0)
+  f_total <- as.formula(
+    paste(baseform, paste("group", "Total_density",sep=":"), sep = "+")
+  )
+  
+  if(!tidied){
+    reduced_fit = coxph(as.formula(baseform), data = as.data.frame(df))
+    full_fit = coxph(as.formula(f_total),
+                     data = as.data.frame(df))
+    return(
+      list(full = coxph(as.formula(f_total),
+                        data = as.data.frame(df)),
+           anova = anova(reduced_fit, full_fit)
+      ))
+  }
+  
+  #Perform Cox regression and LRT 
+  res <- tidy_cox(
+    reduced_fit = coxph(as.formula(baseform), data = as.data.frame(df)),
+    full_fit = coxph(as.formula(f_total),
+                     data = as.data.frame(df)),
+    cell_type, panel
+  ) %>%
+    # Replace "stagestage" in output with "tumor stage"
+    mutate(term = str_replace(term, "stage", "tumor "))
+  
+  res %>%
+    # Replace "groupinv" with "inv" in output
+    mutate(term = str_remove(term, "group"))
+}
 
+#' Cox interaction regressions for all cell types while auto-detecting the panel
+#'
+#' @description A wrapper function similar to `all_cox_density`, but for models
+#' that include an interaction term.
+#'
+#' @param df Data frame containing columns which match formula `baseform`.
+#' @param cell_type Character, the cell type density to model
+#' @param baseform Character, the Surv formula containing the base formula
+#'  in the LRT, excluding the interaction term. For example, if the full formula is 
+#'  "Surv(time_OS_months, death) ~ stage + group + Total_density + group:Total_density",
+#'  the base formula would be "Surv(time_OS_months, death) ~ stage + group + Total_density"
+#'
+#' @return A tibble containing Cox output
+#' @export
+#'
+#' @examples lapply(relevant_cells, function(x){
+#' all_cox_interaction(cox_dens, x, baseform = inv_baseform)
+#' })
+all_cox_interaction <- function(df, cell_type, baseform){
+  
+  df <- df %>% filter(cell_type == {{cell_type}})
+  
+  mpif26_cells <- df %>% filter(panel == "MPIF26") %>% pull(cell_type) %>%
+    unique()
+  
+  mpif27_cells <- df %>% filter(panel == "MPIF27") %>% pull(cell_type) %>%
+    unique()
+  
+  #Skip regression if cell type is absent
+  if(cell_type %in% mpif26_cells & cell_type %in% mpif27_cells){
+    res <- bind_rows(
+      cox_interaction(df, "MPIF26", cell_type, baseform),
+      cox_interaction(df, "MPIF27", cell_type, baseform)
+    )
+  } else if (cell_type %in% mpif26_cells) {
+    res <- cox_interaction(df, "MPIF26", cell_type, baseform)
+  } else if (cell_type %in% mpif27_cells){
+    res <- cox_interaction(df, "MPIF27", cell_type, baseform)
+  } else {
+    stop("Provide a valid cell type")
+  }
+  
+  #Remove non-density entries from output
+  res <- res %>% filter(str_detect(term, "density"))
+  res
+}
 
 #### Deprecated regional analyses ----
 
@@ -371,6 +468,3 @@ cox_regional_interaction <- function(df, panel, cell_type, baseform, testing=F){
   bind_rows(tum, strom) %>%
     mutate(term = str_remove(term, "group"))
 }
-#testing
-cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform, testing = T)
-cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform)

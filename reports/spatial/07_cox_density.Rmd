@@ -42,7 +42,7 @@ print(ptitle)
 ```
 
 ---
-title: '`r paste('Cox regression with', seg, 'density:', ptitle)`'
+title: '`r paste('Cox regression with total density:', ptitle)`'
 ---
 
 ## Setup
@@ -462,63 +462,29 @@ cox_dens %>%
   count()
 ```
 
-The function below works very similarly to `cox_density()`, except that a formula with an interaction term is automatically generated.
+The analysis below works very similarly to the one implemented with `cox_density()`, except that a formula with an interaction term is automatically generated.
 
 The reduced formula will be:
 
 ```{r}
-multiv_subform
+inv_baseform <- paste(multiv_subform, "+ group + Total_density")
+inv_baseform
 ```
 
 The interaction term formula is:
 
 ```{r}
-paste0(multiv_subform, " + group:density")
+inv_intform <- paste(inv_baseform, "+ group:Total_density")
+inv_intform
 ```
 
-`Group` is a binary factor that refers to whether a sample is involuting or nulliparous, and `density` refers to the regional density of a given cell type.
+`Group` is a binary factor that refers to whether a sample is involuting or nulliparous, and `Total_density` refers to the density of a given cell type. An LRT attempts to determine whether models fit using the interaction term `group:Total_density` is different than the base formula `~stage + group + Total_density`. 
+
+Again, this test is likely statistically underpowered. Unfortunately it is not simple to do a formal power calculation between nonbinary predictors in an interaction term.
 
 ```{r}
-
-cox_interaction <- function(df, panel, cell_type, baseform, tidied=T){
-  
-  df <- df %>% filter(panel == {{panel}}, cell_type == {{cell_type}}) %>%
-    rename(Total_density = density)
-  
-  
-  stopifnot(nrow(filter(df, duplicated(t_number)))==0)
-  f_total <- as.formula(
-    paste(baseform, paste("group", "Total_density",sep=":"), sep = "+")
-  )
-  
-  if(!tidied){
-    reduced_fit = coxph(as.formula(baseform), data = as.data.frame(df))
-    full_fit = coxph(as.formula(f_total),
-                     data = as.data.frame(df))
-    return(
-      list(full = coxph(as.formula(f_total),
-                        data = as.data.frame(df)),
-           anova = anova(reduced_fit, full_fit)
-      ))
-  }
-  
-  #Perform Cox regression and LRT 
-  res <- tidy_cox(
-    reduced_fit = coxph(as.formula(baseform), data = as.data.frame(df)),
-    full_fit = coxph(as.formula(f_total),
-                     data = as.data.frame(df)),
-    cell_type, panel
-  ) %>%
-    mutate(term = str_replace(term, "stage", "tumor "))
-  
-  res %>%
-    mutate(term = str_remove(term, "group"))
-}
-#testing
-cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform, tidied = F)
-#cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform)
-
-
+cox_interaction(cox_dens, "MPIF27", "CD20+",
+                baseform = inv_baseform, tidied = F)
 ```
 
 
@@ -527,58 +493,23 @@ cox_interaction(cox_dens, "MPIF27", "CD20+", baseform = multiv_subform, tidied =
 Also the wrapper function is similar to `all_cox_density()`, except that it invokes `cox_interaction` instead of `cox_density`.
 
 ```{r}
-all_cox_interaction <- function(df, cell_type, baseform){
-  
-  df <- df %>% filter(cell_type == {{cell_type}})
-  
-  mpif26_cells <- df %>% filter(panel == "MPIF26") %>% pull(cell_type) %>%
-    unique()
-  
-  mpif27_cells <- df %>% filter(panel == "MPIF27") %>% pull(cell_type) %>%
-    unique()
-  
-  #Skip regression if cell type is absent
-  if(cell_type %in% mpif26_cells & cell_type %in% mpif27_cells){
-    res <- bind_rows(
-      cox_interaction(df, "MPIF26", cell_type, baseform),
-      cox_interaction(df, "MPIF27", cell_type, baseform)
-    )
-  } else if (cell_type %in% mpif26_cells) {
-    res <- cox_interaction(df, "MPIF26", cell_type, baseform)
-  } else if (cell_type %in% mpif27_cells){
-    res <- cox_interaction(df, "MPIF27", cell_type, baseform)
-  } else {
-    stop("Provide a valid cell type")
-  }
-  
-  #Remove non-density entries from output
-  res <- res %>% filter(str_detect(term, "density"))
-  res
-}
-
-relevant_cells <- unique(cox_dens$cell_type)
-relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
-
 interaction_df <- lapply(relevant_cells, function(x){
-  all_cox_interaction(cox_dens, x, baseform = multiv_subform)
+  all_cox_interaction(cox_dens, x, baseform = inv_baseform)
 }) %>%
  bind_rows() %>%
   #Only show the involution-related interaction terms
   filter(str_detect(term, "inv")) %>%
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
-  mutate(formula = paste0(multiv_subform, " + group:density"))
+  mutate(formula = inv_intform)
 
 ```
 
-
-All cell density results by region and panel, arranged by FDR and P value.
+All cell density results by panel, arranged by FDR and P value.
 
 ```{r}
 interaction_df %>%
   arrange(lrt.fdr, lrt.pval)
 ```
-
-Kaplan-meiers are not relevant for Cox formulas that contain interaction terms.
 
 ## Session info
 

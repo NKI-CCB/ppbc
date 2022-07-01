@@ -356,11 +356,10 @@ rule cox_density:
   params:
     min_cell_count = 20000
   output:
-    html="reports/spatial/07_cox_{seg}_density_{outcome}.html"
+    html="reports/spatial/07_cox_total_density_{outcome}.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --min_cell_count '{params.min_cell_count}'"
-    " --show_cell_subgroups '{params.show_cell_subgroups}'"
 
 #################################
 # Second order spatial measures #

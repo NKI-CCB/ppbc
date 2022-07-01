@@ -37,7 +37,7 @@ rule all:
     "reports/spatial/05_density.html",
     expand("reports/spatial/06_kruskal_{seg}_density.html", seg = ["regional", "total"]),
     "reports/spatial/06b_inv_time_density.html",
-    expand("reports/spatial/07_cox_{seg}_density_{outcome}.html", outcome = ['OS','DRS'], seg = ["regional", "total"]),
+    expand("reports/spatial/07_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
     "reports/spatial/08_ig_clusters_cd20.html",
     "reports/spatial/09_tissue_segmentation.html"
 
