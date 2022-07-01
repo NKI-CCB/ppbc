@@ -116,6 +116,8 @@ rule load_annotations:
     input:
         script = "src/spatial/import_halo_annotation_wkb.py",
         xml = "data/vectra/raw/annotations/{t_number}_{panel}_{batch}_annotations.xml",
+    wildcard_constraints:
+        t_number= "^(?!T20-62424).*" #missing
     output:
         "data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb"
     shell:
@@ -321,15 +323,12 @@ rule kruskal_density:
     rmd="reports/spatial/06_kruskal_density.Rmd",
     script="src/rmarkdown.R"
   params:
-    min_cell_count = 20000,
-    show_cell_subgroups = "TRUE"
+    min_cell_count = 20000
   output:
     html="reports/spatial/06_kruskal_{seg}_density.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --min_cell_count '{params.min_cell_count}'"
-    " --show_cell_subgroups '{params.show_cell_subgroups}'"
-    " --tissue_segmentation '{wildcards.seg}'"
 
 #Relationship between involution and breastfeeding duration and immune density
 rule invbf_time_density:
@@ -338,14 +337,12 @@ rule invbf_time_density:
     rmd="reports/spatial/06b_inv_time_density.Rmd",
     script="src/rmarkdown.R"
   params:
-    min_cell_count = 20000,
-    show_cell_subgroups = "FALSE"
+    min_cell_count = 20000
   output:
     html="reports/spatial/06b_inv_time_density.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --min_cell_count '{params.min_cell_count}'"
-    " --show_cell_subgroups '{params.show_cell_subgroups}'"
     
 #Cox regressions for cell densities, OS and DRS
 rule cox_density:
@@ -360,6 +357,17 @@ rule cox_density:
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --min_cell_count '{params.min_cell_count}'"
+    
+#Check whether CD20 intensity in Vectra is correlated with CD20 RNAseq expression    
+rule cd20_clusters:
+  input:
+    density_outcome = "data/vectra/processed/density_ppbc.Rds",
+    rmd="reports/spatial/08_ig_clusters_cd20.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    html="reports/spatial/08_ig_clusters_cd20.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
 #################################
 # Second order spatial measures #
@@ -371,6 +379,8 @@ rule model_l:
     script="src/spatial/model_l.R",
     objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
     annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
+  wildcard_constraints:
+      t_number= "^(?!T20-62424).*" #missing
   output:
     tsv="results/spatial/l/{t_number}_{panel}_{batch}.tsv",
   shell:
@@ -384,6 +394,8 @@ rule model_lcross_panck:
     script="src/spatial/model_lcross_panck.R",
     objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
     annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
+  wildcard_constraints:
+      t_number= "^(?!T20-62424).*" #missing  
   output:
     tsv="results/spatial/lcross_panck/{t_number}_{panel}_{batch}.tsv",
   shell:
@@ -396,6 +408,8 @@ rule model_lcross_immune:
     script="src/spatial/model_lcross_immune_cells.R",
     objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
     annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
+  wildcard_constraints:
+      t_number= "^(?!T20-62424).*" #missing
   output:
     tsv="results/spatial/lcross_immune/{t_number}_{panel}_{batch}.tsv",
   shell:
@@ -419,13 +433,3 @@ rule report_spatstat:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
 
-#Check whether CD20 intensity in Vectra is correlated with CD20 RNAseq expression    
-rule cd20_clusters:
-  input:
-    density_outcome = "data/vectra/processed/density_ppbc.Rds",
-    rmd="reports/spatial/08_ig_clusters_cd20.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    html="reports/spatial/08_ig_clusters_cd20.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
