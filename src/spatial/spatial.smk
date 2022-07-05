@@ -320,12 +320,13 @@ rule process_density:
 rule kruskal_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
-    rmd="reports/spatial/06_kruskal_density.Rmd",
-    script="src/rmarkdown.R"
+    rmd = "reports/spatial/06_kruskal_density.Rmd",
+    script = "src/rmarkdown.R",
+    lib = "src/spatial/kruskal_density.R" 
   params:
     min_cell_count = 20000
   output:
-    html="reports/spatial/06_kruskal_{seg}_density.html"
+    html = "reports/spatial/06_kruskal_{seg}_density.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --min_cell_count '{params.min_cell_count}'"
