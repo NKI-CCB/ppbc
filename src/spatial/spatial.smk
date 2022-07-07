@@ -116,8 +116,6 @@ rule load_annotations:
     input:
         script = "src/spatial/import_halo_annotation_wkb.py",
         xml = "data/vectra/raw/annotations/{t_number}_{panel}_{batch}_annotations.xml",
-    wildcard_constraints:
-        t_number= "^(?!T20-62424).*" #missing
     output:
         "data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb"
     shell:
@@ -380,8 +378,6 @@ rule model_l:
     script="src/spatial/model_l.R",
     objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
     annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
-  wildcard_constraints:
-      t_number= "^(?!T20-62424).*" #missing
   output:
     tsv="results/spatial/l/{t_number}_{panel}_{batch}.tsv",
   shell:
@@ -395,8 +391,6 @@ rule model_lcross_panck:
     script="src/spatial/model_lcross_panck.R",
     objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
     annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
-  wildcard_constraints:
-      t_number= "^(?!T20-62424).*" #missing  
   output:
     tsv="results/spatial/lcross_panck/{t_number}_{panel}_{batch}.tsv",
   shell:
@@ -409,14 +403,11 @@ rule model_lcross_immune:
     script="src/spatial/model_lcross_immune_cells.R",
     objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
     annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
-  wildcard_constraints:
-      t_number= "^(?!T20-62424).*" #missing
   output:
     tsv="results/spatial/lcross_immune/{t_number}_{panel}_{batch}.tsv",
   shell:
     "mkdir -p results/spatial/lcross_immune\n"
     "Rscript {input.script} {input.objects} {input.annotation} {output} F"
-
 
 rule report_spatstat:
   input:
@@ -432,5 +423,4 @@ rule report_spatstat:
     html="reports/spatial/11_spatstat_overview.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
-
 
