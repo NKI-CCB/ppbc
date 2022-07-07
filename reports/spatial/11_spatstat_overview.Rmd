@@ -1,6 +1,6 @@
 ---
 title: "Spatstat"
-author: "Tycho Bismeijer"
+author: "Tycho Bismeijer & Kat Moore"
 date: "`r Sys.Date()`"
 output: 
   html_document:
@@ -63,9 +63,21 @@ read_spatstat <- function(fn, cross) {
   df
 }
 sample_id_vars <- c('sample_ID', 'experimental_platform', 'batch_HALO')
+
 spatstat_l <- read_spatstat(here('results/spatial/l'), cross = F)
-spatstat_lcross_panck <- read_spatstat(here('results/spatial/lcross_panck'), cross = T)
-spatstat <- bind_rows(spatstat_l, spatstat_lcross_panck) %>%
+spatstat_lcross_panck <- read_spatstat(here('results/spatial/lcross_panck'), cross = T) %>%
+  mutate(measure = "Lcross_PanCK") %>%
+  dplyr::filter(!is.na(cell_type2)) #8 rows have NA for all stats
+spatstat_lcross_immune <- read_spatstat(here('results/spatial/lcross_immune'), cross = T) %>%
+  mutate(measure = "Lcross_immune")  %>%
+  # Current implementation has redundancy with L_cross-PanCK, where PanCK is always cell type 1
+  # We are also not interested in Other for this comparison
+  dplyr::filter(!cell_type1 %in% c("PanCK+", "Other")) %>%
+  # Keep PanCK+ in cell_type2 because different start points may yield different results
+  dplyr::filter(!cell_type2 %in% c("Other")) %>%
+  dplyr::filter(!is.na(cell_type2)) #62 NA rows
+
+spatstat <- bind_rows(spatstat_l, spatstat_lcross_panck, spatstat_lcross_immune) %>%
   mutate(cell_types = coalesce(cell_type, paste0(cell_type1, "/", cell_type2)))
 ```
 
@@ -76,12 +88,18 @@ outcome <- read_outcome(here('data/metadata/PPBC_metadata.xlsx'))
 Samples with outcome but no spatstat:
 ```{r missing-a}
 print(anti_join(outcome, spatstat_l,
-                by = c('sample_ID', 'batch_HALO', 'experimental_platform')))
+                by = c('sample_ID', 'batch_HALO', 'experimental_platform')) %>%
+        mutate(stat_missing = "l", .before = everything())) 
 print(anti_join(outcome, spatstat_lcross_panck,
-                by = c('sample_ID', 'batch_HALO', 'experimental_platform')))
+                by = c('sample_ID', 'batch_HALO', 'experimental_platform')) %>%
+  mutate(stat_missing = "lcross_panck", .before = everything())) 
+print(anti_join(outcome, spatstat_lcross_immune,
+                by = c('sample_ID', 'batch_HALO', 'experimental_platform')) %>%
+  mutate(stat_missing = "lcross_immune", .before = everything())) 
 ```
 
 Samples with spatstat but no outcome:
+
 ```{r missing-b}
 print(anti_join(spatstat, outcome,
                 by = c('sample_ID', 'batch_HALO', 'experimental_platform')))
@@ -112,15 +130,54 @@ for (ct in levels(spatstat$cell_type)) {
 
 ### Lcross panCK+ over radius
 
+Crosses:
+
+```{r}
+spatstat %>%
+  dplyr::filter(measure == 'Lcross_PanCK') %>%
+  select(cell_type1, cell_type2) %>% distinct()
+```
+
+
 ```{r lcross-panck-plot}
-for (ct in levels(spatstat$cell_type2)) {
+for (ct in unique(spatstat_lcross_panck$cell_type2)) {
   plt <- spatstat %>%
-    dplyr::filter(measure == 'Lcross', cell_type1 == 'PanCK+', cell_type2 == ct) %>%
+    dplyr::filter(measure == 'Lcross_PanCK', cell_type1 == 'PanCK+', cell_type2 == ct) %>%
     ggplot(aes(x = radius, y = sample_ID)) +
     geom_tile(aes(fill = observed_estimate)) +
     scale_x_continuous('Radius (mm)') +
     scale_y_discrete('Sample') +
     ggtitle(paste0('Lcross estimate of ', ct, ' to panCK+'))
+  print(plt)
+}
+```
+
+### Lcross immune over radius
+
+Available crosses. x -> y and y -> x comparisons exist, since the starting point differs.
+
+```{r}
+immune_crosses <- spatstat %>%
+  dplyr::filter(measure == 'Lcross_immune') %>%
+  select(cell_type1, cell_type2) %>% 
+  dplyr::filter(!cell_type1 %in% c("PanCK+", "Other")) %>%
+  dplyr::filter(!cell_type2 %in% c("PanCK+", "Other")) %>%
+  distinct()
+
+immune_crosses
+```
+
+```{r lcross-immune-plot}
+for (i in 1:nrow(immune_crosses)) {
+  ct1 <- immune_crosses$cell_type1[i]
+  ct2 <- immune_crosses$cell_type2[i]
+  plt <- spatstat %>%
+    dplyr::filter(measure == 'Lcross_immune', cell_type1 == ct1, cell_type2 == ct2) %>%
+    ggplot(aes(x = radius, y = sample_ID)) +
+    geom_tile(aes(fill = observed_estimate)) +
+    scale_x_continuous('Radius (mm)') +
+    scale_y_discrete('Sample') +
+    ggtitle(paste0('Lcross estimate of ', ct1, ' to ', ct2))
   print(plt)
 }
 ```
@@ -137,13 +194,13 @@ inner_join(outcome, spatstat, by = sample_id_vars) %>%
   group_by(cell_types, measure, model, radius) %>%
   group_walk(function (df_group, key) {
     plt <- ggplot(df_group, aes(x = delta_estimate)) +
-      geom_histogram() +
+      geom_histogram(bins = 30) +
       ggtitle(paste0(names(key), '=', map_chr(key, as.character), collapse = ' '))
     print(plt)
   })
 ```
 
-## Comparison between groups ##
+## Comparison between groups
 
 ```{r compare-groups, message=F}
 non_par_test <- function(x, y) {
@@ -162,12 +219,11 @@ non_par_test <- function(x, y) {
 inner_join(outcome, spatstat, by = sample_id_vars) %>%
   dplyr::filter(radius == 0.03) %>%
   group_by(cell_types, measure, model, radius) %>%
-  summarize(non_par_test(delta_estimate, study_group))
+  summarize(non_par_test(delta_estimate, study_group)) %>%
+  arrange(p.value)
 ```
 
-
-
-## Cox-models ##
+## Cox-models
 
 ```{r fit-cox}
 fit_cox <- function(survival, predictor) {
@@ -211,26 +267,58 @@ cox_results <- cox_results %>%
 ```{r}
 cox_results %>%
   group_by(cell_types, measure, model) %>%
-  arrange(-fdr)
-cox_results %>%
-  group_by(cell_types, measure, model) %>%
-  summarize(min_fdr = min(fdr)) %>%
-  arrange(-min_fdr)
+  arrange(-fdr) %>%
+  relocate(fdr, .before = everything())
 ```
 
-```{r, fig.height=20, fig.width=10}
+Min FDR, average HR, and overall impact (good/bad) across all radii. Note: impact may be different at different distances. See graphs below.
+
+```{r}
+cox_results %>%
+  group_by(cell_types, measure, model) %>%
+  summarize(min_fdr = min(fdr), ave_hr = signif(mean(hr_min, na.rm=T),2)) %>%
+  arrange(min_fdr) %>%
+  mutate(impact = ifelse(ave_hr > 1, "harmful", "beneficial"))
+```
+
+1### HR by radius and cell type
+
+Split by metric for legibility.
+
+```{r, fig.width=10}
+for(metric in unique(cox_results$measure)){
+  plt <- cox_results[cox_results$measure == metric,] %>%
+    ggplot(aes(x=radius, y=hr, group='')) +
+    geom_ribbon(aes(ymin=hr_min, ymax=hr_max), fill = 'grey70') +
+    geom_line(aes(color=!is.na(fdr) & fdr < 0.05)) +
+    facet_wrap(~cell_types) +
+    scale_y_continuous(trans = scales::log_trans(base=2)) + 
+    geom_hline(yintercept=1.0)
+  print(plt +
+          ggtitle(metric) +
+          coord_cartesian(ylim = c(1/10, 10), xlim = c(0, 0.1)))
+}
+
+
+```
+
+CD20-specific graphs.
+
+```{r, fig.height = 4, fig.width=7}
 plt <- cox_results %>%
+  dplyr::filter(cell_types %in% c("CD20+","PanCK+/CD20+", "CD20+/PanCK+")) %>%
+  mutate(cell_types = paste(cell_types, measure)) %>%
   ggplot(aes(x=radius, y=hr, group='')) +
   geom_ribbon(aes(ymin=hr_min, ymax=hr_max), fill = 'grey70') +
   geom_line(aes(color=!is.na(fdr) & fdr < 0.05)) +
-  facet_grid(rows = vars(cell_types), cols = vars(measure)) +
+  facet_grid(cols = vars(cell_types)) +
   scale_y_continuous(trans = scales::log_trans(base=2)) + 
   geom_hline(yintercept=1.0)
 print(plt +
   coord_cartesian(ylim = c(1/10, 10), xlim = c(0, 0.1)))
 ```
 
-## Kaplan-Meier ##
+## Kaplan-Meier
 
 Difficult to first generate kaplan-meier estimates before plotting because of limitations in
 survfit and ggsurvplot, resultign in ggsurvplot needing the original data.
@@ -242,11 +330,54 @@ inner_join(outcome, spatstat, by = sample_id_vars) %>%
     !is.na(death),
     !is.na(time_OS_months),
     !is.na(delta_estimate)) %>%
+  #Cox filter, sig only
+  dplyr::filter(cell_types %in% dplyr::filter(cox_results, radius == 0.03, fdr < 0.05)$cell_types) %>%
   group_by(cell_types, measure, model, radius) %>%
   group_walk(function (df_group, key) {
     df_group$de_split <- df_group$delta_estimate > median(df_group$delta_estimate, na.rm=T)
     fit = survfit(Surv(time = time_OS_months, event = death) ~ de_split, data = df_group)
-    plt <- ggsurvplot(fit, data = df_group, risk.table = T, conf.int = T) +
+    plt <- ggsurvplot(fit, data = df_group, risk.table = T, conf.int = T, pval = T, pval.method = T) +
+      ggtitle(paste0(names(key), '=', map_chr(key, as.character), collapse = ' '))
+    print(plt)
+  })
+```
+
+Look at some CD20 graphs specifically.
+
+```{r}
+inner_join(outcome, spatstat, by = sample_id_vars) %>%
+  dplyr::filter(
+    radius == 0.03,
+    !is.na(death),
+    !is.na(time_OS_months),
+    !is.na(delta_estimate)) %>%
+  #CD20-PanCK filter
+  dplyr::filter(cell_types %in% c("CD20+","PanCK+/CD20+", "CD20+/PanCK+")) %>%
+  group_by(cell_types, measure, model, radius) %>%
+  group_walk(function (df_group, key) {
+    df_group$de_split <- df_group$delta_estimate > median(df_group$delta_estimate, na.rm=T)
+    fit = survfit(Surv(time = time_OS_months, event = death) ~ de_split, data = df_group)
+    plt <- ggsurvplot(fit, data = df_group, risk.table = T, conf.int = T, pval = T, pval.method = T) +
+      ggtitle(paste0(names(key), '=', map_chr(key, as.character), collapse = ' '))
+    print(plt)
+  })
+```
+
+A different result is seen with a higher radius, as observed by the histogram above.
+
+```{r, fig.width=8}
+inner_join(outcome, spatstat, by = sample_id_vars) %>%
+  dplyr::filter(
+    radius == 0.055,
+    !is.na(death),
+    !is.na(time_OS_months),
+    !is.na(delta_estimate)) %>%
+  dplyr::filter(cell_types %in% c("CD20+","PanCK+/CD20+", "CD20+/PanCK+")) %>%
+  group_by(cell_types, measure, model, radius) %>%
+  group_walk(function (df_group, key) {
+    df_group$de_split <- df_group$delta_estimate > median(df_group$delta_estimate, na.rm=T)
+    fit = survfit(Surv(time = time_OS_months, event = death) ~ de_split, data = df_group)
+    plt <- ggsurvplot(fit, data = df_group, risk.table = T, conf.int = T, pval = T, pval.method = T) +
       ggtitle(paste0(names(key), '=', map_chr(key, as.character), collapse = ' '))
     print(plt)
   })
