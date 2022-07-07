@@ -2,7 +2,7 @@
 testingparalellel.txt
 snakemake_notuptodate
 .snakemake/
-results
+*results
 postpartumbc.Rproj
 flexgsea_input_for_tycho.RData.gz
 flexgsea_crash_env.RData
