@@ -93,8 +93,14 @@ rule organize_vectra:
     metadata = "data/metadata/PPBC_metadata.xlsx",
     rmd="src/spatial/organize_vectra_samples.Rmd",
     script="src/rmarkdown.R"
-  output: "data/metadata/spatial/00_file_location_dictionary.csv"
-  log: "src/spatial/organize_vectra_samples.html"
+  output: 
+    # Snakemake complains if not all output files and logs have the same wildcards
+    # For simplicity, track sample-specific files, comment out aggregate files
+    # filedict = "data/metadata/spatial/00_file_location_dictionary.csv",
+    xmls = "data/vectra/raw/annotations/{t_number}_{panel}_{batch}_annotations.xml",
+    objects = "data/vectra/raw/objects/{t_number}_{panel}_{batch}_object_results.csv",
+    summary = "data/vectra/raw/summary/{t_number}_{panel}_{batch}_summary_results.csv"
+  # log: "src/spatial/organize_vectra_samples.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{log}"
     " --vectra_dir data/vectra  --metadata '{input.metadata}'  --batch_info '{input.batch_info}'"
