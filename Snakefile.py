@@ -465,6 +465,42 @@ rule genewise_diffex_reports:
     html="reports/09_genewise_diffex_reports.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+rule flexgsea:
+  input:
+    script = "src/deseq_flexgsea.R",
+    lib = "src/deseq_report_functions.R",
+    dds = "data/Rds/08_dds_ovr_inv_vs_rest.Rds",
+    tx_annot = "data/metadata/01_tx_annot.tsv",
+    gene_sets = expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets)
+  output:
+    # 30+ results files in this dir
+    dir("results/flexgsea/deseq"),
+    # Example results file
+    "results/flexgsea/deseq/results/inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"
+  shell:
+    """
+    export OMP_NUM_THREADS=1 
+    Rscript {input.script}
+    """
+    
+rule flexgsea_report:
+  input:
+    # Takes a long time to rerun flexgsea with deseq and multiple comparisons
+    ancient(dir("results/flexgsea/deseq")),
+    ancient("results/flexgsea/deseq/results/inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"),
+    script = "src/rmarkdown.R",
+    rmd = "reports/09b_flexgsea_results.Rmd",
+    tx_annot = "data/metadata/01_tx_annot.tsv",
+    colors = "data/Rds/color_palettes.Rds"
+  params:
+    fdr_thresh = 0.25
+  output:
+    html = "reports/09b_flexgsea_results.html",
+    overview = "results/flexgsea/deseq/flexgsea_aggregate_results.xlsx"
+  shell:
+     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+     " --fdr_thresh '{params.fdr_thresh}'"
     
 rule cibersortX:
   input:
@@ -675,9 +711,6 @@ rule report_subgroup_comp:
     """
     Rscript {input.script}
     """
-#Should work but doesn't
-#Rscript -e rmarkdown::render(input = "{input.rmd}", output_file = "/DATA/share/postpartumbc/reports/14_subgroup_diffex_{params.comp}.html", params = params.comp)
-
 
 rule cox_glm:
   input:
