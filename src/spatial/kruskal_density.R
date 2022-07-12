@@ -1,5 +1,16 @@
-#Reshape results of pairwise wilcox tests between groups, so that
-#every cell type can be reported in a single row
+
+#' Tidy pairwise wilcox tests
+#'
+#' @description Reshape results of pairwise wilcox tests between groups, so that
+# every cell type can be reported in a single row
+#'
+#' @param pairwise_res Object of class "pairwise.htest"
+#'
+#' @return A tibble in tidy format
+#' @export
+#'
+#' @examples pairwise.wilcox.test(df$density, df$group, 
+#' p.adjust.method = "BH", exact = F) %>% tidy_pairwise()
 tidy_pairwise <- function(pairwise_res){
   pairwise_res$p.value %>%
     as.data.frame() %>% rownames_to_column("group") %>%
@@ -13,6 +24,21 @@ tidy_pairwise <- function(pairwise_res){
 
 #Perform both kruskal wallis and pairwise wilcox tests on each cell type and panel
 #for tumor and stroma separately
+#' Density statistics between groups
+#'
+#' @description Perform Kruskal-Wallis and pairwise Wilcoxon tests between PPBC study groups
+#'
+#' @param df A data frame containing columns `group` (character, PPBC classes),
+#' `density` (numeric), `cell_type`, and `panel`
+#' @param panel Character, the immune panel. Results are calculated separately for
+#' cell types present in more than one immune panel.
+#' @param cell_type Character, the cell type for which to perform the test
+#' @param tidied Logical, whether to return tidy output or pairwise.htest object
+#'
+#' @return A data frame containing kruskal wallis tests between groups
+#' @export
+#'
+#' @examples stat_density(df = dens, panel = "MPIF26", cell_type = "CD3+FoxP3-", tidied = T)
 stat_density <- function(df, panel = c("MPIF26", "MPIF27"), cell_type, tidied = T){
   
   stopifnot(cell_type %in% unique(df$cell_type))
@@ -39,6 +65,23 @@ stat_density <- function(df, panel = c("MPIF26", "MPIF27"), cell_type, tidied = 
   res
 }
 
+#' Auto-detect appropriate cell types per panel for density statistics
+#'
+#' @description This is a wrapper functions that allows looping over all cell types
+#' without encountering errors for cell types that only exist in one panel
+#' 
+#' @param df A data frame suitable for `stat_density`, with column "panel"
+#' that contains exclusively values "MPIF26" and "MPIF27"
+#' @param cell_type Character, the cell type to perform the KW tests and
+#' pairwise wilcoxon tests
+#'
+#' @return A data frame with density statistics
+#' @export
+#'
+#' @examples relevant_cells <- unique(dens$cell_type)
+#' relevant_cells <- relevant_cells[!relevant_cells %in% c("PanCK+", "Other")]
+#' density_by_ppbc <- lapply(relevant_cells,
+#'                           function(x){multi_dens(dens, x)})
 multi_dens <- function(df, cell_type){
   
   # separate cells by panel
@@ -73,6 +116,20 @@ multi_dens <- function(df, cell_type){
   
 }
 
+#' Beehive plots for density between PPBC study groups
+#'
+#' @param df A data frame suitable for `stat_density()`, plus additional columns
+#' for `colorby`
+#' @param panel Character, the immune panel
+#' @param cell_type Character, the cell type to be visualized
+#' @param colorby Character, the name of the column used for color aesthetics
+#' @param debug Logical, returns the data frame being plotted instead of the plot
+#'
+#' @return A ggplot object
+#' @export
+#'
+#' @examples  plot_density(panel = "MPIF26", cell_type = "CD20+",
+#'  colorby = "distant_recurrence")
 plot_density <- function(df = dens,
                          panel = c("MPIF26", "MPIF27"),
                          cell_type, colorby, debug=F){

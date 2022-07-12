@@ -104,14 +104,9 @@ The majority of samples come from the nulliparous and involuting groups: the pri
 ```{r}
 source(here("src/spatial/kruskal_density.R"))
 
-
-
 # Testing
 stat_density(df = dens, panel = "MPIF26",
              cell_type = "CD3+FoxP3-", tidied = T)
-
-
-
 ```
 
 ```{r}
