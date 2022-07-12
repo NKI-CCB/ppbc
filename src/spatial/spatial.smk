@@ -330,7 +330,7 @@ rule kruskal_density:
   params:
     min_cell_count = 20000
   output:
-    html = "reports/spatial/06_kruskal_{seg}_density.html"
+    html = "reports/spatial/06_kruskal_total_density.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --min_cell_count '{params.min_cell_count}'"
