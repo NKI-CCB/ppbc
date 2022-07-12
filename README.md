@@ -39,7 +39,3 @@ Based on [cookiecutter data science](https://drivendata.github.io/cookiecutter-d
 WIP (fill in dir structure when final)
 
 RNAseq reports are in the parent `reports` directory. Spatial reports are in a sub-folder: `reports/spatial`.
-
-## Workflow overview (WIP):
-
-<img src="./dag.svg">
