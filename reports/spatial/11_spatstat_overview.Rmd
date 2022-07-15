@@ -382,3 +382,97 @@ inner_join(outcome, spatstat, by = sample_id_vars) %>%
     print(plt)
   })
 ```
+
+## L vs density
+
+```{r}
+dens <- readRDS(here("data/vectra/processed/density_ppbc.Rds"))
+```
+
+Combine second order spatial stats with density stats.
+
+```{r}
+spatdens <- inner_join(outcome, spatstat, by = sample_id_vars) %>%
+  left_join(., dplyr::select(dplyr::filter(dens, classifier_label == "Total"),
+                              sample_ID = t_number, density, cell_types = cell_type),
+             by = c("sample_ID", "cell_types"))
+```
+
+Plot calculate correlation between cell type density and the L statistic over varius radii.
+
+```{r}
+plot_l_dens <- function(df){
+  
+  df <- df %>%
+    select(sample_ID, measure, delta_estimate, density, cell_type, radius, study_group) %>%
+    dplyr::filter(radius != 0) %>%
+    dplyr::filter(!is.na(delta_estimate) & !is.na(density))
+  
+  df <- df %>%
+    group_by(measure, cell_type, radius, study_group) %>%
+    summarise(cor_L_dens = cor(delta_estimate, density,
+                       use = "everything", method = "spearman"),
+              .groups = "drop")
+  
+  df %>%
+    dplyr::filter(!is.na(cor_L_dens)) %>%
+    ggplot(aes(x = radius, y = cor_L_dens, color = study_group)) +
+    geom_line() +
+    facet_wrap(~cell_type) +
+    ggtitle("Correlation between the L statistic and density over distance") +
+    ylab("Spearman cor (L, density)")
+  
+}
+
+plot_l_dens(spatdens)
+```
+
+For L cross, we first combine cell type densities.
+
+```{r}
+spatLcrossdens <- inner_join(outcome, spatstat, by = sample_id_vars) %>%
+  dplyr::filter(!is.na(cell_type1)) %>%
+  select(sample_ID, measure, delta_estimate, radius, study_group,
+         cell_type1, cell_type2, cell_types) %>%
+  # Join densities for celltypes one and two separately
+  left_join(., dplyr::select(dplyr::filter(dens, classifier_label == "Total"),
+                              sample_ID = t_number, density_1 = density, cell_type1 = cell_type),
+             by = c("sample_ID", "cell_type1")) %>% relocate(density_1, .after = cell_type1) %>%
+  left_join(., dplyr::select(dplyr::filter(dens, classifier_label == "Total"),
+                              sample_ID = t_number, density_2 = density, cell_type2 = cell_type),
+             by = c("sample_ID", "cell_type2")) %>% relocate(density_2, .after = cell_type2) %>%
+  mutate(density = density_1 + density_2) %>%
+  select(-cell_type1:-density_2)
+```
+
+
+```{r, fig.height=8}
+plot_lcross_dens <- function(df){
+  
+  df <- df %>%
+    select(sample_ID, measure, delta_estimate, density, cell_types, radius, study_group) %>%
+    dplyr::filter(radius != 0) %>%
+    dplyr::filter(!is.na(delta_estimate) & !is.na(density))
+  
+  df <- df %>%
+    group_by(measure, cell_types, radius, study_group) %>%
+    summarise(cor_Lcross_dens = cor(delta_estimate, density,
+                       use = "everything", method = "spearman"),
+              .groups = "drop")
+  
+  df %>%
+    dplyr::filter(!is.na(cor_Lcross_dens)) %>%
+    ggplot(aes(x = radius, y = cor_Lcross_dens, color = study_group)) +
+    geom_line() +
+    facet_wrap(~cell_types, ncol = 4) +
+    ggtitle("Correlation between the Lcross statistic and density over distance") +
+    ylab("Spearman cor (Lcross, density)")
+  
+}
+
+plot_lcross_dens(spatLcrossdens)
+```
+
+```{r}
+sessionInfo()
+```
