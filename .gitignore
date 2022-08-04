@@ -34,7 +34,7 @@ reprots/spatial/object_qc_by_batch
 *.xlsx
 *.pdf
 
-renv/
+renv/library
 reports/archive/
 reports/multiqc_data/
 reports/*.tar.xy
