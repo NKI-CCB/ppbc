@@ -1,0 +1,871 @@
+---
+title: "Correlation IgA/IgG - milk gene signature"
+author: "Hanne Lefrere"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+---
+
+```{r, include=F}
+rm(list = ls())
+```
+
+```{r, include=F}
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(pheatmap)
+library(ComplexHeatmap)
+library(circlize)
+library(RColorBrewer)
+#install.packages("dendsort")
+library(dendsort)
+library(tibble)
+library(EnhancedVolcano)
+library(survminer)
+library(survival)
+library(tidyverse)
+library(Biobase)
+library(scrime)
+library(TCGAbiolinks)
+library(ImmuneSubtypeClassifier)
+library(writexl)
+library(tximport)
+library(readxl)
+library(here)
+library(corrplot)
+library(RColorBrewer)
+library(Hmisc)
+#install.packages("ggalluvial")
+library(ggalluvial)
+library(ggsankey)
+library(tidyverse)
+library(readxl)
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("tximport")
+library(tximport)
+library(here)
+library(dplyr)
+library(tidyr)
+#install.packages("gplots")
+library(gplots)
+library(ggplot2)
+library(grid)
+#install.packages("vcd")
+library(vcd)
+#install.packages("corrplot")
+library(corrplot)
+#install.packages("ca")
+library(ca)
+library(scales)
+#install.packages("ggthemes")
+library(ggthemes)
+#install.packages("ztable")
+library(ztable)
+library(devtools)
+library(ggpubr)
+#install.packages("multcomp")
+library(multcomp)
+#install.packages("car")
+library(car)
+library(ggpubr)
+library(multcomp)
+#install.packages("rstatix")
+library(rstatix)
+
+library(readxl)         # reading in data
+library(ggplot2)        # visualizing data
+library(gridExtra)      # combining multiple plots
+#install.packages("corrgram")
+library(corrgram)       # visualizing data       
+library(corrplot)       # visualizing data       
+library(Hmisc)          # produces correlation matrices with p-values
+#install.packages("ppcor")
+library(ppcor)          # assesses partial correlations
+library(gridExtra)
+library(ggplot2)
+#install.packages("ggExtra")
+library(ggExtra)
+```
+
+
+# Load the data 
+
+```{r}
+getwd()
+```
+
+
+read in meta-file 
+```{r}
+meta <- read_excel("PPBC_metadata.xlsx", sheet = "patient_data")
+```
+
+```{r}
+npbc <- meta[meta$study_group == c('npbc'),]
+ppbcdl <- meta[meta$study_group == c('ppbcdl'),]
+ppbcpw <- meta[meta$study_group == c('ppbcpw'),]
+prbc <- meta[meta$study_group == c('prbc'),]
+```
+
+remove ppbcdl
+```{r}
+#meta <- subset(meta, study_group %in% c("ppbcpw", "prbc", "npbc"), )
+```
+
+load count matrix file 
+
+```{r}
+hugo_mat <- read_tsv(here("hugo_fpkm.txt"))
+```
+
+
+```{r}
+npbc_merged <- hugo_mat[colnames(hugo_mat) %in% c(npbc$sample_name, 'X')]
+write.csv(npbc_merged, file = 'Mixture_npbc.txt')
+
+ppbcdl_merged <- hugo_mat[colnames(hugo_mat) %in% c(ppbcdl$sample_name, 'X')]
+write.csv(ppbcdl_merged, file = 'Mixture_ppbcdl.txt')
+
+ppbcpw_merged <- hugo_mat[colnames(hugo_mat) %in% c(ppbcpw$sample_name, 'X')]
+write.csv(ppbcpw_merged, file = 'Mixture_ppbcpw.txt')
+
+prbc_merged <- hugo_mat[colnames(hugo_mat) %in% c(prbc$sample_name, 'X')]
+write.csv(prbc_merged, file = 'Mixture_prbc.txt')
+```
+
+# analyze output 
+
+```{r}
+hugo_mat <- column_to_rownames(hugo_mat, var = 'GeneSymbol')
+```
+
+
+```{r}
+hugo_mat <- t(hugo_mat)
+```
+
+```{r}
+hugo_mat <- as.data.frame(hugo_mat)
+```
+
+## add a new row cluster to output matrix
+
+```{r}
+hugo_mat$cluster <- NA
+```
+
+
+```{r}
+hugo_mat$cluster[rownames(hugo_mat) %in% npbc$sample_name] <- 'npbc'
+hugo_mat$cluster[rownames(hugo_mat) %in% ppbcdl$sample_name] <- 'ppbcdl'
+hugo_mat$cluster[rownames(hugo_mat) %in% ppbcpw$sample_name] <- 'ppbcpw'
+hugo_mat$cluster[rownames(hugo_mat) %in% prbc$sample_name] <- 'prbc'
+```
+
+
+```{r}
+hugo_mat <- as_tibble(rownames_to_column(hugo_mat, var = 'GeneSymbol'))
+```
+
+```{r}
+hugo_mat <- hugo_mat %>% dplyr::select(-ENTPD1,-TOX2,-B3GAT1,-TOX, -CD28)
+hugo_mat <- na.omit(hugo_mat)
+mycomps <- list(c('ppbcpw', 'npbc'),
+                  c('ppbcpw', 'prbc'),
+                c('ppbcpw', 'ppbcdl'),
+                  c('prbc', 'npbc'))
+
+hugo_mat[hugo_mat$cluster == 'ppbcpw',]
+hugo_mat[hugo_mat$cluster == 'npbc',]
+```
+
+
+
+# Milk genes
+
+```{r, fig.width=10, fig.height=7}
+LALBA <- ggplot(hugo_mat, aes(x = cluster, y = LALBA, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#282c75", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +   stat_compare_means(comparisons = mycomps) + theme_bw()
+CSN1S1 <- ggplot(hugo_mat, aes(x = cluster, y = CSN1S1, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#282c75", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps) + theme_bw()
+CSN3 <- ggplot(hugo_mat, aes(x = cluster, y = CSN3, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#282c75", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps) + theme_bw()
+CSN1S2AP <- ggplot(hugo_mat, aes(x = cluster, y = CSN1S2AP, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#282c75", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps) + theme_bw()
+
+plot_milkgenes <- ggarrange(LALBA, CSN1S1, CSN3, CSN1S2AP, 
+          common.legend = T, ncol = 4, nrow = 2)
+plot_milkgenes
+```
+
+```{r, fig.width=10, fig.height=7}
+LALBA <- ggplot(hugo_mat, aes(x = cluster, y = LALBA, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#282c75", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +   stat_compare_means(comparisons = mycomps) + theme_bw() + ylim(0,15)
+CSN1S1 <- ggplot(hugo_mat, aes(x = cluster, y = CSN1S1, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#282c75", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps) + theme_bw() + ylim(0,15)
+CSN3 <- ggplot(hugo_mat, aes(x = cluster, y = CSN3, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#282c75", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps) + theme_bw() + ylim(0,15)
+CSN1S2AP <- ggplot(hugo_mat, aes(x = cluster, y = CSN1S2AP, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#282c75", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps) + theme_bw() + ylim(0,15)
+
+plot_milkgenes <- ggarrange(LALBA, CSN1S1, CSN3, CSN1S2AP, 
+          common.legend = T, ncol = 4, nrow = 2)
+plot_milkgenes
+```
+
+
+
+
+# milk signature
+
+
+```{r}
+npbc_milk_sig <- hugo_mat[hugo_mat$cluster == 'npbc',]
+npbc_milk_sig <- npbc_milk_sig %>% dplyr::select(c('GeneSymbol','LALBA','CSN1S1','CSN3','CSN1S2AP'))
+npbc_milk_sig <- as.data.frame(column_to_rownames(npbc_milk_sig, var = 'GeneSymbol'))
+
+Milk_sig_npbc <- as.data.frame(rowSums(npbc_milk_sig))
+colnames(Milk_sig_npbc) <- c('Milk_sig')
+Milk_sig_npbc$cluster <- 'npbc'
+```
+
+```{r}
+ppbcpw_milk_sig <- hugo_mat[hugo_mat$cluster == 'ppbcpw',]
+ppbcpw_milk_sig <- ppbcpw_milk_sig %>% dplyr::select(c('GeneSymbol','LALBA','CSN1S1','CSN3','CSN1S2AP'))
+ppbcpw_milk_sig <- as.data.frame(column_to_rownames(ppbcpw_milk_sig, var = 'GeneSymbol'))
+
+Milk_sig_ppbcpw <- as.data.frame(rowSums(ppbcpw_milk_sig))
+colnames(Milk_sig_ppbcpw) <- c('Milk_sig')
+Milk_sig_ppbcpw$cluster <- 'ppbcpw'
+```
+
+
+```{r}
+prbc_milk_sig <- hugo_mat[hugo_mat$cluster == 'prbc',]
+prbc_milk_sig <- prbc_milk_sig %>% dplyr::select(c('GeneSymbol','LALBA','CSN1S1','CSN3','CSN1S2AP'))
+prbc_milk_sig <- as.data.frame(column_to_rownames(prbc_milk_sig, var = 'GeneSymbol'))
+
+Milk_sig_prbc <- as.data.frame(rowSums(prbc_milk_sig))
+colnames(Milk_sig_prbc) <- c('Milk_sig')
+Milk_sig_prbc$cluster <- 'prbc'
+```
+
+
+```{r}
+ppbcdl_milk_sig <- hugo_mat[hugo_mat$cluster == 'ppbcdl',]
+ppbcdl_milk_sig <- ppbcdl_milk_sig %>% dplyr::select(c('GeneSymbol','LALBA','CSN1S1','CSN3','CSN1S2AP'))
+ppbcdl_milk_sig <- as.data.frame(column_to_rownames(ppbcdl_milk_sig, var = 'GeneSymbol'))
+
+Milk_sig_ppbcdl <- as.data.frame(rowSums(ppbcdl_milk_sig))
+colnames(Milk_sig_ppbcdl) <- c('Milk_sig')
+Milk_sig_ppbcdl$cluster <- 'ppbcdl'
+```
+
+
+```{r}
+Milk_sig <- rbind(Milk_sig_npbc, Milk_sig_ppbcpw, Milk_sig_prbc, Milk_sig_ppbcdl)
+Milk_sig$Milk_sig <- scale(Milk_sig$Milk_sig, center = F)
+
+comps <-  list(c('ppbcpw', 'npbc'),
+                  c('ppbcpw', 'prbc'),
+                c('ppbcpw', 'ppbcdl'),
+                  c('prbc', 'npbc'))
+Milk_sig_plot <- ggplot(Milk_sig, aes(x = cluster, y = Milk_sig, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#282c75", "#46cdcf", "#aa96da")) + geom_jitter(trim = F) +  stat_compare_means(comparisons = comps, hide.ns = F) + xlab(NULL) + ylab('Meta gene expression') + ggtitle('Milk gene signalling') + theme_bw() 
+Milk_sig_plot
+```
+
+
+```{r}
+Milk_sig <- rbind(Milk_sig_npbc, Milk_sig_ppbcpw, Milk_sig_prbc, Milk_sig_ppbcdl)
+Milk_sig$Milk_sig <- scale(Milk_sig$Milk_sig, center = F)
+
+comps <-  list(c('ppbcpw', 'npbc'),
+                  c('ppbcpw', 'prbc'),
+               c('ppbcpw', 'ppbcdl'),
+                  c('prbc', 'npbc'))
+Milk_sig_plot <- ggplot(Milk_sig, aes(x = cluster, y = Milk_sig, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#282c75", "#46cdcf", "#aa96da")) + geom_jitter(trim = F) +  stat_compare_means(comparisons = comps, hide.ns = F) + xlab(NULL) + ylab('Meta gene expression') + ggtitle('Milk gene signalling') + theme_bw() + ylim(0,0.02)
+Milk_sig_plot
+```
+
+
+
+
+# correlation analysis IgA - Milk signature
+
+add sample_name column to Milk_sig
+
+```{r}
+Milk_sig <- cbind(rownames(Milk_sig), data.frame(Milk_sig, row.names=NULL))
+```
+
+```{r}
+names(Milk_sig)[names(Milk_sig) == "rownames(Milk_sig)"] <- "sample_name"
+```
+
+
+
+Combine meta and Milk_sig into meta_interim
+
+```{r}
+meta_interim <- dplyr::inner_join(meta, Milk_sig, by='sample_name')
+```
+
+
+```{r}
+table(meta_interim$study_group)
+```
+
+
+
+## overall
+
+### remove outliers 
+
+```{r}
+outliers <- boxplot(meta_interim$Milk_sig, plot=FALSE)$out
+outliers
+```
+
+```{r}
+boxplot(meta_interim$Milk_sig)
+```
+
+-->  extreme outliers - remove these outliers from data as they dominate the output 
+
+```{r}
+meta_temp <- meta_interim
+meta_temp <- meta_temp[-which(meta_temp$Milk_sig %in% outliers),]
+```
+
+subsetting data for sub-analyses
+
+```{r}
+CD_inv <- subset(meta_temp, study_group == "ppbcpw", )
+CD_lac <- subset(meta_temp, study_group == "ppbcdl", )
+CD_prbc <- subset(meta_temp, study_group == "prbc", )
+CD_npbc <- subset(meta_temp, study_group == "npbc", )
+```
+
+
+
+The Kendall rank correlation coefficient or Kendall’s tau statistic is used to estimate a rank-based measure of association. This test may be used if the data do not necessarily come from a bivariate normal distribution.
+
+```{r}
+cor_IgA_milkgenes <- cor.test(meta_temp$IgA, meta_temp$Milk_sig, method="kendall")
+cor_IgA_milkgenes
+```
+
+Spearman’s rho statistic is also used to estimate a rank-based measure of association. This test may be used if the data do not come from a bivariate normal distribution.
+The Spearman rank correlation, represented by ρ, is a non-parametric test that measures the degree of association between two variables based on using a monotonic function. The Spearman approach does not assume any assumptions about the distribution of the data and is the appropriate correlation analysis when the variables are measured on an ordinal scale. Consequently, common questions that a Spearman correlation answers includes: Is there a statistically significant relationship between the age of a golf player and the number of wins (0, 1, 2)? Is there a statistically significant relationship between participant responses to two Likert scaled questions on a survey?
+
+The assumptions for Spearman’s correlation include:
+Level of measurement: The normal assumption is that one or both of the variables are ordinal in measurement; however, Spearman’s is also appropriate to use if both variables are continuous but are heavily skewed or contain sizable outliers.
+Montonically related: A linear relationship is not necessary, the only requirement is that one variable is montonically related to the other variable.
+
+```{r}
+cor_IgA_milkgenes <- cor.test(meta_temp$Milk_sig, meta_temp$IgA, method="spearman")
+cor_IgA_milkgenes
+```
+
+
+```{r}
+scatterplot_IgA_milkgenes <- qplot(x = IgA, y = Milk_sig, data = meta_temp) +
+        geom_smooth(method = "lm") +
+        ggtitle("Fig. A: Strong Positive Association")
+scatterplot_IgA_milkgenes
+```
+
+
+with outliers 
+```{r}
+meta_interim %>%
+    ggplot(aes(x = IgA, y = Milk_sig)) +
+    geom_point(aes(color = study_group)) +  geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+```
+
+
+removing outliers 
+```{r}
+scatterplot_IgA_milkgenes <- meta_temp %>%
+    ggplot(aes(x = IgA, y = Milk_sig)) +
+    geom_point(aes(color = study_group)) +  geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgA_milkgenes
+```
+
+
+## PPBC-inv
+
+```{r}
+cor_IgA_milkgenes_inv <- cor.test(CD_inv$Milk_sig, CD_inv$IgA, method="spearman")
+cor_IgA_milkgenes_inv
+```
+
+```{r}
+scatterplot_IgA_milkgenes_inv <- qplot(x = IgA, y = Milk_sig, data = CD_inv) +
+        geom_smooth(method = "lm") 
+scatterplot_IgA_milkgenes_inv
+```
+
+
+
+```{r}
+scatterplot_IgA_milkgenes_inv <- CD_inv %>%
+    ggplot(aes(x = IgA, y = Milk_sig)) +
+    geom_point(aes(color = death)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgA_milkgenes_inv
+```
+
+
+
+## PrBC
+
+```{r}
+cor_IgA_milkgenes_prbc <- cor.test(CD_prbc$Milk_sig, CD_prbc$IgA, method="spearman")
+cor_IgA_milkgenes_prbc
+```
+
+```{r}
+scatterplot_IgA_milkgenes_prbc <- qplot(x = IgA, y = Milk_sig, data = CD_prbc) +
+        geom_smooth(method = "lm") 
+scatterplot_IgA_milkgenes_prbc
+```
+
+
+
+```{r}
+scatterplot_IgA_milkgenes_prbc <- CD_prbc %>%
+    ggplot(aes(x = IgA, y = Milk_sig)) +
+    geom_point(aes(color = death)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgA_milkgenes_prbc
+```
+
+
+
+## NP-BC
+
+```{r}
+cor_IgA_milkgenes_npbc <- cor.test(CD_npbc$Milk_sig, CD_npbc$IgA, method="spearman")
+cor_IgA_milkgenes_npbc
+```
+
+```{r}
+scatterplot_IgA_milkgenes_npbc <- qplot(x = IgA, y = Milk_sig, data = CD_npbc) +
+        geom_smooth(method = "lm") 
+scatterplot_IgA_milkgenes_npbc
+```
+
+
+
+```{r}
+scatterplot_IgA_milkgenes_npbc <- CD_npbc %>%
+    ggplot(aes(x = IgA, y = Milk_sig)) +
+    geom_point(aes(color = death)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgA_milkgenes_npbc
+```
+
+
+
+## PP-BCDL
+
+one extreme outlier
+
+```{r}
+cor_IgA_milkgenes_lac <- cor.test(CD_lac$Milk_sig, CD_lac$IgA, method="spearman")
+cor_IgA_milkgenes_lac
+```
+
+```{r}
+scatterplot_IgA_milkgenes_lac <- qplot(x = IgA, y = Milk_sig, data = CD_lac) +
+        geom_smooth(method = "lm") 
+scatterplot_IgA_milkgenes_lac
+```
+
+
+
+```{r}
+scatterplot_IgA_milkgenes_lac <- CD_lac %>%
+    ggplot(aes(x = IgA, y = Milk_sig)) +
+    geom_point(aes(color = death)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgA_milkgenes_lac
+```
+
+
+```{r}
+scatterplot_IgA_milkgenes_all <- grid.arrange(scatterplot_IgA_milkgenes_inv, scatterplot_IgA_milkgenes_prbc, scatterplot_IgA_milkgenes_npbc, scatterplot_IgA_milkgenes_lac, ncol = 2, 
+             top = textGrob("Anscombe's Quartet"))
+scatterplot_IgA_milkgenes_all
+```
+
+
+
+# Correlation analysis IG gene signature - milk signature
+
+## IG gene signature 
+
+CXADRP3, IGHV6_1, POTEC, MUC2, IGHV3_54, IGHV1_14, DMBT1, POTED, TCN1, IGHD, S100A7, UGT2B4, PCSK2, PNLDC1, IGKV1OR2_6, IGKJ5, IGKV1_16, IGLV2_28, IGHA1, IGLC7, MTRNR2L1, ESR2, IGKV3OR2_268, IGLV2_18, IGKV3_11, IGLV2_8, IGLV2_5, IGKV2_24, JCHAIN, IGLC1, AMPD1, CXCL14, GPRIN3, TMEM156, DECR2, CELSR2, SLC2A3P4, ALK, ELOVL2, ACSBG1, SLC22A10, CERS1, AMZ1, GRIN2A, LINC01297
+
+
+```{r}
+npbc_IG_sig <- hugo_mat[hugo_mat$cluster == 'npbc',]
+npbc_IG_sig <- npbc_IG_sig %>% dplyr::select(c('GeneSymbol','CXADRP3', 'IGHV6-1', 'POTEC', 'MUC2', 'IGHV3-54', 'IGHV1-14', 'DMBT1', 'POTED', 'TCN1', 'IGHD', 'S100A7', 'UGT2B4', 'PCSK2', 'PNLDC1', 'IGKV1OR2-6', 'IGKJ5', 'IGKV1-16', 'IGLV2-28', 'IGHA1', 'IGLC7', 'MTRNR2L1', 'ESR2', 'IGKV3OR2-268', 'IGLV2-18', 'IGKV3-11', 'IGLV2-8', 'IGLV2-5', 'IGKV2-24', 'JCHAIN', 'IGLC1', 'AMPD1', 'CXCL14', 'GPRIN3', 'TMEM156', 'DECR2', 'CELSR2', 'SLC2A3P4', 'ALK', 'ELOVL2', 'ACSBG1', 'SLC22A10', 'CERS1', 'AMZ1', 'GRIN2A', 'LINC01297'))
+npbc_IG_sig <- as.data.frame(column_to_rownames(npbc_IG_sig, var = 'GeneSymbol'))
+
+IG_sig_npbc <- as.data.frame(rowSums(npbc_IG_sig))
+colnames(IG_sig_npbc) <- c('IG_sig')
+IG_sig_npbc$cluster <- 'npbc'
+```
+
+```{r}
+ppbcpw_IG_sig <- hugo_mat[hugo_mat$cluster == 'ppbcpw',]
+ppbcpw_IG_sig <- ppbcpw_IG_sig %>% dplyr::select(c('GeneSymbol','CXADRP3', 'IGHV6-1', 'POTEC', 'MUC2', 'IGHV3-54', 'IGHV1-14', 'DMBT1', 'POTED', 'TCN1', 'IGHD', 'S100A7', 'UGT2B4', 'PCSK2', 'PNLDC1', 'IGKV1OR2-6', 'IGKJ5', 'IGKV1-16', 'IGLV2-28', 'IGHA1', 'IGLC7', 'MTRNR2L1', 'ESR2', 'IGKV3OR2-268', 'IGLV2-18', 'IGKV3-11', 'IGLV2-8', 'IGLV2-5', 'IGKV2-24', 'JCHAIN', 'IGLC1', 'AMPD1', 'CXCL14', 'GPRIN3', 'TMEM156', 'DECR2', 'CELSR2', 'SLC2A3P4', 'ALK', 'ELOVL2', 'ACSBG1', 'SLC22A10', 'CERS1', 'AMZ1', 'GRIN2A', 'LINC01297'))
+ppbcpw_IG_sig <- as.data.frame(column_to_rownames(ppbcpw_IG_sig, var = 'GeneSymbol'))
+
+IG_sig_ppbcpw <- as.data.frame(rowSums(ppbcpw_IG_sig))
+colnames(IG_sig_ppbcpw) <- c('IG_sig')
+IG_sig_ppbcpw$cluster <- 'ppbcpw'
+```
+
+
+```{r}
+prbc_IG_sig <- hugo_mat[hugo_mat$cluster == 'prbc',]
+prbc_IG_sig <- prbc_IG_sig %>% dplyr::select(c('GeneSymbol','CXADRP3', 'IGHV6-1', 'POTEC', 'MUC2', 'IGHV3-54', 'IGHV1-14', 'DMBT1', 'POTED', 'TCN1', 'IGHD', 'S100A7', 'UGT2B4', 'PCSK2', 'PNLDC1', 'IGKV1OR2-6', 'IGKJ5', 'IGKV1-16', 'IGLV2-28', 'IGHA1', 'IGLC7', 'MTRNR2L1', 'ESR2', 'IGKV3OR2-268', 'IGLV2-18', 'IGKV3-11', 'IGLV2-8', 'IGLV2-5', 'IGKV2-24', 'JCHAIN', 'IGLC1', 'AMPD1', 'CXCL14', 'GPRIN3', 'TMEM156', 'DECR2', 'CELSR2', 'SLC2A3P4', 'ALK', 'ELOVL2', 'ACSBG1', 'SLC22A10', 'CERS1', 'AMZ1', 'GRIN2A', 'LINC01297'))
+prbc_IG_sig <- as.data.frame(column_to_rownames(prbc_IG_sig, var = 'GeneSymbol'))
+
+IG_sig_prbc <- as.data.frame(rowSums(prbc_IG_sig))
+colnames(IG_sig_prbc) <- c('IG_sig')
+IG_sig_prbc$cluster <- 'prbc'
+```
+
+
+```{r}
+ppbcdl_IG_sig <- hugo_mat[hugo_mat$cluster == 'ppbcdl',]
+ppbcdl_IG_sig <- ppbcdl_IG_sig %>% dplyr::select(c('GeneSymbol','CXADRP3', 'IGHV6-1', 'POTEC', 'MUC2', 'IGHV3-54', 'IGHV1-14', 'DMBT1', 'POTED', 'TCN1', 'IGHD', 'S100A7', 'UGT2B4', 'PCSK2', 'PNLDC1', 'IGKV1OR2-6', 'IGKJ5', 'IGKV1-16', 'IGLV2-28', 'IGHA1', 'IGLC7', 'MTRNR2L1', 'ESR2', 'IGKV3OR2-268', 'IGLV2-18', 'IGKV3-11', 'IGLV2-8', 'IGLV2-5', 'IGKV2-24', 'JCHAIN', 'IGLC1', 'AMPD1', 'CXCL14', 'GPRIN3', 'TMEM156', 'DECR2', 'CELSR2', 'SLC2A3P4', 'ALK', 'ELOVL2', 'ACSBG1', 'SLC22A10', 'CERS1', 'AMZ1', 'GRIN2A', 'LINC01297'))
+ppbcdl_IG_sig <- as.data.frame(column_to_rownames(ppbcdl_IG_sig, var = 'GeneSymbol'))
+
+IG_sig_ppbcdl <- as.data.frame(rowSums(ppbcdl_IG_sig))
+colnames(IG_sig_ppbcdl) <- c('IG_sig')
+IG_sig_ppbcdl$cluster <- 'ppbcdl'
+```
+
+
+```{r}
+IG_sig <- rbind(IG_sig_npbc, IG_sig_ppbcpw, IG_sig_prbc, IG_sig_ppbcdl)
+IG_sig$IG_sig <- scale(IG_sig$IG_sig, center = F)
+
+comps <-  list(c('ppbcpw', 'npbc'),
+                  c('ppbcpw', 'prbc'),
+               c('ppbcpw', 'ppbcdl'),
+                  c('prbc', 'npbc'))
+IG_sig_plot <- ggplot(IG_sig, aes(x = cluster, y = IG_sig, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#282c75", "#46cdcf", "#aa96da")) + geom_jitter(trim = F) +  stat_compare_means(comparisons = comps, hide.ns = F) + xlab(NULL) + ylab('Meta gene expression') + ggtitle('IG gene signalling') + theme_bw() 
+IG_sig_plot
+```
+
+
+```{r}
+IG_sig <- rbind(IG_sig_npbc, IG_sig_ppbcpw, IG_sig_prbc, IG_sig_ppbcdl)
+IG_sig$IG_sig <- scale(IG_sig$IG_sig, center = F)
+
+comps <-  list(c('ppbcpw', 'npbc'),
+                  c('ppbcpw', 'prbc'),
+                c('ppbcpw', 'ppbcdl'),
+                  c('prbc', 'npbc'))
+IG_sig_plot <- ggplot(IG_sig, aes(x = cluster, y = IG_sig, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#282c75", "#46cdcf", "#aa96da")) + geom_jitter(trim = F) +  stat_compare_means(comparisons = comps, hide.ns = F) + xlab(NULL) + ylab('Meta gene expression') + ggtitle('IG gene signalling') + theme_bw() + ylim(0,1)
+IG_sig_plot
+```
+
+
+
+## Combine data  
+
+add sample_name column to Milk_sig
+Combine meta and Milk_sig into meta_interim
+
+```{r}
+meta_Milk_sig <- dplyr::inner_join(meta, Milk_sig, by='sample_name')
+```
+
+
+
+add sample_name column to IG_sig
+
+```{r}
+IG_sig <- cbind(rownames(IG_sig), data.frame(IG_sig, row.names=NULL))
+```
+
+```{r}
+names(IG_sig)[names(IG_sig) == "rownames(IG_sig)"] <- "sample_name"
+```
+
+
+Combine meta_Milk_sig and IG_sig into meta_sig
+
+```{r}
+meta_sig <- dplyr::inner_join(meta_Milk_sig, IG_sig, by='sample_name')
+```
+
+
+### remove outliers meta_sig - milk signature 
+```{r}
+outliers_Milk <- boxplot(meta_sig$Milk_sig, plot=FALSE)$out
+outliers_Milk
+```
+
+
+```{r}
+boxplot(meta_sig$Milk_sig)
+```
+
+
+remove outliers as they completely distort the data 
+
+```{r}
+meta_sig <- meta_sig[-which(meta_sig$Milk_sig %in% outliers_Milk),]
+```
+
+
+### remove outliers
+
+```{r}
+outliers_IG <- boxplot(meta_sig$IG_sig, plot=FALSE)$out
+outliers_IG
+```
+
+```{r}
+boxplot(meta_sig$IG_sig)
+```
+
+remove outliers IGgene as they completely distort the data 
+```{r}
+meta_sig <- meta_sig[-which(meta_sig$IG_sig %in% outliers_IG),]
+```
+
+
+
+```{r}
+boxplot(meta_sig$Milk_sig)
+boxplot(meta_sig$IG_sig)
+```
+
+-> remove remaining outliers 
+
+as outliers remain to distort the data - remove 
+```{r}
+outliers_Milk <- boxplot(meta_sig$Milk_sig, plot=FALSE)$out
+outliers_IG <- boxplot(meta_sig$IG_sig, plot=FALSE)$out
+
+meta_sig <- meta_sig[-which(meta_sig$Milk_sig %in% c(outliers_Milk, outliers_IG)),]
+```
+
+
+outliers OK
+
+
+### subsetting data for sub-analyses
+
+```{r}
+CD_inv <- subset(meta_sig, study_group == "ppbcpw", )
+CD_lac <- subset(meta_sig, study_group == "ppbcdl", )
+CD_prbc <- subset(meta_sig, study_group == "prbc", )
+CD_npbc <- subset(meta_sig, study_group == "npbc", )
+```
+
+
+
+# Correlation
+
+## overall
+
+```{r}
+boxplot(meta_sig$Milk_sig, plot=FALSE)$out
+boxplot(meta_sig$IG_sig, plot=FALSE)$out
+```
+
+
+as outliers remain to distort the data - remove 
+```{r}
+outliers_Milk <- boxplot(meta_sig$Milk_sig, plot=FALSE)$out
+outliers_IG <- boxplot(meta_sig$IG_sig, plot=FALSE)$out
+
+meta_sig <- meta_sig[-which(meta_sig$Milk_sig %in% c(outliers_Milk, outliers_IG)),]
+```
+
+
+The Kendall rank correlation coefficient or Kendall’s tau statistic is used to estimate a rank-based measure of association. This test may be used if the data do not necessarily come from a bivariate normal distribution.
+```{r}
+cor_IGgenes_milkgenes <- cor.test(meta_sig$IG_sig, meta_sig$Milk_sig, method="kendall")
+cor_IGgenes_milkgenes
+```
+
+Spearman’s rho statistic is also used to estimate a rank-based measure of association. This test may be used if the data do not come from a bivariate normal distribution.
+The Spearman rank correlation, represented by ρ, is a non-parametric test that measures the degree of association between two variables based on using a monotonic function. The Spearman approach does not assume any assumptions about the distribution of the data and is the appropriate correlation analysis when the variables are measured on an ordinal scale. Consequently, common questions that a Spearman correlation answers includes: Is there a statistically significant relationship between the age of a golf player and the number of wins (0, 1, 2)? Is there a statistically significant relationship between participant responses to two Likert scaled questions on a survey?
+
+The assumptions for Spearman’s correlation include:
+Level of measurement: The normal assumption is that one or both of the variables are ordinal in measurement; however, Spearman’s is also appropriate to use if both variables are continuous but are heavily skewed or contain sizable outliers.
+Montonically related: A linear relationship is not necessary, the only requirement is that one variable is montonically related to the other variable.
+
+```{r}
+cor_IGgenes_milkgenes <- cor.test(meta_sig$IG_sig, meta_sig$Milk_sig, method="spearman")
+cor_IGgenes_milkgenes
+```
+
+
+```{r}
+scatterplot_IGgenes_milkgenes <- qplot(x = Milk_sig, y = IG_sig, data = meta_sig) +
+        geom_smooth(method = "lm") #+
+        #ggtitle("Fig. A: Strong Positive Association")
+scatterplot_IGgenes_milkgenes
+```
+
+
+
+```{r}
+scatterplot_IGgenes_milkgenes <- meta_sig %>%
+    ggplot(aes(x = IG_sig, y = Milk_sig)) +
+    geom_point(aes(color = study_group)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IGgenes_milkgenes
+```
+
+
+
+## PPBC-inv
+
+```{r}
+cor_IGgenes_milkgenes_inv <- cor.test(CD_inv$Milk_sig, CD_inv$IG_sig, method="spearman")
+cor_IGgenes_milkgenes_inv
+```
+
+```{r}
+scatterplot_IG_sig_milkgenes_inv <- qplot(x = IG_sig, y = Milk_sig, data = CD_inv) +
+        geom_smooth(method = "lm") 
+scatterplot_IG_sig_milkgenes_inv
+```
+
+
+
+
+```{r}
+CD_inv %>%
+    ggplot(aes(x = IG_sig, y = Milk_sig)) +
+    geom_point(aes(color = death)) +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+```
+
+
+## PrBC
+
+```{r}
+cor_IG_sig_milkgenes_prbc <- cor.test(CD_prbc$Milk_sig, CD_prbc$IG_sig, method="spearman")
+cor_IG_sig_milkgenes_prbc
+```
+
+```{r}
+scatterplot_IG_sig_milkgenes_prbc <- qplot(x = IG_sig, y = Milk_sig, data = CD_prbc) +
+        geom_smooth(method = "lm") 
+scatterplot_IG_sig_milkgenes_prbc
+```
+
+
+
+```{r}
+CD_prbc %>%
+    ggplot(aes(x = IG_sig, y = Milk_sig)) +
+    geom_point(aes(color = death)) +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+```
+
+
+## PPBCdl
+
+```{r}
+cor_IG_sig_milkgenes_lac <- cor.test(CD_lac$Milk_sig, CD_lac$IG_sig, method="spearman")
+cor_IG_sig_milkgenes_lac
+```
+
+```{r}
+scatterplot_IG_sig_milkgenes_lac <- qplot(x = IG_sig, y = Milk_sig, data = CD_lac) +
+        geom_smooth(method = "lm") 
+scatterplot_IG_sig_milkgenes_lac
+```
+
+
+
+```{r}
+CD_lac %>%
+    ggplot(aes(x = IG_sig, y = Milk_sig)) +
+    geom_point(aes(color = death)) +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+```
+
+
+## NP-BC
+
+```{r}
+cor_IG_sig_milkgenes_npbc <- cor.test(CD_npbc$Milk_sig, CD_npbc$IG_sig, method="spearman")
+cor_IG_sig_milkgenes_npbc
+```
+
+```{r}
+scatterplot_IG_sig_milkgenes_npbc <- qplot(x = IG_sig, y = Milk_sig, data = CD_npbc) +
+        geom_smooth(method = "lm") 
+scatterplot_IG_sig_milkgenes_npbc
+```
+
+
+
+```{r}
+CD_npbc %>%
+    ggplot(aes(x = IG_sig, y = Milk_sig)) +
+    geom_point(aes(color = death)) +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+```
+
+
+```{r}
+scatterplot_IG_sig_milkgenes_all <- grid.arrange(scatterplot_IG_sig_milkgenes_inv, scatterplot_IG_sig_milkgenes_lac, scatterplot_IG_sig_milkgenes_prbc, scatterplot_IG_sig_milkgenes_npbc, ncol = 2)
+scatterplot_IG_sig_milkgenes_all
+```
+
+
+
+
+
+
+

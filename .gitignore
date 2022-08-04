@@ -23,7 +23,10 @@ reprots/spatial/object_qc_by_batch
 
 *.RData
 *.Rdata
+*.RDS
+*.Rds
 *.Rproj.user
+*.Rproj
 *.Rhistory
 *.html
 *.tar.xy
@@ -42,6 +45,7 @@ src/lambda_score_example.R
 src/dec2018_samples/
 src/NMF.R
 spatial_example_code/
+*hugo_fpkm.txt
 
 shinyApp/*/data
 shinyApp/*/data_old

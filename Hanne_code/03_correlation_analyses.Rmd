@@ -1,0 +1,556 @@
+---
+title: "Correlation analyses"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+  html_document:
+    df_print: paged
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+
+# Loading Packages 
+
+```{r}
+library(tidyverse)
+library(readxl)
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("tximport")
+library(tximport)
+library(here)
+library(dplyr)
+library(tidyr)
+#install.packages("gplots")
+library(gplots)
+library(ggplot2)
+library(grid)
+#install.packages("vcd")
+library(vcd)
+#install.packages("corrplot")
+library(corrplot)
+#install.packages("ca")
+library(ca)
+library(scales)
+#install.packages("ggthemes")
+library(ggthemes)
+#install.packages("ztable")
+library(ztable)
+library(devtools)
+library(ggpubr)
+#install.packages("multcomp")
+library(multcomp)
+#install.packages("car")
+library(car)
+library(ggpubr)
+library(multcomp)
+#install.packages("rstatix")
+library(rstatix)
+
+library(readxl)         # reading in data
+library(ggplot2)        # visualizing data
+library(gridExtra)      # combining multiple plots
+#install.packages("corrgram")
+library(corrgram)       # visualizing data       
+library(corrplot)       # visualizing data       
+library(Hmisc)          # produces correlation matrices with p-values
+#install.packages("ppcor")
+library(ppcor)          # assesses partial correlations
+library(gridExtra)
+library(ggplot2)
+#install.packages("ggExtra")
+library(ggExtra)
+```
+
+
+# Load the data
+
+```{r}
+PPBC_metadata <- readRDS("PPBC_metadata.RDS")
+Data_inv <- readRDS("Data_inv.RDS")
+Data_prbc <- readRDS("Data_prbc.RDS")
+Data_npbc <- readRDS("Data_npbc.RDS")
+```
+
+
+# Remove PPBCDL from data
+
+```{r}
+table(PPBC_metadata$study_group)
+```
+
+
+```{r}
+PPBC_metadata <- subset(PPBC_metadata, study_group %in% c("ppbcpw", "prbc", "npbc"), )
+```
+
+```{r}
+table(PPBC_metadata$study_group)
+```
+
+
+# correlation CD38 expression - TAPC
+
+remove NA values 
+
+```{r}
+PPBC_metadata <- PPBC_metadata[!is.na(PPBC_metadata$TAPC_score),]
+
+group_by(PPBC_metadata, TAPC_score) %>%
+  summarise(
+    count = n(),
+    mean = mean(TI_CD38_total, na.rm = TRUE),
+    sd = sd(TI_CD38_total, na.rm = TRUE)
+  )
+```
+
+
+
+The function cor.test() can be used to compute the significance level for correlation. It tests for association between paired samples using pearson, kendall or spearman methods.
+
+
+Kendall's tau: to which extent are high values on variable x are associated with either high or low values on variable y?
+Like Spearman’s rank correlation, Kendall’s tau is a non-parametric rank correlation that assesses statistical associations based on the ranks of the data. Therefore, the relevant questions that Kendall’s tau answers and the assumptions required are the same as discussed in the Spearman’s Rank Correlation section. The benefits of Kendall’s tau over Spearman’s is it is less sensitive to error and the p-values are more accurate with smaller sample sizes. However, in most of the situations, the interpretations of Kendall’s tau and Spearman’s rank correlation coefficient are very similar and thus invariably lead to the same inferences.
+
+Kendall’s Rank Correlation in R, Kendall’s rank correlation coefficient is suitable for the paired ranks as in the case of Spearman’s rank correlation.
+One advantage of Kendall Tau over Spearman’s rank correlation is that tau can be generalized to a partial correlation coefficient which is not possible in the case of rs.
+
+τb = -1 indicates a perfect negative monotonous relation among 2 variables: a lower score on variable A is always associated with a higher score on variable B;
+τb = 0 indicates no monotonous relation at all;
+τb = 1 indicates a perfect positive monotonous relation: a lower score on variable A is always associated with a lower score on variable B.
+
+Example:
+|τb| = 0.07 indicates a weak association;
+|τb| = 0.21 indicates a medium association;
+|τb| = 0.35 indicates a strong association.
+
+TI_CD38_total: % CD38 positivity
+TAPC_score: 0 - 1 - 2 - 3
+
+
+The Kendall rank correlation coefficient or Kendall’s tau statistic is used to estimate a rank-based measure of association. This test may be used if the data do not necessarily come from a bivariate normal distribution.
+
+## overall
+
+```{r}
+res_CD38_TAPC <- cor.test(PPBC_metadata$TI_CD38_total, PPBC_metadata$TAPC_score, method="kendall")
+res_CD38_TAPC
+```
+
+Spearman’s rho statistic is also used to estimate a rank-based measure of association. This test may be used if the data do not come from a bivariate normal distribution.
+The Spearman rank correlation, represented by ρ, is a non-parametric test that measures the degree of association between two variables based on using a monotonic function. The Spearman approach does not assume any assumptions about the distribution of the data and is the appropriate correlation analysis when the variables are measured on an ordinal scale. Consequently, common questions that a Spearman correlation answers includes: Is there a statistically significant relationship between the age of a golf player and the number of wins (0, 1, 2)? Is there a statistically significant relationship between participant responses to two Likert scaled questions on a survey?
+
+The assumptions for Spearman’s correlation include:
+Level of measurement: The normal assumption is that one or both of the variables are ordinal in measurement; however, Spearman’s is also appropriate to use if both variables are continuous but are heavily skewed or contain sizable outliers.
+Montonically related: A linear relationship is not necessary, the only requirement is that one variable is montonically related to the other variable.
+
+```{r}
+res_CD38_TAPC <- cor.test(PPBC_metadata$TI_CD38_total, PPBC_metadata$TAPC_score, method="spearman")
+res_CD38_TAPC
+```
+
+
+```{r}
+scatterplot_CD38_TAPC <- qplot(x = TAPC_score, y = TI_CD38_total, data = PPBC_metadata) +
+        geom_smooth(method = "lm") +
+        ggtitle("Fig. A: Strong Positive Association")
+scatterplot_CD38_TAPC
+```
+
+
+```{r}
+pdf(file="scatterplot_CD38_TAPC.pdf", width = 7, height=5)
+scatterplot_CD38_TAPC
+dev.off()
+```
+
+```{r}
+scatterplot_CD38_TAPC <- qplot(x = TAPC_score, y = TI_CD38_total, data = PPBC_metadata) +
+        geom_jitter(method = "lm") +
+        ggtitle("Fig. A: Strong Positive Association")
+scatterplot_CD38_TAPC
+```
+
+
+
+```{r}
+PPBC_metadata$TAPC_score <- as.character(PPBC_metadata$TAPC_score)
+```
+
+
+```{r}
+qplot(TAPC_score, TI_CD38_total, data = PPBC_metadata, 
+      geom=c("boxplot", "jitter"), fill = TAPC_score)
+```
+
+
+
+
+
+```{r}
+qplot(TAPC_score, TI_CD38_total, data = PPBC_metadata, 
+      geom = "dotplot", stackdir = "center", binaxis = "y",
+      color = TAPC_score, fill = TAPC_score)
+```
+
+
+
+
+## PPBC-inv
+
+```{r}
+res_CD38_TAPC_inv <- cor.test(Data_inv$TI_CD38_total, Data_inv$TAPC_score, method="kendall")
+res_CD38_TAPC_inv
+```
+
+```{r}
+scatterplot_CD38_TAPC_inv <- qplot(x = TAPC_score, y = TI_CD38_total, data = Data_inv) +
+        geom_smooth(method = "lm") 
+scatterplot_CD38_TAPC_inv
+```
+
+
+```{r}
+pdf(file="scatterplot_CD38_TAPC_inv.pdf", width = 7, height=5)
+scatterplot_CD38_TAPC_inv
+dev.off()
+```
+
+
+
+## PrBC
+
+```{r}
+res_CD38_TAPC_prbc <- cor.test(Data_prbc$TI_CD38_total, Data_prbc$TAPC_score, method="kendall")
+res_CD38_TAPC_prbc
+```
+
+```{r}
+scatterplot_CD38_TAPC_prbc <- qplot(x = TAPC_score, y = TI_CD38_total, data = Data_prbc) +
+        geom_smooth(method = "lm") 
+scatterplot_CD38_TAPC_prbc
+```
+
+```{r}
+pdf(file="scatterplot_CD38_TAPC_prbc.pdf", width = 7, height=5)
+scatterplot_CD38_TAPC_prbc
+dev.off()
+```
+
+## NP-BC
+
+```{r}
+res_CD38_TAPC_npbc <- cor.test(Data_npbc$TI_CD38_total, Data_npbc$TAPC_score, method="kendall")
+res_CD38_TAPC_npbc
+```
+
+```{r}
+scatterplot_CD38_TAPC_npbc <- qplot(x = TAPC_score, y = TI_CD38_total, data = Data_npbc) +
+        geom_smooth(method = "lm") 
+scatterplot_CD38_TAPC_npbc
+```
+
+
+```{r}
+pdf(file="scatterplot_CD38_TAPC_npbc.pdf", width = 7, height=5)
+scatterplot_CD38_TAPC_npbc
+dev.off()
+```
+
+
+
+```{r}
+scatterplot_CD38_TAPC_all <- grid.arrange(scatterplot_CD38_TAPC_inv, scatterplot_CD38_TAPC_prbc, scatterplot_CD38_TAPC_npbc, ncol = 2, 
+             top = textGrob("Anscombe's Quartet"))
+scatterplot_CD38_TAPC_all
+```
+
+
+```{r}
+pdf(file="scatterplot_CD38_TAPC_all.pdf", width = 7, height=5)
+scatterplot_CD38_TAPC_all
+dev.off()
+```
+
+# correlation IgA/IgG - TAPC
+
+```{r}
+group_by(PPBC_metadata, TAPC_score) %>%
+  summarise(
+    count = n(),
+    mean = mean(IgA, na.rm = TRUE),
+    sd = sd(IgA, na.rm = TRUE)
+  )
+```
+
+```{r}
+group_by(PPBC_metadata, TAPC_score) %>%
+  summarise(
+    count = n(),
+    mean = mean(IgG, na.rm = TRUE),
+    sd = sd(IgG, na.rm = TRUE)
+  )
+```
+
+
+
+## overall
+
+### IgA
+
+```{r}
+PPBC_metadata$TAPC_score <- as.numeric(PPBC_metadata$TAPC_score)
+```
+
+```{r}
+res_IgA_TAPC <- cor.test(PPBC_metadata$IgA, PPBC_metadata$TAPC_score, method="kendall")
+res_IgA_TAPC
+```
+
+```{r}
+scatterplot_IgA_TAPC <- qplot(x = TAPC_score, y = IgA, data = PPBC_metadata) +
+        geom_smooth(method = "lm") +
+        ggtitle("Fig. A: Strong Negative Association")
+scatterplot_IgA_TAPC
+```
+
+
+
+### IgG
+
+```{r}
+res_IgG_TAPC <- cor.test(PPBC_metadata$IgG, PPBC_metadata$TAPC_score, method="kendall")
+res_IgG_TAPC
+```
+
+
+```{r}
+scatterplot_IgG_TAPC <- qplot(x = TAPC_score, y = IgG, data = PPBC_metadata) +
+        geom_smooth(method = "lm") +
+        ggtitle("Fig. A: Strong Positive Association")
+scatterplot_IgG_TAPC
+```
+
+
+```{r}
+p1 <- qplot(x = `TAPC_score`, y = `IgA`, data = PPBC_metadata) +
+        geom_smooth(method = "lm") +
+        ggtitle("IgA Negative Association")
+
+p2 <- qplot(x = TAPC_score, y = `IgG`, data = PPBC_metadata) +
+        geom_smooth(method = "lm") +
+        ggtitle("IgG Positive Association")
+
+scatterplot_IgA_IgG_TAPC <- grid.arrange(p1, p2, ncol = 2)
+scatterplot_IgA_IgG_TAPC
+```
+
+
+
+## PPBC-inv
+
+### IgA
+
+```{r}
+res_IgA_TAPC_inv <- cor.test(Data_inv$IgA, Data_inv$TAPC_score, method="kendall")
+res_IgA_TAPC_inv
+```
+
+```{r}
+scatterplot_IgA_TAPC_inv <- qplot(x = TAPC_score, y = IgA, data = Data_inv) +
+        geom_smooth(method = "lm") 
+scatterplot_IgA_TAPC_inv
+```
+
+
+
+### IgG
+
+```{r}
+res_IgG_TAPC_inv <- cor.test(Data_inv$IgG, Data_inv$TAPC_score, method="kendall")
+res_IgG_TAPC_inv
+```
+
+
+```{r}
+scatterplot_IgG_TAPC_inv <- qplot(x = TAPC_score, y = IgG, data = Data_inv) +
+        geom_smooth(method = "lm") 
+scatterplot_IgG_TAPC_inv
+```
+
+
+
+```{r}
+scatterplot_IgA_IgG_TAPC_inv <- grid.arrange(scatterplot_IgA_TAPC_inv, scatterplot_IgG_TAPC_inv, ncol = 2)
+scatterplot_IgA_IgG_TAPC_inv
+```
+
+
+
+
+
+## PrBC
+
+### IgA
+
+```{r}
+res_IgA_TAPC_prbc <- cor.test(Data_prbc$IgA, Data_prbc$TAPC_score, method="kendall")
+res_IgA_TAPC_prbc
+```
+
+```{r}
+scatterplot_IgA_TAPC_prbc <- qplot(x = TAPC_score, y = IgA, data = Data_prbc) +
+        geom_smooth(method = "lm") 
+scatterplot_IgA_TAPC_prbc
+```
+
+
+
+### IgG
+
+```{r}
+res_IgG_TAPC_prbc <- cor.test(Data_prbc$IgG, Data_prbc$TAPC_score, method="kendall")
+res_IgG_TAPC_prbc
+```
+
+
+```{r}
+scatterplot_IgG_TAPC_prbc <- qplot(x = TAPC_score, y = IgG, data = Data_prbc) +
+        geom_smooth(method = "lm") 
+scatterplot_IgG_TAPC_prbc
+```
+
+
+
+```{r}
+scatterplot_IgA_IgG_TAPC_prbc <- grid.arrange(scatterplot_IgA_TAPC_prbc, scatterplot_IgG_TAPC_prbc, ncol = 2)
+scatterplot_IgA_IgG_TAPC_prbc
+```
+
+
+
+## NPBC
+
+### IgA
+
+```{r}
+res_IgA_TAPC_npbc <- cor.test(Data_npbc$IgA, Data_npbc$TAPC_score, method="kendall")
+res_IgA_TAPC_npbc
+```
+
+```{r}
+scatterplot_IgA_TAPC_npbc <- qplot(x = TAPC_score, y = IgA, data = Data_npbc) +
+        geom_smooth(method = "lm") 
+scatterplot_IgA_TAPC_npbc
+```
+
+### IgG
+
+```{r}
+res_IgG_TAPC_npbc <- cor.test(Data_npbc$IgG, Data_npbc$TAPC_score, method="kendall")
+res_IgG_TAPC_npbc
+```
+
+
+```{r}
+scatterplot_IgG_TAPC_npbc <- qplot(x = TAPC_score, y = IgG, data = Data_npbc) +
+        geom_smooth(method = "lm") 
+scatterplot_IgG_TAPC_npbc
+```
+
+
+```{r}
+scatterplot_IgA_IgG_TAPC_npbc <- grid.arrange(scatterplot_IgA_TAPC_npbc, scatterplot_IgG_TAPC_npbc, ncol = 2)
+scatterplot_IgA_IgG_TAPC_npbc
+```
+
+
+
+
+
+# correlation IG expression - IgA-IgG
+
+reload the data
+```{r}
+PPBC_metadata <- readRDS("PPBC_metadata.RDS")
+```
+
+
+```{r}
+group_by(PPBC_metadata, IgA) %>%
+  summarise(
+    count = n(),
+    mean = mean(IgG, na.rm = TRUE),
+    sd = sd(IgG, na.rm = TRUE)
+  )
+```
+
+## overall
+
+
+```{r}
+res_IgA_IgG <- cor.test(PPBC_metadata$IgA, PPBC_metadata$IgG, method="kendall")
+res_IgA_IgG
+```
+
+```{r}
+scatterplot_IgA_IgG <- qplot(x = IgG, y = IgA, data = PPBC_metadata) +
+        geom_smooth(method = "lm") +
+        ggtitle("Fig. A: Strong Negative Association")
+scatterplot_IgA_IgG
+```
+
+
+
+
+## PPBC-inv
+
+
+```{r}
+res_IgA_IgG_inv <- cor.test(Data_inv$IgA, Data_inv$IgG, method="kendall")
+res_IgA_IgG_inv
+```
+
+```{r}
+scatterplot_IgA_IgG_inv <- qplot(x = IgG, y = IgA, data = Data_inv) +
+        geom_smooth(method = "lm") 
+scatterplot_IgA_IgG_inv
+```
+
+
+
+
+
+## PrBC
+
+
+```{r}
+res_IgA_IgG_prbc <- cor.test(Data_prbc$IgA, Data_prbc$IgG, method="kendall")
+res_IgA_IgG_prbc
+```
+
+```{r}
+scatterplot_IgA_IgG_prbc <- qplot(x = IgG, y = IgA, data = Data_prbc) +
+        geom_smooth(method = "lm") 
+scatterplot_IgA_IgG_prbc
+```
+
+
+
+## NPBC
+
+
+```{r}
+res_IgA_IgG_npbc <- cor.test(Data_npbc$IgA, Data_npbc$IgG, method="kendall")
+res_IgA_IgG_npbc
+```
+
+```{r}
+scatterplot_IgA_IgG_npbc <- qplot(x = IgG, y = IgA, data = Data_npbc) +
+        geom_smooth(method = "lm") 
+scatterplot_IgA_IgG_npbc
+```
+
+
