@@ -28,19 +28,39 @@ include: "src/spatial/spatial.smk"
 rule all:
   input:
     #"reports/16_gene_unity_setup.html", #Pertains to RNAseq analysis, temporary omit
-    "src/spatial/organize_vectra_samples.html",
-    "reports/spatial/01_summary_QC.html",
-    expand("reports/spatial/object_qc_by_batch/02_object_QC_{batch}.html", batch = ['batch' + str(i) for i in range (1, 8)]),
-    expand("reports/spatial/batch_marker_viz/03_{batch}_marker_coexpression.html", batch = ['batch' + str(i) for i in range (1, 8)]),
-    "reports/spatial/03_aggregate_marker_combos.html",
-    "reports/spatial/04_report_cell_types.html",
-    "reports/spatial/05_density.html",
-    "reports/spatial/06_kruskal_total_density.html",
-    "reports/spatial/06b_inv_time_density.html",
-    expand("reports/spatial/07_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
-    "reports/spatial/08_ig_clusters_cd20.html",
-    "reports/spatial/09_tissue_segmentation.html"
+    # "src/spatial/organize_vectra_samples.html",
+    # "reports/spatial/01_summary_QC.html",
+    # expand("reports/spatial/object_qc_by_batch/02_object_QC_{batch}.html", batch = ['batch' + str(i) for i in range (1, 8)]),
+    # expand("reports/spatial/batch_marker_viz/03_{batch}_marker_coexpression.html", batch = ['batch' + str(i) for i in range (1, 8)]),
+    # "reports/spatial/03_aggregate_marker_combos.html",
+    # "reports/spatial/04_report_cell_types.html",
+    # "reports/spatial/05_density.html",
+    # "reports/spatial/06_kruskal_total_density.html",
+    # "reports/spatial/06b_inv_time_density.html",
+    # expand("reports/spatial/07_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
+    # "reports/spatial/08_ig_clusters_cd20.html",
+    # "reports/spatial/09_tissue_segmentation.html"
 
+
+### Set up ###
+
+# Simplify the fastq dir structure
+rule symlinks:
+  input:
+    rmd="reports/rnaseq/00_symlink_fastqs.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    html="reports/rnaseq/00_symlink_fastqs.html"
+  params:
+    sample_paths="data/rnaseq/metadata/sample_paths.txt",
+    raw_dir="data/rnaseq/RAW",
+    sym_dir="data/rnaseq/fastq"  
+  shell:
+   "mkdir -p data/rnaseq/fastq\n"
+   "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+   " --sample_paths '{params.sample_paths}'"
+   " --raw_dir '{params.raw_dir}'"
+   " --sym_dir '{params.sym_dir}'"
 
 ### RNAseq analyses ###
 

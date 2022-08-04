@@ -1,0 +1,71 @@
+---
+title: "Symlinks for raw fastqs"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+params:
+    sample_paths: "data/rnaseq/metadata/sample_paths.txt"
+    raw_dir: "data/rnaseq/RAW"
+    sym_dir: "data/rnaseq/fastq"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(here)
+library(dplyr)
+library(readr)
+library(stringr)
+```
+
+
+The directory structure received from the sequencing facility can be simplified with symlinks.
+
+Read file locations.
+
+```{r}
+filedict <- tibble(target = file.path(params$raw_dir,
+                                      read_lines(here(params$sample_paths))))
+stopifnot(all(file.exists(here(filedict$target))))
+
+head(filedict[,1])
+```
+
+Generate link names.
+
+```{r}
+filedict <- filedict %>%
+  mutate(link = file.path(params$sym_dir, str_remove_all(target, ".*/")), .before = target)
+head(filedict)
+```
+
+Create symlink dir.
+
+```{r}
+dir.create(here(params$sym_dir), showWarnings = F)
+```
+
+Deleting previous symlinks is best practice. If some files are removed, their symlinks will not remain behind.
+
+```{r}
+file.remove(list.files(here(params$sym_dir),
+                       include.dirs = F, full.names = T, recursive = T))
+```
+
+Create the symbolic links from desired location to actual location.
+
+```{r}
+file.symlink(from = here(filedict$target), to = here(filedict$link))
+```
+
+```{r}
+sessionInfo()
+```

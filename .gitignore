@@ -1,13 +1,9 @@
 .RData
-testingparalellel.txt
-snakemake_notuptodate
 .snakemake/
 *results
-postpartumbc.Rproj
-flexgsea_input_for_tycho.RData.gz
-flexgsea_crash_env.RData
-doc
-data
+*.Rproj
+
+data/RAW/*
 bin
 Rplots.pdf
 .here
@@ -39,19 +35,12 @@ reports/archive/
 reports/multiqc_data/
 reports/*.tar.xy
 reports/gene_reports/
-src/*test*
-src/lambda_score_example.R
 *scratch*
-src/dec2018_samples/
-src/NMF.R
 spatial_example_code/
 *hugo_fpkm.txt
+*.fastq.gz
 
 shinyApp/*/data
 shinyApp/*/data_old
 shinyApp/*/*.pdf
 shinyApp/*/reports
-
-#Archive pre April 2020 metadata update
-reports/pre_April2020_metadata_update/
-src/src_pre_metadata_update_April2020/

@@ -68,7 +68,7 @@ def read_sample_xlsx(fn):
         raise Exception('Duplicated samples')
     return samples
 
-samples = read_sample_xlsx("data/metadata/PPBC_metadata.xlsx")
+samples = read_sample_xlsx("data/external/PPBC_metadata.xlsx")
 
 # Only include samples that should be processed such that we don't have to exclude them
 # in every rule
