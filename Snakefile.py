@@ -1,11 +1,5 @@
-from pathlib import Path
+#### General use ####
 
-configfile: "config.yaml"
-
-include: "src/rnaseq/rnaseq.smk.py"
-include: "src/spatial/spatial.smk.py"
-
-# General use:
 # Type "snakemake" with no arguments into console to generate the files listed under rule all
 # Alternatively, specify a rule or output file
 
@@ -36,6 +30,13 @@ include: "src/spatial/spatial.smk.py"
 #To use a conda envinroment with snakemake: snakemake -n --use-conda
 #To create the environments without running any rules: 
 #snakemake -n --use-conda --create-envs-only
+
+from pathlib import Path
+
+configfile: "config.yaml"
+
+include: "src/rnaseq/rnaseq.smk.py"
+include: "src/spatial/spatial.smk.py"
 
 rule all:
   input:
