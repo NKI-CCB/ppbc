@@ -35,7 +35,7 @@ rule salmon_index:
     #directory("data/external/index/grch38_index")
     "data/external/index/grch38_index/hash.bin"
   conda:
-    "envs/environment.yml"        
+    "environment.yml"        
   shell:
     "bash {input}"
 

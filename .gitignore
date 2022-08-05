@@ -4,6 +4,7 @@
 *.Rproj
 
 data/RAW/*
+data/external/index
 bin
 Rplots.pdf
 .here
