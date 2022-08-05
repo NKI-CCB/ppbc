@@ -1,3 +1,5 @@
+# WIP until the metadata file is fixed, ctrl f for FIXME
+
 from dataclasses import dataclass
 
 import openpyxl
@@ -27,7 +29,7 @@ class Sample():
     included: bool
 
     def from_dict(x):
-        if x["sample_type"] == "slide":
+        if x["sample_type"] == "slide": #FIXME before running this we need to recode CD38 samples as HE instead of slide
             return VectraSample(
                 sample_id = x["sample_ID"],
                 patient_id = x["patient_ID"],
@@ -35,14 +37,15 @@ class Sample():
                 batch_HALO = x["batch_HALO"].lower().replace(" ", "") if x["batch_HALO"] is not None else None,
                 panel = x["experimental_platform"],
             )
-        else:
-            assert x["sample_type"] in ["RNA"]
+        elif x["sample_type"] == ["RNA"]:
             return Sample(
                 sample_id = x["sample_ID"],
                 patient_id = x["patient_ID"],
                 included = x["Included"] == 1,
             )
-        
+        else:
+          #assert x["sample_type"] in ["HE"]
+          pass
 
 @dataclass(frozen=True)
 class VectraSample(Sample):
@@ -68,7 +71,7 @@ def read_sample_xlsx(fn):
         raise Exception('Duplicated samples')
     return samples
 
-samples = read_sample_xlsx("data/external/PPBC_metadata_20211125.xlsx")
+samples = read_sample_xlsx("data/external/PPBC_metadata_20220805.xlsx")
 
 # Only include samples that should be processed such that we don't have to exclude them
 # in every rule
