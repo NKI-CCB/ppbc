@@ -8,6 +8,6 @@ dependencies:
   - salmon=0.14.2
   - fastqc=0.11.9
   - multiqc=1.8
-  - star=2.7.4a
   - netcdf4=1.5.7
-prefix: /home/k.moore/bin/anaconda3/envs/ppbc
+  - star=2.7.4a
+prefix: /home/k.moore/miniconda3/envs/ppbc

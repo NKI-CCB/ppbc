@@ -26,7 +26,7 @@
 #If environment.yml has been updated, update the environment with: 
 #conda env update --prefix ./envs --file environment.yml  --prune
 #Save environment to text with: conda env export > envs/environment.yml
-#For condensed version: conda env export --from-history
+#For condensed version: conda env export --from-history > envs/env_brief.yml
 #To use a conda envinroment with snakemake: snakemake -n --use-conda
 #To create the environments without running any rules: 
 #snakemake -n --use-conda --create-envs-only
