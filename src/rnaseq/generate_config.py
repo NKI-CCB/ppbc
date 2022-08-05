@@ -4,9 +4,9 @@
 
 import os
 
-sample_lst = os.listdir('data/RAW')
+sample_lst = os.listdir('data/rnaseq/fastq')
 
-sample_lst = [s.replace(".fastq.gz", "") + ": data/RAW/"+s for s in
+sample_lst = [s.replace(".fastq.gz", "") + ": data/rnaseq/fastq/"+s for s in
               sample_lst]
 
 with open("config.yaml", "w") as f:

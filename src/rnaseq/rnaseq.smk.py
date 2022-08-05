@@ -17,31 +17,25 @@ rule symlinks:
    " --sample_paths '{params.sample_paths}'"
    " --raw_dir '{params.raw_dir}'"
    " --sym_dir '{params.sym_dir}'"
-
-### RNAseq analyses ###
-
-rule fastqc:
+   
+rule create_config:
   input:
-    expand("data/RAW/{sample}.fastq.gz", sample=config['samples'])
+    script="src/rnaseq/generate_config.py"
   output:
-    html = expand("results/fastqc/{sample}_fastqc.html", sample=config['samples']),
-    zip = expand("results/fastqc/{sample}_fastqc.zip", sample=config['samples'])
-  threads: 5
-  #conda:
-  #  "envs/environment.yml"         
+    config="config.yaml"
   shell:
-        """
-        fastqc {input} -o results/fastqc/ -t {threads}
-        """
+    "python3 {input.script}"
+
+### Salmon quantification ###
 
 rule salmon_index:
   input:
-    "src/01-build-salmon-index.sh"
+    "src/rnaseq/build_salmon_index.sh"
   output:
     #directory("data/external/index/grch38_index")
     "data/external/index/grch38_index/hash.bin"
-  #conda:
-  #  "envs/environment.yml"        
+  conda:
+    "envs/environment.yml"        
   shell:
     "bash {input}"
 
@@ -59,6 +53,91 @@ rule salmon_quant:
     """
     bash {input}
     """
+
+rule process_metadata:
+  input:
+    #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples']), #Decouple
+    raw_metadata="data/external/Hercoderingslijst_v09032020_KM.xlsx",
+    rmd="reports/01_process_metadata_tximport.Rmd",
+    script="src/rmarkdown.R"
+  output:
+    html="reports/01_process_metadata_tximport.html",
+    multiple_patient_fastqs="data/metadata/01_patients_with_multiple_fastqs.csv",
+    excluded_samples="data/metadata/01_pre_excluded_samples.csv",
+    sample_annot="data/metadata/01_sample_annot.tsv",
+    gene_annot="data/metadata/01_tx_annot.tsv",
+    tx="data/Rds/01_tx.Rds",
+    rdata="reports/01_process_metadata_tximport.RData"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+### Quality control ###
+
+rule fastqc:
+  input:
+    expand("data/RAW/{sample}.fastq.gz", sample=config['samples'])
+  output:
+    html = expand("results/fastqc/{sample}_fastqc.html", sample=config['samples']),
+    zip = expand("results/fastqc/{sample}_fastqc.zip", sample=config['samples'])
+  threads: 5
+  #conda:
+  #  "envs/environment.yml"         
+  shell:
+        """
+        fastqc {input} -o results/fastqc/ -t {threads}
+        """
+
+rule multiqc:
+  input:
+    fastqc = "results/fastqc/",
+    salmon_quant = "data/RNA-seq/salmon/"
+  output:
+    report="reports/multiqc_report.html",
+    #alignstats="reports/multiqc_data/multiqc_general_stats.txt", #Decouple
+    #or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt" #Decouple
+  #conda:
+  #  "envs/environment.yml"             
+  shell:
+    """multiqc {input.fastqc} {input.salmon_quant} -o results -n multiqc_report.html --force"""
+    
+rule QC_salmon:
+  input:
+    script="src/rmarkdown.R",
+    rmd="reports/02_QC_salmon.Rmd",
+    #A tx import object
+    tx="data/Rds/01_tx.Rds", 
+    #Sample and gene annotation
+    sample_annot="data/metadata/01_sample_annot.tsv",
+    refseq_db="data/external/refseqid_genename_hg38.txt",
+    recent_samples="data/metadata/new_samples_jun2019.txt",
+    #Two multiqc report files
+    alignstats="reports/multiqc_data/multiqc_general_stats.txt",
+    or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt",      
+    #Blast files created via the web browser based on fastas generated in the Rmd
+    blast_or="results/fastqc/overrepresented-BLAST-HitTable.csv",
+    blast_failed="results/fastqc/failedor-BLAST-HitTable.csv",
+    gc_blast="results/fastqc/gc_or_Alignment-HitTable.csv"
+  output:
+    #Overrepresented fasta sequences aggregated in the report
+    "results/fastqc/overrepresented.fa",
+    "results/fastqc/failed_overrepresented.fa",
+    "results/fastqc/gc_or.fa",
+    #Upset plots
+    "data/metadata/02_QC_samples_discarded_by_reason.pdf",
+    "data/metadata/02_QC_patients_discarded_by_reason.pdf",
+    #Kept vs discarded metadata
+    "data/metadata/02_discarded_samples.csv",
+    "data/metadata/02_sample_annot_filtered.csv",
+    #Txdata from only kept samples
+    "data/Rds/02_tx_clean.Rds",
+    #A dds from only kept samples, with replicates collapsed
+    "data/Rds/02_QC_dds.Rds",
+    "reports/02_QC_salmon.RData",
+    html="reports/02_QC_salmon.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+### STAR alignment ###
 
 rule star_index:
   input:
@@ -104,72 +183,11 @@ rule star_align:
     {input.script}
     """
 
-rule multiqc:
-  input:
-    fastqc = "results/fastqc/",
-    salmon_quant = "data/RNA-seq/salmon/"
-  output:
-    report="reports/multiqc_report.html",
-    #alignstats="reports/multiqc_data/multiqc_general_stats.txt", #Decouple
-    #or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt" #Decouple
-  #conda:
-  #  "envs/environment.yml"             
-  shell:
-    """multiqc {input.fastqc} {input.salmon_quant} -o results -n multiqc_report.html --force"""
 
-rule process_metadata:
-  input:
-    #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples']), #Decouple
-    raw_metadata="data/external/Hercoderingslijst_v09032020_KM.xlsx",
-    rmd="reports/01_process_metadata_tximport.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    html="reports/01_process_metadata_tximport.html",
-    multiple_patient_fastqs="data/metadata/01_patients_with_multiple_fastqs.csv",
-    excluded_samples="data/metadata/01_pre_excluded_samples.csv",
-    sample_annot="data/metadata/01_sample_annot.tsv",
-    gene_annot="data/metadata/01_tx_annot.tsv",
-    tx="data/Rds/01_tx.Rds",
-    rdata="reports/01_process_metadata_tximport.RData"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
-rule QC_salmon:
-  input:
-    script="src/rmarkdown.R",
-    rmd="reports/02_QC_salmon.Rmd",
-    #A tx import object
-    tx="data/Rds/01_tx.Rds", 
-    #Sample and gene annotation
-    sample_annot="data/metadata/01_sample_annot.tsv",
-    refseq_db="data/external/refseqid_genename_hg38.txt",
-    recent_samples="data/metadata/new_samples_jun2019.txt",
-    #Two multiqc report files
-    alignstats="reports/multiqc_data/multiqc_general_stats.txt",
-    or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt",      
-    #Blast files created via the web browser based on fastas generated in the Rmd
-    blast_or="results/fastqc/overrepresented-BLAST-HitTable.csv",
-    blast_failed="results/fastqc/failedor-BLAST-HitTable.csv",
-    gc_blast="results/fastqc/gc_or_Alignment-HitTable.csv"
-  output:
-    #Overrepresented fasta sequences aggregated in the report
-    "results/fastqc/overrepresented.fa",
-    "results/fastqc/failed_overrepresented.fa",
-    "results/fastqc/gc_or.fa",
-    #Upset plots
-    "data/metadata/02_QC_samples_discarded_by_reason.pdf",
-    "data/metadata/02_QC_patients_discarded_by_reason.pdf",
-    #Kept vs discarded metadata
-    "data/metadata/02_discarded_samples.csv",
-    "data/metadata/02_sample_annot_filtered.csv",
-    #Txdata from only kept samples
-    "data/Rds/02_tx_clean.Rds",
-    #A dds from only kept samples, with replicates collapsed
-    "data/Rds/02_QC_dds.Rds",
-    "reports/02_QC_salmon.RData",
-    html="reports/02_QC_salmon.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+
+
 
 rule pam50_ihc:
   input:
