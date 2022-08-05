@@ -2,28 +2,39 @@ from pathlib import Path
 
 configfile: "config.yaml"
 
-include: "src/spatial/spatial.smk"
+include: "src/spatial/spatial.smk.py"
 
-# The Snakefile is given a .py extension so that we can see syntax highlighting in IDEs
+# General use:
+# Type "snakemake" with no arguments into console to generate the files listed under rule all
+# Alternatively, specify a rule or output file
 
-# general use:
-# -j designates thread number
-# -s indicates non-default Snakefile name
-# Use -np for dry run
-# snakemake {rule or file output} -s Snakefile.py -j 8
-# Example:
+# Example, performs a dry run of the gene_reports rule with 8 cores
 # snakemake -np gene_reports -s Snakefile.py -j 8
+
+# Useful arguments
+# -j designates thread number
+# -s specifies a Snakefile path other than the default ("Snakefile" in working dir)
+# -n for dry run, no rule execution
+# -p print shell commands of rules that will be executed, useful together with -n
+
+# The Snakefile is given a .py extension for automatic syntax highlighting in IDEs
+# Either use snakemake -s Snakefile.py, or create a symlink (Snakefile -> Snakefile.py)
+
+# To get a graphical representation of the workflow:
+# "snakemake --dag | dot -Tsvg > dag.svg"
+
+# Subworkflows can be included as additional Snakefiles that are topic specific
+# These are designated with a .smk.py suffix
 
 #### Conda and Snakemake ####
 #To activate conda environment, use: conda env create -f envs/environment.yml
-#If environment.yml has been updated, update the environment with: conda env update --prefix ./envs --file environment.yml  --prune
+#If environment.yml has been updated, update the environment with: 
+#conda env update --prefix ./envs --file environment.yml  --prune
 #Save environment to text with: conda env export > envs/environment.yml
 #For condensed version: conda env export --from-history
 #To use a conda envinroment with snakemake: snakemake -n --use-conda
-#To create the environments without running any rules: snakemake -n --use-conda --create-envs-only
-#To get a graphical representation of the workflow:
-#"snakemake --dag | dot -Tsvg > dag.svg"
-
+#To create the environments without running any rules: 
+#snakemake -n --use-conda --create-envs-only
 
 rule all:
   input:
