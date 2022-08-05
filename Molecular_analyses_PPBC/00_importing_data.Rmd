@@ -1,0 +1,219 @@
+---
+title: "Importing the data"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+  html_document:
+    df_print: paged
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+# Loading Packages 
+
+```{r}
+#install.packages("tidyverse")
+library(tidyverse)
+library(readxl)
+#if (!requireNamespace("BiocManager", quietly = TRUE))
+   # install.packages("BiocManager")
+#BiocManager::install("tximport")
+library(tximport)
+#install.packages("here")
+library(here)
+library(dplyr)
+library(tidyr)
+library(writexl)
+```
+
+```{r}
+getwd()
+```
+
+# Importing the data
+
+```{r}
+PPBC_metadata <- read_excel("PPBC_metadata_20220805.xlsx", sheet = "patient_data")
+```
+
+```{r}
+colnames(PPBC_metadata)
+```
+
+
+# Data structure
+
+```{r}
+str(PPBC_metadata)
+length(which(complete.cases(PPBC_metadata$Ref)==FALSE))
+length(which(complete.cases(PPBC_metadata$Ref)==TRUE))
+which(is.na(PPBC_metadata$Ref))
+```
+
+grade_integer
+```{r}
+PPBC_metadata$grade_integer <- NA
+PPBC_metadata$grade_integer[PPBC_metadata$grade=="grade I"] <- 1
+PPBC_metadata$grade_integer[PPBC_metadata$grade=="grade II"] <- 2
+PPBC_metadata$grade_integer[PPBC_metadata$grade=="grade III"] <- 3
+```
+
+stage_short_integer
+```{r}
+PPBC_metadata$stage_short_integer <- NA
+PPBC_metadata$stage_short_integer[PPBC_metadata$stage=="stage I"] <- 1
+PPBC_metadata$stage_short_integer[PPBC_metadata$stage=="stage II"] <- 2
+PPBC_metadata$stage_short_integer[PPBC_metadata$stage=="stage III"] <- 3
+PPBC_metadata$stage_short_integer[PPBC_metadata$stage=="stage IV"] <- 4
+```
+
+
+
+# Subsetting the data into categories only containing certain study groups! 
+
+```{r}
+Data_inv_vs_npbc <- subset(PPBC_metadata, study_group %in% c("ppbcpw","npbc"), )
+Data_inv_vs_prbc <- subset(PPBC_metadata, study_group %in% c("ppbcpw","prbc"), )
+Data_inv_vs_lac <- subset(PPBC_metadata, study_group %in% c("ppbcpw","ppbcdl"), )
+Data_prbc_vs_npbc <- subset(PPBC_metadata, study_group %in% c("prbc","npbc"), )
+Data_inv <- subset(PPBC_metadata, study_group == "ppbcpw", )
+Data_lac <- subset(PPBC_metadata, study_group == "ppbcdl", )
+Data_prbc <- subset(PPBC_metadata, study_group == "prbc", )
+Data_npbc <- subset(PPBC_metadata, study_group == "npbc", )
+Data_IG_low <- subset(PPBC_metadata, IG_ID_short == "low", )
+Data_IG_high <- subset(PPBC_metadata, IG_ID_short == "high", )
+Data_TAPC_low <- subset(PPBC_metadata, TAPC == "low", )
+Data_TAPC_high <- subset(PPBC_metadata, TAPC == "high", )
+Data_plasmaB_low <- subset(PPBC_metadata, Plasma_ID_short == "low", )
+Data_plasmaB_high <- subset(PPBC_metadata, Plasma_ID_short == "high", )
+Data_TCD38_low <- subset(PPBC_metadata, TI_CD38 == "low", )
+Data_TCD38_high <- subset(PPBC_metadata, TI_CD38 == "high", )
+Data_SCD38_low <- subset(PPBC_metadata, SI_CD38 == "low", )
+Data_SCD38_high <- subset(PPBC_metadata, SI_CD38 == "high", )
+```
+
+
+
+# Saving the data files
+
+```{r}
+saveRDS(PPBC_metadata, file = "PPBC_metadata.RDS") 
+saveRDS(Data_inv_vs_npbc, file = "Data_inv_vs_npbc.RDS") 
+saveRDS(Data_inv_vs_prbc, file = "Data_inv_vs_prbc.RDS") 
+saveRDS(Data_inv_vs_lac, file = "Data_inv_vs_lac.RDS")
+saveRDS(Data_prbc_vs_npbc, file = "Data_prbc_vs_npbc.RDS") 
+saveRDS(Data_inv, file = "Data_inv.RDS") 
+saveRDS(Data_lac, file = "Data_lac.RDS") 
+saveRDS(Data_prbc, file = "Data_prbc.RDS") 
+saveRDS(Data_npbc, file = "Data_npbc.RDS") 
+saveRDS(Data_IG_low, file = "Data_IG_low.RDS") 
+saveRDS(Data_IG_high, file = "Data_IG_high.RDS") 
+saveRDS(Data_TAPC_low, file = "Data_TAPC_low.RDS") 
+saveRDS(Data_TAPC_high, file = "Data_TAPC_high.RDS") 
+saveRDS(Data_plasmaB_low, file = "Data_plasmaB_low.RDS") 
+saveRDS(Data_plasmaB_high, file = "Data_plasmaB_high.RDS") 
+saveRDS(Data_TCD38_low, file = "Data_TCD38_low.RDS") 
+saveRDS(Data_TCD38_high, file = "Data_TCD38_high.RDS") 
+saveRDS(Data_SCD38_low, file = "Data_SCD38_low.RDS") 
+saveRDS(Data_SCD38_high, file = "Data_SCD38_high.RDS") 
+```
+
+
+# For molecular analysis 
+
+## Select patients
+
+select patients that have not been excluded based on PAM50 status and those with a Follow-up of > 20 months!
+
+```{r}
+MCP_IG <- subset(PPBC_metadata, IG_ID %in% c("low", "medium", "high"), )
+MCP_IG_short <- subset(PPBC_metadata, IG_ID_short %in% c("low", "high"), )
+```
+
+```{r}
+table(MCP_IG$study_group)
+table(MCP_IG$study_group, MCP_IG$IG_ID)
+```
+
+
+## Filter away all patients with < 20 months FU and unknown PAM50 status 
+
+```{r}
+#MCP_Fitlered are all cases with a follow-up of > 20 months and known PAM50 status!
+MCP_Filtered <- MCP_IG %>% filter(!is.na(death)) %>%
+  filter(time_OS_months > 20 | reason_death == "BC")
+
+MCP_IG %>%
+  mutate(keep = time_OS_months > 20 | reason_death == "BC") %>%
+  ggplot(aes(x = study_group, y = time_OS_months, shape = reason_death, color = keep)) +
+  geom_jitter(width = 0.1, height = 0) +
+  geom_hline(yintercept = 20) +
+  ggtitle("Discard samples with < 20 mo follow up, unless due to death")
+```
+
+
+# MCP_Final: Select only patients that have non-missing data in all analsyes (n=184)
+```{r}
+MCP_Final <- MCP_Filtered %>% filter(!is.na(distant_recurrence)) %>%
+  filter(!is.na(year_diagnosis)) %>%
+  filter(!is.na(grade)) %>%
+  filter(!is.na(stage)) %>%
+  filter(!is.na(PAM50)) %>%
+  filter(!is.na(surgery)) %>%
+  filter(!is.na(RT)) %>%
+  filter(!is.na(HT)) %>%
+  filter(!is.na(CT)) %>%
+  filter(!is.na(herceptin))
+
+table(MCP_Final$study_group)
+
+table(MCP_Final$study_group, MCP_Final$IG_ID)
+```
+
+
+# Subsetting the data into categories only containing certain study groups! 
+
+```{r}
+MCP_inv_vs_nonPrBC <- subset(MCP_Final, study_group %in% c("ppbcpw","npbc"), )
+MCP_inv_vs_PrBC <- subset(MCP_Final, study_group %in% c("ppbcpw","prbc"), )
+MCP_inv_vs_lac <- subset(MCP_Final, study_group %in% c("ppbcpw","ppbcdl"), )
+MCP_PrBC_vs_nonPrBC <- subset(MCP_Final, study_group %in% c("prbc","npbc"), )
+MCP_inv <- subset(MCP_Final, study_group == "ppbcpw", )
+MCP_lac <- subset(MCP_Final, study_group == "ppbcdl", )
+MCP_PrBC <- subset(MCP_Final, study_group == "prbc", )
+MCP_nonPrBC <- subset(MCP_Final, study_group == "npbc", )
+MCP_IG_low <- subset(MCP_Final, IG_ID == "low", )
+MCP_IG_medium <- subset(MCP_Final, IG_ID == "medium", )
+MCP_IG_high <- subset(MCP_Final, IG_ID == "high", )
+```
+
+
+# Saving the data files
+
+```{r}
+saveRDS(MCP_IG, file = "MCP_IG.RDS") 
+saveRDS(MCP_inv_vs_nonPrBC, file = "MCP_inv_vs_nonPrBC.RDS") 
+saveRDS(MCP_inv_vs_PrBC, file = "MCP_inv_vs_PrBC.RDS")
+saveRDS(MCP_inv_vs_lac, file = "MCP_inv_vs_lac.RDS") 
+saveRDS(MCP_PrBC_vs_nonPrBC, file = "MCP_PrBC_vs_nonPrBC.RDS") 
+saveRDS(MCP_inv, file = "MCP_inv.RDS") 
+saveRDS(MCP_lac, file = "MCP_lac.RDS") 
+saveRDS(MCP_PrBC, file = "MCP_PrBC.RDS") 
+saveRDS(MCP_nonPrBC, file = "MCP_nonPrBC.RDS") 
+saveRDS(MCP_IG_low, file = "MCP_IG_low.RDS") 
+saveRDS(MCP_IG_medium, file = "MCP_IG_medium.RDS") 
+saveRDS(MCP_IG_high, file = "MCP_IG_high.RDS") 
+saveRDS(MCP_Filtered, file = "MCP_Filtered.RDS") 
+saveRDS(MCP_Final, file = "MCP_Final.RDS") 
+```
+
+
+```{r}
+table(MCP_Final$study_group)
+table(PPBC_metadata$study_group)
+table(MCP_IG$study_group)
+```
+
+

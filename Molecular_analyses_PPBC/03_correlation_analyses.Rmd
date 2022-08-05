@@ -317,6 +317,13 @@ scatterplot_IgA_TAPC
 ```
 
 
+add association line
+```{r}
+scatterplot_IgA_TAPC <- qplot(x = TAPC_score, y = IgA, data = PPBC_metadata, color = TAPC_score) +
+        geom_jitter(method = "lm") +
+        ggtitle("Fig. A: Strong Negative Association")
+scatterplot_IgA_TAPC
+```
 
 ### IgG
 

@@ -1,0 +1,5633 @@
+---
+title: "ANOVA or Kruskal-Wallis testing - continuous data"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+  html_document:
+    df_print: paged
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+
+# Loading Packages 
+
+```{r}
+library(tidyverse)
+library(readxl)
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("tximport")
+library(tximport)
+library(here)
+library(dplyr)
+library(tidyr)
+#install.packages("gplots")
+library(gplots)
+library(ggplot2)
+library(grid)
+#install.packages("vcd")
+library(vcd)
+#install.packages("corrplot")
+library(corrplot)
+#install.packages("ca")
+library(ca)
+library(scales)
+#install.packages("ggthemes")
+library(ggthemes)
+#install.packages("ztable")
+library(ztable)
+library(devtools)
+library(ggpubr)
+#install.packages("multcomp")
+library(multcomp)
+#install.packages("car")
+library(car)
+library(ggpubr)
+library(multcomp)
+#install.packages("rstatix")
+library(rstatix)
+```
+
+
+# Load the data
+
+```{r}
+MCP_Data <- readRDS("PPBC_metadata.RDS")
+MCP_IG <- readRDS("MCP_IG.RDS")
+MCP_Final <- readRDS("MCP_Final.RDS")
+```
+
+
+
+```{r}
+MCP_inv <- subset(MCP_IG, study_group == "ppbcpw", )
+MCP_npbc <- subset(MCP_IG, study_group == "npbc", )
+MCP_prbc <- subset(MCP_IG, study_group == "prbc", )
+```
+
+```{r}
+table(MCP_Data$study_group)
+table(MCP_IG$study_group)
+table(MCP_Final$study_group)
+```
+
+
+# levels of study group data
+
+```{r}
+MCP_IG$study_group <- ordered(MCP_IG$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+
+MCP_Final$study_group <- ordered(MCP_Final$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+```
+
+
+```{r}
+MCP_IG <- MCP_IG %>%
+  mutate(death = factor(death, levels = c(0, 1)),
+         distant_recurrence = factor(distant_recurrence, levels = c(0, 1)))
+```
+
+
+```{r}
+MCP_Final <- MCP_Final %>%
+  mutate(death = factor(death, levels = c(0, 1)),
+         distant_recurrence = factor(distant_recurrence, levels = c(0, 1)))
+```
+
+
+create data files without lactation group 
+```{r}
+MCP_Data_withoutlac <- subset(MCP_Data, study_group %in% c("ppbcpw", "prbc", "npbc"), )
+MCP_IG_withoutlac <- subset(MCP_IG, study_group %in% c("ppbcpw", "prbc", "npbc"), )
+```
+
+
+```{r}
+table(MCP_Data_withoutlac$study_group)
+table(MCP_IG$study_group)
+table(MCP_IG_withoutlac$study_group)
+```
+
+
+# Age at Diagnosis
+
+create file by substracting year_diagnosis with year_birth
+
+```{r}
+MCP_Data$age_diagnosis <- (MCP_Data$year_diagnosis - MCP_Data$year_birth)
+```
+
+
+
+```{r}
+group_by(MCP_Data, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(age_diagnosis, na.rm = TRUE),
+    sd = sd(age_diagnosis, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_Data <- MCP_Data[!is.na(MCP_Data$age_diagnosis),]
+
+group_by(MCP_Data, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(age_diagnosis, na.rm = TRUE),
+    sd = sd(age_diagnosis, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_Data$age_diagnosis)
+```
+
+
+```{r}
+MCP_Data %>% 
+  group_by(study_group) %>%
+  identify_outliers(age_diagnosis)
+```
+keep in outliers 
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.age <- aov(age_diagnosis ~ study_group, data = MCP_Data)
+# summary of the analysis
+summary(res.aov.age)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.age)
+```
+
+```{r}
+pwc_age <- MCP_Data %>% tukey_hsd(age_diagnosis ~ study_group)
+pwc_age
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_Data$age_diagnosis, MCP_Data$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.age, 1)
+```
+
+
+```{r}
+leveneTest(age_diagnosis ~ study_group, data = MCP_Data)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is NO evidence to suggest that the variance across groups is statistically significantly different. Therefore, we can assume the homogeneity of variances in the different treatment groups.
+
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.age, 2)
+
+model_age <- lm(age_diagnosis ~ study_group, data=MCP_Data)
+ggqqplot(residuals(model_age))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_age <- residuals(object = res.aov.age)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_age)
+shapiro_test(residuals(model_age))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+```{r}
+MCP_Data %>%
+  group_by(study_group) %>%
+  shapiro_test(age_diagnosis)
+
+ggqqplot(MCP_Data, "age_diagnosis", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(age_diagnosis ~ study_group, data = MCP_Data)
+```
+
+## Visualization
+
+```{r, fig.width=7, fig.height=4.5}
+pwc_age <- pwc_age %>% add_xy_position(x = "study_group")
+
+ANOVA_age <- ggboxplot(MCP_Data, x="study_group", y="age_diagnosis",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "Age at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.2, aes(colour = study_group)) + stat_compare_means(method = "anova") + ylim(20,47) + stat_pvalue_manual(pwc_age, hide.ns = TRUE, y.position = c(43))
+ANOVA_age
+```
+
+
+
+# TIL scoring
+
+## Summary statistics
+
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(TILprecent, na.rm = TRUE),
+    sd = sd(TILprecent, na.rm = TRUE)
+  )
+```
+
+
+## ANOVA test
+
+```{r}
+
+res.aov <- aov(TILprecent ~ study_group, data = MCP_IG)
+
+summary(res.aov)
+
+```
+
+## Tukey multiple pairwise-comparisons
+
+```{r}
+TukeyHSD(res.aov)
+```
+
+```{r}
+pwc <- MCP_IG %>% tukey_hsd(TILprecent ~ study_group)
+pwc
+```
+
+
+## Multiple comparisons using multcomp package
+
+```{r}
+summary(glht(res.aov, linfct = mcp(study_group = "Tukey")))
+```
+
+## Pairewise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+```{r}
+pairwise.t.test(MCP_IG$TILprecent, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+## Check the homogeneity of variance assumption
+
+The classical one-way ANOVA test requires an assumption of equal variances for all groups.
+
+
+```{r}
+# 1. Homogeneity of variances
+plot(res.aov, 1)
+```
+
+
+```{r}
+leveneTest(TILprecent ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is statistically significantly different. Therefore, we cannot assume the homogeneity of variances in the different treatment groups.
+
+
+## ANOVA without homogeneity assumption of variance
+
+### ANOVA test with no assumption of equal variances
+
+```{r}
+oneway.test(TILprecent ~ study_group, data = MCP_IG)
+
+```
+
+
+### Pairwise t-tests with no assumption of equal variances
+
+```{r}
+pairwise.t.test(MCP_IG$TILprecent, MCP_IG$study_group,
+                 p.adjust.method = "BH", pool.sd = FALSE)
+```
+
+
+## Check the normality assumption
+
+```{r}
+# 2. Normality
+plot(res.aov, 2)
+```
+
+As all the points do not fall approximately along this reference line, we cannot assume normality.
+
+Shapiro-Wilk test on the ANOVA residuals - significant p-value - so data are not normal! 
+
+```{r}
+# Extract the residuals
+aov_residuals <- residuals(object = res.aov )
+# Run Shapiro-Wilk test
+shapiro.test(x = aov_residuals )
+
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+
+```{r}
+kruskal.test(TILprecent ~ study_group, data = MCP_IG)
+```
+
+
+## Visualization 
+
+```{r}
+table(MCP_IG$study_group)
+table(MCP_IG$study_group, MCP_IG$TILprecent)
+table(MCP_IG$TILprecent)
+```
+
+
+
+
+```{r}
+TIL_percentage_boxplot <- ggboxplot(MCP_IG, x="study_group", y="TILprecent",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "TIL %", xlab = "study group") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.5, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,80) 
+
+TIL_percentage_boxplot
+```
+
+
+
+# IG cluster 
+
+## summary statistics
+
+recode IG_ID into numeric variable 
+
+```{r}
+MCP_IG$IG_ID_integer <- NA
+MCP_IG$IG_ID_integer[MCP_IG$IG_ID=="low"] <- 1
+MCP_IG$IG_ID_integer[MCP_IG$IG_ID=="medium"] <- 2
+MCP_IG$IG_ID_integer[MCP_IG$IG_ID=="high"] <- 3
+```
+
+```{r}
+table(MCP_IG$IG_ID, MCP_IG$study_group)
+table(MCP_IG$IG_ID_integer, MCP_IG$study_group)
+```
+
+
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(IG_ID_integer, na.rm = TRUE),
+    sd = sd(IG_ID_integer, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(IG_ID_integer, na.rm = TRUE),
+    sd = sd(IG_ID_integer, na.rm = TRUE)
+  )
+```
+
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$IG_ID_integer)
+```
+
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.ig <- aov(IG_ID_integer ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.ig)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.ig)
+```
+
+```{r}
+pwc_ig <- MCP_IG %>% tukey_hsd(IG_ID_integer ~ study_group)
+pwc_ig
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$IG_ID_integer, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.ig, 1)
+```
+
+
+```{r}
+leveneTest(IG_ID_integer ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is NO evidence to suggest that the variance across groups is statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.ig, 2)
+model_ig <- lm(IG_ID_integer ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_ig))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_ig <- residuals(object = res.aov.ig)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_ig)
+shapiro_test(residuals(model_ig))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(IG_ID_integer)
+
+ggqqplot(MCP_IG, "IG_ID_integer", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(IG_ID_integer ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+```{r}
+table(MCP_IG$study_group)
+```
+
+
+
+```{r}
+Cibersort_IG <- ggboxplot(MCP_IG, x="study_group", y="IG_ID_integer",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "Ig-signature", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.05, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(1,4) + stat_pvalue_manual(pwc_ig, hide.ns = TRUE, y.position = c(3.5, 3.7, 4.0))
+
+Cibersort_IG
+```
+
+
+
+
+# Plasma fraction in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Plasma_fraction, na.rm = TRUE),
+    sd = sd(Plasma_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Plasma_fraction, na.rm = TRUE),
+    sd = sd(Plasma_fraction, na.rm = TRUE)
+  )
+```
+
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$Plasma_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(Plasma_fraction)
+```
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.plasma <- aov(Plasma_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.plasma)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.plasma)
+```
+
+```{r}
+pwc <- MCP_IG %>% tukey_hsd(Plasma_fraction ~ study_group)
+pwc
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$Plasma_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.plasma, 1)
+```
+
+
+```{r}
+leveneTest(Plasma_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is statistically significantly different. Therefore, we cannot assume the homogeneity of variances in the different treatment groups.
+
+
+### Relaxing the homogeneity of variance assumption
+
+How do we save our ANOVA test, in a situation where the homogeneity of variance assumption is violated?
+
+An alternative procedure (i.e.: Welch one-way test), that does not require that assumption have been implemented in the function oneway.test().
+
+```{r}
+# ANOVA test with no assumption of equal variances
+oneway.test(Plasma_fraction ~ study_group, data = MCP_IG)
+```
+
+
+```{r}
+# Paiwise t-test with no assumption of equel variances
+pairwise.t.test(MCP_IG$Plasma_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH", pool.sd = FALSE)
+```
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.plasma, 2)
+
+model_plasma <- lm(Plasma_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_plasma))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_plasma <- residuals(object = res.aov.plasma)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_plasma)
+shapiro_test(residuals(model_plasma))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(Plasma_fraction)
+
+ggqqplot(MCP_IG, "Plasma_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(Plasma_fraction ~ study_group, data = MCP_IG)
+kruskal.test(Plasma_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+
+
+## Visualization 
+
+```{r}
+table(MCP_IG$study_group)
+```
+
+
+```{r}
+Cibersort_PC <- ggboxplot(MCP_IG, x="study_group", y="Plasma_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "Plasma Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "anova") + ylim(0,0.3) + stat_pvalue_manual(pwc, hide.ns = TRUE, y.position = c(0.27, 0.28, 0.3))
+Cibersort_PC
+```
+
+
+
+without lac 
+
+```{r}
+# compute the analysis of variance
+res.aov.plasmaB <- aov(Plasma_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.plasmaB)
+```
+
+```{r}
+TukeyHSD(res.aov.plasmaB)
+```
+
+```{r}
+pwc_plasmaB <- MCP_IG_withoutlac %>% tukey_hsd(Plasma_fraction ~ study_group)
+pwc_plasmaB
+```
+
+```{r}
+kruskal.test(Plasma_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_plasmaB_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="Plasma_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "plasmaB Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_plasmaB, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_plasmaB_withoutlac
+```
+
+
+
+# Plasma fraction - absolute values 
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Plasma_abs_fraction, na.rm = TRUE),
+    sd = sd(Plasma_abs_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Plasma_abs_fraction, na.rm = TRUE),
+    sd = sd(Plasma_abs_fraction, na.rm = TRUE)
+  )
+```
+
+
+Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+```{r}
+# compute the analysis of variance
+res.aov.plasma <- aov(Plasma_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.plasma)
+```
+
+Tukey multiple pairwise-comparisons
+```{r}
+TukeyHSD(res.aov.plasma)
+```
+
+```{r}
+pwc <- MCP_IG %>% tukey_hsd(Plasma_abs_fraction ~ study_group)
+pwc
+```
+
+Non-parametric alternative to one-way ANOVA test
+```{r}
+kruskal.test(Plasma_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+Visualization 
+
+```{r}
+table(MCP_IG$study_group)
+```
+
+
+```{r}
+Cibersort_PC_abs <- ggboxplot(MCP_IG, x="study_group", y="Plasma_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "Plasma Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc, hide.ns = TRUE, y.position = c(0.25))
+
+Cibersort_PC_abs
+```
+
+
+
+# Memory B in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(memory_B_fraction, na.rm = TRUE),
+    sd = sd(memory_B_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(memory_B_fraction, na.rm = TRUE),
+    sd = sd(memory_B_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$memory_B_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(memory_B_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.memoryB <- aov(memory_B_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.memoryB)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.memoryB)
+```
+
+```{r}
+pwc_memB <- MCP_IG %>% tukey_hsd(memory_B_fraction ~ study_group)
+pwc_memB
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$memory_B_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.memoryB, 1)
+```
+
+
+```{r}
+leveneTest(memory_B_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.memoryB, 2)
+
+model_memoryB <- lm(memory_B_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_memoryB))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_memoryB <- residuals(object = res.aov.memoryB)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_memoryB)
+shapiro_test(residuals(model_memoryB))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(memory_B_fraction)
+
+ggqqplot(MCP_IG, "memory_B_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(memory_B_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+ggboxplot(MCP_IG, x="study_group", y="memory_B_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "memoryB Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_memB, hide.ns = TRUE, y.position = c(0.20))
+```
+
+
+without lac 
+
+```{r}
+# compute the analysis of variance
+res.aov.memoryB <- aov(memory_B_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.memoryB)
+```
+
+```{r}
+TukeyHSD(res.aov.memoryB)
+```
+
+```{r}
+pwc_memB <- MCP_IG_withoutlac %>% tukey_hsd(memory_B_fraction ~ study_group)
+pwc_memB
+```
+
+```{r}
+kruskal.test(memory_B_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_memoryB_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="memory_B_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "memoryB Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_memB, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_memoryB_withoutlac
+```
+
+
+# Memory B - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(memory_B_abs_fraction, na.rm = TRUE),
+    sd = sd(memory_B_abs_fraction, na.rm = TRUE)
+  )
+```
+
+
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(memory_B_abs_fraction, na.rm = TRUE),
+    sd = sd(memory_B_abs_fraction, na.rm = TRUE)
+  )
+```
+
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$memory_B_abs_fraction)
+```
+
+
+```{r}
+# compute the analysis of variance
+res.aov.memoryB <- aov(memory_B_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.memoryB)
+```
+
+```{r}
+TukeyHSD(res.aov.memoryB)
+```
+
+```{r}
+pwc_memB <- MCP_IG %>% tukey_hsd(memory_B_abs_fraction ~ study_group)
+pwc_memB
+```
+
+```{r}
+kruskal.test(memory_B_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_memoryB_abs <- ggboxplot(MCP_IG, x="study_group", y="memory_B_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "memoryB Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_memB, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_memoryB_abs
+```
+
+
+
+# Naive B in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(naive_B_fraction, na.rm = TRUE),
+    sd = sd(naive_B_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(naive_B_fraction, na.rm = TRUE),
+    sd = sd(naive_B_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$naive_B_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(naive_B_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.naiveB <- aov(naive_B_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.naiveB)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.naiveB)
+```
+
+```{r}
+pwc_naiveB <- MCP_IG %>% tukey_hsd(naive_B_fraction ~ study_group)
+pwc_naiveB
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$naive_B_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.naiveB, 1)
+```
+
+
+```{r}
+leveneTest(naive_B_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.naiveB, 2)
+
+model_naiveB <- lm(naive_B_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_naiveB))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_naiveB <- residuals(object = res.aov.naiveB)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_naiveB)
+shapiro_test(residuals(model_naiveB))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(naive_B_fraction)
+
+ggqqplot(MCP_IG, "naive_B_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(naive_B_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_naiveB <- ggboxplot(MCP_IG, x="study_group", y="naive_B_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "naiveB Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_naiveB, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_naiveB
+```
+
+
+
+
+# Naive B - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(naive_B_abs_fraction, na.rm = TRUE),
+    sd = sd(naive_B_abs_fraction, na.rm = TRUE)
+  )
+```
+
+
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(naive_B_abs_fraction, na.rm = TRUE),
+    sd = sd(naive_B_abs_fraction, na.rm = TRUE)
+  )
+```
+
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$naive_B_abs_fraction)
+```
+
+
+```{r}
+# compute the analysis of variance
+res.aov.naiveB <- aov(naive_B_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.naiveB)
+```
+
+```{r}
+TukeyHSD(res.aov.naiveB)
+```
+
+```{r}
+pwc_naiveB <- MCP_IG %>% tukey_hsd(naive_B_abs_fraction ~ study_group)
+pwc_naiveB
+```
+
+```{r}
+kruskal.test(naive_B_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_naiveB_abs <- ggboxplot(MCP_IG, x="study_group", y="naive_B_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "Plasma Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_naiveB, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_naiveB_abs
+```
+
+
+
+without lac 
+
+```{r}
+# compute the analysis of variance
+res.aov.naiveB <- aov(naive_B_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.naiveB)
+```
+
+```{r}
+TukeyHSD(res.aov.naiveB)
+```
+
+```{r}
+pwc_naiveB <- MCP_IG_withoutlac %>% tukey_hsd(naive_B_fraction ~ study_group)
+pwc_naiveB
+```
+
+```{r}
+kruskal.test(memory_B_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_naiveB_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="naive_B_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "naiveB Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_naiveB, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_naiveB_withoutlac
+```
+
+
+
+# CD8 in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD8_fraction, na.rm = TRUE),
+    sd = sd(CD8_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD8_fraction, na.rm = TRUE),
+    sd = sd(CD8_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$CD8_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(CD8_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.CD8 <- aov(CD8_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.CD8)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.CD8)
+```
+
+```{r}
+pwc_CD8 <- MCP_IG %>% tukey_hsd(CD8_fraction ~ study_group)
+pwc_CD8
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$CD8_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.CD8, 1)
+```
+
+
+```{r}
+leveneTest(CD8_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.CD8, 2)
+
+model_CD8 <- lm(CD8_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_CD8))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_CD8 <- residuals(object = res.aov.CD8)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_CD8)
+shapiro_test(residuals(model_CD8))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(CD8_fraction)
+
+ggqqplot(MCP_IG, "CD8_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(CD8_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_CD8_fraction <- ggboxplot(MCP_IG, x="study_group", y="CD8_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "CD8 Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD8, hide.ns = TRUE, y.position = c(0.20, 0.25))
+Boxplot_CD8_fraction
+```
+
+
+without lactation
+```{r}
+# compute the analysis of variance
+res.aov.CD8 <- aov(CD8_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.CD8)
+```
+
+```{r}
+TukeyHSD(res.aov.CD8)
+```
+
+```{r}
+pwc_CD8 <- MCP_IG_withoutlac %>% tukey_hsd(CD8_fraction ~ study_group)
+pwc_CD8
+```
+
+```{r}
+kruskal.test(CD8_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_CD8_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="CD8_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "CD8 Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD8, hide.ns = TRUE, y.position = c(0.20, 0.25))
+Boxplot_CD8_fraction_withoutlac
+```
+
+
+# CD8 absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD8_abs_fraction, na.rm = TRUE),
+    sd = sd(CD8_abs_fraction, na.rm = TRUE)
+  )
+```
+
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD8_abs_fraction, na.rm = TRUE),
+    sd = sd(CD8_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.CD8 <- aov(CD8_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.CD8)
+```
+
+```{r}
+TukeyHSD(res.aov.CD8)
+```
+
+```{r}
+pwc_CD8 <- MCP_IG %>% tukey_hsd(CD8_abs_fraction ~ study_group)
+pwc_CD8
+```
+
+```{r}
+kruskal.test(CD8_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_CD8_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="CD8_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "CD8 Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD8, hide.ns = TRUE, y.position = c(0.25))
+Boxplot_CD8_abs_fraction
+```
+
+
+
+
+# CD4 naive in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD4naive_fraction, na.rm = TRUE),
+    sd = sd(CD4naive_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD4naive_fraction, na.rm = TRUE),
+    sd = sd(CD4naive_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$CD4naive_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(CD4naive_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.CD4naive <- aov(CD4naive_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.CD4naive)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.CD4naive)
+```
+
+```{r}
+pwc_CD4naive <- MCP_IG %>% tukey_hsd(CD4naive_fraction ~ study_group)
+pwc_CD4naive
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$CD4naive_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.CD4naive, 1)
+```
+
+
+```{r}
+leveneTest(CD4naive_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.CD4naive, 2)
+
+model_CD4naive <- lm(CD4naive_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_CD4naive))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_CD4naive <- residuals(object = res.aov.CD4naive)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_CD4naive)
+shapiro_test(residuals(model_CD4naive))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(CD4naive_fraction)
+
+ggqqplot(MCP_IG, "CD4naive_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(CD4naive_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_CD4naive_fraction <- ggboxplot(MCP_IG, x="study_group", y="CD4naive_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "CD4naive Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD4naive, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_CD4naive_fraction
+```
+
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.CD4naive <- aov(CD4naive_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis< 
+summary(res.aov.CD4naive)
+```
+
+```{r}
+TukeyHSD(res.aov.CD4naive)
+```
+
+```{r}
+pwc_CD4naive <- MCP_IG_withoutlac %>% tukey_hsd(CD4naive_fraction ~ study_group)
+pwc_CD4naive
+```
+
+```{r}
+kruskal.test(CD4naive_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_CD4naive_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="CD4naive_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "CD4naive Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD4naive, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_CD4naive_fraction_withoutlac
+```
+
+
+
+# CD4naive - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD4naive_abs_fraction, na.rm = TRUE),
+    sd = sd(CD4naive_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.CD4naive_abs <- aov(CD4naive_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.CD4naive_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.CD4naive_abs)
+```
+
+```{r}
+pwc_CD4naive_abs <- MCP_IG %>% tukey_hsd(CD4naive_abs_fraction ~ study_group)
+pwc_CD4naive_abs
+```
+
+```{r}
+kruskal.test(CD4naive_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_CD4naive_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="CD4naive_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "CD4naive Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD4naive_abs, hide.ns = TRUE, y.position = c(0.28, 0.29))
+Boxplot_CD4naive_abs_fraction
+```
+
+
+
+# CD4 Memory Activated in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD4MA_fraction, na.rm = TRUE),
+    sd = sd(CD4MA_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD4MA_fraction, na.rm = TRUE),
+    sd = sd(CD4MA_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$CD4MA_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(CD4MA_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.CD4MA <- aov(CD4MA_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.CD4MA)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.CD4MA)
+```
+
+```{r}
+pwc_CD4MA <- MCP_IG %>% tukey_hsd(CD4MA_fraction ~ study_group)
+pwc_CD4MA
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$CD4MA_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.CD4MA, 1)
+```
+
+
+```{r}
+leveneTest(CD4MA_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.CD4MA, 2)
+
+model_CD4MA <- lm(CD4MA_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_CD4MA))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_CD4MA <- residuals(object = res.aov.CD4MA)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_CD4MA)
+shapiro_test(residuals(model_CD4MA))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(CD4MA_fraction)
+
+ggqqplot(MCP_IG, "CD4MA_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(CD4MA_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_CD4MA_fraction <- ggboxplot(MCP_IG, x="study_group", y="CD4MA_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "CD4MA Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD4MA, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_CD4MA_fraction
+```
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.CD4MA <- aov(CD4MA_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.CD4MA)
+```
+
+```{r}
+TukeyHSD(res.aov.CD4MA)
+```
+
+```{r}
+pwc_CD4MA <- MCP_IG_withoutlac %>% tukey_hsd(CD4MA_fraction ~ study_group)
+pwc_CD4MA
+```
+
+```{r}
+kruskal.test(CD4MA_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_CD4MA_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="CD4MA_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "CD4MA Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD4MA, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_CD4MA_fraction_withoutlac
+```
+
+
+
+
+# CD4MA - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD4MA_abs_fraction, na.rm = TRUE),
+    sd = sd(CD4MA_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.CD4MA_abs <- aov(CD4MA_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.CD4MA_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.CD4MA_abs)
+```
+
+```{r}
+pwc_CD4MA_abs <- MCP_IG %>% tukey_hsd(CD4MA_abs_fraction ~ study_group)
+pwc_CD4MA_abs
+```
+
+```{r}
+kruskal.test(CD4MA_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_CD4MA_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="CD4MA_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "CD4MA Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD4MA_abs, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_CD4MA_abs_fraction
+```
+
+
+
+# CD4 Memory Resting in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD4MR_fraction, na.rm = TRUE),
+    sd = sd(CD4MR_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD4MR_fraction, na.rm = TRUE),
+    sd = sd(CD4MR_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$CD4MR_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(CD4MR_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.CD4MR <- aov(CD4MR_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.CD4MR)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.CD4MR)
+```
+
+```{r}
+pwc_CD4MR <- MCP_IG %>% tukey_hsd(CD4MR_fraction ~ study_group)
+pwc_CD4MR
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$CD4MR_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.CD4MR, 1)
+```
+
+
+```{r}
+leveneTest(CD4MR_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.CD4MR, 2)
+
+model_CD4MR <- lm(CD4MR_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_CD4MR))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_CD4MR <- residuals(object = res.aov.CD4MR)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_CD4MR)
+shapiro_test(residuals(model_CD4MR))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(CD4MR_fraction)
+
+ggqqplot(MCP_IG, "CD4MR_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(CD4MR_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_CD4MR_fraction <- ggboxplot(MCP_IG, x="study_group", y="CD4MR_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "CD4MR Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD4MR, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_CD4MR_fraction
+```
+
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.CD4MR <- aov(CD4MR_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.CD4MR)
+```
+
+```{r}
+TukeyHSD(res.aov.CD4MR)
+```
+
+```{r}
+pwc_CD4MR <- MCP_IG_withoutlac %>% tukey_hsd(CD4MR_fraction ~ study_group)
+pwc_CD4MR
+```
+
+```{r}
+kruskal.test(CD4MR_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_CD4MR_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="CD4MR_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "CD4MR Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD4MR, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_CD4MR_fraction_withoutlac
+```
+
+
+
+
+# CD4MR - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(CD4MR_abs_fraction, na.rm = TRUE),
+    sd = sd(CD4MR_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.CD4MR_abs <- aov(CD4MR_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.CD4MR_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.CD4MR_abs)
+```
+
+```{r}
+pwc_CD4MR_abs <- MCP_IG %>% tukey_hsd(CD4MR_abs_fraction ~ study_group)
+pwc_CD4MR_abs
+```
+
+```{r}
+kruskal.test(CD4MR_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_CD4MR_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="CD4MR_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "CD4MR Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD4MR_abs, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_CD4MR_abs_fraction
+```
+
+
+
+
+# TFH-cells in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(TFH_fraction, na.rm = TRUE),
+    sd = sd(TFH_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(TFH_fraction, na.rm = TRUE),
+    sd = sd(TFH_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$TFH_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(TFH_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.TFH <- aov(TFH_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.TFH)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.TFH)
+```
+
+```{r}
+pwc_TFH <- MCP_IG %>% tukey_hsd(TFH_fraction ~ study_group)
+pwc_TFH
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$TFH_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.TFH, 1)
+```
+
+
+```{r}
+leveneTest(TFH_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.TFH, 2)
+
+model_TFH <- lm(TFH_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_TFH))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_TFH <- residuals(object = res.aov.TFH)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_TFH)
+shapiro_test(residuals(model_TFH))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(TFH_fraction)
+
+ggqqplot(MCP_IG, "TFH_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(TFH_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_TFH_fraction <- ggboxplot(MCP_IG, x="study_group", y="TFH_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "TFH Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_TFH, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_TFH_fraction
+```
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.TFH <- aov(TFH_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.TFH)
+```
+
+```{r}
+TukeyHSD(res.aov.TFH)
+```
+
+```{r}
+pwc_TFH <- MCP_IG_withoutlac %>% tukey_hsd(TFH_fraction ~ study_group)
+pwc_TFH
+```
+
+```{r}
+kruskal.test(TFH_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_TFH_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="TFH_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "TFH Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_TFH, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_TFH_fraction_withoutlac
+```
+
+
+
+
+# TFH - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(TFH_abs_fraction, na.rm = TRUE),
+    sd = sd(TFH_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.TFH_abs <- aov(TFH_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.TFH_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.TFH_abs)
+```
+
+```{r}
+pwc_TFH_abs <- MCP_IG %>% tukey_hsd(TFH_abs_fraction ~ study_group)
+pwc_TFH_abs
+```
+
+```{r}
+kruskal.test(TFH_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_TFH_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="TFH_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "TFH Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_TFH_abs, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_TFH_abs_fraction
+```
+
+
+
+# GDT-cells in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(GDT_fraction, na.rm = TRUE),
+    sd = sd(GDT_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(GDT_fraction, na.rm = TRUE),
+    sd = sd(GDT_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$GDT_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(GDT_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.GDT <- aov(GDT_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.GDT)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.GDT)
+```
+
+```{r}
+pwc_GDT <- MCP_IG %>% tukey_hsd(GDT_fraction ~ study_group)
+pwc_GDT
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$GDT_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.GDT, 1)
+```
+
+
+```{r}
+leveneTest(GDT_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.GDT, 2)
+
+model_GDT <- lm(GDT_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_GDT))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_GDT <- residuals(object = res.aov.GDT)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_GDT)
+shapiro_test(residuals(model_GDT))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(GDT_fraction)
+
+ggqqplot(MCP_IG, "GDT_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(GDT_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_GDT_fraction <- ggboxplot(MCP_IG, x="study_group", y="GDT_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "GDT Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_GDT, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_GDT_fraction
+```
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.GDT <- aov(GDT_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.GDT)
+```
+
+```{r}
+TukeyHSD(res.aov.GDT)
+```
+
+```{r}
+pwc_GDT <- MCP_IG_withoutlac %>% tukey_hsd(GDT_fraction ~ study_group)
+pwc_GDT
+```
+
+```{r}
+kruskal.test(GDT_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_GDT_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="GDT_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "GDT Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_GDT, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_GDT_fraction_withoutlac
+```
+
+
+
+# GDT - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(GDT_abs_fraction, na.rm = TRUE),
+    sd = sd(GDT_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.GDT_abs <- aov(GDT_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.GDT_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.GDT_abs)
+```
+
+```{r}
+pwc_GDT_abs <- MCP_IG %>% tukey_hsd(GDT_abs_fraction ~ study_group)
+pwc_GDT_abs
+```
+
+```{r}
+kruskal.test(GDT_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_GDT_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="GDT_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "GDT Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_GDT_abs, hide.ns = TRUE, y.position = c(0.28, 0.3))
+Boxplot_GDT_abs_fraction
+```
+
+
+
+# NK resting Resting in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(NKrest_fraction, na.rm = TRUE),
+    sd = sd(NKrest_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(NKrest_fraction, na.rm = TRUE),
+    sd = sd(NKrest_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$NKrest_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(NKrest_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.NKrest <- aov(NKrest_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.NKrest)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.NKrest)
+```
+
+```{r}
+pwc_NKrest <- MCP_IG %>% tukey_hsd(NKrest_fraction ~ study_group)
+pwc_NKrest
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$NKrest_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.NKrest, 1)
+```
+
+
+```{r}
+leveneTest(NKrest_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.NKrest, 2)
+
+model_NKrest <- lm(NKrest_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_NKrest))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_NKrest <- residuals(object = res.aov.NKrest)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_NKrest)
+shapiro_test(residuals(model_NKrest))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(NKrest_fraction)
+
+ggqqplot(MCP_IG, "NKrest_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(NKrest_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_NKrest_fraction <- ggboxplot(MCP_IG, x="study_group", y="NKrest_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "NKrest Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.2) + stat_pvalue_manual(pwc_NKrest, hide.ns = TRUE, y.position = c(0.18,0.19))
+Boxplot_NKrest_fraction
+```
+
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.NKrest <- aov(NKrest_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.NKrest)
+```
+
+```{r}
+TukeyHSD(res.aov.NKrest)
+```
+
+```{r}
+pwc_NKrest <- MCP_IG_withoutlac %>% tukey_hsd(NKrest_fraction ~ study_group)
+pwc_NKrest
+```
+
+```{r}
+kruskal.test(NKrest_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_NKrest_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="NKrest_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "NKrest Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.00006, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.01) + stat_pvalue_manual(pwc_NKrest, hide.ns = TRUE, y.position = c(0.01))
+Boxplot_NKrest_fraction_withoutlac
+```
+
+
+
+# NKrest - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(NKrest_abs_fraction, na.rm = TRUE),
+    sd = sd(NKrest_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.NKrest_abs <- aov(NKrest_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.NKrest_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.NKrest_abs)
+```
+
+```{r}
+pwc_NKrest_abs <- MCP_IG %>% tukey_hsd(NKrest_abs_fraction ~ study_group)
+pwc_NKrest_abs
+```
+
+```{r}
+kruskal.test(NKrest_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_NKrest_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="NKrest_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "NKrest Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.2) + stat_pvalue_manual(pwc_NKrest_abs, hide.ns = TRUE, y.position = c(0.18))
+Boxplot_NKrest_abs_fraction
+```
+
+
+
+# NK activ in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(NKactiv_fraction, na.rm = TRUE),
+    sd = sd(NKactiv_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(NKactiv_fraction, na.rm = TRUE),
+    sd = sd(NKactiv_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$NKactiv_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(NKactiv_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.NKactiv <- aov(NKactiv_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.NKactiv)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.NKactiv)
+```
+
+```{r}
+pwc_NKactiv <- MCP_IG %>% tukey_hsd(NKactiv_fraction ~ study_group)
+pwc_NKactiv
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$NKactiv_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.NKactiv, 1)
+```
+
+
+```{r}
+leveneTest(NKactiv_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.NKactiv, 2)
+
+model_NKactiv <- lm(NKactiv_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_NKactiv))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_NKactiv <- residuals(object = res.aov.NKactiv)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_NKactiv)
+shapiro_test(residuals(model_NKactiv))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(NKactiv_fraction)
+
+ggqqplot(MCP_IG, "NKactiv_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(NKactiv_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_NKactiv_fraction <- ggboxplot(MCP_IG, x="study_group", y="NKactiv_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "NKactiv Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.1) + stat_pvalue_manual(pwc_NKactiv, hide.ns = TRUE, y.position = c(0.1))
+Boxplot_NKactiv_fraction
+```
+
+
+wihtout lac
+```{r}
+# compute the analysis of variance
+res.aov.NKactiv <- aov(NKactiv_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.NKactiv)
+```
+
+```{r}
+TukeyHSD(res.aov.NKactiv)
+```
+
+```{r}
+pwc_NKactiv <- MCP_IG_withoutlac %>% tukey_hsd(NKactiv_fraction ~ study_group)
+pwc_NKactiv
+```
+
+```{r}
+kruskal.test(NKactiv_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_NKactiv_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="NKactiv_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "NKactiv Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.1) + stat_pvalue_manual(pwc_NKactiv, hide.ns = TRUE, y.position = c(0.1))
+Boxplot_NKactiv_fraction_withoutlac
+```
+
+
+
+# NKactiv - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(NKactiv_abs_fraction, na.rm = TRUE),
+    sd = sd(NKactiv_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.NKactiv_abs <- aov(NKactiv_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.NKactiv_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.NKactiv_abs)
+```
+
+```{r}
+pwc_NKactiv_abs <- MCP_IG %>% tukey_hsd(NKactiv_abs_fraction ~ study_group)
+pwc_NKactiv_abs
+```
+
+```{r}
+kruskal.test(NKactiv_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_NKactiv_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="NKactiv_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "NKactiv Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.1) + stat_pvalue_manual(pwc_NKactiv_abs, hide.ns = TRUE, y.position = c(0.1))
+Boxplot_NKactiv_abs_fraction
+```
+
+
+
+
+# Monocytes in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Monocytes_fraction, na.rm = TRUE),
+    sd = sd(Monocytes_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Monocytes_fraction, na.rm = TRUE),
+    sd = sd(Monocytes_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$Monocytes_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(Monocytes_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.Monocytes <- aov(Monocytes_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.Monocytes)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.Monocytes)
+```
+
+```{r}
+pwc_Monocytes <- MCP_IG %>% tukey_hsd(Monocytes_fraction ~ study_group)
+pwc_Monocytes
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$Monocytes_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.Monocytes, 1)
+```
+
+
+```{r}
+leveneTest(Monocytes_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.Monocytes, 2)
+
+model_Monocytes <- lm(Monocytes_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_Monocytes))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_Monocytes <- residuals(object = res.aov.Monocytes)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_Monocytes)
+shapiro_test(residuals(model_Monocytes))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(Monocytes_fraction)
+
+ggqqplot(MCP_IG, "Monocytes_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(Monocytes_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_Monocytes_fraction <- ggboxplot(MCP_IG, x="study_group", y="Monocytes_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "Monocytes Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.1) + stat_pvalue_manual(pwc_Monocytes, hide.ns = TRUE, y.position = c(0.1))
+Boxplot_Monocytes_fraction
+```
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.Monocytes <- aov(Monocytes_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.Monocytes)
+```
+
+```{r}
+TukeyHSD(res.aov.Monocytes)
+```
+
+```{r}
+pwc_Monocytes <- MCP_IG_withoutlac %>% tukey_hsd(Monocytes_fraction ~ study_group)
+pwc_Monocytes
+```
+
+```{r}
+kruskal.test(Monocytes_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_Monocytes_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="Monocytes_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "Monocytes Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.1) + stat_pvalue_manual(pwc_Monocytes, hide.ns = TRUE, y.position = c(0.1))
+Boxplot_Monocytes_fraction_withoutlac
+```
+
+
+
+
+
+# Monocytes - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Monocytes_abs_fraction, na.rm = TRUE),
+    sd = sd(Monocytes_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.Monocytes_abs <- aov(Monocytes_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.Monocytes_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.Monocytes_abs)
+```
+
+```{r}
+pwc_Monocytes_abs <- MCP_IG %>% tukey_hsd(Monocytes_abs_fraction ~ study_group)
+pwc_Monocytes_abs
+```
+
+```{r}
+kruskal.test(Monocytes_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_Monocytes_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="Monocytes_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "Monocytes Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.1) + stat_pvalue_manual(pwc_Monocytes_abs, hide.ns = TRUE, y.position = c(0.1))
+Boxplot_Monocytes_abs_fraction
+```
+
+
+
+
+
+# M0 in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(M0_fraction, na.rm = TRUE),
+    sd = sd(M0_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(M0_fraction, na.rm = TRUE),
+    sd = sd(M0_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$M0_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(M0_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.M0 <- aov(M0_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.M0)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.M0)
+```
+
+```{r}
+pwc_M0 <- MCP_IG %>% tukey_hsd(M0_fraction ~ study_group)
+pwc_M0
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$M0_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.M0, 1)
+```
+
+
+```{r}
+leveneTest(M0_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.M0, 2)
+
+model_M0 <- lm(M0_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_M0))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_M0 <- residuals(object = res.aov.M0)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_M0)
+shapiro_test(residuals(model_M0))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(M0_fraction)
+
+ggqqplot(MCP_IG, "M0_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(M0_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_M0_fraction <- ggboxplot(MCP_IG, x="study_group", y="M0_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "M0 Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_M0, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_M0_fraction
+```
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.M0 <- aov(M0_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.M0)
+```
+
+```{r}
+TukeyHSD(res.aov.M0)
+```
+
+```{r}
+pwc_M0 <- MCP_IG_withoutlac %>% tukey_hsd(M0_fraction ~ study_group)
+pwc_M0
+```
+
+```{r}
+kruskal.test(M0_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_M0_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="M0_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "M0 Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_M0, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_M0_fraction_withoutlac
+```
+
+
+
+# M0 - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(M0_abs_fraction, na.rm = TRUE),
+    sd = sd(M0_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.M0_abs <- aov(M0_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.M0_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.M0_abs)
+```
+
+```{r}
+pwc_M0_abs <- MCP_IG %>% tukey_hsd(M0_abs_fraction ~ study_group)
+pwc_M0_abs
+```
+
+```{r}
+kruskal.test(M0_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_M0_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="M0_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "M0 Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_M0_abs, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_M0_abs_fraction
+```
+
+
+
+
+
+# M1 in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(M1_fraction, na.rm = TRUE),
+    sd = sd(M1_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(M1_fraction, na.rm = TRUE),
+    sd = sd(M1_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$M1_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(M1_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.M1 <- aov(M1_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.M1)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.M1)
+```
+
+```{r}
+pwc_M1 <- MCP_IG %>% tukey_hsd(M1_fraction ~ study_group)
+pwc_M1
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$M1_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.M1, 1)
+```
+
+
+```{r}
+leveneTest(M1_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.M1, 2)
+
+model_M1 <- lm(M1_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_M1))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_M1 <- residuals(object = res.aov.M1)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_M1)
+shapiro_test(residuals(model_M1))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(M1_fraction)
+
+ggqqplot(MCP_IG, "M1_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(M1_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_M1_fraction <- ggboxplot(MCP_IG, x="study_group", y="M1_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "M1 Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_M1, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_M1_fraction
+```
+
+
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.M1 <- aov(M1_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.M1)
+```
+
+```{r}
+TukeyHSD(res.aov.M1)
+```
+
+```{r}
+pwc_M1 <- MCP_IG_withoutlac %>% tukey_hsd(M1_fraction ~ study_group)
+pwc_M1
+```
+
+```{r}
+kruskal.test(M1_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_M1_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="M1_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "M1 Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_M1, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_M1_fraction_withoutlac
+```
+
+
+
+# M1 - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(M1_abs_fraction, na.rm = TRUE),
+    sd = sd(M1_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.M1_abs <- aov(M1_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.M1_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.M1_abs)
+```
+
+```{r}
+pwc_M1_abs <- MCP_IG %>% tukey_hsd(M1_abs_fraction ~ study_group)
+pwc_M1_abs
+```
+
+```{r}
+kruskal.test(M1_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_M1_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="M1_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "M1 Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_M1_abs, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_M1_abs_fraction
+```
+
+
+
+
+
+
+# M2 in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(M2_fraction, na.rm = TRUE),
+    sd = sd(M2_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(M2_fraction, na.rm = TRUE),
+    sd = sd(M2_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$M2_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(M2_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.M2 <- aov(M2_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.M2)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.M2)
+```
+
+```{r}
+pwc_M2 <- MCP_IG %>% tukey_hsd(M2_fraction ~ study_group)
+pwc_M2
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$M2_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.M2, 1)
+```
+
+
+```{r}
+leveneTest(M2_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.M2, 2)
+
+model_M2 <- lm(M2_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_M2))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_M2 <- residuals(object = res.aov.M2)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_M2)
+shapiro_test(residuals(model_M2))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(M2_fraction)
+
+ggqqplot(MCP_IG, "M2_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(M2_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_M2_fraction <- ggboxplot(MCP_IG, x="study_group", y="M2_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "M2 Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_M2, hide.ns = TRUE, y.position = c(0.28, 0.29))
+Boxplot_M2_fraction
+```
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.M2 <- aov(M2_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.M2)
+```
+
+```{r}
+TukeyHSD(res.aov.M2)
+```
+
+```{r}
+pwc_M2 <- MCP_IG_withoutlac %>% tukey_hsd(M2_fraction ~ study_group)
+pwc_M2
+```
+
+```{r}
+kruskal.test(M2_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_M2_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="M2_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "M2 Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_M2, hide.ns = TRUE, y.position = c(0.28, 0.29))
+Boxplot_M2_fraction_withoutlac
+```
+
+
+
+
+# M2 - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(M2_abs_fraction, na.rm = TRUE),
+    sd = sd(M2_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.M2_abs <- aov(M2_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.M2_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.M2_abs)
+```
+
+```{r}
+pwc_M2_abs <- MCP_IG %>% tukey_hsd(M2_abs_fraction ~ study_group)
+pwc_M2_abs
+```
+
+```{r}
+kruskal.test(M2_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_M2_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="M2_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "M2 Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_M2_abs, hide.ns = TRUE, y.position = c(0.28, 0.29))
+Boxplot_M2_abs_fraction
+```
+
+
+
+
+
+# DR in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(DR_fraction, na.rm = TRUE),
+    sd = sd(DR_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(DR_fraction, na.rm = TRUE),
+    sd = sd(DR_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$DR_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(DR_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.DR <- aov(DR_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.DR)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.DR)
+```
+
+```{r}
+pwc_DR <- MCP_IG %>% tukey_hsd(DR_fraction ~ study_group)
+pwc_DR
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$DR_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.DR, 1)
+```
+
+
+```{r}
+leveneTest(DR_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.DR, 2)
+
+model_DR <- lm(DR_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_DR))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_DR <- residuals(object = res.aov.DR)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_DR)
+shapiro_test(residuals(model_DR))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(DR_fraction)
+
+ggqqplot(MCP_IG, "DR_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(DR_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_DR_fraction <- ggboxplot(MCP_IG, x="study_group", y="DR_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "DR Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.12) + stat_pvalue_manual(pwc_DR, hide.ns = TRUE, y.position = c(0.1))
+Boxplot_DR_fraction
+```
+
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.DR <- aov(DR_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.DR)
+```
+
+```{r}
+TukeyHSD(res.aov.DR)
+```
+
+```{r}
+pwc_DR <- MCP_IG_withoutlac %>% tukey_hsd(DR_fraction ~ study_group)
+pwc_DR
+```
+
+```{r}
+kruskal.test(DR_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_DR_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="DR_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "DR Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.12) + stat_pvalue_manual(pwc_DR, hide.ns = TRUE, y.position = c(0.1))
+Boxplot_DR_fraction_withoutlac
+```
+
+
+
+# DR - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(DR_abs_fraction, na.rm = TRUE),
+    sd = sd(DR_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.DR_abs <- aov(DR_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.DR_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.DR_abs)
+```
+
+```{r}
+pwc_DR_abs <- MCP_IG %>% tukey_hsd(DR_abs_fraction ~ study_group)
+pwc_DR_abs
+```
+
+```{r}
+kruskal.test(DR_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_DR_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="DR_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "DR Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.14) + stat_pvalue_manual(pwc_DR_abs, hide.ns = TRUE, y.position = c(0.1))
+Boxplot_DR_abs_fraction
+```
+
+
+
+
+
+# DA in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(DA_fraction, na.rm = TRUE),
+    sd = sd(DA_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(DA_fraction, na.rm = TRUE),
+    sd = sd(DA_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$DA_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(DA_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.DA <- aov(DA_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.DA)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.DA)
+```
+
+```{r}
+pwc_DA <- MCP_IG %>% tukey_hsd(DA_fraction ~ study_group)
+pwc_DA
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$DA_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.DA, 1)
+```
+
+
+```{r}
+leveneTest(DA_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.DA, 2)
+
+model_DA <- lm(DA_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_DA))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_DA <- residuals(object = res.aov.DA)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_DA)
+shapiro_test(residuals(model_DA))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(DA_fraction)
+
+ggqqplot(MCP_IG, "DA_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(DA_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_DA_fraction <- ggboxplot(MCP_IG, x="study_group", y="DA_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "DA Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_DA, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_DA_fraction
+```
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.DA <- aov(DA_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.DA)
+```
+
+```{r}
+TukeyHSD(res.aov.DA)
+```
+
+```{r}
+pwc_DA <- MCP_IG_withoutlac %>% tukey_hsd(DA_fraction ~ study_group)
+pwc_DA
+```
+
+```{r}
+kruskal.test(DA_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_DA_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="DA_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "DA Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_DA, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_DA_fraction_withoutlac
+```
+
+
+
+# DA - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(DA_abs_fraction, na.rm = TRUE),
+    sd = sd(DA_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.DA_abs <- aov(DA_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.DA_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.DA_abs)
+```
+
+```{r}
+pwc_DA_abs <- MCP_IG %>% tukey_hsd(DA_abs_fraction ~ study_group)
+pwc_DA_abs
+```
+
+```{r}
+kruskal.test(DA_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_DA_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="DA_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "DA Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_DA_abs, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_DA_abs_fraction
+```
+
+
+
+
+
+
+# MR in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(MR_fraction, na.rm = TRUE),
+    sd = sd(MR_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(MR_fraction, na.rm = TRUE),
+    sd = sd(MR_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$MR_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(MR_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.MR <- aov(MR_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.MR)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.MR)
+```
+
+```{r}
+pwc_MR <- MCP_IG %>% tukey_hsd(MR_fraction ~ study_group)
+pwc_MR
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$MR_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.MR, 1)
+```
+
+
+```{r}
+leveneTest(MR_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.MR, 2)
+
+model_MR <- lm(MR_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_MR))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_MR <- residuals(object = res.aov.MR)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_MR)
+shapiro_test(residuals(model_MR))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(MR_fraction)
+
+ggqqplot(MCP_IG, "MR_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(MR_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_MR_fraction <- ggboxplot(MCP_IG, x="study_group", y="MR_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "MR Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_MR, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_MR_fraction
+```
+
+
+
+# MR - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(MR_abs_fraction, na.rm = TRUE),
+    sd = sd(MR_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.MR_abs <- aov(MR_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.MR_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.MR_abs)
+```
+
+```{r}
+pwc_MR_abs <- MCP_IG %>% tukey_hsd(MR_abs_fraction ~ study_group)
+pwc_MR_abs
+```
+
+```{r}
+kruskal.test(MR_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_MR_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="MR_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "MR Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_MR_abs, hide.ns = TRUE, y.position = c(0.28))
+Boxplot_MR_abs_fraction
+```
+
+
+
+
+# MA in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(MA_fraction, na.rm = TRUE),
+    sd = sd(MA_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(MA_fraction, na.rm = TRUE),
+    sd = sd(MA_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$MA_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(MA_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.MA <- aov(MA_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.MA)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.MA)
+```
+
+```{r}
+pwc_MA <- MCP_IG %>% tukey_hsd(MA_fraction ~ study_group)
+pwc_MA
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$MA_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.MA, 1)
+```
+
+
+```{r}
+leveneTest(MA_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.MA, 2)
+
+model_MA <- lm(MA_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_MA))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_MA <- residuals(object = res.aov.MA)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_MA)
+shapiro_test(residuals(model_MA))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(MA_fraction)
+
+ggqqplot(MCP_IG, "MA_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(MA_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_MA_fraction <- ggboxplot(MCP_IG, x="study_group", y="MA_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "MA Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.1) + stat_pvalue_manual(pwc_MA, hide.ns = TRUE, y.position = c(0.1))
+Boxplot_MA_fraction
+```
+
+
+
+# MA - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(MA_abs_fraction, na.rm = TRUE),
+    sd = sd(MA_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.MA_abs <- aov(MA_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.MA_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.MA_abs)
+```
+
+```{r}
+pwc_MA_abs <- MCP_IG %>% tukey_hsd(MA_abs_fraction ~ study_group)
+pwc_MA_abs
+```
+
+```{r}
+kruskal.test(MA_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_MA_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="MA_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "MA Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.15) + stat_pvalue_manual(pwc_MA_abs, hide.ns = TRUE, y.position = c(0.1))
+Boxplot_MA_abs_fraction
+```
+
+
+
+
+
+
+# Eosinophil in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Eosinophil_fraction, na.rm = TRUE),
+    sd = sd(Eosinophil_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Eosinophil_fraction, na.rm = TRUE),
+    sd = sd(Eosinophil_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$Eosinophil_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(Eosinophil_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.Eosinophil <- aov(Eosinophil_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.Eosinophil)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.Eosinophil)
+```
+
+```{r}
+pwc_Eosinophil <- MCP_IG %>% tukey_hsd(Eosinophil_fraction ~ study_group)
+pwc_Eosinophil
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$Eosinophil_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.Eosinophil, 1)
+```
+
+
+```{r}
+leveneTest(Eosinophil_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.Eosinophil, 2)
+
+model_Eosinophil <- lm(Eosinophil_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_Eosinophil))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_Eosinophil <- residuals(object = res.aov.Eosinophil)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_Eosinophil)
+shapiro_test(residuals(model_Eosinophil))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(Eosinophil_fraction)
+
+ggqqplot(MCP_IG, "Eosinophil_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(Eosinophil_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_Eosinophil_fraction <- ggboxplot(MCP_IG, x="study_group", y="Eosinophil_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "Eosinophil Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.2) + stat_pvalue_manual(pwc_Eosinophil, hide.ns = TRUE, y.position = c(0.2))
+Boxplot_Eosinophil_fraction
+```
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.Eosinophil <- aov(Eosinophil_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.Eosinophil)
+```
+
+```{r}
+TukeyHSD(res.aov.Eosinophil)
+```
+
+```{r}
+pwc_Eosinophil <- MCP_IG_withoutlac %>% tukey_hsd(Eosinophil_fraction ~ study_group)
+pwc_Eosinophil
+```
+
+```{r}
+kruskal.test(Eosinophil_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_Eosinophil_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="Eosinophil_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "Eosinophil Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.2) + stat_pvalue_manual(pwc_Eosinophil, hide.ns = TRUE, y.position = c(0.2))
+Boxplot_Eosinophil_fraction_withoutlac
+```
+
+
+
+
+# Eosinophil - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Eosinophil_abs_fraction, na.rm = TRUE),
+    sd = sd(Eosinophil_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.Eosinophil_abs <- aov(Eosinophil_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.Eosinophil_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.Eosinophil_abs)
+```
+
+```{r}
+pwc_Eosinophil_abs <- MCP_IG %>% tukey_hsd(Eosinophil_abs_fraction ~ study_group)
+pwc_Eosinophil_abs
+```
+
+```{r}
+kruskal.test(Eosinophil_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_Eosinophil_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="Eosinophil_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "Eosinophil Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.2) + stat_pvalue_manual(pwc_Eosinophil_abs, hide.ns = TRUE, y.position = c(0.2))
+Boxplot_Eosinophil_abs_fraction
+```
+
+
+
+
+
+# Neutrophil in study group
+
+## summary statistics
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Neutrophil_fraction, na.rm = TRUE),
+    sd = sd(Neutrophil_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Remove NA values
+```{r}
+MCP_IG <- MCP_IG[!is.na(MCP_IG$study_group),]
+
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Neutrophil_fraction, na.rm = TRUE),
+    sd = sd(Neutrophil_fraction, na.rm = TRUE)
+  )
+```
+
+
+## Outliers
+
+We have a bunch of outliers in our data -> remove extreme outliers? 
+
+```{r}
+boxplot(MCP_IG$Neutrophil_fraction)
+```
+
+
+```{r}
+#MCP_IG %>% 
+ # group_by(study_group) %>%
+  #identify_outliers(Neutrophil_fraction)
+```
+--> leave in outliers 
+
+
+## Compute one-way ANOVA
+
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+
+```{r}
+# compute the analysis of variance
+res.aov.Neutrophil <- aov(Neutrophil_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.Neutrophil)
+```
+
+
+### Tukey multiple pairwise-comparisons
+
+As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups.
+
+with outliers:
+```{r}
+TukeyHSD(res.aov.Neutrophil)
+```
+
+```{r}
+pwc_Neutrophil <- MCP_IG %>% tukey_hsd(Neutrophil_fraction ~ study_group)
+pwc_Neutrophil
+```
+
+
+
+### Pairwise t-test
+
+The result is a table of p-values for the pairwise comparisons. Here, the p-values have been adjusted by the Benjamini-Hochberg method.
+
+
+```{r}
+pairwise.t.test(MCP_IG$Neutrophil_fraction, MCP_IG$study_group,
+                 p.adjust.method = "BH")
+```
+
+
+## Check ANOVA assumptions: test validity? 
+
+The ANOVA test assumes that, the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+### homogeneity of variance assumption
+
+
+```{r}
+plot(res.aov.Neutrophil, 1)
+```
+
+
+```{r}
+leveneTest(Neutrophil_fraction ~ study_group, data = MCP_IG)
+```
+
+From the output above we can see that the p-value is NOT less than the significance level of 0.05. This means that there is evidence to suggest that the variance across groups is NOT statistically significantly different. Therefore, we CAN assume the homogeneity of variances in the different treatment groups.
+
+
+## Check the normality assumption
+
+Normality plot of residuals. In the plot below, the quantiles of the residuals are plotted against the quantiles of the normal distribution. A 45-degree reference line is also plotted.
+
+The normal probability plot of residuals is used to check the assumption that the residuals are normally distributed. It should approximately follow a straight line.
+
+```{r}
+plot(res.aov.Neutrophil, 2)
+
+model_Neutrophil <- lm(Neutrophil_fraction ~ study_group, data=MCP_IG)
+ggqqplot(residuals(model_Neutrophil))
+```
+
+The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals which finds an indication that normality is violated.
+
+```{r}
+# Extract the reisudals 
+aov_residuals_Neutrophil <- residuals(object = res.aov.Neutrophil)
+# run Shapiro-Wilk test
+shapiro.test(x = aov_residuals_Neutrophil)
+shapiro_test(residuals(model_Neutrophil))
+```
+
+Check normality assumption by groups. Computing Shapiro-Wilk test for each group level. If the data is normally distributed, the p-value should be greater than 0.05.
+
+
+```{r}
+MCP_IG %>%
+  group_by(study_group) %>%
+  shapiro_test(Neutrophil_fraction)
+
+ggqqplot(MCP_IG, "Neutrophil_fraction", facet.by = "study_group")
+```
+
+
+## Non-parametric alternative to one-way ANOVA test
+
+Note that, a non-parametric alternative to one-way ANOVA is Kruskal-Wallis rank sum test, which can be used when ANNOVA assumptions are not met.
+
+```{r}
+kruskal.test(Neutrophil_fraction ~ study_group, data = MCP_IG)
+```
+
+
+
+## Visualization 
+
+
+```{r}
+Boxplot_Neutrophil_fraction <- ggboxplot(MCP_IG, x="study_group", y="Neutrophil_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "Neutrophil Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0003, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.025) + stat_pvalue_manual(pwc_Neutrophil, hide.ns = TRUE, y.position = c(0.02,0.022))
+Boxplot_Neutrophil_fraction
+```
+
+
+without lac
+```{r}
+# compute the analysis of variance
+res.aov.Neutrophil <- aov(Neutrophil_fraction ~ study_group, data = MCP_IG_withoutlac)
+# summary of the analysis
+summary(res.aov.Neutrophil)
+```
+
+```{r}
+TukeyHSD(res.aov.Neutrophil)
+```
+
+```{r}
+pwc_Neutrophil <- MCP_IG_withoutlac %>% tukey_hsd(Neutrophil_fraction ~ study_group)
+pwc_Neutrophil
+```
+
+```{r}
+kruskal.test(Neutrophil_fraction ~ study_group, data = MCP_IG_withoutlac)
+```
+
+```{r}
+Boxplot_Neutrophil_fraction_withoutlac <- ggboxplot(MCP_IG_withoutlac, x="study_group", y="Neutrophil_fraction",
+          color = "study_group", palette = c("#46CDCF", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "prbc", "npbc"),
+          ylab = "Neutrophil Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0003, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.03) + stat_pvalue_manual(pwc_Neutrophil, hide.ns = TRUE, y.position = c(0.02,0.022))
+Boxplot_Neutrophil_fraction_withoutlac
+```
+
+
+# Neutrophil - absolute
+
+```{r}
+group_by(MCP_IG, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(Neutrophil_abs_fraction, na.rm = TRUE),
+    sd = sd(Neutrophil_abs_fraction, na.rm = TRUE)
+  )
+```
+
+short study group
+```{r}
+# compute the analysis of variance
+res.aov.Neutrophil_abs <- aov(Neutrophil_abs_fraction ~ study_group, data = MCP_IG)
+# summary of the analysis
+summary(res.aov.Neutrophil_abs)
+```
+
+```{r}
+TukeyHSD(res.aov.Neutrophil_abs)
+```
+
+```{r}
+pwc_Neutrophil_abs <- MCP_IG %>% tukey_hsd(Neutrophil_abs_fraction ~ study_group)
+pwc_Neutrophil_abs
+```
+
+```{r}
+kruskal.test(Neutrophil_abs_fraction ~ study_group, data = MCP_IG)
+```
+
+```{r}
+Boxplot_Neutrophil_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="Neutrophil_abs_fraction",
+          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "Neutrophil Fraction", xlab = "B-cell related expression") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.00005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.1) + stat_pvalue_manual(pwc_Neutrophil_abs, hide.ns = TRUE, y.position = c(0.08,0.1))
+Boxplot_Neutrophil_abs_fraction
+```
+
+
+
+
