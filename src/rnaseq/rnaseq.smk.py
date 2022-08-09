@@ -30,30 +30,30 @@ rule create_config:
 
 rule salmon_index:
   input:
-    "src/rnaseq/build_salmon_index.sh"
+    script="src/rnaseq/build_salmon_index.sh"
   output:
-    #directory("data/external/index/grch38_index")
-    "data/external/index/grch38_index/hash.bin"
+    directory("data/external/index/grch38_index")
   conda:
-    "environment.yml"        
+    # File (or softlink) must be in the same dir as rnaseq.smk.py
+    "salmon.yml"
   shell:
-    "bash {input}"
+    "bash {input.script}"
 
 rule salmon_quant:
   input:
-    "src/01-salmon.sh"
+    fastq = "data/rnaseq/fastq/{sample}.fastq.gz",
+    index="data/external/index/grch38_index/"
   output:
-    expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
+    "data/rnaseq/salmon/{sample}/quant.sf"
   params:
-    index = "data/external/index/grch38_index",
-    outdir = expand("data/RNA-seq/salmon/{sample}", sample=config['samples'])
-  #conda:
-  #  "envs/environment.yml"     
+    outdir = "data/rnaseq/salmon/{sample}"
+  conda:
+    "salmon.yml"
+  threads: 16
   shell:
-    """
-    bash {input}
-    """
-
+     "salmon quant -i {input.index} -l A --gcBias --seqBias "
+     "--validateMappings --posBias -r {input.fastq} -o {params.outdir}"
+      
 rule process_metadata:
   input:
     #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples']), #Decouple

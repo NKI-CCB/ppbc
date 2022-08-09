@@ -3,20 +3,17 @@
 *results
 *.Rproj
 
-data/RAW/*
+data/rnaseq/*
 data/external/index
 bin
-Rplots.pdf
+
 .here
-.git_old
 .Rproj.user
 .Rhistory
-z
-to_do.nb.html
-to_do.Rmd
-reports/spatial/archive
+
+*/archive
 reports/spatial/batch_marker_viz
-reprots/spatial/object_qc_by_batch
+reports/spatial/object_qc_by_batch
 
 *.RData
 *.Rdata

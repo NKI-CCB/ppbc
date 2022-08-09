@@ -41,6 +41,7 @@ include: "src/spatial/spatial.smk.py"
 rule all:
   input:
     # RNAseq rules
+    expand("data/rnaseq/salmon/{sample}/quant.sf", sample=config['samples'])
     #"reports/16_gene_unity_setup.html",
     # Spatial rules
     # "src/spatial/organize_vectra_samples.html",
