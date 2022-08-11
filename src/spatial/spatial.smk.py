@@ -115,7 +115,7 @@ rule organize_vectra:
 #QC checks based on aggregated summary files
 rule summary_QC:
   input:
-    [f"data/vectra/interim/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}_summary_results.csv"
+    summaries=[f"data/vectra/raw/summary/{s.sample_id}_{s.panel}_{s.batch_HALO}_summary_results.csv"
                     for s in vectra_samples],
     # produced by organize_vectra but can't be tracked due to wildcards                
     # filedict="data/vectra/metadata/file_location_dictionary.csv",
