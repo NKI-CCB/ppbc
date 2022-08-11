@@ -92,7 +92,7 @@ rule organize_vectra:
         "data/vectra/halo/Batch 1/MPIF26/T21-60304/Halo archive 2021-06-21 12-17 - v3.2.1851/",
     metadata = "data/metadata/PPBC_metadata.xlsx",
     rmd="src/spatial/organize_vectra_samples.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output: 
     # Snakemake complains if not all output files and logs have the same wildcards
     # For simplicity, track sample-specific files, comment out aggregate files
@@ -112,7 +112,7 @@ rule summary_QC:
   input:
     filedict="data/metadata/spatial/00_file_location_dictionary.csv",
     rmd="reports/spatial/01_summary_QC.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     html="reports/spatial/01_summary_QC.html"
   shell:
@@ -189,7 +189,7 @@ rule aggregate_markers:
                     for s in vectra_samples],
     rmd = "reports/spatial/03_aggregate_marker_combos.Rmd",
     lib="src/spatial/aggregate_counts.R",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output: 
     marker_region="results/spatial/marker_combos_by_region.csv",
     html = "reports/spatial/03_aggregate_marker_combos.html"
@@ -228,7 +228,7 @@ rule report_cell_types:
     cells = [f"data/vectra/processed/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}.Rds"
                     for s in vectra_samples],
     rmd="reports/spatial/04_report_cell_types.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     html="reports/spatial/04_report_cell_types.html"
   shell:
@@ -266,7 +266,7 @@ rule report_segmentation:
     "data/vectra/processed/objects/T21-60303_MPIF27_batch2.Rds",
     "src/spatial/segment_tissue_density_config.yaml",
     rmd="reports/spatial/09_tissue_segmentation.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     html="reports/spatial/09_tissue_segmentation.html"
   shell:
@@ -303,7 +303,7 @@ rule density_report:
   input:
     "results/spatial/density.tsv",
     rmd="reports/spatial/05_density.Rmd",
-    script="src/rmarkdown.R",
+    script="src/utils/rmarkdown.R",
   output:
     html="reports/spatial/05_density.html"
   shell:
@@ -325,7 +325,7 @@ rule kruskal_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
     rmd = "reports/spatial/06_kruskal_density.Rmd",
-    script = "src/rmarkdown.R",
+    script = "src/utils/rmarkdown.R",
     lib = "src/spatial/kruskal_density.R" 
   params:
     min_cell_count = 20000
@@ -340,7 +340,7 @@ rule invbf_time_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
     rmd="reports/spatial/06b_inv_time_density.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   params:
     min_cell_count = 20000
   output:
@@ -354,7 +354,7 @@ rule cox_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
     rmd="reports/spatial/07_cox_density.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   params:
     min_cell_count = 20000
   output:
@@ -368,7 +368,7 @@ rule cd20_clusters:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
     rmd="reports/spatial/08_ig_clusters_cd20.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     html="reports/spatial/08_ig_clusters_cd20.html"
   shell:
@@ -424,7 +424,7 @@ rule report_spatstat:
     [f"results/spatial/lcross_immune/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
          for s in vectra_samples],
     rmd="reports/spatial/11_spatstat_overview.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     html="reports/spatial/11_spatstat_overview.html"
   shell:

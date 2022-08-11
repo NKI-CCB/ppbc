@@ -4,7 +4,7 @@
 rule symlinks:
   input:
     rmd="reports/rnaseq/00_symlink_fastqs.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     html="reports/rnaseq/00_symlink_fastqs.html"
   params:
@@ -17,7 +17,8 @@ rule symlinks:
    " --sample_paths '{params.sample_paths}'"
    " --raw_dir '{params.raw_dir}'"
    " --sym_dir '{params.sym_dir}'"
-   
+
+# Config file for salmon quantification   
 rule create_config:
   input:
     script="src/rnaseq/generate_config.py"
@@ -56,10 +57,10 @@ rule salmon_quant:
       
 rule process_metadata:
   input:
-    #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples']), #Decouple
+    expand("data/rnaseq/salmon/{sample}/quant.sf", sample=config['samples']),
     raw_metadata="data/external/Hercoderingslijst_v09032020_KM.xlsx",
     rmd="reports/01_process_metadata_tximport.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     html="reports/01_process_metadata_tximport.html",
     multiple_patient_fastqs="data/metadata/01_patients_with_multiple_fastqs.csv",
@@ -102,7 +103,7 @@ rule multiqc:
     
 rule QC_salmon:
   input:
-    script="src/rmarkdown.R",
+    script="src/utils/rmarkdown.R",
     rmd="reports/02_QC_salmon.Rmd",
     #A tx import object
     tx="data/Rds/01_tx.Rds", 
@@ -191,7 +192,7 @@ rule star_align:
 
 rule pam50_ihc:
   input:
-    script="src/rmarkdown.R",
+    script="src/utils/rmarkdown.R",
     rmd="reports/03_PAM50_IHC.Rmd",
     #A DESeqDataSet
     dds="data/Rds/02_QC_dds.Rds"
@@ -210,7 +211,7 @@ rule pam50_ihc:
 rule color_palettes:
   input:
     rmd="reports/color_palettes.Rmd",
-    script="src/rmarkdown.R",
+    script="src/utils/rmarkdown.R",
     dds="data/Rds/03_dds_PAM50.Rds"
   output:
     html="reports/color_palettes.html",
@@ -226,7 +227,7 @@ rule survival_colors:
 
 rule surv_est:
   input:
-    script="src/rmarkdown.R",
+    script="src/utils/rmarkdown.R",
     rmd="reports/04_survival_and_ESTIMATE.Rmd",
     dds="data/Rds/03_dds_PAM50.Rds",
     tx_annot="data/metadata/01_tx_annot.tsv",
@@ -261,7 +262,7 @@ pca_pdfs = [
     
 rule batch_effects:
   input:
-    script="src/rmarkdown.R",
+    script="src/utils/rmarkdown.R",
     rmd="reports/05_batch_effects.Rmd",
     dds="data/Rds/04_dds_PAM50_EST.Rds",
     gx_annot="data/metadata/01_tx_annot.tsv",
@@ -277,7 +278,7 @@ rule batch_effects:
     
 rule min_count_threshold:
   input:
-    script = "src/rmarkdown.R",
+    script = "src/utils/rmarkdown.R",
     rmd = "reports/05b_minimum_count_threshold.Rmd",
     dds = "data/Rds/05_dds_PAM50_batch.Rds"
   output:
@@ -332,7 +333,7 @@ rule lrt_report:
     cp="data/Rds/color_palettes.Rds",
     tools="src/deseq_report_functions.R",
     rmd="reports/06_diffex_lrt.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     padj_comp="results/diffex/figs/06_LRT/06_allgenes_fdrvsexcludelac.pdf",
     padj_comp_sig="results/diffex/figs/06_LRT/06_siggenes_fdrvsexcludelac.pdf",
@@ -382,7 +383,7 @@ rule pairwise_report:
     apeglm_results=expand("data/Rds/07_ape_{pw}.Rds", pw=pairwise_apeglm),
     gx_annot="data/metadata/01_tx_annot.tsv",
     rmd="reports/07_diffex_pairwise.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     "results/diffex/figs/07_pairwise/heatmaps/n_siggenes_pairwise_hm.pdf",
     #"results/diffex/figs/07_pairwise/heatmaps/07_commoninvpaths_hm.pdf",
@@ -424,7 +425,7 @@ rule one_vs_rest_report:
     tools="src/deseq_report_functions.R",
     gx_annot="data/metadata/01_tx_annot.tsv",
     rmd="reports/08_diffex_onevsrest.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     "results/diffex/figs/08_onevsrest/upset_onevsrest.pdf",
     "results/diffex/figs/08_onevsrest/08_barplot_onevsrest.jpg",
@@ -453,7 +454,7 @@ rule genewise_diffex_reports:
     vsd="data/Rds/08_vsd_ovr.Rds",
     gx_annot="data/metadata/01_tx_annot.tsv",
     rmd="reports/09_genewise_diffex_reports.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     "results/diffex/figs/milk_vs_IG_genes.pdf",
     html="reports/09_genewise_diffex_reports.html"
@@ -483,7 +484,7 @@ rule flexgsea_report:
     # Takes a long time to rerun flexgsea with deseq and multiple comparisons
     ancient(dir("results/flexgsea/deseq")),
     ancient("results/flexgsea/deseq/results/inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"),
-    script = "src/rmarkdown.R",
+    script = "src/utils/rmarkdown.R",
     rmd = "reports/09b_flexgsea_results.Rmd",
     tx_annot = "data/metadata/01_tx_annot.tsv",
     colors = "data/Rds/color_palettes.Rds"
@@ -504,7 +505,7 @@ rule cibersortX:
     surv="data/Rds/04_survdata.Rds",
     metadata="data/metadata/05_sample_annot_filtered.csv",
     rmd="reports/10_CibersortX.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     pdf="reports/10_CibersortX.pdf"
   shell:
@@ -522,7 +523,7 @@ rule inv_clustering:
   input:
     expand("results/diffex/{inv_comp}.xlsx", inv_comp=inv_comps),
     rmd="reports/11_clustering_involution.Rmd",
-    script="src/rmarkdown.R",
+    script="src/utils/rmarkdown.R",
     cp="data/Rds/color_palettes.Rds",
     sp="data/Rds/survival_colors.Rds",
     tools="src/deseq_report_functions.R",
@@ -588,7 +589,7 @@ rule report_genewise_survival:
 rule aggregate_genewise_survival:
   input:
     csv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
-    script="src/rmarkdown.R",
+    script="src/utils/rmarkdown.R",
     rmd="reports/12b_aggregate_genewise_survival.Rmd"
   output:
     html="reports/12b_aggregate_genewise_survival.html",
@@ -759,7 +760,7 @@ rule report_cox_glm:
     int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
     gx_annot="data/metadata/01_tx_annot.tsv",
     rmd="reports/15_cox_elastic_net.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     "results/survival/15_elastic_cox_features.xlsx",
     html="reports/15_cox_elastic_net.html"
@@ -777,7 +778,7 @@ rule report_inv_cox_glm:
     int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
     gx_annot="data/metadata/01_tx_annot.tsv",
     rmd="reports/15b_inv_cox_elastic_net.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     "results/survival/15b_inv_elastic_cox_features.xlsx",
     html="reports/15b_inv_cox_elastic_net.html"
@@ -793,7 +794,7 @@ rule report_all_inv_cox_glm:
     int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
     gx_annot="data/metadata/01_tx_annot.tsv",
     rmd="reports/15c_inv_cox_elastic_net.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     "results/survival/15c_all_inv_elastic_cox_features.xlsx",
     html="reports/15c_all_inv_cox_elastic_net.html"
@@ -813,7 +814,7 @@ inv_bf = [
 
 rule diffex_involution:
   input:
-    script="src/rmarkdown.R",
+    script="src/utils/rmarkdown.R",
     rmd="reports/09_diffex_time_involution.Rmd",
     dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
     vsd="data/Rds/08_vsd_ovr.Rds",
@@ -833,7 +834,7 @@ rule diffex_involution:
     
 rule diffex_breastfeeding:
   input:
-    script="src/rmarkdown.R",
+    script="src/utils/rmarkdown.R",
     rmd="reports/09_diffex_breastfeeding_duration.Rmd",
     dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
     vsd="data/Rds/08_vsd_ovr.Rds",
@@ -853,7 +854,7 @@ rule diffex_breastfeeding:
 
 rule gene_unity_setup:
   input:
-    script="src/rmarkdown.R",
+    script="src/utils/rmarkdown.R",
     rmd="reports/16_gene_unity_setup.Rmd",
     diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
     invbf_diffex=expand("results/diffex/09_diffex_{result}_duration.xlsx", result=inv_bf),
@@ -920,7 +921,7 @@ rule trust_report:
     discarded_samples="data/metadata/02_discarded_samples.csv",
     ihc_outliers="data/metadata/03_removed_pam50_outliers.csv",
     rmd="reports/18_BCR_clonality.Rmd",
-    script="src/rmarkdown.R"
+    script="src/utils/rmarkdown.R"
   output:
     alltrust="data/Rds/18_alltrust.Rds",
     trustdata="data/Rds/18_trustdata.Rds",
@@ -931,7 +932,7 @@ rule trust_report:
     
 rule antibody_isotypes:
   input:
-    script="src/rmarkdown.R",
+    script="src/utils/rmarkdown.R",
     rmd="reports/18b_antibody_isotypes.Rmd",
     bx_annot=ancient("shinyApp/VisualizePPBCgene/data/app_gx_annot.Rds"),
     dds=ancient("data/Rds/08_dds_ovr_inv_vs_rest.Rds")
