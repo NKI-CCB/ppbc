@@ -57,5 +57,20 @@ rule all:
     # "reports/spatial/08_ig_clusters_cd20.html",
     # "reports/spatial/09_tissue_segmentation.html"
 
-
-
+# Utility for converting Excel metadata to text
+# Text metadata can be tracked via git (if it's not too large)
+rule excel_to_tsv:
+  input:
+    script="src/utils/excel_to_tsv.R",
+    lib="src/utils/parse_args.R",
+    metadata="data/external/PPBC_metadata_20220811.xlsx"
+  params:
+    outDir="data/external"
+  output:
+    sampledata = "data/external/sample_data.tsv",
+    patientdata = "data/external/patient_data.tsv",
+    codebook = "data/external/codebook.tsv"
+  shell:
+    "Rscript {input.script} "
+    "--metadata {input.metadata} "
+    "--outDir {params.outDir}"

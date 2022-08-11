@@ -1,0 +1,1199 @@
+patient_ID	sample_type	experimental_platform	sample_ID	batch_Leuven	batch_HALO	Included	comments	...9
+HL-FA-001	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-001	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-001	RNA	RNAseq	rHLE-FA-1.180816.HiSeq4000.FCB.lane1.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-001	RNA	RNAseq	rHLE_UZ-HL-2.170515.HiSeq4000.FCB.lane3.gcap_17_03.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-001	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-001	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-002	slide	MPIF26	T20-62424	batch 1	NA	0	MPIF26 excluded, no more material available	NA
+HL-FA-002	slide	MPIF27	T20-62424	batch 1	batch 6	1	NA	NA
+HL-FA-002	RNA	RNAseq	rHLE-FA-2.180816.HiSeq4000.FCB.lane1.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-002	RNA	RNAseq	rHLE_UZ-HL-12.170515.HiSeq4000.FCB.lane3.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-002	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-002	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-003	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-003	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-003	RNA	RNAseq	rHLE-FA-3.180816.HiSeq4000.FCB.lane2.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-003	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-003	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-004	slide	MPIF26	T20-62441	batch 1	batch 5	1	Tumor area redetermined by pathologist > pathologist selected new area > many areas out of focus > do not analyse > very bad slide	NA
+HL-FA-004	slide	MPIF27	T20-62441	batch 1	batch 5	1	Tumor area redetermined by pathologist > pathologist selected new area > many areas out of focus > do not analyse > very bad slide	NA
+HL-FA-004	RNA	RNAseq	rHLE-FA-4.180816.HiSeq4000.FCB.lane4.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-004	RNA	RNAseq	rHLE_UZ-HL-13.170515.HiSeq4000.FCB.lane4.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-004	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-004	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-005	slide	MPIF26	T21-60307	batch 3	batch 1	1	no foxp3 in tumor area, treshold set outside tumor region	NA
+HL-FA-005	slide	MPIF27	T21-60307	batch 3	batch 1	1	A lot of CD138 in between DAPI cells	NA
+HL-FA-005	RNA	RNAseq	rHLE-FA-5.180816.HiSeq4000.FCB.lane4.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-005	RNA	RNAseq	rHLE_UZ-HL-14.170515.HiSeq4000.FCB.lane2.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-005	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-005	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-006	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-006	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-006	RNA	RNAseq	rHLE-FA-6.180816.HiSeq4000.FCB.lane3.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-006	RNA	RNAseq	rHLE_UZ-HL-8.170515.HiSeq4000.FCB.lane2.gcap_17_03.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-006	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-006	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-007	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-007	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-007	RNA	RNAseq	rHLE-FA-7.180816.HiSeq4000.FCB.lane3.gcap_17_11.R1.fastq.gz	batch 5	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-007	RNA	RNAseq	rHLE_UZ-HL-3.170515.HiSeq4000.FCB.lane3.gcap_17_03.R1.fastq.gz	NA	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-007	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-007	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-008	slide	MPIF26	T21-60328	batch 3	batch 1	1	Classifier adjusted. Necrosis class added. Only tumor en stroma in algorithm.	NA
+HL-FA-008	slide	MPIF27	T21-60328	batch 3	batch 1	1	Classifier adjusted. Necrosis class added. Only tumor en stroma in algorithm.	NA
+HL-FA-008	RNA	RNAseq	rHLE-FA-8.180816.HiSeq4000.FCB.lane2.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-008	RNA	RNAseq	rHLE_UZ-HL-9.170515.HiSeq4000.FCB.lane4.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-008	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-008	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-009	slide	MPIF26	T21-60579	batch 4	batch 3	1	many ery's	NA
+HL-FA-009	slide	MPIF27	T21-60579	batch 4	batch 3	1	NA	NA
+HL-FA-009	RNA	RNAseq	rHLE-FA-9.180816.HiSeq4000.FCB.lane1.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-009	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-009	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-010	slide	MPIF26	T20-62418	batch 1	NA	0	no tumor	NA
+HL-FA-010	slide	MPIF27	T20-62418	batch 1	NA	0	no tumor	NA
+HL-FA-010	RNA	RNAseq	rHLE-FA-10.180816.HiSeq4000.FCB.lane4.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-010	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-010	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-011	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-011	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-011	RNA	RNAseq	rHLE-FA-11.180816.HiSeq4000.FCB.lane4.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-011	RNA	RNAseq	rHLE_UZ-HL-1.170515.HiSeq4000.FCB.lane3.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-011	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-011	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-012	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-012	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-012	RNA	RNAseq	rHLE-FA-12.180816.HiSeq4000.FCB.lane1.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-012	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-012	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-013	slide	MPIF26	T20-62413	batch 2	batch 6	1	MPIFs are comparable	NA
+HL-FA-013	slide	MPIF27	T20-62413	batch 2	batch 6	1	MPIFs are comparable	NA
+HL-FA-013	RNA	RNAseq	rHLE-FA-13.180816.HiSeq4000.FCB.lane2.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-013	RNA	RNAseq	rHLE_UZ-HL-10.170515.HiSeq4000.FCB.lane4.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-013	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-013	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-014	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-014	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-014	RNA	RNAseq	rHLE-FA-14.180816.HiSeq4000.FCB.lane2.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-014	RNA	RNAseq	rHLE_UZ-HL-11.170515.HiSeq4000.FCB.lane4.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-014	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-014	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-015	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-015	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-015	RNA	RNAseq	rHLE-FA-15.180816.HiSeq4000.FCB.lane3.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-015	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-015	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-016	slide	MPIF26	T20-62455	batch 2	NA	0	Messy morphology. Lots of loose parts > Patient MPIF26 en 27 excluded, no more material	NA
+HL-FA-016	slide	MPIF27	T20-62455	batch 2	NA	0	Messy morphology. Lots of loose parts > Patient MPIF26 en 27 excluded, no more material	NA
+HL-FA-016	RNA	RNAseq	rHLE-FA-16.180816.HiSeq4000.FCB.lane1.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-016	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-016	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-017	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-017	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-017	RNA	RNAseq	rHLE-FA-17.180816.HiSeq4000.FCB.lane4.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-017	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-017	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-018	slide	MPIF26	T20-62434	batch 2	batch 5	1	small comparable tumor area	NA
+HL-FA-018	slide	MPIF27	T20-62434	batch 2	batch 5	1	small comparable tumor area	NA
+HL-FA-018	RNA	RNAseq	rHLE-FA-18.180816.HiSeq4000.FCB.lane1.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-018	RNA	RNAseq	rHLE_UZ-HL-15.170515.HiSeq4000.FCB.lane2.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-018	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-018	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-021	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-021	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-021	RNA	RNAseq	rHLE-FA-21.180808.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-021	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-021	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-022	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-022	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-022	RNA	RNAseq	rHLE-FA-22.180808.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 4	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-022	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-022	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-023	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-023	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-023	RNA	RNAseq	rHLE-FA-23.180808.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-023	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-023	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-025	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-025	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-025	RNA	RNAseq	rHLE-FA-25.180808.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-025	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-025	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-026	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-026	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-026	RNA	RNAseq	rHLE-FA-26.180808.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-026	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-026	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-027	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-027	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-027	RNA	RNAseq	rHLE-FA-27.180808.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-027	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-027	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-030	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-030	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-030	RNA	RNAseq	rHLE-FA-30.190603.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz	batch 8	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-030	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-030	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-031	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-031	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-031	RNA	RNAseq	rHLE-FA-31.180808.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-031	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-031	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-033	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-033	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-033	RNA	RNAseq	rHLE-FA-33.180808.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-033	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-033	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-034	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-034	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-034	RNA	RNAseq	rHLE-FA-34.180808.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-034	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-034	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-035	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-035	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-035	RNA	RNAseq	rHLE-FA-35.180808.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-035	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-035	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-037	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-037	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-037	RNA	RNAseq	rHLE-FA-37.180808.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-037	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-037	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-038	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-038	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-038	RNA	RNAseq	rHLE-FA-38.180706.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-038	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-038	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-039	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-039	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-039	RNA	RNAseq	rHLE-FA-39.180808.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-039	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-039	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-040	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-040	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-040	RNA	RNAseq	rHLE-FA-40.180808.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-040	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-040	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-041	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-041	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-041	RNA	RNAseq	rHLE-FA-41.180808.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-041	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-041	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-042	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-042	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-042	RNA	RNAseq	rHLE-FA-42.180808.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 4	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-042	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-042	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-043	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-043	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-043	RNA	RNAseq	rHLE-FA-43.180808.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 4	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-043	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-043	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-044	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-044	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-044	RNA	RNAseq	rHLE-FA-44.180808.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-044	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-044	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-045	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-045	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-045	RNA	RNAseq	rHLE-FA-45.180808.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-045	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-045	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-046	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-046	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-046	RNA	RNAseq	rHLE-FA-46.180808.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-046	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-046	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-047	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-047	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-047	RNA	RNAseq	rHLE-FA-47.180808.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-047	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-047	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-048	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-048	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-048	RNA	RNAseq	rHLE-FA-48.180808.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-048	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-048	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-049	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-049	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-049	RNA	RNAseq	rHLE-FA-49.180808.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-049	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-049	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-050	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-050	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-050	RNA	RNAseq	rHLE-FA-50.180706.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-050	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-050	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-052	slide	MPIF26	T21-60593	batch 4	batch 3	1	very small invasive tumor area	NA
+HL-FA-052	slide	MPIF27	T21-60593	batch 4	batch 3	1	very small invasive tumor area	NA
+HL-FA-052	RNA	RNAseq	rHLE-FA-52.180816.HiSeq4000.FCB.lane2.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-052	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-052	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-053	slide	MPIF26	T21-60603	batch 5	batch 3	1	NA	NA
+HL-FA-053	slide	MPIF27	T21-60603	batch 5	batch 3	1	NA	NA
+HL-FA-053	RNA	RNAseq	rHLE-FA-53.180816.HiSeq4000.FCB.lane3.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-053	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-053	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-054	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-054	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-054	RNA	RNAseq	rHLE-FA-54.180816.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-054	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-054	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-055	slide	MPIF26	T21-60584	batch 4	batch 3	1	NA	NA
+HL-FA-055	slide	MPIF27	T21-60584	batch 4	batch 3	1	NA	NA
+HL-FA-055	RNA	RNAseq	rHLE-FA-55.180816.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-055	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-055	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-057	slide	MPIF26	T20-62433	batch 1	batch 5	1	no cd27	NA
+HL-FA-057	slide	MPIF27	T20-62433	batch 1	batch 5	1	NA	NA
+HL-FA-057	RNA	RNAseq	rHLE-FA-57.180816.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-057	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-057	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-058	slide	MPIF26	T20-62436	batch 1	batch 5	1	no foxp3	NA
+HL-FA-058	slide	MPIF27	T20-62436	batch 1	batch 5	1	PanCK+CD3+ should be seen as CD3-	NA
+HL-FA-058	RNA	RNAseq	rHLE-FA-58.180816.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-058	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-058	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-059	slide	MPIF26	T20-62439	batch 2	batch 5	1	no cd27	NA
+HL-FA-059	slide	MPIF27	T20-62439	batch 2	batch 5	1	NA	NA
+HL-FA-059	RNA	RNAseq	rHLE-FA-59.180816.HiSeq4000.FCB.lane4.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-059	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-059	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-060	slide	MPIF26	T20-62448	batch 2	batch 5	1	NA	NA
+HL-FA-060	slide	MPIF27	T20-62448	batch 2	batch 5	1	NA	NA
+HL-FA-060	RNA	RNAseq	rHLE-FA-60.180816.HiSeq4000.FCB.lane3.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-060	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-060	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-061	slide	MPIF26	T20-62412	batch 1	batch 6	1	NA	NA
+HL-FA-061	slide	MPIF27	T20-62412	batch 1	NA	0	MPIF27 excluded, no more material available	NA
+HL-FA-061	RNA	RNAseq	rHLE-FA-61.180816.HiSeq4000.FCB.lane1.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-061	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-061	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-063	slide	MPIF26	T21-60310	batch 3	batch 1	1	NA	NA
+HL-FA-063	slide	MPIF27	T21-60310	batch 3	batch 1	1	Many CD20+ PanCK+ dpos. All dpos should be considered CD20-	NA
+HL-FA-063	RNA	RNAseq	rHLE-FA-63.180706.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-063	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-063	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-064	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-064	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-064	RNA	RNAseq	rHLE-FA-64.180706.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-064	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-064	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-065	slide	MPIF26	T21-60578	batch 4	batch 3	1	NA	NA
+HL-FA-065	slide	MPIF27	T21-60578	batch 4	batch 3	1	NA	NA
+HL-FA-065	RNA	RNAseq	rHLE-FA-65.180706.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-065	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-065	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-066	slide	MPIF26	T21-60314	batch 3	batch 1	1	NA	NA
+HL-FA-066	slide	MPIF27	T21-60314	batch 3	batch 1	1	NA	NA
+HL-FA-066	RNA	RNAseq	rHLE-FA-66.180706.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-066	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-066	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-067	slide	MPIF26	T21-60582	batch 4	batch 3	1	NA	NA
+HL-FA-067	slide	MPIF27	T21-60582	batch 4	batch 3	1	NA	NA
+HL-FA-067	RNA	RNAseq	rHLE-FA-67.180706.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-067	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-067	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-068	slide	MPIF26	T21-60591	batch 4	batch 3	1	NA	NA
+HL-FA-068	slide	MPIF27	T21-60591	batch 4	batch 3	1	NA	NA
+HL-FA-068	RNA	RNAseq	rHLE-FA-68.180706.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-068	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-068	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-069	slide	MPIF26	T21-60577	batch 4	batch 3	1	NA	NA
+HL-FA-069	slide	MPIF27	T21-60577	batch 4	batch 3	1	NA	NA
+HL-FA-069	RNA	RNAseq	rHLE-FA-69.180706.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-069	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-069	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-070	slide	MPIF26	T21-60585	batch 4	batch 3	1	Circles with extreme cd27 positivity that are excluded from MPIF26	NA
+HL-FA-070	slide	MPIF27	T21-60585	batch 4	batch 3	1	NA	NA
+HL-FA-070	RNA	RNAseq	rHLE-FA-70.180706.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-070	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-070	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-071	slide	MPIF26	T20-62428	batch 2	batch 4	1	NA	NA
+HL-FA-071	slide	MPIF27	T20-62428	batch 2	NA	0	no tumor area, not recognizable > exclude MPIF27	NA
+HL-FA-071	RNA	RNAseq	rHLE-FA-71.180706.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-071	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-071	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-072	slide	MPIF26	T20-62431	batch 2	batch 5	1	NA	NA
+HL-FA-072	slide	MPIF27	T20-62431	batch 2	NA	0	no good staining, exclude	NA
+HL-FA-072	RNA	RNAseq	rHLE-FA-72.180706.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-072	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-072	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-074	slide	MPIF26	T20-62444	batch 2	NA	0	Tumor area not recognizable, check with pathologist > gecheckt. Patient MPIF26 en 27 excluded, no more material	NA
+HL-FA-074	slide	MPIF27	T20-62444	batch 2	NA	0	Patient MPIF26 en 27 excluded, no more material	NA
+HL-FA-074	RNA	RNAseq	rHLE-FA-74.180808.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-074	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-074	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-075	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-075	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-075	RNA	RNAseq	rHLE-FA-75.180706.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-075	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-075	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-076	slide	MPIF26	T20-62440	batch 1	batch 5	1	Controle patholoog > no cd27	NA
+HL-FA-076	slide	MPIF27	T20-62440	batch 1	batch 5	1	Controle patholoog	NA
+HL-FA-076	RNA	RNAseq	rHLE-FA-76.180706.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-076	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-076	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-077	slide	MPIF26	T21-60326	batch 3	batch 1	1	NA	NA
+HL-FA-077	slide	MPIF27	T21-60326	batch 3	batch 1	1	NA	NA
+HL-FA-077	RNA	RNAseq	rHLE-FA-77.180808.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-077	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-077	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-078	slide	MPIF26	T21-60608	batch 5	batch 3	1	NA	NA
+HL-FA-078	slide	MPIF27	T21-60608	batch 5	batch 3	1	NA	NA
+HL-FA-078	RNA	RNAseq	rHLE-FA-78.180808.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-078	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-078	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-079	slide	MPIF26	T20-62437	batch 1	batch 5	1	no cd27	NA
+HL-FA-079	slide	MPIF27	T20-62437	batch 1	batch 5	1	NA	NA
+HL-FA-079	RNA	RNAseq	rHLE-FA-79.180706.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 3	NA	1	NA	NA
+HL-FA-079	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-079	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-080	slide	MPIF26	T20-62452	batch 2	batch 5	1	NA	NA
+HL-FA-080	slide	MPIF27	T20-62452	batch 2	batch 5	1	PanCK+CD3+ should be seen as CD3-	NA
+HL-FA-080	RNA	RNAseq	rHLE-FA-80.180808.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-080	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-080	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-081	slide	MPIF26	T21-60594	batch 4	batch 3	1	PanCK+CD20+ should be seen as CD20-	NA
+HL-FA-081	slide	MPIF27	T21-60594	batch 4	batch 3	1	NA	NA
+HL-FA-081	RNA	RNAseq	rHLE-FA-81.180808.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-081	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-081	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-082	slide	MPIF26	T20-62417	batch 1	batch 6	1	no cd27	NA
+HL-FA-082	slide	MPIF27	T20-62417	batch 1	batch 6	1	NA	NA
+HL-FA-082	RNA	RNAseq	rHLE-FA-82.180808.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-082	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-082	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-083	slide	MPIF26	T21-60320	batch 3	batch 1	1	NA	NA
+HL-FA-083	slide	MPIF27	T21-60320	batch 3	batch 1	1	accurate cell segmentation	NA
+HL-FA-083	RNA	RNAseq	rHLE-FA-83.180808.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-083	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-083	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-085	slide	MPIF26	T21-60330	batch 3	batch 2	1	NA	NA
+HL-FA-085	slide	MPIF27	T21-60330	batch 3	batch 2	1	NA	NA
+HL-FA-085	RNA	RNAseq	rHLE-FA-85.180808.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-085	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-085	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-086	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-086	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-086	RNA	RNAseq	rHLE-FA-86.180808.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-086	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-086	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-087	slide	MPIF26	T21-60309	batch 3	batch 1	1	NA	NA
+HL-FA-087	slide	MPIF27	T21-60309	batch 3	batch 1	1	Many CD20+ PanCK+ dpos. All dpos should be considered CD20-	NA
+HL-FA-087	RNA	RNAseq	rHLE-FA-87.180808.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 4	NA	1	NA	NA
+HL-FA-087	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-087	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-088	slide	MPIF26	T21-60318	batch 3	batch 1	1	PanCK+CD20+ should be seen as CD20-	NA
+HL-FA-088	slide	MPIF27	T21-60318	batch 3	batch 1	1	Opnieuw gescand; HALO Batch 3 NOTE: flipped and parts gone after scanning? = Adjusted.	NA
+HL-FA-088	RNA	RNAseq	rHLE-FA-88.180816.HiSeq4000.FCB.lane3.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-088	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-088	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-089	slide	MPIF26	T21-60587	batch 4	batch 3	1	NA	NA
+HL-FA-089	slide	MPIF27	T21-60587	batch 4	batch 3	1	NA	NA
+HL-FA-089	RNA	RNAseq	rHLE-FA-89.180816.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-089	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-089	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-090	slide	MPIF26	T21-60317	batch 3	batch 1	1	tumor area partly washed away or folded	NA
+HL-FA-090	slide	MPIF27	T21-60317	batch 3	batch 1	1	tumor area partly washed away or folded	NA
+HL-FA-090	RNA	RNAseq	rHLE-FA-90.180816.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-090	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-090	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-091	slide	MPIF26	T21-60312	batch 3	batch 1	1	tumor area partly washed away or folded	NA
+HL-FA-091	slide	MPIF27	T21-60312	batch 3	batch 1	1	tumor area partly washed away or folded	NA
+HL-FA-091	RNA	RNAseq	rHLE-FA-91.180816.HiSeq4000.FCB.lane1.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-091	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-091	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-092	slide	MPIF26	T21-60604	batch 5	batch 4	1	NA	NA
+HL-FA-092	slide	MPIF27	T21-60604	batch 5	batch 4	1	NA	NA
+HL-FA-092	RNA	RNAseq	rHLE-FA-92.180816.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-092	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-092	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-094	slide	MPIF26	T21-60607	batch 5	batch 4	1	NA	NA
+HL-FA-094	slide	MPIF27	T21-60607	batch 5	batch 4	1	NA	NA
+HL-FA-094	RNA	RNAseq	rHLE-FA-94.180816.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-094	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-094	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-095	slide	MPIF26	T20-62442	batch 2	batch 5	1	Ok comparability	NA
+HL-FA-095	slide	MPIF27	T20-62442	batch 2	batch 5	1	Ok comparability	NA
+HL-FA-095	RNA	RNAseq	rHLE-FA-95.180816.HiSeq4000.FCB.lane4.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-095	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-095	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-096	slide	MPIF26	T21-60589	batch 4	batch 3	1	NA	NA
+HL-FA-096	slide	MPIF27	T21-60589	batch 4	batch 3	1	NA	NA
+HL-FA-096	RNA	RNAseq	rHLE-FA-96.180816.HiSeq4000.FCB.lane2.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-096	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-096	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-097	slide	MPIF26	T20-62446	batch 2	NA	0	slide was rescanned > again very poor staining > MPIF26 was excluded	NA
+HL-FA-097	slide	MPIF27	T20-62446	batch 2	batch 5	1	Everyhting stains super positive. PanCK in all channels. Very hard to set tresholds. PanCK+ CD3+ should be seen as CD3-. PanCK+CD8+ should be seen as CD8-.	NA
+HL-FA-097	RNA	RNAseq	rHLE-FA-97.180816.HiSeq4000.FCB.lane3.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-097	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-097	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-098	slide	MPIF26	T20-62450	batch 2	batch 5	1	Controle patholoog Joyce: ""probably TLS""  > PancK+CD3+ should be seen as CD3- > PanCK+CD3+FoxP3+ should be seen as CD3+	NA
+HL-FA-098	slide	MPIF27	T20-62450	batch 2	batch 5	1	Controle patholoog	NA
+HL-FA-098	RNA	RNAseq	rHLE-FA-98.180816.HiSeq4000.FCB.lane3.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-098	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-098	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-099	slide	MPIF26	T21-60597	batch 5	batch 3	1	NA	NA
+HL-FA-099	slide	MPIF27	T21-60597	batch 5	batch 3	1	NA	NA
+HL-FA-099	RNA	RNAseq	rHLE-FA-99.180816.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-099	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-099	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-100	slide	MPIF26	T21-60600	batch 5	batch 3	1	NA	NA
+HL-FA-100	slide	MPIF27	T21-60600	batch 5	batch 3	1	tumor area partly washed away or folded	NA
+HL-FA-100	RNA	RNAseq	rHLE-FA-100.180816.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 5	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-100	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-100	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-101	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-101	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-101	RNA	RNAseq	rHLE-FA-101.180816.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-101	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-101	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-102	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-102	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-102	RNA	RNAseq	rHLE-FA-102.180816.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-102	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-102	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-103	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-103	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-103	RNA	RNAseq	rHLE-FA-103.180816.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-103	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-103	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-104	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-104	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-104	RNA	RNAseq	rHLE-FA-104.180816.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-104	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-104	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-105	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-105	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-105	RNA	RNAseq	rHLE_FA_105.180913.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-105	RNA	RNAseq	rHLE_FA_105.180924.HiSeq4000.FCB.lane1.gcap_18_06.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-105	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-105	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-107	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-107	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-107	RNA	RNAseq	rHLE_FA_107.180913.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-107	RNA	RNAseq	rHLE_FA_107.180924.HiSeq4000.FCB.lane1.gcap_18_06.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-107	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-107	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-108	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-108	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-108	RNA	RNAseq	rHLE_FA_108.180913.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-108	RNA	RNAseq	rHLE_FA_108.180924.HiSeq4000.FCB.lane1.gcap_18_06.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-108	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-108	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-109	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-109	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-109	RNA	RNAseq	rHLE-FA-109.180816.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 6	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-109	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-109	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-110	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-110	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-110	RNA	RNAseq	rHLE-FA-110.180816.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-110	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-110	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-111	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-111	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-111	RNA	RNAseq	rHLE-FA-111.180816.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-111	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-111	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-112	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-112	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-112	RNA	RNAseq	rHLE-FA-112.180816.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-112	RNA	RNAseq	rHLE_FA_112.180913.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-112	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-112	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-113	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-113	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-113	RNA	RNAseq	rHLE-FA-113.190603.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz	batch 8	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-113	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-113	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-114	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-114	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-114	RNA	RNAseq	rHLE_FA_114.180913.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-114	RNA	RNAseq	rHLE_FA_114.180924.HiSeq4000.FCB.lane6.gcap_18_06.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-114	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-114	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-115	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-115	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-115	RNA	RNAseq	rHLE-FA-115.180816.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-115	RNA	RNAseq	rHLE_FA_115.180913.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-115	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-115	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-116	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-116	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-116	RNA	RNAseq	rHLE-FA-116.190603.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz	batch 8	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-116	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-116	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-117	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-117	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-117	RNA	RNAseq	rHLE-FA-117.190517.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-117	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-117	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-118	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-118	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-118	RNA	RNAseq	rHLE-FA-118.180816.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-118	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-118	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-119	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-119	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-119	RNA	RNAseq	rHLE-FA-119.180816.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-119	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-119	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-120	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-120	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-120	RNA	RNAseq	rHLE-FA-120.180816.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-120	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-120	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-121	slide	MPIF26	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-121	slide	MPIF27	NA	NA	NA	0	center did not participate for HALO analyses anymore	NA
+HL-FA-121	RNA	RNAseq	rHLE-FA-121.180816.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-121	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-121	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-122	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-122	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-122	RNA	RNAseq	rHLE-FA-122.180816.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-122	RNA	RNAseq	rHLE_LP-HL-18.170601.HiSeq4000.FCB.lane4.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-122	RNA	RNAseq	rHLE_LP-HL-18.170619.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-122	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-122	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-123	slide	MPIF26	T21-60598	batch 5	batch 3	1	hard to annotate	NA
+HL-FA-123	slide	MPIF27	T21-60598	batch 5	batch 3	1	hard to annotate	NA
+HL-FA-123	RNA	RNAseq	rHLE-FA-123.180816.HiSeq4000.FCB.lane4.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-123	RNA	RNAseq	rHLE_LP-HL-20.170601.HiSeq4000.FCB.lane4.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-123	RNA	RNAseq	rHLE_LP-HL-20.170619.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-123	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-123	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-124	slide	MPIF26	T20-62427	batch 1	batch 5	1	no cd27	NA
+HL-FA-124	slide	MPIF27	T20-62427	batch 1	batch 5	1	NA	NA
+HL-FA-124	RNA	RNAseq	rHLE-FA-124.180816.HiSeq4000.FCB.lane2.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-124	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-124	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-125	slide	MPIF26	T21-60581	batch 4	batch 3	1	NA	NA
+HL-FA-125	slide	MPIF27	T21-60581	batch 4	batch 3	1	NA	NA
+HL-FA-125	RNA	RNAseq	rHLE-FA-125.180816.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-125	RNA	RNAseq	rHLE_LP-HL-24.170601.HiSeq4000.FCB.lane4.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-125	RNA	RNAseq	rHLE_LP-HL-24.170619.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-125	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-125	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-126	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-126	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-126	RNA	RNAseq	rHLE-FA-126.180816.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 5	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-126	RNA	RNAseq	rHLE_LP-HL-28.170601.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz	NA	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-126	RNA	RNAseq	rHLE_LP-HL-28.170619.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz	NA	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-126	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-126	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-127	slide	MPIF26	T20-62456	batch 2	batch 5	1	smaller tumor area comapred to MPIF27 > no CD20	NA
+HL-FA-127	slide	MPIF27	T20-62456	batch 2	batch 5	1	NA	NA
+HL-FA-127	RNA	RNAseq	rHLE-FA-127.180816.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-127	RNA	RNAseq	rHLE_LP-HL-30.170601.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-127	RNA	RNAseq	rHLE_LP-HL-30.170619.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-127	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-127	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-128	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-128	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-128	RNA	RNAseq	rHLE-FA-128.180816.HiSeq4000.FCB.lane2.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-128	RNA	RNAseq	rHLE_LP-HL-31.170601.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-128	RNA	RNAseq	rHLE_LP-HL-31.170619.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-128	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-128	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-129	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-129	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-129	RNA	RNAseq	rHLE_FA_129.180913.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-129	RNA	RNAseq	rHLE_FA_129.180924.HiSeq4000.FCB.lane6.gcap_18_06.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-129	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-129	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-130	slide	MPIF26	T21-60322	batch 3	NA	0	reason?	NA
+HL-FA-130	slide	MPIF27	T21-60322	batch 3	NA	0	reason?	NA
+HL-FA-130	RNA	RNAseq	rHLE_FA_130.180924.HiSeq4000.FCB.lane3.gcap_18_06.R1.fastq.gz	batch 6	NA	0	Excluded from RNAseq analyses due to no matching with PAM50	NA
+HL-FA-130	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-130	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-131	slide	MPIF26	T20-62432	batch 1	batch 5	1	tumor area partly washed away or folded	NA
+HL-FA-131	slide	MPIF27	T20-62432	batch 1	batch 5	1	tumor area partly washed away or folded	NA
+HL-FA-131	RNA	RNAseq	rHLE_FA_131.180924.HiSeq4000.FCB.lane1.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-131	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-131	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-132	slide	MPIF26	T20-62438	batch 1	batch 5	1	no cd27	NA
+HL-FA-132	slide	MPIF27	T20-62438	batch 1	batch 5	1	NA	NA
+HL-FA-132	RNA	RNAseq	rHLE-FA-132.180816.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-132	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-132	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-134	slide	MPIF26	T21-60323	batch 3	batch 1	1	NA	NA
+HL-FA-134	slide	MPIF27	T21-60323	batch 3	batch 1	1	NA	NA
+HL-FA-134	RNA	RNAseq	rHLE_FA_134.180913.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-134	RNA	RNAseq	rHLE_FA_134.180924.HiSeq4000.FCB.lane1.gcap_18_06.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-134	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-134	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-135	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-135	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-135	RNA	RNAseq	rHLE-FA-135.180816.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-135	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-135	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-136	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-136	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-136	RNA	RNAseq	rHLE-FA-136.180816.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-136	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-136	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-139	slide	MPIF26	T21-60306	batch 3	NA	0	not enough tissue to analyse	NA
+HL-FA-139	slide	MPIF27	T21-60306	batch 3	NA	0	not enough tissue to analyse	NA
+HL-FA-139	RNA	RNAseq	rHLE_FA_139.180924.HiSeq4000.FCB.lane1.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-139	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-139	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-140	slide	MPIF26	T20-62445	batch 1	batch 5	1	no cd27	NA
+HL-FA-140	slide	MPIF27	T20-62445	batch 1	batch 5	1	no cd3	NA
+HL-FA-140	RNA	RNAseq	rHLE_FA_140.180924.HiSeq4000.FCB.lane1.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-140	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-140	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-141	slide	MPIF26	T21-60588	batch 4	batch 3	1	NA	NA
+HL-FA-141	slide	MPIF27	T21-60588	batch 4	batch 3	1	NA	NA
+HL-FA-141	RNA	RNAseq	rHLE-FA-141.180816.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	0	NA	NA
+HL-FA-141	RNA	RNAseq	rHLE_FA_141.180913.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-141	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-141	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-142	slide	MPIF26	T20-62419	batch 2	batch 6	1	no cd27	NA
+HL-FA-142	slide	MPIF27	T20-62419	batch 2	batch 6	1	NA	NA
+HL-FA-142	RNA	RNAseq	rHLE_FA_142.180924.HiSeq4000.FCB.lane2.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-142	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-142	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-143	slide	MPIF26	T21-60325	batch 3	batch 1	1	NA	NA
+HL-FA-143	slide	MPIF27	T21-60325	batch 3	batch 1	1	NA	NA
+HL-FA-143	RNA	RNAseq	rHLE_FA_143.180924.HiSeq4000.FCB.lane2.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-143	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-143	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-144	slide	MPIF26	T20-62425	batch 1	batch 6	1	differences in PanCK positive tumor areas (not sequential)	NA
+HL-FA-144	slide	MPIF27	T20-62425	batch 1	batch 6	1	NA	NA
+HL-FA-144	RNA	RNAseq	rHLE_FA_144.180924.HiSeq4000.FCB.lane2.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-144	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-144	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-146	slide	MPIF26	T21-60575	batch 4	batch 3	1	NA	NA
+HL-FA-146	slide	MPIF27	T21-60575	batch 4	batch 3	1	NA	NA
+HL-FA-146	RNA	RNAseq	rHLE_FA_146.180924.HiSeq4000.FCB.lane1.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-146	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-146	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-148	slide	MPIF26	T20-62447	batch 1	batch 5	1	NA	NA
+HL-FA-148	slide	MPIF27	T20-62447	batch 1	batch 5	1	NA	NA
+HL-FA-148	RNA	RNAseq	rHLE_FA_148.180924.HiSeq4000.FCB.lane8.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-148	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-148	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-150	slide	MPIF26	T20-62422	batch 2	batch 6	1	slides not sequential? Big differences MPIF26 - MPIF27	NA
+HL-FA-150	slide	MPIF27	T20-62422	batch 2	batch 6	1	slides not sequential? Big differences MPIF26 - MPIF27	NA
+HL-FA-150	RNA	RNAseq	rHLE_FA_150.180924.HiSeq4000.FCB.lane8.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-150	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-150	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-151	slide	MPIF26	T21-60574	batch 4	batch 3	1	NA	NA
+HL-FA-151	slide	MPIF27	T21-60574	batch 4	batch 3	1	NA	NA
+HL-FA-151	RNA	RNAseq	rHLE-FA-151.180808.HiSeq4000.FCB.lane1.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-151	RNA	RNAseq	rHLE_FA_151.180924.HiSeq4000.FCB.lane1.gcap_18_06.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-151	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-151	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-152	slide	MPIF26	T21-60592	batch 4	batch 3	1	NA	NA
+HL-FA-152	slide	MPIF27	T21-60592	batch 4	batch 3	1	NA	NA
+HL-FA-152	RNA	RNAseq	rHLE_FA_152.180924.HiSeq4000.FCB.lane2.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-152	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-152	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-153	slide	MPIF26	T20-62423	batch 1	NA	0	MPIF26 excluded, no more material available	NA
+HL-FA-153	slide	MPIF27	T20-62423	batch 1	batch 6	1	NA	NA
+HL-FA-153	RNA	RNAseq	rHLE_FA_153.180924.HiSeq4000.FCB.lane8.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-153	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-153	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-154	slide	MPIF26	T20-62420	batch 2	batch 6	1	tumor area partly washed away or folded	NA
+HL-FA-154	slide	MPIF27	T20-62420	batch 2	batch 6	1	tumor area partly washed away or folded	NA
+HL-FA-154	RNA	RNAseq	rHLE_FA_154.180924.HiSeq4000.FCB.lane2.gcap_18_06.R1.fastq.gz	batch 7	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-154	RNA	RNAseq	rHLE-FA-154.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-154	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-154	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-155	slide	MPIF26	T20-62443	batch 1	batch 5	1	no cd27	NA
+HL-FA-155	slide	MPIF27	T20-62443	batch 1	NA	0	no PanCK, excluded as no more material	NA
+HL-FA-155	RNA	RNAseq	rHLE-FA-155.180816.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-155	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-155	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-156	slide	MPIF26	T21-60311	batch 3	batch 1	1	NA	NA
+HL-FA-156	slide	MPIF27	T21-60311	batch 3	batch 1	1	NA	NA
+HL-FA-156	RNA	RNAseq	rHLE-FA-156.190621.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-156	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-156	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-157	slide	MPIF26	T21-60305	batch 3	batch 2	1	NA	NA
+HL-FA-157	slide	MPIF27	T21-60305	batch 3	batch 2	1	PanCK+CD20+ should be seen as PanCK+	NA
+HL-FA-157	RNA	RNAseq	rHLE-FA-157.180816.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-157	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-157	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-160	slide	MPIF26	T21-60329	batch 3	batch 1	1	NA	NA
+HL-FA-160	slide	MPIF27	T21-60329	batch 3	batch 1	1	NA	NA
+HL-FA-160	RNA	RNAseq	rHLE-FA-160.180816.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz	batch 6	NA	0	NA	NA
+HL-FA-160	RNA	RNAseq	rHLE_FA_160.180913.HiSeq4000.FCB.lane6.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-160	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-160	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-163	slide	MPIF26	T21-60599	batch 5	batch 3	1	NA	NA
+HL-FA-163	slide	MPIF27	T21-60599	batch 5	batch 3	1	NA	NA
+HL-FA-163	RNA	RNAseq	rHLE-FA-163.190621.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-163	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-163	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-165	slide	MPIF26	T21-60315	batch 3	batch 1	1	PanCK+CD20+ should be seen as PanCK+	NA
+HL-FA-165	slide	MPIF27	T21-60315	batch 3	batch 1	1	NA	NA
+HL-FA-165	RNA	RNAseq	rHLE-FA-165.190603.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-165	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-165	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-166	slide	MPIF26	T21-60319	batch 3	batch 1	1	tumor area partly washed away or folded	NA
+HL-FA-166	slide	MPIF27	T21-60319	batch 3	batch 1	1	tumor area partly washed away or folded	NA
+HL-FA-166	RNA	RNAseq	rHLE-FA-166.190603.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-166	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-166	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-169	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-169	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-169	RNA	RNAseq	rHLE-FA-169.190603.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-169	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-169	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-170	slide	MPIF26	T21-60304	batch 3	batch 1	1	Highplex_FL_AICellseg_MPIF26_T21-60304_Iris name of algorithm	NA
+HL-FA-170	slide	MPIF27	T21-60304	batch 3	batch 1	1	Every other algorithm will be called the same with different number	NA
+HL-FA-170	RNA	RNAseq	rHLE-FA-170.190603.HiSeq4000.FCB.lane7.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-170	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-170	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-171	slide	MPIF26	T20-62411	batch 1	batch 6	1	Messy morphology, lots of folded tissue	NA
+HL-FA-171	slide	MPIF27	T20-62411	batch 1	batch 6	1	NA	NA
+HL-FA-171	RNA	RNAseq	rHLE_FA_171.180924.HiSeq4000.FCB.lane3.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-171	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-171	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-172	slide	MPIF26	T21-60595	batch 4	batch 3	1	NA	NA
+HL-FA-172	slide	MPIF27	T21-60595	batch 4	batch 3	1	NA	NA
+HL-FA-172	RNA	RNAseq	rHLE-FA-172.190603.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-172	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-172	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-173	slide	MPIF26	T21-60308	batch 3	batch 1	1	NA	NA
+HL-FA-173	slide	MPIF27	T21-60308	batch 3	batch 1	1	NA	NA
+HL-FA-173	RNA	RNAseq	rHLE_FA_173.180913.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-173	RNA	RNAseq	rHLE_FA_173.180924.HiSeq4000.FCB.lane6.gcap_18_06.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-173	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-173	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-174	slide	MPIF26	T20-62454	batch 2	batch 5	1	PanCK+CD3+ should be seen as CD3-	NA
+HL-FA-174	slide	MPIF27	T20-62454	batch 2	batch 5	1	NA	NA
+HL-FA-174	RNA	RNAseq	rHLE_FA_174.180924.HiSeq4000.FCB.lane8.gcap_18_06.R1.fastq.gz	batch 6	NA	1	NA	NA
+HL-FA-174	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-174	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-175	slide	MPIF26	T21-60324	batch 3	batch 1	1	very immune rich	NA
+HL-FA-175	slide	MPIF27	T21-60324	batch 3	batch 1	1	NA	NA
+HL-FA-175	RNA	RNAseq	rHLE-FA-175.190517.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-175	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-175	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-176	slide	MPIF26	T20-62421	batch 1	batch 6	1	no cd27	NA
+HL-FA-176	slide	MPIF27	T20-62421	batch 1	batch 6	1	NA	NA
+HL-FA-176	RNA	RNAseq	rHLE-FA-176.190603.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-176	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-176	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-177	slide	MPIF26	T21-60601	batch 5	batch 3	1	NA	NA
+HL-FA-177	slide	MPIF27	T21-60601	batch 5	batch 3	1	NA	NA
+HL-FA-177	RNA	RNAseq	rHLE-FA-177.190603.HiSeq4000.FCA.lane1.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-177	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-177	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-178	slide	MPIF26	T21-60327	batch 3	batch 1	1	very immune rich	NA
+HL-FA-178	slide	MPIF27	T21-60327	batch 3	batch 1	1	NA	NA
+HL-FA-178	RNA	RNAseq	rHLE-FA-178.190603.HiSeq4000.FCA.lane1.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-178	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-178	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-179	slide	MPIF26	T20-62449	batch 1	batch 5	1	NA	NA
+HL-FA-179	slide	MPIF27	T20-62449	batch 1	batch 5	1	NA	NA
+HL-FA-179	RNA	RNAseq	rHLE-FA-179.190603.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-179	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-179	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-181	slide	MPIF26	T20-62435	batch 1	batch 5	1	airbubbles excluded from MPIF - no cd27, no immune cells	NA
+HL-FA-181	slide	MPIF27	T20-62435	batch 1	batch 5	1	NA	NA
+HL-FA-181	RNA	RNAseq	rHLE_LP-HL-17.170601.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-181	RNA	RNAseq	rHLE_LP-HL-17.170619.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-181	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-181	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-182	slide	MPIF26	T20-62430	batch 1	batch 5	1	control pathologist > poor cd3	NA
+HL-FA-182	slide	MPIF27	T20-62430	batch 1	batch 5	1	control pathologist > MPIFs comparable	NA
+HL-FA-182	RNA	RNAseq	rHLE_LP-HL-19.170619.HiSeq4000.FCB.lane7.gcap_17_03.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-182	RNA	RNAseq	rHLE_LP-HL-19.170703.HiSeq4000.FCB.lane7.gcap_dev.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-182	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-182	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-183	slide	MPIF26	T20-62416	batch 2	NA	0	no invasive tumor	NA
+HL-FA-183	slide	MPIF27	T20-62416	batch 2	NA	0	no invasive tumor	NA
+HL-FA-183	RNA	RNAseq	rHLE_LP-HL-32.170619.HiSeq4000.FCB.lane7.gcap_17_03.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-183	RNA	RNAseq	rHLE_LP-HL-32.170703.HiSeq4000.FCB.lane7.gcap_dev.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-183	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-183	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-185	slide	MPIF26	T20-62414	batch 1	NA	0	Very poor morphology > MPIF26 excluded, no more material	NA
+HL-FA-185	slide	MPIF27	T20-62414	batch 1	batch 6	1	many airbubbles	NA
+HL-FA-185	RNA	RNAseq	rHLE_LP-HL-22.170619.HiSeq4000.FCB.lane7.gcap_17_03.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-185	RNA	RNAseq	rHLE_LP-HL-22.170703.HiSeq4000.FCB.lane7.gcap_dev.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-185	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-185	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-186	slide	MPIF26	T21-60605	batch 5	batch 4	1	CD27 kring geexcludeerd, ook excluderen in MPIF27 > done	NA
+HL-FA-186	slide	MPIF27	T21-60605	batch 5	batch 4	1	CD27 kring geexcludeerd, ook excluderen in MPIF27 > done	NA
+HL-FA-186	RNA	RNAseq	rHLE_LP-HL-23.170619.HiSeq4000.FCB.lane7.gcap_17_03.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-186	RNA	RNAseq	rHLE_LP-HL-23.170703.HiSeq4000.FCB.lane7.gcap_dev.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-186	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-186	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-187	slide	MPIF26	T21-60576	batch 4	batch 3	1	NA	NA
+HL-FA-187	slide	MPIF27	T21-60576	batch 4	batch 3	1	NA	NA
+HL-FA-187	RNA	RNAseq	rHLE_LP-HL-25.170601.HiSeq4000.FCB.lane4.gcap_17_03.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-187	RNA	RNAseq	rHLE_LP-HL-25.170619.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz	NA	NA	1	NA	NA
+HL-FA-187	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-187	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-189	slide	MPIF26	T21-60313	batch 3	batch 1	1	MPIF27 algoritme is in MPIF26 map batch 3	NA
+HL-FA-189	slide	MPIF27	T21-60313	batch 3	batch 1	1	New scan made; is in HALO batch 3. CD20+PanCK+ all dpos should be seen as CD20-	NA
+HL-FA-189	RNA	RNAseq	rHLE-FA-189.180816.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz	batch 5	NA	1	NA	NA
+HL-FA-189	RNA	RNAseq	rHLE_LP-HL-27.170619.HiSeq4000.FCB.lane7.gcap_17_03.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-189	RNA	RNAseq	rHLE_LP-HL-27.170703.HiSeq4000.FCB.lane7.gcap_dev.R1.fastq.gz	NA	NA	0	NA	NA
+HL-FA-189	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-189	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-192	slide	MPIF26	T20-62415	batch 2	batch 6	1	no cd27	NA
+HL-FA-192	slide	MPIF27	T20-62415	batch 2	batch 6	1	NA	NA
+HL-FA-192	RNA	RNAseq	rHLE-FA-192.190603.HiSeq4000.FCB.lane2.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-192	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-192	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-193	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-193	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-193	RNA	RNAseq	rHLE-FA-193.190603.HiSeq4000.FCB.lane3.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-193	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-193	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-206	slide	MPIF26	T20-62426	batch 2	batch 5	1	NA	NA
+HL-FA-206	slide	MPIF27	T20-62426	batch 2	batch 5	1	NA	NA
+HL-FA-206	RNA	RNAseq	rHLE-FA-206.190517.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-206	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-206	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-208	slide	MPIF26	T21-60596	batch 4	batch 3	1	tumor area washed away or folded, hard to compare MPIFs	NA
+HL-FA-208	slide	MPIF27	T21-60596	batch 4	batch 3	1	tumor area washed away or folded, hard to compare MPIFs	NA
+HL-FA-208	RNA	RNAseq	rHLE-FA-208.190603.HiSeq4000.FCA.lane1.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-208	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-208	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-220	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-220	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-220	RNA	RNAseq	rHLE-FA-220.190603.HiSeq4000.FCB.lane2.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-220	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-220	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-223	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-223	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-223	RNA	RNAseq	rHLE-FA-223.190603.HiSeq4000.FCB.lane3.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-223	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-223	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-227	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-227	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-227	RNA	RNAseq	rHLE-FA-227.190603.HiSeq4000.FCB.lane2.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-227	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-227	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-229	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-229	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-229	RNA	RNAseq	rHLE-FA-229.190603.HiSeq4000.FCB.lane3.gcap_19_01.R1.fastq.gz	batch 7	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-229	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-229	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-230	slide	MPIF26	T21-60580	batch 4	batch 4	1	NA	NA
+HL-FA-230	slide	MPIF27	T21-60580	batch 4	batch 4	1	NA	NA
+HL-FA-230	RNA	RNAseq	rHLE-FA-230.190517.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-230	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-230	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-231	slide	MPIF26	T20-60300	batch 3	NA	0	test material, excluded - HL-FA-231-c14	NA
+HL-FA-231	slide	MPIF27	T20-60300	batch 3	NA	0	test material, excluded - HL-FA-231-c14	NA
+HL-FA-231	slide	MPIF26	T21-60303	batch 3	batch 2	1	HL-FA-231-c28	NA
+HL-FA-231	slide	MPIF27	T21-60303	batch 3	batch 2	1	HL-FA-231-c28	NA
+HL-FA-231	RNA	RNAseq	rHLE-FA-231.190603.HiSeq4000.FCB.lane4.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-231	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-231	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-232	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-232	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-232	RNA	RNAseq	rHLE-FA-232.190603.HiSeq4000.FCA.lane1.gcap_19_01.R1.fastq.gz	batch 8	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-232	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-232	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-233	slide	MPIF26	T20-62453	batch 1	batch 6	1	NA	NA
+HL-FA-233	slide	MPIF27	T20-62453	batch 1	batch 6	1	NA	NA
+HL-FA-233	RNA	RNAseq	rHLE-FA-233.190603.HiSeq4000.FCB.lane2.gcap_19_01.R1.fastq.gz	batch 7	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-233	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-233	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-234	slide	MPIF26	T20-62451	batch 1	batch 6	1	tumor area indicated Joyce	NA
+HL-FA-234	slide	MPIF27	T20-62451	batch 1	batch 6	1	tumor area indicated Joyce	NA
+HL-FA-234	RNA	RNAseq	rHLE-FA-234.190603.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-234	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-234	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-235	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-235	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-235	RNA	RNAseq	rHLE-FA-235.190603.HiSeq4000.FCB.lane2.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-235	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-235	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-236	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-236	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-236	RNA	RNAseq	rHLE-FA-236.190603.HiSeq4000.FCA.lane1.gcap_19_01.R1.fastq.gz	batch 8	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-236	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-236	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-237	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-237	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-237	RNA	RNAseq	rHLE-FA-237.190517.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-237	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-237	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-238	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-238	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-238	RNA	RNAseq	rHLE-FA-238.190603.HiSeq4000.FCA.lane1.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-238	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-238	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-239	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-239	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-239	RNA	RNAseq	rHLE-FA-239.190603.HiSeq4000.FCB.lane4.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-239	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-239	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-240	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-240	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-240	RNA	RNAseq	rHLE-FA-240.190603.HiSeq4000.FCB.lane2.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-240	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-240	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-241	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-241	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-241	RNA	RNAseq	rHLE-FA-241.190603.HiSeq4000.FCB.lane3.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-241	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-241	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-242	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-242	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-242	RNA	RNAseq	rHLE-FA-242.190517.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-242	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-242	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-243	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-243	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-243	RNA	RNAseq	rHLE-FA-243.190603.HiSeq4000.FCA.lane1.gcap_19_01.R1.fastq.gz	batch 8	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-243	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-243	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-244	slide	MPIF26	T21-60606	batch 5	batch 4	1	NA	NA
+HL-FA-244	slide	MPIF27	T21-60606	batch 5	batch 4	1	NA	NA
+HL-FA-244	RNA	RNAseq	rHLE-FA-244.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-244	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-244	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-249	slide	MPIF26	T21-60586	batch 4	batch 3	0	no invasive tumor	NA
+HL-FA-249	slide	MPIF27	T21-60586	batch 4	batch 3	0	no invasive tumor	NA
+HL-FA-249	RNA	RNAseq	rHLE-FA-249.190603.HiSeq4000.FCB.lane3.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-249	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-249	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-250	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-250	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-250	RNA	RNAseq	rHLE-FA-250.190603.HiSeq4000.FCB.lane4.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-250	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-250	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-251	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-251	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-251	RNA	RNAseq	rHLE-FA-251.190603.HiSeq4000.FCB.lane3.gcap_19_01.R1.fastq.gz	batch 7	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-251	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-251	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-252	slide	MPIF26	T21-60583	batch 4	batch 3	1	NA	NA
+HL-FA-252	slide	MPIF27	T21-60583	batch 4	batch 3	1	NA	NA
+HL-FA-252	RNA	RNAseq	rHLE-FA-252.190603.HiSeq4000.FCA.lane1.gcap_19_01.R1.fastq.gz	batch 8	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-252	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-252	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-253	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-253	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-253	RNA	RNAseq	rHLE-FA-253.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1.fastq.gz	batch 7	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-253	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-253	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-254	slide	MPIF26	T20-62429	batch 1	batch 5	1	PanCK kleuring niet hetzelfde over de hele image? Check met patholoog	NA
+HL-FA-254	slide	MPIF27	T20-62429	batch 1	batch 5	1	Check met patholoog > opnieuw scannen mpif27 > done - extra scans	NA
+HL-FA-254	RNA	RNAseq	rHLE-FA-254.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1.fastq.gz	batch 7	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-254	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-254	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-256	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-256	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-256	RNA	RNAseq	rHLE-FA-256.190603.HiSeq4000.FCB.lane4.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-256	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-256	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-257	slide	MPIF26	T20-62172	batch 6	batch 7	1	CD3+PanCK+ should be seen as CD3-	NA
+HL-FA-257	slide	MPIF27	T20-62172	batch 6	batch 7	1	NA	NA
+HL-FA-257	RNA	RNAseq	rHLE-FA-257.190603.HiSeq4000.FCB.lane4.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-257	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-257	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-258	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-258	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-258	RNA	RNAseq	rHLE-FA-258.190603.HiSeq4000.FCB.lane4.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-258	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-258	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-260	slide	MPIF26	T20-62159	batch 6	batch 7	1	NA	NA
+HL-FA-260	slide	MPIF27	T20-62159	batch 6	batch 7	1	NA	NA
+HL-FA-260	RNA	RNAseq	rHLE-FA-260.190603.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-260	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-260	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-261	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-261	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-261	RNA	RNAseq	rHLE-FA-261.190603.HiSeq4000.FCA.lane2.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-261	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-261	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-262	slide	MPIF26	T20-62154	batch 6	batch 7	1	NA	NA
+HL-FA-262	slide	MPIF27	T20-62154	batch 6	NA	0	excluded due to no more material	NA
+HL-FA-262	RNA	RNAseq	rHLE-FA-262.190603.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 8	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-262	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-262	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-263	slide	MPIF26	T20-62157	batch 6	batch 7	1	CD3+PanCK+ should be seen as CD3-	NA
+HL-FA-263	slide	MPIF27	T20-62157	batch 6	batch 7	1	NA	NA
+HL-FA-263	RNA	RNAseq	rHLE-FA-263.190603.HiSeq4000.FCB.lane4.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-263	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-263	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-264	slide	MPIF26	T20-62170	batch 6	batch 7	1	NA	NA
+HL-FA-264	slide	MPIF27	T20-62170	batch 6	batch 7	1	NA	NA
+HL-FA-264	RNA	RNAseq	rHLE-FA-264.190603.HiSeq4000.FCB.lane3.gcap_19_01.R1.fastq.gz	batch 7	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-264	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-264	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-265	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-265	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-265	RNA	RNAseq	rHLE-FA-265.190603.HiSeq4000.FCB.lane3.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-265	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-265	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-266	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-266	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-266	RNA	RNAseq	rHLE-FA-266.190603.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-266	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-266	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-267	slide	MPIF26	T20-62173	batch 6	batch 7	1	NA	NA
+HL-FA-267	slide	MPIF27	T20-62173	batch 6	batch 7	1	NA	NA
+HL-FA-267	RNA	RNAseq	rHLE-FA-267.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-267	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-267	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-268	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-268	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-268	RNA	RNAseq	rHLE-FA-268.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1.fastq.gz	batch 7	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-268	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-268	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-269	slide	MPIF26	T20-62167	batch 6	batch 7	1	NA	NA
+HL-FA-269	slide	MPIF27	T20-62167	batch 6	batch 7	1	NA	NA
+HL-FA-269	RNA	RNAseq	rHLE-FA-269.190603.HiSeq4000.FCB.lane2.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-269	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-269	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-270	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-270	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-270	RNA	RNAseq	rHLE-FA-270.190517.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-270	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-270	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-271	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-271	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-271	RNA	RNAseq	rHLE-FA-271.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1.fastq.gz	batch 7	NA	0	Excluded from RNAseq analyses due to no matching with PAM50	NA
+HL-FA-271	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-271	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-272	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-272	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-272	RNA	RNAseq	rHLE-FA-272.190517.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-272	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-272	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-273	slide	MPIF26	T20-62155	batch 6	NA	0	excluded due to no more material	NA
+HL-FA-273	slide	MPIF27	T20-62155	batch 6	batch 7	1	NA	NA
+HL-FA-273	RNA	RNAseq	rHLE-FA-273.190603.HiSeq4000.FCB.lane7.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-273	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-273	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-275	slide	MPIF26	T20-62165	batch 6	batch 7	1	NA	NA
+HL-FA-275	slide	MPIF27	T20-62165	batch 6	batch 7	1	NA	NA
+HL-FA-275	RNA	RNAseq	rHLE-FA-275.190603.HiSeq4000.FCB.lane7.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-275	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-275	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-277	slide	MPIF26	T20-62166	batch 6	batch 7	1	NA	NA
+HL-FA-277	slide	MPIF27	T20-62166	batch 6	batch 7	1	NA	NA
+HL-FA-277	RNA	RNAseq	NA	NA	NA	0	excluded from RNAseq due to too fragmented RNA or poor library quality	NA
+HL-FA-277	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-277	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-279	slide	MPIF26	T20-62168	batch 6	batch 7	1	NA	NA
+HL-FA-279	slide	MPIF27	T20-62168	batch 6	batch 7	1	NA	NA
+HL-FA-279	RNA	RNAseq	rHLE-FA-279.190603.HiSeq4000.FCA.lane2.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-279	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-279	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-280	slide	MPIF26	T20-62171	batch 6	batch 7	1	many CD3 around PanCK > CD3+ PanCK+ should be seen as PanCK-	NA
+HL-FA-280	slide	MPIF27	T20-62171	batch 6	batch 7	1	NA	NA
+HL-FA-280	RNA	RNAseq	NA	NA	NA	0	excluded from RNAseq due to too fragmented RNA or poor library quality	NA
+HL-FA-280	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-280	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-282	slide	MPIF26	T20-62178	batch 6	batch 7	1	NA	NA
+HL-FA-282	slide	MPIF27	T20-62178	batch 6	batch 7	1	NA	NA
+HL-FA-282	RNA	RNAseq	rHLE-FA-282.190603.HiSeq4000.FCB.lane2.gcap_19_01.R1.fastq.gz	batch 7	NA	0	Excluded from RNAseq OS and DR analyses due to < 20 months FU (if patient did not die)	NA
+HL-FA-282	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-282	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-283	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-283	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-283	RNA	RNAseq	rHLE-FA-283.190603.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-283	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-283	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-285	slide	MPIF26	T20-62158	batch 6	batch 7	1	NA	NA
+HL-FA-285	slide	MPIF27	T20-62158	batch 6	batch 7	1	NA	NA
+HL-FA-285	RNA	RNAseq	NA	NA	NA	0	excluded from RNAseq due to too fragmented RNA or poor library quality	NA
+HL-FA-285	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-285	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-286	slide	MPIF26	T20-62169_I1	batch 6	batch 7	1	(T20-62169 || I1/A18)	NA
+HL-FA-286	slide	MPIF27	T20-62169_I1	batch 6	batch 7	1	CD3+PanCK+ should be seen as CD3- (T20-62169 || I1/A18)	NA
+HL-FA-286	slide	MPIF26	T20-62169_II1	batch 6	batch 7	1	CD3+PanCK+ should be seen as CD3- (T20-62169 || II1/B8)	NA
+HL-FA-286	slide	MPIF27	T20-62169_II1	batch 6	batch 7	1	(T20-62169 || II1/B8)	NA
+HL-FA-286	RNA	RNAseq	rHLE-FA-286.190621.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-286	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-286	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-287	slide	MPIF26	T21-60162	batch 6	batch 7	1	NA	NA
+HL-FA-287	slide	MPIF27	T21-60162	batch 6	batch 7	1	NA	NA
+HL-FA-287	RNA	RNAseq	NA	NA	NA	0	excluded from RNAseq due to too fragmented RNA or poor library quality	NA
+HL-FA-287	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-287	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-290	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-290	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-290	RNA	RNAseq	rHLE-FA-290.190603.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz	batch 7	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-290	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-290	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-291	slide	MPIF26	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-291	slide	MPIF27	NA	NA	NA	0	core biopsy, which were excluded for multiplex IHC	NA
+HL-FA-291	RNA	RNAseq	rHLE-FA-291.190603.HiSeq4000.FCB.lane4.gcap_19_01.R1.fastq.gz	batch 7	NA	0	NA	NA
+HL-FA-291	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-291	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-293	slide	MPIF26	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-293	slide	MPIF27	NA	NA	NA	0	requested, but no tissue remaining for multiplex staining	NA
+HL-FA-293	RNA	RNAseq	rHLE-FA-293.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-293	HE	CD38	NA	NA	NA	0	NA	NA
+HL-FA-293	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-305	slide	MPIF26	T21-60602	batch 5	batch 4	1	NA	NA
+HL-FA-305	slide	MPIF27	T21-60602	batch 5	batch 4	1	NA	NA
+HL-FA-305	RNA	RNAseq	rHLE-FA-305.190603.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-305	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-305	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-306	slide	MPIF26	T17-60897	OMEGA	batch 4	1	NA	NA
+HL-FA-306	slide	MPIF27	T17-60897	OMEGA	batch 4	1	Couple of TLS structures, included	NA
+HL-FA-306	RNA	RNAseq	rHLE-FA-306.190603.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-306	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-306	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-307	slide	MPIF26	T17-60896	OMEGA	batch 4	1	NA	NA
+HL-FA-307	slide	MPIF27	T17-60896	OMEGA	batch 4	1	NA	NA
+HL-FA-307	RNA	RNAseq	rHLE-FA-307.190603.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-307	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-307	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-308	slide	MPIF26	T16-60868	OMEGA	batch 4	1	very immune rich	NA
+HL-FA-308	slide	MPIF27	T16-60868	OMEGA	batch 4	1	Couple of TLS structures, included	NA
+HL-FA-308	RNA	RNAseq	rHLE-FA-308.190621.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz	batch 8	NA	0	Excluded from RNAseq analyses due to low quality sequencing data	NA
+HL-FA-308	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-308	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-309	slide	MPIF26	T17-60373	OMEGA	batch 4	1	NA	NA
+HL-FA-309	slide	MPIF27	T17-60373	OMEGA	batch 4	1	NA	NA
+HL-FA-309	RNA	RNAseq	rHLE-FA-309.190603.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-309	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-309	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-310	slide	MPIF26	T16-60939	OMEGA	batch 4	1	PanCK+CD3+ should be seen as CD3- | No FoxP3	NA
+HL-FA-310	slide	MPIF27	T16-60939	OMEGA	batch 4	1	NA	NA
+HL-FA-310	RNA	RNAseq	rHLE-FA-310.190603.HiSeq4000.FCB.lane7.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-310	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-310	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-311	slide	MPIF26	T16-60741	OMEGA	batch 4	1	very immune rich	NA
+HL-FA-311	slide	MPIF27	T16-60741	OMEGA	batch 4	1	NA	NA
+HL-FA-311	RNA	RNAseq	rHLE-FA-311.190603.HiSeq4000.FCA.lane2.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-311	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-311	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-312	slide	MPIF26	T17-60383	OMEGA	batch 4	1	NA	NA
+HL-FA-312	slide	MPIF27	T17-60383	OMEGA	batch 4	1	NA	NA
+HL-FA-312	RNA	RNAseq	rHLE-FA-312.190603.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz	batch 8	NA	0	Excluded from RNAseq analyses due to no matching with PAM50	NA
+HL-FA-312	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-312	HE	TAPC	NA	NA	NA	0	NA	NA
+HL-FA-315	slide	MPIF26	T17-68041	OMEGA	batch 4	1	bright FoxP3 cores in tumor area but also vague cytoplasmatic staining	NA
+HL-FA-315	slide	MPIF27	T17-68041	OMEGA	batch 4	1	NA	NA
+HL-FA-315	RNA	RNAseq	rHLE-FA-315.190603.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-315	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-315	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-317	slide	MPIF26	T17-68009	OMEGA	batch 4	1	no foxp3	NA
+HL-FA-317	slide	MPIF27	T17-68009	OMEGA	batch 4	1	NA	NA
+HL-FA-317	RNA	RNAseq	rHLE-FA-317.190603.HiSeq4000.FCA.lane2.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-317	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-317	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-318	slide	MPIF26	T17-60364	OMEGA	batch 4	1	NA	NA
+HL-FA-318	slide	MPIF27	T17-60364	OMEGA	batch 4	1	NA	NA
+HL-FA-318	RNA	RNAseq	rHLE-FA-318.190603.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-318	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-318	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-319	slide	MPIF26	T09-22827	OMEGA	batch 4	1	no foxp3	NA
+HL-FA-319	slide	MPIF27	T09-22827	OMEGA	batch 4	1	NA	NA
+HL-FA-319	RNA	RNAseq	rHLE-FA-319.190603.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz	batch 8	NA	1	NA	NA
+HL-FA-319	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-319	HE	TAPC	NA	NA	NA	1	NA	NA
+HL-FA-320	slide	MPIF26	T16-60661	OMEGA	batch 4	1	NA	NA
+HL-FA-320	slide	MPIF27	T16-60661	OMEGA	batch 4	1	NA	NA
+HL-FA-320	RNA	RNAseq	rHLE-FA-320.190603.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz	batch 7	NA	1	NA	NA
+HL-FA-320	HE	CD38	NA	NA	NA	1	NA	NA
+HL-FA-320	HE	TAPC	NA	NA	NA	1	NA	NA
