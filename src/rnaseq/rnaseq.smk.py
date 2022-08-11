@@ -138,58 +138,6 @@ rule QC_salmon:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
-### STAR alignment ###
-
-rule star_index:
-  input:
-    script="src/01-build-STAR-index.sh"
-  output:
-    directory("data/external/index/STAR_grch38_index")
-  params:
-    genomeDir="data/external/index/STAR_grch38_index/",
-    genomeFastaFiles="data/external/index/Homo_sapiens.GRCh38.dna.primary_assembly.fa",
-    sjdbGTFfile="data/external/index/Homo_sapiens.GRCh38.94.gtf",
-    sjdbOverhang=50 #Read length is 51, ideal value is length - 1
-  #conda:
-  #  "envs/environment.yml"
-  shell:
-    """
-    mkdir {params.genomeDir}
-    bash {input.script}
-    """
-
-rule star_align:
-  input:
-    smpls=expand("data/RAW/{sample}.fastq.gz", sample=config['samples']),
-    gtf="data/external/index/Homo_sapiens.GRCh38.94.gtf",
-    script="src/01-STAR_align.sh"
-  output:
-    expand("data/RNA-seq/star/{sample}/Aligned.sortedByCoord.out.bam", sample=config['samples'])
-  #conda:
-  #  "envs/environment.yml"
-  threads: 16
-  params:
-    genomedir="data/external/index/STAR_grch38_index/",
-    outfile=expand("data/RNA-seq/star/{sample}", sample=config['samples']),
-    #max number of multiple alignments allowed for a read: if exceeded, the read is considered unmapped
-    multimapnmax=20, #default 10
-    #maximum number of mismatches per pair, large number switches off this filter
-    mismatchnmax=1, #default 10
-    #int: max number of multiple alignments for a read that will be output to the
-    #SAM/BAM files. Note that if this value is not equal to -1, the top scoring
-    #alignment will be output first
-    sammultnmax=1
-  shell:
-    """
-    {input.script}
-    """
-
-
-
-
-
-
-
 rule pam50_ihc:
   input:
     script="src/utils/rmarkdown.R",
