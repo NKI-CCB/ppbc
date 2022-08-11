@@ -15,6 +15,7 @@ params:
     example_halo_archive: ""
     vectra_dir: ""
     out: ""
+    filedict: ""
 ---
 
 Here we discover the Vectra data exported from Halo in the `data/vectra` directory.
@@ -412,7 +413,8 @@ suppressWarnings(file.symlink(
 Contains original file location and symlink path for all of the result types.
 
 ```{r}
-write_csv(filedict, here(params$out))
+dir.create(here(file.path(params$vectra_dir, "metadata")), showWarnings = F)
+write_csv(filedict, here(params$filedict))
 ```
 
 ```{r}

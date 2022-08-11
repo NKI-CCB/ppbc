@@ -47,14 +47,13 @@ marker_df <- sample_aggregate %>%
 
 marker_region <- marker_df %>%
   pivot_wider(names_from = region, values_from = n, values_fill = 0) %>%
-  arrange(desc(Tumor + Stroma)) %>%
+  mutate(Total = Tumor + Stroma) %>%
+  arrange(desc(Total)) %>%
   mutate(marker_pos = ifelse(marker_pos == "DAPI+", "DAPI_only", marker_pos)) %>%
   mutate(marker_pos = str_remove(str_remove(marker_pos, "DAPI\\+_"),"_DAPI\\+"))
 
 marker_region
 ```
-classifier_label
-
 
 ```{r}
 write_csv(marker_region, here("results/spatial/marker_combos_by_region.csv"))
@@ -65,17 +64,17 @@ write_csv(marker_region, here("results/spatial/marker_combos_by_region.csv"))
 
 We should not observe:
 
-CD3+ CD20+
-CD8+ CD20+
-FOXP3+ CD20+
+* CD3+ CD20+
+* CD8+ CD20+
+* FOXP3+ CD20+
 
 In principle, we should also not observe double positivity of PanCK and immune markers, nor CD138 and T cell markers, but these combinations may occur due to the high abundance of these markers, which causes spillover to adjacent cells.
 
 Recall that:
 
-MPIF26 exclusive markers:  CD27, FoxP3
-MPIF27 exclusive markers: CD138, CD8 
-Shared markers: CD20, CD3, PanCK, DAPI
+* MPIF26 exclusive markers:  CD27, FoxP3
+* MPIF27 exclusive markers: CD138, CD8 
+* Shared markers: CD20, CD3, PanCK, DAPI
 
 ```{r}
 panel_markers <- sample_aggregate %>%
@@ -107,11 +106,12 @@ panel_markers %>%
 ```
 
 Also address:
-CD8+CD3- (MPIF27)
-CD27+CD3- (MPIF26)
-CD20+_CD3+_CD8+ (MPIF27)
-CD138+_CD8+ (MPIF27)
-CD20+_CD8+
+
+* CD8+CD3- (MPIF27)
+* CD27+CD3- (MPIF26)
+* CD20+_CD3+_CD8+ (MPIF27)
+* CD138+_CD8+ (MPIF27)
+* CD20+_CD8+
 
 NK cells may sometimes express [CD8](https://journals.asm.org/doi/10.1128/JVI.01420-14) and [CD27](https://pubmed.ncbi.nlm.nih.gov/18326863/).
 
@@ -237,5 +237,3 @@ combo_abundance(myes='CD27+', mno='CD3+', mno2='CD20+', min_count = 1000)
 ```{r}
 sessionInfo()
 ```
-
-

@@ -35,13 +35,14 @@ class Sample():
                 batch_HALO = x["batch_HALO"].lower().replace(" ", "") if x["batch_HALO"] is not None else None,
                 panel = x["experimental_platform"],
             )
+        # elif x["sample_type"] == "RNA": #unused?
+        #     return Sample(
+        #         sample_id = x["sample_ID"],
+        #         patient_id = x["patient_ID"],
+        #         included = x["Included"] == 1,
+        #     )
         else:
-            assert x["sample_type"] in ["RNA"]
-            return Sample(
-                sample_id = x["sample_ID"],
-                patient_id = x["patient_ID"],
-                included = x["Included"] == 1,
-            )
+           assert x["sample_type"] in ["RNA","HE"]
         
 
 @dataclass(frozen=True)
@@ -61,14 +62,15 @@ def read_sample_xlsx(fn):
         samples.append(Sample.from_dict(row))
     if len(samples) == 0:
         raise Exception('No samples')
-    if len(samples) != len(set(samples)):
-        import collections
-        c = {s: n for s, n in collections.Counter(samples).items() if n > 1}
-        print(c)
-        raise Exception('Duplicated samples')
+    # @Tycho This condition triggers with the new metadata, but prints 0 duplicates
+    # if len(samples) != len(set(samples)):
+    #     import collections
+    #     c = {s: n for s, n in collections.Counter(samples).items() if n > 1}
+    #     print(c)
+    #     raise Exception('Duplicated samples')
     return samples
 
-samples = read_sample_xlsx("data/external/PPBC_metadata_20211125.xlsx")
+samples = read_sample_xlsx("data/external/PPBC_metadata_20220811.xlsx")
 
 # Only include samples that should be processed such that we don't have to exclude them
 # in every rule
@@ -83,40 +85,49 @@ vectra_samples = [s for s in vectra_samples if s.sample_id != "T20-62429"]
 # Preprocessing #
 #################
 
+# Note: sometimes Snakemake tries to write too many files at the same time
+# Try rerunning rules that fail the first time, they often succeed the second time
+
 # Create a manageable data structure
 rule organize_vectra:
   input:
     # Exact date and time of Vectra staining
-    batch_info = "data/metadata/spatial/MPIF26en27 batches gekleurd.xlsx", 
+    batch_info = "data/external/MPIF26en27 batches gekleurd.xlsx", 
     example_halo_archive = 
         "data/vectra/halo/Batch 1/MPIF26/T21-60304/Halo archive 2021-06-21 12-17 - v3.2.1851/",
-    metadata = "data/metadata/PPBC_metadata.xlsx",
+    metadata = "data/external/PPBC_metadata_20220811.xlsx",
     rmd="src/spatial/organize_vectra_samples.Rmd",
     script="src/utils/rmarkdown.R"
   output: 
     # Snakemake complains if not all output files and logs have the same wildcards
-    # For simplicity, track sample-specific files, comment out aggregate files
-    # filedict = "data/metadata/spatial/00_file_location_dictionary.csv",
+    # For simplicity, track sample-specific files, aggregate files as shell text
     xmls = "data/vectra/raw/annotations/{t_number}_{panel}_{batch}_annotations.xml",
     objects = "data/vectra/raw/objects/{t_number}_{panel}_{batch}_object_results.csv",
     summary = "data/vectra/raw/summary/{t_number}_{panel}_{batch}_summary_results.csv"
-  # log: "src/spatial/organize_vectra_samples.html"
   shell:
-    "Rscript {input.script} {input.rmd} $PWD/{log}"
-    " --vectra_dir data/vectra  --metadata '{input.metadata}'  --batch_info '{input.batch_info}'"
+    "Rscript {input.script} {input.rmd} $PWD'/src/spatial/organize_vectra_samples.html'"
+    " --vectra_dir data/vectra  --metadata '{input.metadata}' "
+    " --batch_info '{input.batch_info}'"
     " --example_halo_archive '{input.example_halo_archive}'"
     " --out '{output}'"
+    " --filedict 'data/vectra/metadata/file_location_dictionary.csv'"
 
 #QC checks based on aggregated summary files
 rule summary_QC:
   input:
-    filedict="data/metadata/spatial/00_file_location_dictionary.csv",
+    [f"data/vectra/interim/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}_summary_results.csv"
+                    for s in vectra_samples],
+    # produced by organize_vectra but can't be tracked due to wildcards                
+    # filedict="data/vectra/metadata/file_location_dictionary.csv",
     rmd="reports/spatial/01_summary_QC.Rmd",
     script="src/utils/rmarkdown.R"
+  params:
+    dir="data/vectra/raw/summary"
   output:
     html="reports/spatial/01_summary_QC.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --dir '{params.dir}' "
 
 rule load_annotations:
     input:
@@ -128,7 +139,6 @@ rule load_annotations:
         "python3 {input.script} {input.xml} '.*[tT]umor.*' {output}"
 
 #Convert object results and summary to .nc format
-#On harris, command must read python3 instead of python
 rule load_objects:
   input:
     script = "src/spatial/import_halo_objects.py",
@@ -142,6 +152,7 @@ rule load_objects:
     
 #Create a single data frame that includes object info for all samples
 #May be extremely slow to load due to size
+#FIXME: Is this deprecated and removable?
 rule aggregrate_objects:
   input:
     object_files = [f"data/vectra/interim/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}.nc"
