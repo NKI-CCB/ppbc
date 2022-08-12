@@ -41,12 +41,9 @@ include: "src/spatial/spatial.smk.py"
 rule all:
   input:
     # RNAseq rules
-    expand("data/rnaseq/salmon/{sample}/quant.sf", sample=config['samples'])
+    expand("data/rnaseq/salmon/{sample}/quant.sf", sample=config['samples']),
     #"reports/16_gene_unity_setup.html",
     # Spatial rules
-    # "src/spatial/organize_vectra_samples.html",
-    # "reports/spatial/01_summary_QC.html",
-    # expand("reports/spatial/object_qc_by_batch/02_object_QC_{batch}.html", batch = ['batch' + str(i) for i in range (1, 8)]),
     # expand("reports/spatial/batch_marker_viz/03_{batch}_marker_coexpression.html", batch = ['batch' + str(i) for i in range (1, 8)]),
     # "reports/spatial/03_aggregate_marker_combos.html",
     # "reports/spatial/04_report_cell_types.html",

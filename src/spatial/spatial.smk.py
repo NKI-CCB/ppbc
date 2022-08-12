@@ -179,18 +179,21 @@ rule aggregrate_objects:
     "Rscript {input.script} {input.object_files} {output}"
 
 #QC reports based on object files rather than summary files
-rule object_QC:
+#Generate batchwise output by adding this to rule all:
+#expand("reports/spatial/object_qc_by_batch/02_object_QC_{batch}.html", 
+# batch = ['batch' + str(i) for i in range (1, 8)])
+rule batch_object_QC:
   input:
-    #For Tycho: something like this?
-    #nc = lambda wildcards: glob(`data/vectra/interim/objects/.*{wildcards.batch}.nc`)
-    rmd = "reports/spatial/02_object_QC.Rmd"
+    object_files = [f"data/vectra/interim/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}.nc"
+                    for s in vectra_samples],
+    rmd = "reports/spatial/02_object_QC.Rmd",
+    script="src/utils/rmarkdown.R"
   output:
     html="reports/spatial/object_qc_by_batch/02_object_QC_{batch}.html"
   shell:
     "mkdir -p reports/spatial/object_qc_by_batch\n"
-    "Rscript -e \"rmarkdown::render('{input.rmd}'," 
-    "params=list(batch='{wildcards.batch}'),"
-    "output_file = here::here('{output.html}'))\""
+    "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+    " --batch {wildcards.batch}"
 
 
 #####################
