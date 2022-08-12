@@ -45,9 +45,8 @@ rule all:
     #"reports/16_gene_unity_setup.html",
     # Spatial rules
     "reports/spatial/05_report_cell_types.html",
-    "reports/spatial/06_density.html",
     "reports/spatial/07_kruskal_density.html",
-    # "reports/spatial/08_inv_time_density.html",
+    "reports/spatial/08_inv_time_density.html",
     # expand("reports/spatial/09_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
     # "reports/spatial/10_ig_clusters_cd20.html", #Needs RNA input
     # "reports/spatial/12_tissue_segmentation.html"

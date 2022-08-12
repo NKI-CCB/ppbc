@@ -3,8 +3,8 @@ title: "Involution duration and immune density"
 author: "Kat Moore"
 date: "`r Sys.Date()`"
 params:
-  min_cell_count:
-    value: 20000
+  min_cell_count: 20000
+  density_outcome: "data/vectra/processed/density_ppbc.Rds"
 output: 
   html_document:
     toc: true
@@ -38,7 +38,7 @@ Pairwise Kruskal-Wallis tests are made for the association between cell type den
 Load data.
 
 ```{r}
-dens <- readRDS(here("data/vectra/processed/density_ppbc.Rds"))
+dens <- readRDS(here(params$density_outcome))
 head(dens)
 ```
 
@@ -85,15 +85,15 @@ Samples remaining by panel
 
 ```{r}
 inv_dens <- dens %>%
-  filter(group == "inv") %>%
+  filter(study_group == "ppbcpw") %>%
   #This subset leaves only numeric values and NAs
   mutate(months_involution = as.numeric(months_involution),
          months_breastfeeding = as.numeric(months_breastfeeding))
 
 inv_dens %>%
-  select(t_number, panel, study_group, group) %>%
+  select(t_number, panel, study_group) %>%
   distinct() %>%
-  group_by(panel, group) %>%
+  group_by(panel, study_group) %>%
   count() %>%
   pivot_wider(names_from = panel, values_from = n)
 ```
@@ -117,13 +117,14 @@ duration_density_plot <- function(df, time, cell, colorby){
   
   df %>%
     ggplot(aes(x = get(time), y = density)) +
-    geom_point(aes(color = get(colorby))) +
+    geom_jitter(aes(color = get(colorby)), height = 0, width = 0.1) +
     geom_smooth(method = lm, se = FALSE) +
     facet_wrap(~classifier_label) +
     xlab(time_title) + ylab(cell_title) + labs(color = colortitle) +
     ggtitle(paste(time_title, "and", cell_title)) +
     ggpubr::stat_cor(method = "spearman",
-                     aes(label = paste(..rr.label.., ..r.label.., sep = "~`,`~")))
+                     aes(label = paste(..rr.label.., ..r.label.., ..p.label..,
+                                       sep = "~`,`~")))
   
 }
 
