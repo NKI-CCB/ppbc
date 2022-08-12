@@ -9,6 +9,9 @@ output:
     toc_depth: 4
     df_print: paged
     highlight: kate
+params:
+  metadata: "data/external/PPBC_metadata_20220811.xlsx"
+  density: "data/vectra/processed/density_ppbc.Rds"
 ---
 
 ```{r preliminaries, include=F}
@@ -82,10 +85,11 @@ spatstat <- bind_rows(spatstat_l, spatstat_lcross_panck, spatstat_lcross_immune)
 ```
 
 ```{r load-data-outcome}
-outcome <- read_outcome(here('data/metadata/PPBC_metadata.xlsx'))
+outcome <- read_outcome(here(params$metadata))
 ```
 
 Samples with outcome but no spatstat:
+
 ```{r missing-a}
 print(anti_join(outcome, spatstat_l,
                 by = c('sample_ID', 'batch_HALO', 'experimental_platform')) %>%
@@ -107,7 +111,7 @@ print(anti_join(spatstat, outcome,
 
 ```{r filter-patients}
 outcome <- dplyr::filter(outcome,
-  study_group %in% c("non_prbc", "ppbc_inv"),
+  study_group %in% c("npbc", "ppbcpw"),
   stage != "stage IV")
 ```
 
@@ -281,7 +285,7 @@ cox_results %>%
   mutate(impact = ifelse(ave_hr > 1, "harmful", "beneficial"))
 ```
 
-1### HR by radius and cell type
+### HR by radius and cell type
 
 Split by metric for legibility.
 
@@ -386,7 +390,7 @@ inner_join(outcome, spatstat, by = sample_id_vars) %>%
 ## L vs density
 
 ```{r}
-dens <- readRDS(here("data/vectra/processed/density_ppbc.Rds"))
+dens <- readRDS(here(params$density))
 ```
 
 Combine second order spatial stats with density stats.

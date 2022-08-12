@@ -24,7 +24,7 @@ read_outcome <- function(fn) {
       time_DRS_months = readr::parse_double(time_DRS_months),
       distant_recurrence = readr::parse_logical(distant_recurrence),
       study_group = readr::parse_factor(study_group,
-                                        levels = c("non_prbc", "prbc", "ppbc_inv", "ppbc_lac")),
+                                        levels = c("npbc", "prbc", "ppbcdl", "ppbcpw")),
       stage = readr::parse_factor(stage,
                                   levels = c("stage I", "stage II", "stage III", "stage IV")),
       grade = readr::parse_factor(grade, levels = c("grade I", "grade II", "grade III")),

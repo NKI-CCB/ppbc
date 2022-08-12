@@ -13,6 +13,7 @@ bin
 .Rhistory
 
 */archive
+doc/
 reports/spatial/batch_marker_viz
 reports/spatial/object_qc_by_batch
 
