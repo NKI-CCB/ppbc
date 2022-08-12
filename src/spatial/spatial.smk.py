@@ -22,7 +22,6 @@ wildcard_constraints:
 
 @dataclass(frozen=True)
 class Sample():
-    sample_id: str
     patient_id: str
     included: bool
 
@@ -35,20 +34,35 @@ class Sample():
                 batch_HALO = x["batch_HALO"].lower().replace(" ", "") if x["batch_HALO"] is not None else None,
                 panel = x["experimental_platform"],
             )
-        # elif x["sample_type"] == "RNA": #unused?
-        #     return Sample(
-        #         sample_id = x["sample_ID"],
-        #         patient_id = x["patient_ID"],
-        #         included = x["Included"] == 1,
-        #     )
+        elif x["sample_type"] == "RNA": 
+            return RNASample(
+                fastq = x["sample_ID"],
+                patient_id = x["patient_ID"],
+                included = x["Included"] == 1,
+            )
         else:
-           assert x["sample_type"] in ["RNA","HE"]
-        
+            # Should probably not refer to CD38 staining as "HE", request change to metadata
+            assert x["sample_type"] in ["HE"]
+            return HESample(
+                patient_id = x["patient_ID"],
+                included = x["Included"] == 1,
+                scoring = x["experimental_platform"],
+            )
 
+# @Tycho I've expanded the data classes but it's still not part of the RNAseq workflow
 @dataclass(frozen=True)
 class VectraSample(Sample):
+    sample_id: str
     batch_HALO: str
     panel: str
+    
+@dataclass(frozen=True)
+class RNASample(Sample):
+    fastq: str
+
+@dataclass(frozen=True)
+class HESample(Sample):
+    scoring: str    
 
 def read_sample_xlsx(fn):
     # Avoid pandas magic by using openpyxl
@@ -62,12 +76,13 @@ def read_sample_xlsx(fn):
         samples.append(Sample.from_dict(row))
     if len(samples) == 0:
         raise Exception('No samples')
-    # @Tycho This condition triggers with the new metadata, but prints 0 duplicates
-    # if len(samples) != len(set(samples)):
-    #     import collections
-    #     c = {s: n for s, n in collections.Counter(samples).items() if n > 1}
-    #     print(c)
-    #     raise Exception('Duplicated samples')
+    if len(samples) != len(set(samples)): # Set allows no duplicates
+        print("Total samples read:" + str(len(samples)))
+        print("Unique samples read" + len(set(samples)))
+        import collections
+        c = {s: n for s, n in collections.Counter(samples).items() if n > 1}
+        print(c)
+        #raise Exception('Duplicated samples')
     return samples
 
 samples = read_sample_xlsx("data/external/PPBC_metadata_20220811.xlsx")
