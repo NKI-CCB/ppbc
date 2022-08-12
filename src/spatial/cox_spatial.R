@@ -185,15 +185,15 @@ km_plot <- function(df, panel, cell_type, f, outcome, ngroups = 2, pal = "npg"){
   )
 }
 
-#' Perform LRTs on Cox regressions testing the interaction term group:Total_density
+#' Perform LRTs on Cox regressions testing the interaction term study_group:Total_density
 #'
 #' @param df Data frame containing columns which match formula `baseform`.
 #' @param panel Character, the IF panel
 #' @param cell_type Character, the cell type density to model
 #' @param baseform Character, the Surv formula containing the base formula
 #'  in the LRT, excluding the interaction term. For example, if the full formula is 
-#'  "Surv(time_OS_months, death) ~ stage + group + Total_density + group:Total_density",
-#'  the base formula would be "Surv(time_OS_months, death) ~ stage + group + Total_density"
+#'  "Surv(time_OS_months, death) ~ stage + study_group + Total_density + study_group:Total_density",
+#'  the base formula would be "Surv(time_OS_months, death) ~ stage + study_group + Total_density"
 #' @param tidied Logical, whether to return a data frame or print the LRT summary
 #'
 #' @return A tibble if tidied, or the printed summary of the LRT if not
@@ -209,7 +209,7 @@ cox_interaction <- function(df, panel, cell_type, baseform, tidied=T){
   
   stopifnot(nrow(filter(df, duplicated(t_number)))==0)
   f_total <- as.formula(
-    paste(baseform, paste("group", "Total_density",sep=":"), sep = "+")
+    paste(baseform, paste("study_group", "Total_density",sep=":"), sep = "+")
   )
   
   if(!tidied){
@@ -234,8 +234,8 @@ cox_interaction <- function(df, panel, cell_type, baseform, tidied=T){
     mutate(term = str_replace(term, "stage", "tumor "))
   
   res %>%
-    # Replace "groupinv" with "inv" in output
-    mutate(term = str_remove(term, "group"))
+    # Replace "study_group[ppbcpw]" with "ppbcpw" in output
+    mutate(term = str_remove(term, "study_group"))
 }
 
 #' Cox interaction regressions for all cell types while auto-detecting the panel
@@ -247,8 +247,8 @@ cox_interaction <- function(df, panel, cell_type, baseform, tidied=T){
 #' @param cell_type Character, the cell type density to model
 #' @param baseform Character, the Surv formula containing the base formula
 #'  in the LRT, excluding the interaction term. For example, if the full formula is 
-#'  "Surv(time_OS_months, death) ~ stage + group + Total_density + group:Total_density",
-#'  the base formula would be "Surv(time_OS_months, death) ~ stage + group + Total_density"
+#'  "Surv(time_OS_months, death) ~ stage + study_group + Total_density + study_group:Total_density",
+#'  the base formula would be "Surv(time_OS_months, death) ~ stage + study_group + Total_density"
 #'
 #' @return A tibble containing Cox output
 #' @export
@@ -279,7 +279,7 @@ all_cox_interaction <- function(df, cell_type, baseform){
   } else {
     stop("Provide a valid cell type")
   }
-  
+ 
   #Remove non-density entries from output
   res <- res %>% filter(str_detect(term, "density"))
   res

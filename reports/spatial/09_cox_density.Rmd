@@ -14,15 +14,15 @@ params:
     value: "OS"
     input: "select"
     choice: ["OS", "DRS"]
-  min_cell_count:
-    value: 20000
+  min_cell_count: 20000
+  density_outcome: "data/vectra/processed/density_ppbc.Rds"
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, libraries, echo=F}
+```{r, libraries}
 library(tidyverse)
 library(here)
 library(ggpubr)
@@ -52,7 +52,7 @@ title: '`r paste('Cox regression with total density:', ptitle)`'
 Load data
 
 ```{r}
-dens <- readRDS(here("data/vectra/processed/density_ppbc.Rds"))
+dens <- readRDS(here(params$density_outcome))
 ```
 
 Use total density for association with outcome.
@@ -110,9 +110,9 @@ Number of samples per panel:
 
 ```{r}
 dens %>%
-  select(t_number, panel, study_group, group) %>%
+  select(t_number, panel, study_group) %>%
   distinct() %>%
-  group_by(panel, group) %>%
+  group_by(panel, study_group) %>%
   count() %>%
   pivot_wider(names_from = panel, values_from = n)
 ```
@@ -121,26 +121,26 @@ Per stage:
 
 ```{r}
 dens %>%
-  select(t_number, stage, study_group, group) %>%
+  select(t_number, stage, study_group) %>%
   distinct() %>%
-  group_by(stage, group) %>%
+  group_by(stage, study_group) %>%
   count() %>%
   pivot_wider(names_from = stage, values_from = n, values_fill = 0)
 ```
 
-Not enough samples to include prbc and lac, or stage IV samples.
+Not enough samples to include prbc and ppbcdl, or stage IV samples.
 
 ```{r}
 cox_dens <- dens %>%
-  filter(!group %in% c("prbc", "lac")) %>%
+  filter(!study_group %in% c("prbc", "ppbcdl")) %>%
   filter(stage != "stage IV")
 
 cox_dens <- droplevels(cox_dens)
 
 cox_dens %>%
-  select(t_number, stage, study_group, group) %>%
+  select(t_number, stage, study_group) %>%
   distinct() %>%
-  group_by(stage, group) %>%
+  group_by(stage, study_group) %>%
   count() %>%
   pivot_wider(names_from = stage, values_from = n)
 ```
@@ -235,24 +235,17 @@ univ_cox %>%
 
 ### Multivariate
 
-Start with a limited number of covariates. Potential covariates (see `12_genewise_survival.R`): 
+Start with a limited number of covariates: 
 
-group (PPBC study group)
+study_group
 stage
-age_at_diagnosis
-grade
-surgery
-radiotherapy
-strata(hormonetherapy)
-chemotherapy
-herceptin
-strata(PAM50)
 
-PAM50 is not suitable, since that will be correlated with immune cell density. Same is likely true of treatment interventions.
+PAM50 is not suitable, since that will be correlated with immune cell density. Same is likely true of treatment interventions. Grade cannot be used because it is missing for some samples.
+
 Stratify PPBC to allow separate baseline hazards functions for each PPBC subgroup.
 
 ```{r}
-multiv_form <- paste0(survres," ~ strata(group) + stage")
+multiv_form <- paste0(survres," ~ strata(study_group) + stage")
 multiv_form
 ```
 
@@ -261,7 +254,7 @@ Example one cell type:
 ```{r}
 #The LRT pval is the same for all the covariates because 
 #it's a comparison between the full and reduced model
-#However, covariate estimates should be different
+#However, coefficient estimates should be different
 cox_density(cox_dens, "MPIF27", "CD3+CD8+",
             f = multiv_form,
             tidied=F)
@@ -280,7 +273,6 @@ mult_cox <- lapply(relevant_cells, function(x){
                   f = multiv_form)
 }) %>%
   bind_rows() %>%
-  # group_by(panel) %>% #Debatable
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
   mutate(formula = paste0(multiv_form, " + density"))
 
@@ -295,13 +287,13 @@ Check significance in involution samples and nulliparous samples separately.
 Involution samples:
 
 ```{r}
-inv_dens <- filter(cox_dens, group == "inv")
+inv_dens <- filter(cox_dens, study_group == "ppbcpw")
 inv_dens <- droplevels(inv_dens)
 
 inv_dens %>%
-  select(t_number, stage, study_group, group) %>%
+  select(t_number, stage, study_group) %>%
   distinct() %>%
-  group_by(group, stage) %>%
+  group_by(study_group, stage) %>%
   distinct() %>%
   count()
 ```
@@ -309,13 +301,13 @@ inv_dens %>%
 Nulliparous samples:
 
 ```{r}
-np_dens <- filter(cox_dens, group == "nonprbc")
+np_dens <- filter(cox_dens, study_group == "npbc")
 np_dens <- droplevels(np_dens)
 
 np_dens %>%
-  select(t_number, stage, study_group, group) %>%
+  select(t_number, stage, study_group) %>%
   distinct() %>%
-  group_by(group, stage) %>%
+  group_by(study_group, stage) %>%
   distinct() %>%
   count()
 ```
@@ -394,17 +386,6 @@ inv_mult_cox %>%
   arrange(lrt.fdr, lrt.pval)
 ```
 
-Reshape by region, split by panel
-
-```{r}
-inv_mult_cox %>%
-  select(cell_type, term, lrt.fdr, panel, lrt.pval) %>%
-  arrange(lrt.fdr, lrt.pval) %>%
-  pivot_wider(names_from = term,
-              values_from = c(lrt.fdr, lrt.pval)) %>%
-  split(., .$panel)
-```
-
 #### Nulliparous
 
 All cell density results by region and panel, arranged by FDR and P value.
@@ -456,9 +437,9 @@ Interaction term between group and cell density. Aims to answer the question: wh
 
 ```{r}
 cox_dens %>%
-  select(t_number, study_group, group) %>%
+  select(t_number, study_group) %>%
   distinct() %>%
-  group_by(group) %>%
+  group_by(study_group) %>%
   count()
 ```
 
@@ -467,18 +448,18 @@ The analysis below works very similarly to the one implemented with `cox_density
 The reduced formula will be:
 
 ```{r}
-inv_baseform <- paste(multiv_subform, "+ group + Total_density")
+inv_baseform <- paste(multiv_subform, "+ study_group + Total_density")
 inv_baseform
 ```
 
 The interaction term formula is:
 
 ```{r}
-inv_intform <- paste(inv_baseform, "+ group:Total_density")
+inv_intform <- paste(inv_baseform, "+ study_group:Total_density")
 inv_intform
 ```
 
-`Group` is a binary factor that refers to whether a sample is involuting or nulliparous, and `Total_density` refers to the density of a given cell type. An LRT attempts to determine whether models fit using the interaction term `group:Total_density` is different than the base formula `~stage + group + Total_density`. 
+`study_group` is a factor that refers to whether a sample is involuting or nulliparous, and `Total_density` refers to the density of a given cell type. An LRT attempts to determine whether model fit using as formula including the interaction term `study_group:Total_density` is different than the base formula `~stage + study_group + Total_density`. 
 
 Again, this test is likely statistically underpowered. Unfortunately it is not simple to do a formal power calculation between nonbinary predictors in an interaction term.
 
@@ -486,7 +467,6 @@ Again, this test is likely statistically underpowered. Unfortunately it is not s
 cox_interaction(cox_dens, "MPIF27", "CD20+",
                 baseform = inv_baseform, tidied = F)
 ```
-
 
 ### Results by significance
 
@@ -498,7 +478,7 @@ interaction_df <- lapply(relevant_cells, function(x){
 }) %>%
  bind_rows() %>%
   #Only show the involution-related interaction terms
-  filter(str_detect(term, "inv")) %>%
+  filter(str_detect(term, "ppbcpw")) %>%
   mutate(lrt.fdr = p.adjust(lrt.pval, method = "BH"), .after = panel) %>%
   mutate(formula = inv_intform)
 
@@ -516,4 +496,3 @@ interaction_df %>%
 ```{r}
 sessionInfo()
 ```
-

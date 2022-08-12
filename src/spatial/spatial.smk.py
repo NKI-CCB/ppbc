@@ -379,13 +379,15 @@ rule invbf_time_density:
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --min_cell_count '{params.min_cell_count}'"
+    " --density_outcome '{input.density_outcome}'"
     
 #Cox regressions for cell densities, OS and DRS
 rule cox_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
     rmd="reports/spatial/09_cox_density.Rmd",
-    script="src/utils/rmarkdown.R"
+    script="src/utils/rmarkdown.R",
+    lib="src/spatial/cox_spatial.R"
   params:
     min_cell_count = 20000
   output:
@@ -393,6 +395,7 @@ rule cox_density:
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --min_cell_count '{params.min_cell_count}'"
+    " --density_outcome '{input.density_outcome}'"
     
 #Check whether CD20 intensity in Vectra is correlated with CD20 RNAseq expression    
 rule cd20_clusters:
@@ -405,6 +408,7 @@ rule cd20_clusters:
     html="reports/spatial/10_ig_clusters_cd20.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
+    " --density_outcome '{input.density_outcome}'"
 
 #################################
 # Second order spatial measures #
