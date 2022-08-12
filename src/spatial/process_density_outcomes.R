@@ -1,11 +1,17 @@
 library(here)
 library(tidyverse)
 
-#Prepare cell densities for survival analysis by linking them to PPBC subtypes and clinical outcomes.
+# Prepare cell densities for survival analysis by linking them to PPBC subtypes and clinical outcomes.
+
+source(here("src/utils/parse_args.R"))
+argdf <- retrieve_args()
+
+print(argdf)
 
 ## Load data
 
-density <- read_tsv(here("results/spatial/density.tsv"), show_col_types = F)
+density <- read_tsv(here(filter(argdf, argname == "densities")$argval),
+                    show_col_types = F)
 #head(density)
 
 density %>%
@@ -19,7 +25,7 @@ read_sheets_to_list <- function(xlsfile){
     map(readxl::read_excel, path = xlsfile)
 }
 
-meta <- read_sheets_to_list(here("data/metadata/PPBC_metadata.xlsx"))
+meta <- read_sheets_to_list(here(filter(argdf, argname == "meta")$argval))
 
 #Here the t_number can be mapped to the patient_ID (via sample_ID).
 #head(meta$sample_data)
@@ -30,55 +36,49 @@ meta <- read_sheets_to_list(here("data/metadata/PPBC_metadata.xlsx"))
 #Explanations are in the codebook.
 #head(meta$codebook)
 
-
 ## Survival outcomes in PPBC
 
 # Join t_numbers with survival, link to density.
 
 dens <- meta$sample_data %>%
-  filter(experimental_platform != "RNAseq" & !is.na(sample_ID)) %>%
+  filter(sample_type == "slide" & Included == 1) %>%
   select(t_number = sample_ID, patient_ID) %>% distinct() %>%
   left_join(., meta$patient_data, by = "patient_ID") %>%
   left_join(density, ., by = "t_number")
 
 stopifnot(nrow(filter(dens, is.na(death)))==0)
 
-#head(dens)
-
-#Four possible possible PPBC categories exist : 
-  
-#* nulliparous breast cancer(non_prbc)
-#* pregnant breast cancer (prbc)
-#* post-partum breast cancer: lactating (ppbc_lac)
-#* post-partum breast cancer: involuting (ppbc_inv)
-
 unique(dens$study_group)
 
-#Format PPBC and survival categories.
-#Grade is sometimes missing
-#dens %>% group_by(study_group, database, grade) %>% count()
+if(nrow(filter(dens, is.na(grade))) > 0){
+  print("Grade is sometimes missing")
+  dens %>% group_by(study_group, database, grade) %>%
+    count() %>% print(n=Inf)
+}
 
+if(nrow(filter(dens, is.na(stage))) > 0){
+  print("Stage is sometimes missing")
+  dens %>% group_by(study_group, database, stage) %>%
+    count() %>% print(n=Inf)
+}
+
+#Format PPBC and survival categories.
 dens <- dens %>%
   mutate(classifier_label = factor(classifier_label,
                                    levels = c("Stroma", "Tumor", "Total")),
-         panel = factor(panel, levels = c("MPIF26", "MPIF27")),
-         #Shorter group names, similar to study_group but clearer 
-         #and with no potential delimiters
-         group = case_when(
-           study_group == "ppbc_inv" ~ "inv",
-           study_group == "non_prbc" ~ "nonprbc",
-           study_group == "ppbc_lac" ~ "lac",
-           TRUE ~ study_group) 
+         panel = factor(panel, levels = c("MPIF26", "MPIF27"))
   ) %>%
-  mutate(group = factor(group, levels = c("nonprbc", "prbc", "lac", "inv"))) %>%
-  relocate(group, .after = study_group) %>%
+  mutate(study_group = factor(study_group, levels = c("npbc", "prbc",
+                                                      "ppbcdl", "ppbcpw"))) %>%
+  mutate(PPBC = factor(PPBC, levels = c("nulliparous", "pregnant",
+                                               "lactating", "involuting"))) %>%
   mutate(stage = factor(stage, levels = c("stage I", "stage II",
                                           "stage III", "stage IV"))) %>%
   mutate(grade = factor(grade, levels = c("grade I", "grade II", "grade III")))
 
 dens %>%
-  select(study_group, group) %>%
-  distinct()
+  select(study_group, PPBC, stage, grade) %>%
+  distinct() %>% print(n=Inf)
 
 ## Write data
 saveRDS(dens, here("data/vectra/processed/density_ppbc.Rds"))

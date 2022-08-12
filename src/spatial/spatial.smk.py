@@ -256,10 +256,10 @@ rule report_cell_types:
   input:
     cells = [f"data/vectra/processed/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}.Rds"
                     for s in vectra_samples],
-    rmd="reports/spatial/04_report_cell_types.Rmd",
+    rmd="reports/spatial/05_report_cell_types.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    html="reports/spatial/04_report_cell_types.html"
+    html="reports/spatial/05_report_cell_types.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
@@ -293,10 +293,10 @@ rule report_segmentation:
     "data/vectra/processed/objects/T21-60303_MPIF26_batch2.Rds",
     "data/vectra/processed/objects/T21-60303_MPIF27_batch2.Rds",
     "src/spatial/segment_tissue_density_config.yaml",
-    rmd="reports/spatial/09_tissue_segmentation.Rmd",
+    rmd="reports/spatial/11_tissue_segmentation.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    html="reports/spatial/09_tissue_segmentation.html"
+    html="reports/spatial/11_tissue_segmentation.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
@@ -330,10 +330,10 @@ rule aggregrate_densities:
 rule density_report:
   input:
     "results/spatial/density.tsv",
-    rmd="reports/spatial/05_density.Rmd",
+    rmd="reports/spatial/06_density.Rmd",
     script="src/utils/rmarkdown.R",
   output:
-    html="reports/spatial/05_density.html"
+    html="reports/spatial/06_density.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     
@@ -341,38 +341,41 @@ rule density_report:
 rule process_density:
   input:
     densities = "results/spatial/density.tsv",
-    meta="data/metadata/PPBC_metadata.xlsx",
-    script="src/spatial/process_density_outcomes.R"
+    meta="data/external/PPBC_metadata_20220811.xlsx",
+    script="src/spatial/process_density_outcomes.R",
+    lib="src/utils/parse_args.R"
   output:
     density_outcome = "data/vectra/processed/density_ppbc.Rds"
   shell:
-    "Rscript {input.script}"
+    "Rscript {input.script} --densities {input.densities}"
+    " --meta {input.meta}"
 
 #Kruskal wallis tests and beehive plots for PPBC association with cell density
 rule kruskal_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
-    rmd = "reports/spatial/06_kruskal_density.Rmd",
+    rmd = "reports/spatial/07_kruskal_density.Rmd",
     script = "src/utils/rmarkdown.R",
     lib = "src/spatial/kruskal_density.R" 
   params:
     min_cell_count = 20000
   output:
-    html = "reports/spatial/06_kruskal_total_density.html"
+    html = "reports/spatial/07_kruskal_density.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --min_cell_count '{params.min_cell_count}'"
+    " --density_outcome '{input.density_outcome}'"
 
 #Relationship between involution and breastfeeding duration and immune density
 rule invbf_time_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
-    rmd="reports/spatial/06b_inv_time_density.Rmd",
+    rmd="reports/spatial/08_inv_time_density.Rmd",
     script="src/utils/rmarkdown.R"
   params:
     min_cell_count = 20000
   output:
-    html="reports/spatial/06b_inv_time_density.html"
+    html="reports/spatial/08_inv_time_density.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --min_cell_count '{params.min_cell_count}'"
@@ -381,12 +384,12 @@ rule invbf_time_density:
 rule cox_density:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
-    rmd="reports/spatial/07_cox_density.Rmd",
+    rmd="reports/spatial/09_cox_density.Rmd",
     script="src/utils/rmarkdown.R"
   params:
     min_cell_count = 20000
   output:
-    html="reports/spatial/07_cox_total_density_{outcome}.html"
+    html="reports/spatial/09_cox_total_density_{outcome}.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --min_cell_count '{params.min_cell_count}'"
@@ -395,10 +398,11 @@ rule cox_density:
 rule cd20_clusters:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
-    rmd="reports/spatial/08_ig_clusters_cd20.Rmd",
+    inv_clusters = "results/clustering/11_inv_clusters.xlsx",
+    rmd="reports/spatial/10_ig_clusters_cd20.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    html="reports/spatial/08_ig_clusters_cd20.html"
+    html="reports/spatial/10_ig_clusters_cd20.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 
@@ -451,10 +455,10 @@ rule report_spatstat:
          for s in vectra_samples],
     [f"results/spatial/lcross_immune/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
          for s in vectra_samples],
-    rmd="reports/spatial/11_spatstat_overview.Rmd",
+    rmd="reports/spatial/12_spatstat_overview.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    html="reports/spatial/11_spatstat_overview.html"
+    html="reports/spatial/12_spatstat_overview.html"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
 

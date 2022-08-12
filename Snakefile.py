@@ -44,13 +44,13 @@ rule all:
     expand("data/rnaseq/salmon/{sample}/quant.sf", sample=config['samples']),
     #"reports/16_gene_unity_setup.html",
     # Spatial rules
-    # "reports/spatial/04_report_cell_types.html",
-    # "reports/spatial/05_density.html",
-    # "reports/spatial/06_kruskal_total_density.html",
-    # "reports/spatial/06b_inv_time_density.html",
-    # expand("reports/spatial/07_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
-    # "reports/spatial/08_ig_clusters_cd20.html",
-    # "reports/spatial/09_tissue_segmentation.html"
+    "reports/spatial/05_report_cell_types.html",
+    "reports/spatial/06_density.html",
+    "reports/spatial/07_kruskal_density.html",
+    # "reports/spatial/08_inv_time_density.html",
+    # expand("reports/spatial/09_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
+    # "reports/spatial/10_ig_clusters_cd20.html", #Needs RNA input
+    # "reports/spatial/12_tissue_segmentation.html"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)
