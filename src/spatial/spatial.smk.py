@@ -228,11 +228,11 @@ rule aggregate_markers:
 #Visualize problematic marker combinations by batch
 rule batch_marker_coexpression:
   input:
-    #FIXME
-    #nc = lambda wildcards: glob(`data/vectra/interim/objects/.*{wildcards.batch}.csv`),
-    rmd="reports/spatial/03_batch_marker_coexpression.Rmd"
+    counts = [f"results/spatial/marker_cell_counts/{s.sample_id}_{s.panel}_{s.batch_HALO}.csv"
+                    for s in vectra_samples],
+    rmd="reports/spatial/04_batch_marker_coexpression.Rmd"
   output:
-    html="reports/spatial/batch_marker_viz/03_{batch}_marker_coexpression.html",
+    html="reports/spatial/batch_marker_viz/04_{batch}_marker_coexpression.html",
   shell:
     "mkdir -p reports/spatial/batch_marker_viz\n"
     "Rscript -e \"rmarkdown::render('{input.rmd}'," 
@@ -287,7 +287,6 @@ rule plot_segmentations:
   shell:
     "mkdir -p figures/spatial/\n"
     "Rscript {input.script} {input.segmentations} {output}"
-
 
 rule report_segmentation:
   input:
