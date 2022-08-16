@@ -12,7 +12,7 @@ output:
 params:
   metadata: "data/external/PPBC_metadata_20220811.xlsx"
   density: "data/vectra/processed/density_ppbc.Rds"
-  lib: "src/utils/outcome.R"
+  lib: "src/spatial/outcome.R"
 ---
 
 ```{r preliminaries, include=F}
@@ -90,7 +90,6 @@ outcome <- read_outcome(here(params$metadata))
 ```
 
 Samples with outcome but no spatstat:
-
 ```{r missing-a}
 print(anti_join(outcome, spatstat_l,
                 by = c('sample_ID', 'batch_HALO', 'experimental_platform')) %>%
@@ -286,7 +285,7 @@ cox_results %>%
   mutate(impact = ifelse(ave_hr > 1, "harmful", "beneficial"))
 ```
 
-### HR by radius and cell type
+## HR by radius and cell type
 
 Split by metric for legibility.
 

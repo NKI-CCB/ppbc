@@ -266,7 +266,7 @@ rule report_cell_types:
 #######################
 # Tissue Segmentation #
 #######################
-
+ 
 # Decided against tumor vs stroma tissue segmentation based on
 # the results of the this analysis. Remove?
 
@@ -413,7 +413,7 @@ rule cd20_clusters:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --density_outcome '{input.density_outcome}'"
     " --inv_clusters '{input.inv_clusters}'"
-    
+
 #################################
 # Second order spatial measures #
 #################################
@@ -429,6 +429,7 @@ rule model_l:
   shell:
     "mkdir -p results/spatial/l\n"
     "Rscript {input.script} {input.objects} {input.annotation} {output} F"
+
 
 rule model_lcross_panck:
   "L cross measure between panCK and immune cell types"
@@ -462,11 +463,11 @@ rule report_spatstat:
          for s in vectra_samples],
     [f"results/spatial/lcross_immune/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
          for s in vectra_samples],
-    lib="src/utils/outcome.R",
+    lib="src/spatial/outcome.R",
     rmd="reports/spatial/12_spatstat_overview.Rmd",
-    script="src/utils/rmarkdown.R",
-    metadata="data/external/PPBC_metadata_20220811.xlsx",
-    density="data/vectra/processed/density_ppbc.Rds"
+    metadata="data/external/PPBC_metadata_20220811.xlsx", 
+    density="data/vectra/processed/density_ppbc.Rds",
+    script="src/utils/rmarkdown.R"
   output:
     html="reports/spatial/12_spatstat_overview.html"
   shell:
