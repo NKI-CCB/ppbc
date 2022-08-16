@@ -259,7 +259,7 @@ seq_annot <-
 head(seq_annot)
 ```
 
-#Combine metadata with file names
+# Combine metadata with file names
 
 Several samples were sequenced more than once, so there are more fastq files than metadata entries.
 

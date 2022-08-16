@@ -1,20 +1,20 @@
-### Set up ###
+#### Set up ####
 
 # Simplify the fastq dir structure
 rule symlinks:
   input:
     rmd="reports/rnaseq/00_symlink_fastqs.Rmd",
-    script="src/utils/rmarkdown.R"
+    script="src/utils/rmarkdown.R",
+    sample_paths="data/rnaseq/metadata/sample_paths.txt"
   output:
     html="reports/rnaseq/00_symlink_fastqs.html"
   params:
-    sample_paths="data/rnaseq/metadata/sample_paths.txt",
     raw_dir="data/rnaseq/RAW",
     sym_dir="data/rnaseq/fastq"  
   shell:
    "mkdir -p data/rnaseq/fastq\n"
    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-   " --sample_paths '{params.sample_paths}'"
+   " --sample_paths '{input.sample_paths}'"
    " --raw_dir '{params.raw_dir}'"
    " --sym_dir '{params.sym_dir}'"
 
@@ -27,7 +27,7 @@ rule create_config:
   shell:
     "python3 {input.script}"
 
-### Salmon quantification ###
+#### Salmon quantification ####
 
 rule salmon_index:
   input:
@@ -54,25 +54,27 @@ rule salmon_quant:
   shell:
      "salmon quant -i {input.index} -l A --gcBias --seqBias "
      "--validateMappings --posBias -r {input.fastq} -o {params.outdir}"
+     
+#### Metadata and tximport ####
       
-rule process_metadata:
+rule rna_metadata:
   input:
-    expand("data/rnaseq/salmon/{sample}/quant.sf", sample=config['samples']),
-    raw_metadata="data/external/Hercoderingslijst_v09032020_KM.xlsx",
-    rmd="reports/01_process_metadata_tximport.Rmd",
-    script="src/utils/rmarkdown.R"
+    sampledata="data/external/sample_data.tsv",
+    patientdata="data/external/patient_data.tsv",
+    rmd="reports/rnaseq/01_rna_metadata.Rmd",
+    script="src/utils/rmarkdown.R",
+    read_rna_sd="src/rnaseq/read_rna_sampledata.R",
+    read_patient_data="src/utils/read_patient_data.R"
   output:
-    html="reports/01_process_metadata_tximport.html",
-    multiple_patient_fastqs="data/metadata/01_patients_with_multiple_fastqs.csv",
-    excluded_samples="data/metadata/01_pre_excluded_samples.csv",
-    sample_annot="data/metadata/01_sample_annot.tsv",
-    gene_annot="data/metadata/01_tx_annot.tsv",
-    tx="data/Rds/01_tx.Rds",
-    rdata="reports/01_process_metadata_tximport.RData"
+    html="reports/rnaseq/01_rna_metadata.html",
+    rnaMeta="data/rnaseq/metadata/01_rnaMeta.Rds"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-### Quality control ###
+    " --sampledata '{input.sampledata}'"
+    " --patientdata '{input.patientdata}'"
+    
+    
+#### Quality control ####
 
 rule fastqc:
   input:

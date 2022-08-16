@@ -1,0 +1,123 @@
+---
+title: "RNA metadata"
+date: "`r Sys.Date()`"
+author: "Kat Moore"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: kate
+    df_print: paged
+params:
+  sampledata: "data/external/sample_data.tsv"
+  patientdata: "data/external/patient_data.tsv"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(here)
+library(tidyverse)
+library(tximport)
+```
+
+Match the RNAseq fastq-derived IDs with their corresponding identifiers and read the salmon quantifications with tximport.
+
+## Sample data
+
+```{r}
+sampledata <- read_tsv(here(params$sampledata))
+```
+
+```{r}
+glimpse(sampledata)
+```
+
+General overview all sample and platforms
+
+```{r}
+sampledata %>% group_by(sample_type, experimental_platform, Included) %>% count()
+```
+
+Batch HALO is only relevant for spatial data (slide type).
+
+```{r}
+sampledata %>% 
+  mutate(batch_Leuven = ifelse(!is.na(batch_Leuven), "exists", "missing")) %>%
+  mutate(batch_HALO = ifelse(!is.na(batch_HALO), "exists", "missing")) %>% 
+  group_by(sample_type, batch_Leuven, batch_HALO) %>% count()
+```
+
+Duplicate patient IDs may exist where a sample has been sequenced more than once. Column typing is therefore not set until later.
+
+```{r}
+source(here("src/rnaseq/read_rna_sampledata.R"))
+sampledata <- read_rna_sampledata(here(params$sampledata), verbose = T)
+```
+
+```{r}
+head(sampledata)
+```
+
+## Patient data
+
+```{r}
+patientdata <- read_tsv(here(params$patientdata))
+glimpse(patientdata)
+```
+
+Sample availability by study group
+
+```{r}
+patientdata %>%
+  group_by(study_group, PPBC) %>%
+  count()
+```
+
+Clinical subtyping by study group
+
+```{r}
+patientdata %>%
+  group_by(study_group, clin_subtype) %>%
+  count() %>%
+  pivot_wider(names_from = study_group, values_from = n, values_fill = 0)
+```
+
+A number of columns contain median or tertile calculation that were made manually in Excel, without a formula. These columns pertain to the TAPC, TIL, and CD38 scoring. 
+
+The raw scoring from pathologists is kept, the median/tertiles will be recalculated downstream.
+
+```{r}
+source(here("src/utils/read_patient_data.R"))
+patientdata <- read_patient_data(here(params$patientdata), verbose = T)
+```
+
+```{r}
+head(patientdata)
+```
+
+## RNA metadata
+
+Combine patient and sample data.
+
+```{r}
+rnaMeta <- left_join(sampledata, patientdata, by = "patient_ID")
+
+rnaMeta
+```
+
+## Write metadata
+
+```{r}
+saveRDS(rnaMeta, here("data/rnaseq/metadata/01_rnaMeta.Rds"))
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```
+
