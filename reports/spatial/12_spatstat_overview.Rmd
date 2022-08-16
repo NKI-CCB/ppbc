@@ -12,6 +12,7 @@ output:
 params:
   metadata: "data/external/PPBC_metadata_20220811.xlsx"
   density: "data/vectra/processed/density_ppbc.Rds"
+  lib: "src/utils/outcome.R"
 ---
 
 ```{r preliminaries, include=F}
@@ -30,7 +31,7 @@ library(survminer)
 library(tidyverse)
 library(yaml)
 
-source(here('src/spatial/outcome.R'))
+source(here(params$lib))
 ```
 
 ```{r load-data-spatstat}

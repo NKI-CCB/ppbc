@@ -462,6 +462,7 @@ rule report_spatstat:
          for s in vectra_samples],
     [f"results/spatial/lcross_immune/{s.sample_id}_{s.panel}_{s.batch_HALO}.tsv"
          for s in vectra_samples],
+    lib="src/utils/outcome.R",
     rmd="reports/spatial/12_spatstat_overview.Rmd",
     script="src/utils/rmarkdown.R",
     metadata="data/external/PPBC_metadata_20220811.xlsx",
@@ -472,3 +473,4 @@ rule report_spatstat:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --metadata {input.metadata}"
     " --density {input.density}"
+    " --lib {input.lib}"
