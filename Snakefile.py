@@ -22,14 +22,30 @@
 # These are designated with a .smk.py suffix
 
 #### Conda and Snakemake ####
-#To activate conda environment, use: conda env create -f envs/environment.yml
-#If environment.yml has been updated, update the environment with: 
-#conda env update --prefix ./envs --file environment.yml  --prune
-#Save environment to text with: conda env export > envs/environment.yml
-#For condensed version: conda env export --from-history > envs/env_brief.yml
-#To use a conda envinroment with snakemake: snakemake -n --use-conda
-#To create the environments without running any rules: 
-#snakemake -n --use-conda --create-envs-only
+
+# Create a new conda environment for a specific software version with: 
+#  conda create -n myenv python=3.9
+
+# Save environment to text with: 
+#  conda activate myenv; conda env export > envs/myenv.yml
+
+# For a condensed version:
+#  conda env export --from-history > envs/myenv_brief.yml
+
+# To update an existing environment file: 
+#  conda env update --prefix ./envs --file myenv.yml  --prune
+
+# You can optionally remove the environment from conda once the yml file has been created, 
+# Snakemake will create it anew when rules are run
+
+# To activate conda environment from a config file, use:
+#  conda env create -f envs/myenv.yml
+
+# To use a conda envinroment with snakemake: 
+#  snakemake --use-conda
+
+# To create the environments without running any rules: 
+#  snakemake --use-conda --create-envs-only
 
 from pathlib import Path
 
