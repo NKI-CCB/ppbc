@@ -170,6 +170,25 @@ missing_metadata
 filecheck(missing_metadata, fn = here("data/rnaseq/metadata/01_missing_metdata.csv"))
 ```
 
+## Duplicate summary
+
+These patients have duplicate samples:
+
+```{r}
+duplicate_samples <- rnaMeta %>%
+  filter(patient_ID %in% filter(rnaMeta, duplicated(patient_ID))$patient_ID) %>%
+  arrange(patient_ID) %>% select(patient_ID, fastq, batch)
+
+duplicate_samples
+```
+
+Duplicates per sample:
+
+```{r}
+duplicate_samples %>% group_by(patient_ID) %>% count() %>%
+  group_by(n) %>% count(name = "number of samples with n duplicates")
+```
+
 ## Write metadata
 
 ```{r}
