@@ -43,6 +43,7 @@ samples:
   rHLE-FA-258.190603.HiSeq4000.FCB.lane4.gcap_19_01.R1: data/rnaseq/fastq/rHLE-FA-258.190603.HiSeq4000.FCB.lane4.gcap_19_01.R1.fastq.gz
   rHLE-FA-239.190603.HiSeq4000.FCB.lane4.gcap_19_01.R1: data/rnaseq/fastq/rHLE-FA-239.190603.HiSeq4000.FCB.lane4.gcap_19_01.R1.fastq.gz
   rHLE-FA-267.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1: data/rnaseq/fastq/rHLE-FA-267.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1.fastq.gz
+  rHLE-FA-156.190621.HiSeq4000.FCB.lane5.gcap_19_01.R1: data/rnaseq/fastq/rHLE-FA-156.190621.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz
   rHLE-FA-135.180816.HiSeq4000.FCB.lane7.gcap_17_11.R1: data/rnaseq/fastq/rHLE-FA-135.180816.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz
   rHLE-FA-234.190603.HiSeq4000.FCB.lane6.gcap_19_01.R1: data/rnaseq/fastq/rHLE-FA-234.190603.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz
   rHLE-FA-34.180808.HiSeq4000.FCB.lane8.gcap_17_11.R1: data/rnaseq/fastq/rHLE-FA-34.180808.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz
@@ -194,6 +195,7 @@ samples:
   rHLE-FA-293.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1: data/rnaseq/fastq/rHLE-FA-293.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1.fastq.gz
   rHLE_FA_173.180913.HiSeq4000.FCB.lane5.gcap_17_11.R1: data/rnaseq/fastq/rHLE_FA_173.180913.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz
   rHLE-FA-39.180808.HiSeq4000.FCB.lane8.gcap_17_11.R1: data/rnaseq/fastq/rHLE-FA-39.180808.HiSeq4000.FCB.lane8.gcap_17_11.R1.fastq.gz
+  rHLE-FA-286.190621.HiSeq4000.FCB.lane6.gcap_19_01.R1: data/rnaseq/fastq/rHLE-FA-286.190621.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz
   rHLE_FA_154.180924.HiSeq4000.FCB.lane2.gcap_18_06.R1: data/rnaseq/fastq/rHLE_FA_154.180924.HiSeq4000.FCB.lane2.gcap_18_06.R1.fastq.gz
   rHLE_UZ-HL-14.170515.HiSeq4000.FCB.lane2.gcap_17_03.R1: data/rnaseq/fastq/rHLE_UZ-HL-14.170515.HiSeq4000.FCB.lane2.gcap_17_03.R1.fastq.gz
   rHLE_LP-HL-24.170619.HiSeq4000.FCB.lane6.gcap_17_03.R1: data/rnaseq/fastq/rHLE_LP-HL-24.170619.HiSeq4000.FCB.lane6.gcap_17_03.R1.fastq.gz
@@ -213,6 +215,7 @@ samples:
   rHLE-FA-261.190603.HiSeq4000.FCA.lane2.gcap_19_01.R1: data/rnaseq/fastq/rHLE-FA-261.190603.HiSeq4000.FCA.lane2.gcap_19_01.R1.fastq.gz
   rHLE-FA-272.190517.HiSeq4000.FCB.lane8.gcap_19_01.R1: data/rnaseq/fastq/rHLE-FA-272.190517.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz
   rHLE-FA-52.180816.HiSeq4000.FCB.lane2.gcap_17_11.R1: data/rnaseq/fastq/rHLE-FA-52.180816.HiSeq4000.FCB.lane2.gcap_17_11.R1.fastq.gz
+  rHLE-FA-163.190621.HiSeq4000.FCB.lane6.gcap_19_01.R1: data/rnaseq/fastq/rHLE-FA-163.190621.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz
   rHLE-FA-95.180816.HiSeq4000.FCB.lane4.gcap_17_11.R1: data/rnaseq/fastq/rHLE-FA-95.180816.HiSeq4000.FCB.lane4.gcap_17_11.R1.fastq.gz
   rHLE-FA-155.180816.HiSeq4000.FCB.lane7.gcap_17_11.R1: data/rnaseq/fastq/rHLE-FA-155.180816.HiSeq4000.FCB.lane7.gcap_17_11.R1.fastq.gz
   rHLE-FA-244.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1: data/rnaseq/fastq/rHLE-FA-244.190603.HiSeq4000.FCB.lane1.gcap_19_01.R1.fastq.gz

@@ -279,3 +279,6 @@ rHLE-FA-306/runs/run.190603.HiSeq4000.FCB.lane5/v_2019_06_06_10_43_09/result/rHL
 rHLE-FA-262/runs/run.190603.HiSeq4000.FCB.lane8/v_2019_06_06_10_43_16/result/rHLE-FA-262.190603.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz
 rHLE-FA-290/runs/run.190603.HiSeq4000.FCB.lane5/v_2019_06_06_10_43_09/result/rHLE-FA-290.190603.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz
 rHLE-FA-206/runs/run.190517.HiSeq4000.FCB.lane8/v_2019_05_20_14_04_09/result/rHLE-FA-206.190517.HiSeq4000.FCB.lane8.gcap_19_01.R1.fastq.gz
+rHLE-FA-156.190621.HiSeq4000.FCB.lane5.gcap_19_01.R1.fastq.gz
+rHLE-FA-163.190621.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz
+rHLE-FA-286.190621.HiSeq4000.FCB.lane6.gcap_19_01.R1.fastq.gz
