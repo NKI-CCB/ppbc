@@ -12,6 +12,8 @@ output:
 params:
   sampledata: "data/external/sample_data.tsv"
   patientdata: "data/external/patient_data.tsv"
+  salmondir: "data/rnaseq/salmon"
+  pre_excluded_samples: "data/external/pre_excluded_samples.csv"
 ---
 
 ```{r setup, include=FALSE}
@@ -21,31 +23,38 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r libraries}
 library(here)
 library(tidyverse)
-library(tximport)
 ```
 
 Match the RNAseq fastq-derived IDs with their corresponding identifiers and read the salmon quantifications with tximport.
 
+Some fastqs were pre-excluded:
+
+```{r}
+pre_excluded_samples <- read_csv(here(params$pre_excluded_samples), show_col_types = F)
+
+pre_excluded_samples
+```
+
 ## Sample data
 
 ```{r}
-sampledata <- read_tsv(here(params$sampledata))
+sampledataRaw <- read_tsv(here(params$sampledata))
 ```
 
 ```{r}
-glimpse(sampledata)
+glimpse(sampledataRaw)
 ```
 
 General overview all sample and platforms
 
 ```{r}
-sampledata %>% group_by(sample_type, experimental_platform, Included) %>% count()
+sampledataRaw %>% group_by(sample_type, experimental_platform, Included) %>% count()
 ```
 
 Batch HALO is only relevant for spatial data (slide type).
 
 ```{r}
-sampledata %>% 
+sampledataRaw %>% 
   mutate(batch_Leuven = ifelse(!is.na(batch_Leuven), "exists", "missing")) %>%
   mutate(batch_HALO = ifelse(!is.na(batch_HALO), "exists", "missing")) %>% 
   group_by(sample_type, batch_Leuven, batch_HALO) %>% count()
@@ -65,14 +74,14 @@ head(sampledata)
 ## Patient data
 
 ```{r}
-patientdata <- read_tsv(here(params$patientdata))
-glimpse(patientdata)
+patientdataRaw <- read_tsv(here(params$patientdata))
+glimpse(patientdataRaw)
 ```
 
 Sample availability by study group
 
 ```{r}
-patientdata %>%
+patientdataRaw %>%
   group_by(study_group, PPBC) %>%
   count()
 ```
@@ -80,7 +89,7 @@ patientdata %>%
 Clinical subtyping by study group
 
 ```{r}
-patientdata %>%
+patientdataRaw %>%
   group_by(study_group, clin_subtype) %>%
   count() %>%
   pivot_wider(names_from = study_group, values_from = n, values_fill = 0)
@@ -107,6 +116,58 @@ Combine patient and sample data.
 rnaMeta <- left_join(sampledata, patientdata, by = "patient_ID")
 
 rnaMeta
+```
+
+## Check missing files
+
+```{r}
+salmonfiles <- list.files(here(params$salmondir))
+```
+
+Samples that have no corresponding fastq.
+
+```{r}
+no_fastq <- sampledata %>%
+  filter(!str_remove(sampledata$fastq, ".fastq.gz") %in% salmonfiles)
+
+no_fastq
+
+filecheck <- function(df, fn){
+  
+  if(file.exists(fn)){file.remove(here(fn))}
+  
+  if(nrow(df) > 0){write_csv(df, fn)}
+  
+}
+
+filecheck(no_fastq, fn = here("data/rnaseq/metadata/01_nofastq.csv"))
+```
+
+Salmon output with no link to metadata file.
+
+```{r}
+no_metadata <- salmonfiles[!salmonfiles %in% str_remove(sampledataRaw$sample_ID,
+                                                        ".fastq.gz")]
+no_metadata
+```
+
+Are these samples among those pre-excluded?
+
+```{r}
+no_metadata_excluded <- pre_excluded_samples %>%
+  filter(fastq_file %in% no_metadata)
+no_metadata_excluded
+```
+
+Show those which cannot be found in the pre-excluded list.
+
+```{r}
+missing_metadata <- pre_excluded_samples %>%
+  filter(!fastq_file %in% no_metadata)
+
+missing_metadata
+
+filecheck(missing_metadata, fn = here("data/rnaseq/metadata/01_missing_metdata.csv"))
 ```
 
 ## Write metadata

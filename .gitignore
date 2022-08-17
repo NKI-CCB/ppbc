@@ -26,7 +26,6 @@ reports/spatial/object_qc_by_batch
 *.Rhistory
 *.html
 *.tar.xy
-*.csv
 *.xlsx
 *.pdf
 

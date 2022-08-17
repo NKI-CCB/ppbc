@@ -64,7 +64,10 @@ rule rna_metadata:
     rmd="reports/rnaseq/01_rna_metadata.Rmd",
     script="src/utils/rmarkdown.R",
     read_rna_sd="src/rnaseq/read_rna_sampledata.R",
-    read_patient_data="src/utils/read_patient_data.R"
+    read_patient_data="src/utils/read_patient_data.R",
+    pre_excluded_samples="data/external/pre_excluded_samples.csv"
+  params:
+    salmondir="data/rnaseq/salmon"
   output:
     html="reports/rnaseq/01_rna_metadata.html",
     rnaMeta="data/rnaseq/metadata/01_rnaMeta.Rds"
@@ -72,7 +75,9 @@ rule rna_metadata:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --sampledata '{input.sampledata}'"
     " --patientdata '{input.patientdata}'"
-    
+    " --salmondir '{params.salmondir}'"
+    " --pre_excluded_samples '{input.pre_excluded_samples}'"
+
     
 #### Quality control ####
 
