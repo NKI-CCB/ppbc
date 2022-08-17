@@ -44,6 +44,8 @@
 # To use a conda envinroment with snakemake: 
 #  snakemake --use-conda
 
+# Note: the environment file path is relative to the (sub-)Snakefile
+
 # To create the environments without running any rules: 
 #  snakemake --use-conda --create-envs-only
 
