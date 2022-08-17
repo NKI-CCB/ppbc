@@ -1,0 +1,99 @@
+---
+title: "tximport"
+date: "`r Sys.Date()`"
+author: "Kat Moore"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: kate
+    df_print: paged
+params:
+  rnaMeta: "data/rnaseq/metadata/01_rnaMeta.Rds"
+  salmondir: "data/rnaseq/salmon"
+  biomart: "data/external/gene_ref/biomart_ensemblgenes_v94.txt"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(here)
+library(tidyverse)
+library(tximport)
+```
+
+Create a gene annotation sheet and read in salmon quantification files with tximport.
+
+```{r}
+meta <- readRDS(here(params$rnaMeta))
+```
+
+## Gene annotation
+
+```{r}
+tx_annot <- read_tsv(here(params$biomart)) %>%
+  select(
+    gene_id = `Gene stable ID`,
+    transcript_id = `Transcript stable ID`,
+    transcript_id_version = `Transcript stable ID version`,
+    gene_name = `Gene name`,
+    gene_type = `Gene type`,
+    hgnc_symbol = `HGNC symbol`,
+    gene_description = `Gene description`,
+    chromosome_name = `Chromosome/scaffold name`,
+    transcipt_start =  `Transcript start (bp)`,
+    transcipt_end =  `Transcript end (bp)`,
+    transcription_start_site = `Transcription start site (TSS)`
+  )
+write_tsv(tx_annot, here("data/rnaseq/metadata/01_gene_annot.tsv"))
+```
+
+```{r}
+head(tx_annot)
+```
+
+## Quant files
+
+Use the patient id as identifier.
+
+```{r}
+quant_files <- here("data", "rnaseq", "salmon",
+                    str_remove(meta$fastq, ".fastq.gz"), "quant.sf")
+
+names(quant_files) <- meta$patient_ID
+```
+
+If there are samples described by metadata that do not exist as salmon quant files, remove them.
+
+```{r}
+missing_quant <- quant_files[!file.exists(quant_files)]
+if(length(missing_quant) > 0){print(missing_quant)}
+
+quant_files <- quant_files[file.exists(quant_files)]
+```
+
+## Tximport
+
+Create a tximport object using our new metadata and all files.
+
+```{r tximport}
+tx2gene <- select(tx_annot, transcript_id_version, gene_id,
+                  gene_name, hgnc_symbol, gene_description)
+tx <- tximport(quant_files, type = "salmon", tx2gene = tx2gene)
+```
+
+Save the tx data for downstream analysis.
+
+```{r save tx}
+dir.create(here("data", "rnaseq", "interim"), showWarnings = F)
+saveRDS(tx,file = here("data", "rnaseq", "interim", "01_tx.Rds"))
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```

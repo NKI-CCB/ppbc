@@ -78,6 +78,24 @@ rule rna_metadata:
     " --salmondir '{params.salmondir}'"
     " --pre_excluded_samples '{input.pre_excluded_samples}'"
 
+rule tximport:
+  input:
+    expand("data/rnaseq/salmon/{sample}/quant.sf", sample=config['samples']),
+    rnaMeta="data/rnaseq/metadata/01_rnaMeta.Rds",
+    biomart="data/external/gene_ref/biomart_ensemblgenes_v94.txt",
+    rmd="reports/rnaseq/01b_tximport.Rmd",
+    script="src/utils/rmarkdown.R"
+  params:
+    salmondir="data/rnaseq/salmon"
+  output:
+    gene_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    tx="data/rnaseq/interim/01_tx.Rds",
+    html="reports/rnaseq/01b_tximport.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"    
+    " --rnaMeta '{input.rnaMeta}'"
+    " --salmondir '{params.salmondir}'"
+    " --biomart '{input.biomart}'"
     
 #### Quality control ####
 
