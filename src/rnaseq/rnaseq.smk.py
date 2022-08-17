@@ -101,24 +101,23 @@ rule tximport:
 
 rule fastqc:
   input:
-    expand("data/RAW/{sample}.fastq.gz", sample=config['samples'])
+    fastq="data/rnaseq/fastq/{sample}.fastq.gz"
   output:
-    html = expand("results/fastqc/{sample}_fastqc.html", sample=config['samples']),
-    zip = expand("results/fastqc/{sample}_fastqc.zip", sample=config['samples'])
-  threads: 5
-  #conda:
-  #  "envs/environment.yml"         
+    html = "results/fastqc/{sample}_fastqc.html"
+  threads: 16
+  conda:
+    "fastqc.yml"         
   shell:
-        """
-        fastqc {input} -o results/fastqc/ -t {threads}
-        """
+    """
+    mkdir -p results/fastqc; fastqc {input.fastq} -o results/fastqc/ -t {threads}
+    """
 
 rule multiqc:
   input:
     fastqc = "results/fastqc/",
-    salmon_quant = "data/RNA-seq/salmon/"
+    salmon_quant = "data/rnaseq/salmon/"
   output:
-    report="reports/multiqc_report.html",
+    report="results/multiqc_report.html",
     #alignstats="reports/multiqc_data/multiqc_general_stats.txt", #Decouple
     #or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt" #Decouple
   #conda:
@@ -130,12 +129,11 @@ rule QC_salmon:
   input:
     script="src/utils/rmarkdown.R",
     rmd="reports/02_QC_salmon.Rmd",
-    #A tx import object
-    tx="data/Rds/01_tx.Rds", 
-    #Sample and gene annotation
-    sample_annot="data/metadata/01_sample_annot.tsv",
-    refseq_db="data/external/refseqid_genename_hg38.txt",
-    recent_samples="data/metadata/new_samples_jun2019.txt",
+    tx="data/rnaseq/interim/01_tx.Rds", 
+    #Sample annotation
+    rnaMeta="data/rnaseq/metadata/01_rnaMeta.Rds",
+    #Dictionary of refseq IDs
+    refseq_db="data/external/gene_ref/refseqid_genename_hg38.txt",
     #Two multiqc report files
     alignstats="reports/multiqc_data/multiqc_general_stats.txt",
     or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt",      
@@ -158,10 +156,11 @@ rule QC_salmon:
     "data/Rds/02_tx_clean.Rds",
     #A dds from only kept samples, with replicates collapsed
     "data/Rds/02_QC_dds.Rds",
-    "reports/02_QC_salmon.RData",
     html="reports/02_QC_salmon.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --tx '{input.tx}'"
+    " --rnaMeta '{input.rnaMeta}'"
 
 rule pam50_ihc:
   input:
