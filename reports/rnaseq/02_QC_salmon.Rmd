@@ -1,5 +1,5 @@
 ---
-title: "Quality control PPBC"
+title: "Quality control for RNAseq"
 date: "`r Sys.Date()`"
 author: "Kat Moore"
 output: 
@@ -7,15 +7,17 @@ output:
     toc: yes
     toc_float: yes
     toc_depth: 4
-    highlight: tango
+    highlight: kate
     df_print: paged
+params:
+  tx: "data/rnaseq/interim/01_tx.Rds"
+  rnaMeta: "data/rnaseq/metadata/01_rnaMeta.Rds"
+  refseq_db: "data/external/gene_ref/refseqid_genename_hg38.txt"
+  alignstats: "results/rnaseq/multiqc_report_data/multiqc_general_stats.txt"
+  fastqcr: "data/rnaseq/interim/02_fastqcr.Rds"
 ---
 
-```{r, include=F}
-rm(list = ls())
-```
-
-```{r Load packages, include=F}
+```{r libraries}
 library(here)
 library(DESeq2)
 library(fastqcr)
@@ -25,50 +27,19 @@ library(ggrepel)
 library(viridis)
 library(ggthemes)
 library(UpSetR)
-opts <- options()  # save old options for ggplots
+theme_set(theme_bw())
 ```
 
-```{r Default ggplot themes, include=F}
-options(ggplot2.continuous.colour = "viridis")
-options(ggplot2.continuous.fill = "viridis")
-scale_colour_discrete <- scale_color_colorblind
-#scale_colour_discrete <- scale_colour_viridis_d
+Quality control via multiqc and fastqcr
 
-#For fill
-#viridis_qualitative_pal7 <- c("#440154FF", "#FDE725FF", "#443A83FF", 
-#                              "#8FD744FF", "#31688EFF",  "#35B779FF", 
-#                              "#21908CFF")
-
-scale_fill_discrete <- function(...) {
-  #scale_fill_manual(..., values = viridis_pal()(7)) #Wrong order
-  #scale_fill_manual(..., values = viridis_qualitative_pal7)
-  scale_fill_manual(..., values = colorblind_pal()(8))
-}
-
-theme_set(theme_minimal())
-```
-
-
-# Sample Origin
-
-The majority (186) of samples in the postpartum breast cancer dataset (ppbc) were delivered in December of 2018. In June 2019, an additional 84 samples were delivered. Both groups of samples are the result of multiple library preparation batches (8 in total). All samples were re-quantified using an updated version of Salmon (0.14) and subjected again to fastqc/multiqc for quality control. In the metadata, sample ids are unique but patient refs are not. This is because some samples had a poor quality library prep and needed to be resequenced.
-
-# Rationale for cutoffs
-
-From: [A survey of best practices for RNA-seq data analysis](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4728800/)
-
-Quality control for the raw reads involves the analysis of sequence quality, GC content, the presence of adaptors, overrepresented k-mers and duplicated reads in order to detect sequencing errors, PCR artifacts or contaminations. Acceptable duplication, k-mer or GC content levels are experiment- and organism-specific, but these values should be homogeneous for samples in the same experiments. We recommend that outliers with over 30% disagreement to be discarded.
-
-We will not specifically adhere to the 30% rule, but we will generally hold to the idea that extreme outliers as visualized with box plots should be discarded.
-
-# Load data
+## Load data
 
 Data was packaged into a list via tx_import in the previous notebooks (01_process_metadata_tximport.Rmd)
 
 ```{r}
-tx <- readRDS(here("data/Rds/01_tx.Rds"))
+tx <- readRDS(here(params$tx))
 
-sample_annot <- read_tsv(here("data/metadata/01_sample_annot.tsv"))
+sample_annot <- readRDS(here(params$rnaMeta))
 ```
 
 For the overrepresented sequences analysis we will need a data frame that can translate refseq ids to gene names. This was retireved from the UCSC browser on 1 July 2019 using the following selections:
@@ -79,106 +50,91 @@ Track: NCBI Refseq
 Table: Refseq All
 
 ```{r}
-refseq_db = read_tsv(here("data/external/refseqid_genename_hg38.txt"))
+refseq_db <- read_tsv(here(params$refseq_db), show_col_types = F)
 
-refseq_db = refseq_db %>% select(refseq_id=name,gene_name=name2)
+refseq_db <- refseq_db %>% select(refseq_id=name,gene_name=name2)
 head(refseq_db)
 ```
 
-# Batch overview
-
-Sequencing batch overview. When a sample belongs to more than one batch, it's because the original prep had bad quality and it had to be redone.
+Multiqc summary
 
 ```{r}
-sample_annot %>% group_by(library_prep) %>% summarise(n=n())
+multiqc <- read_tsv(file=here(params$alignstats), show_col_types = F)
+
+colnames(multiqc) <- str_remove(colnames(multiqc), "Salmon_|FastQC_") %>%
+  str_remove(., "mqc-generalstats-") %>%
+  str_remove(., "salmon-|fastqc-")
+
+multiqc <- multiqc %>% rename(fastq = Sample)
+
+head(multiqc)
 ```
 
-The Jun 2019 samples refer to batches 6&7, 7 and 8
+Fastqcr aggregation
 
 ```{r}
-recent_samples <- read.csv(here("data/metadata/new_samples_jun2019.txt"), header = F, stringsAsFactors = F)
-sample_annot %>% filter(patient_ref %in% recent_samples$V1) %>% pull(library_prep) %>% table()
+# Don't rename the sample column until later, doing so breaks some functions
+qc <- readRDS(here(params$fastqcr))
+head(qc)
 ```
 
-# Library size
 
-We previously set a minimum library size of 10e6.5. Based on the histogram, we get the following distribution.
+## Batch overview
+
+Sequencing batch overview. Most NAs refer to samples that were sequenced more than once, in which case the batch is omitted from the second entry.
 
 ```{r}
+sample_annot %>% group_by(batch) %>% count()
+```
+
+## Library size
+
+We previously set a minimum library size of 10e6.7 (`r 10^6.7``). Based on the histogram, we get the following distribution.
+
+```{r}
+min_lib_size <- 10^6.7
+
 hist(log10(colSums(tx$counts)), breaks=40, main="Log10 library size PPBC") 
-abline(v = 6.7, col = "red")
+abline(v = log10(min_lib_size), col = "red")
 ```
 
-This is equivalent to approximately 5 million reads. We keep this cutoff.
+Record library size and mark samples below the threshold
 
 ```{r}
-10^6.7
+multiqc <- colSums(tx$counts) %>%
+  enframe("fastq", "lib.size") %>%
+  mutate(low_count_sample = lib.size < min_lib_size) %>%
+  mutate(fastq = str_remove(fastq, ".fastq.gz")) %>%
+  left_join(., multiqc, by = "fastq")
+
+multiqc %>%
+  filter(low_count_sample)
 ```
 
-How many samples would this amount to?
+## Alignment stats
+
+The majority of samples with poor mapping are below the library size cutoff. 
 
 ```{r}
-table(colSums(tx$counts) > 10^6.7)
-```
-
-Add library size to sample annotation data
-
-```{r}
-sample_annot = colSums(tx$counts) %>% enframe("sample_id", "lib.size") %>% left_join(sample_annot, ., by ="sample_id")
-
-sample_annot = sample_annot %>% mutate(low_count_sample = lib.size < 10^6.7)
-```
-
-How many of each group do we lose?
-
-```{r}
-table(sample_annot$study_group, sample_annot$low_count_sample)
-```
-
-# Alignment stats
-
-```{r}
-alignstats = read_tsv(file=here("reports/multiqc_data/multiqc_general_stats.txt"))
-alignstats = alignstats %>% select(sample_id=Sample,
-                                   percent_mapped=`Salmon_mqc-generalstats-salmon-percent_mapped`)
-```
-
-The majority of samples with poor mapping are below the library size cutoff. There are three exceptions.
-
-```{r}
-sample_annot = left_join(sample_annot, alignstats, by = "sample_id")
-```
-
-
-```{r}
-
-sample_annot %>% ggplot(aes(x=lib.size, y=percent_mapped, color=low_count_sample)) +
+multiqc %>% ggplot(aes(x=lib.size, y=percent_mapped, color=low_count_sample)) +
   geom_point() + scale_x_log10() +
   ggtitle("Poor mapping is associated with small library size") +
-  geom_hline(yintercept = 75, color="red")
+  geom_hline(yintercept = 75, color="black", linetype = "dashed")
 ```
 
 Add a threshold of 75% mapped reads.
 
 ```{r}
-sample_annot = sample_annot %>% mutate(poor_mapping = percent_mapped < 75)
+mapping_threshold <- 75
+
+multiqc <- multiqc %>%
+  mutate(poor_mapping = percent_mapped < 75, .after = percent_mapped)
+
+multiqc %>%
+  filter(poor_mapping)
 ```
 
-# Fastqcr
-
-```{r}
-qc <- qc_aggregate(here("results/fastqc"))
-```
-
-Limit to only those samples which have not already been excluded for some other reason.
-
-```{r}
-qc = qc %>% filter(sample %in% sample_annot$sample_id)
-```
-
-## Fastqcr overview
-
-As seen in the previous batch of samples, many samples show high sequence duplication levels. There are also many warnings and failures in overrepresented sequences.
+## Fastqcr
 
 ```{r}
 summary(qc)
@@ -192,57 +148,7 @@ qc %>% ggplot(aes(x=module, fill = status)) +
   theme(axis.text.x = element_text(angle = 90))
 ```
 
-Metrics with issues:
-
-* Per base sequence content
-* Overrepresented sequences
-* Per tile sequence quality
-* Sequence duplication levels
-
-We will also have a look at the 10 samples whhich fail GC content.
-
-## Utility functions
-
-Function for reading in fastqc data, filtered for those above the library size cutoff:
-
-```{r}
-retrieve_fastqc_module = function(qc, sample_annot, module.type, dir=here("results/fastqc"), failorwarn = c("FAIL", "WARN"),
-                                              min.lib.size = 10^6.7){
-  require(tidyverse)
-  require(fastqcr)
-  
-  qc = qc %>% filter(module == !!module.type) %>% filter(status %in% failorwarn) %>%
-    filter(as.integer(tot.seq) > min.lib.size)
-  
-  qc = left_join(qc, select(sample_annot, sample_id, sample_name), by= c("sample"="sample_id"))
-  
-  #return(qc)
-  
-  file.paths = file.path(dir, qc$sample)
-  
-  or = fastqcr::qc_read_collection(file = file.paths,
-                            sample_names = qc$sample_name,
-                            modules = module.type,
-                            verbose=F)[[1]]
-  or = left_join(or, sample_annot, by = c("sample"="sample_name"))
-  
-  or = left_join(or, select(qc, -module), by=c("sample_id"="sample"))
-
-  return(or)
-}
-
-```
-
-```{r}
-add_qc_to_metadata = function(metadata, qcdata, module.type){
-  qcdata = qcdata %>% filter(module == !!module.type) %>% dplyr::rename(status.module=status)
-  newdata = left_join(metadata, select(qcdata, sample, status.module), by=c("sample_id"="sample"))
-  colnames(newdata)[length(colnames(newdata))] = str_to_lower(str_replace_all(module.type, " ", "_"))
-  return(newdata)
-}
-```
-
-## Per base sequence content
+### Per base sequence content
 
 ```{r}
 summary(qc) %>% filter(module == "Per base sequence content")
@@ -252,9 +158,7 @@ Per base sequence content is almost always a fail in RNAseq libraries, as per th
 
 "It's worth noting that some types of library will always produce biased sequence composition, normally at the start of the read. Libraries produced by priming using random hexamers (including nearly all RNA-Seq libraries) and those which were fragmented using transposases inherit an intrinsic bias in the positions at which reads start. This bias does not concern an absolute sequence, but instead provides enrichement of a number of different K-mers at the 5' end of the reads. Whilst this is a true technical bias, it isn't something which can be corrected by trimming and in most cases doesn't seem to adversely affect the downstream analysis."
 
-Because RNAseq data cannot be expected to pass this module, we will not add the information to the metadata.
-
-## Per tile sequence quality
+### Per tile sequence quality
 
 ```{r}
 summary(qc) %>% filter(module == "Per tile sequence quality")
@@ -267,23 +171,23 @@ This graph will only appear in your analysis results if you're using an Illumina
 Is there a particular batch that looks extra bad here?
 
 ```{r}
-as.data.frame(qc) %>% filter(module=="Per tile sequence quality") %>% dplyr::rename(per_tile_sequence_quality = status) %>%
-  left_join(.,sample_annot, by=c("sample"="sample_id")) %>%
-  ggplot(aes(x=library_prep, y=lib.size, color=per_tile_sequence_quality)) + ggbeeswarm::geom_beeswarm() +
+as.data.frame(qc) %>% filter(module=="Per tile sequence quality") %>%
+  left_join(., multiqc, by = c("sample"="fastq")) %>%
+  mutate(sample = paste0(sample, ".fastq.gz")) %>%
+  dplyr::rename(per_tile_sequence_quality = status) %>%
+  left_join(.,sample_annot, by=c("sample"="fastq")) %>%
+  ggplot(aes(x=batch, y=lib.size, color=per_tile_sequence_quality)) +
+  ggbeeswarm::geom_beeswarm() +
   ggtitle("Per tile sequence quality by batch")
 ```
 
-Batch 7 has an unusual number of fails. No strong correlation between library size and per tile sequence quality.
 
-Worth talking to the sequencing facility in Belgium about not overloading their flowcells so much?
-
-Add the info to the metadata.
 
 ```{r}
 sample_annot = add_qc_to_metadata(sample_annot, qc, "Per tile sequence quality")
 ```
 
-## Sequence duplication levels
+### Sequence duplication levels
 
 Overwhelmingly the samples fail this module.
 
@@ -346,7 +250,7 @@ sample_annot = sample_annot %>% mutate(high_dup_sample = sample_id %in% high_dup
 colnames(sample_annot)
 ```
 
-## Duplication by batch
+### Duplication by batch
 
 It doesn't appear that one batch or the other has a higher duplication level than the rest.
 
@@ -582,7 +486,7 @@ sample_annot %>%
 
 To reduce the risk of PCR artefacts and unusual contaminants, we will exclude samples that fail this module. This amounts to an additional three samples after the previously existing crtieria.
 
-# Correlation analysis on duplicate samples
+## Correlation analysis on duplicate samples
 
 Several samples have duplicate runs. For those with duplicates, we want to ensure that the duplicates correlate better to each other than they do to random patients. If they do, we combine the replicates. If the correlation is poor, then discard the older of the two samples.
 
@@ -771,7 +675,7 @@ sample_annot = sample_annot %>%
 sample_annot %>% select(duplicate, low_correlation_sample) %>% table()
 ```
 
-# Exclusion criteria
+## Exclusion criteria
 
 * Library size above 10^6.7 (~5 million reads)
 * Less than 75% of reads mapped
@@ -1031,10 +935,5 @@ get_PCA(dds, color.group = "molecular_subtype", shape.group = "study_group")
 sessionInfo()
 ```
 
-
-Save notebook data
-
-```{r}
-save.image(here("reports/02_QC_salmon.RData"))
-```
+`
 

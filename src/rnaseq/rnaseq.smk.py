@@ -120,8 +120,8 @@ rule multiqc:
     salmon_dir = "data/rnaseq/salmon/"
   output:
     html="results/rnaseq/multiqc_report.html",
-    alignstats="results/rnaseq/multiqc_data/multiqc_general_stats.txt",
-    or_summary="results/rnaseq/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt" 
+    alignstats="results/rnaseq/multiqc_report_data/multiqc_general_stats.txt",
+    or_summary="results/rnaseq/multiqc_report_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt" 
   conda:
     "multiqc.yml"             
   shell:
@@ -129,19 +129,29 @@ rule multiqc:
     # If passed {output.html}, Snakemake will search for results/rnaseq/multiqc.html,
     # but the actual file will be placed in results/rnaseq/results/rnaseq/multiqc.html
     """multiqc {params.fastqc_dir} {params.salmon_dir} -o results/rnaseq -n multiqc_report.html --force"""
+
+rule fastqcr:
+  input:
+    script="src/rnaseq/02_fastqcr_aggregate.R",
+  output:
+    fastqcr="data/rnaseq/interim/02_fastqcr.Rds"
+  shell:
+    "Rscript {input.script}"
     
 rule QC_salmon:
   input:
     script="src/utils/rmarkdown.R",
-    rmd="reports/02_QC_salmon.Rmd",
+    rmd="reports/rnaseq/02_QC_salmon.Rmd",
     tx="data/rnaseq/interim/01_tx.Rds", 
     #Sample annotation
     rnaMeta="data/rnaseq/metadata/01_rnaMeta.Rds",
     #Dictionary of refseq IDs
     refseq_db="data/external/gene_ref/refseqid_genename_hg38.txt",
     #Two multiqc report files
-    alignstats="reports/multiqc_data/multiqc_general_stats.txt",
-    or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt",      
+    alignstats="results/rnaseq/multiqc_report_data/multiqc_general_stats.txt",
+    or_summary="results/rnaseq/multiqc_report_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt",
+    #fastqcr aggregation
+    fastqcr="data/rnaseq/interim/02_fastqcr.Rds",
     #Blast files created via the web browser based on fastas generated in the Rmd
     blast_or="results/fastqc/overrepresented-BLAST-HitTable.csv",
     blast_failed="results/fastqc/failedor-BLAST-HitTable.csv",
@@ -161,11 +171,14 @@ rule QC_salmon:
     "data/Rds/02_tx_clean.Rds",
     #A dds from only kept samples, with replicates collapsed
     "data/Rds/02_QC_dds.Rds",
-    html="reports/02_QC_salmon.html"
+    html="reports/rnaseq/02_QC_salmon.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --tx '{input.tx}'"
     " --rnaMeta '{input.rnaMeta}'"
+    " --refseq_db '{input.refseq_db}'"
+    " --alignstats '{input.alignstats}'"
+    " --fastqcr '{input.fastqcr}'"
 
 rule pam50_ihc:
   input:
