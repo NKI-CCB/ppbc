@@ -103,27 +103,32 @@ rule fastqc:
   input:
     fastq="data/rnaseq/fastq/{sample}.fastq.gz"
   output:
-    html = "results/fastqc/{sample}_fastqc.html"
+    html = "results/rnaseq/fastqc/{sample}_fastqc.html"
   threads: 16
   conda:
     "fastqc.yml"         
   shell:
     """
-    mkdir -p results/fastqc; fastqc {input.fastq} -o results/fastqc/ -t {threads}
+    mkdir -p results/rnaseq/fastqc; fastqc {input.fastq} -o results/rnaseq/fastqc/ -t {threads}
     """
 
 rule multiqc:
   input:
-    fastqc = "results/fastqc/",
-    salmon_quant = "data/rnaseq/salmon/"
+    fastqc=expand("results/rnaseq/fastqc/{sample}_fastqc.html", sample=config['samples'])
+  params:
+    fastqc_dir="results/rnaseq/fastqc/",
+    salmon_dir = "data/rnaseq/salmon/"
   output:
-    report="results/multiqc_report.html",
-    #alignstats="reports/multiqc_data/multiqc_general_stats.txt", #Decouple
-    #or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt" #Decouple
-  #conda:
-  #  "envs/environment.yml"             
+    html="results/rnaseq/multiqc_report.html",
+    alignstats="results/rnaseq/multiqc_data/multiqc_general_stats.txt",
+    or_summary="results/rnaseq/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt" 
+  conda:
+    "multiqc.yml"             
   shell:
-    """multiqc {input.fastqc} {input.salmon_quant} -o results -n multiqc_report.html --force"""
+    # -o sets the results directory, but be careful when using it with {output}
+    # If passed {output.html}, Snakemake will search for results/rnaseq/multiqc.html,
+    # but the actual file will be placed in results/rnaseq/results/rnaseq/multiqc.html
+    """multiqc {params.fastqc_dir} {params.salmon_dir} -o results/rnaseq -n multiqc_report.html --force"""
     
 rule QC_salmon:
   input:
