@@ -120,8 +120,8 @@ rule multiqc:
     salmon_dir = "data/rnaseq/salmon/"
   output:
     html="results/rnaseq/multiqc_report.html",
-    alignstats="results/rnaseq/multiqc_data/multiqc_general_stats.txt",
-    or_summary="results/rnaseq/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt" 
+    alignstats="results/rnaseq/multiqc_report_data/multiqc_general_stats.txt",
+    or_summary="results/rnaseq/multiqc_report_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt" 
   conda:
     "multiqc.yml"             
   shell:
@@ -129,43 +129,51 @@ rule multiqc:
     # If passed {output.html}, Snakemake will search for results/rnaseq/multiqc.html,
     # but the actual file will be placed in results/rnaseq/results/rnaseq/multiqc.html
     """multiqc {params.fastqc_dir} {params.salmon_dir} -o results/rnaseq -n multiqc_report.html --force"""
+
+rule fastqcr:
+  input:
+    script="src/rnaseq/02_fastqcr_aggregate.R",
+  output:
+    fastqcr="data/rnaseq/interim/02_fastqcr.Rds"
+  shell:
+    "Rscript {input.script}"
     
 rule QC_salmon:
   input:
     script="src/utils/rmarkdown.R",
-    rmd="reports/02_QC_salmon.Rmd",
+    rmd="reports/rnaseq/02_QC_salmon.Rmd",
     tx="data/rnaseq/interim/01_tx.Rds", 
-    #Sample annotation
     rnaMeta="data/rnaseq/metadata/01_rnaMeta.Rds",
-    #Dictionary of refseq IDs
-    refseq_db="data/external/gene_ref/refseqid_genename_hg38.txt",
-    #Two multiqc report files
-    alignstats="reports/multiqc_data/multiqc_general_stats.txt",
-    or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt",      
-    #Blast files created via the web browser based on fastas generated in the Rmd
-    blast_or="results/fastqc/overrepresented-BLAST-HitTable.csv",
-    blast_failed="results/fastqc/failedor-BLAST-HitTable.csv",
-    gc_blast="results/fastqc/gc_or_Alignment-HitTable.csv"
+    alignstats="results/rnaseq/multiqc_report_data/multiqc_general_stats.txt",
+    or_sum="results/rnaseq/multiqc_report_data/mqc_fastqc_overrepresented_sequences_plot_1.txt",
+    fastqcr="data/rnaseq/interim/02_fastqcr.Rds",
+    lib="src/rnaseq/fastqcr_utils.R",
+    pre_excluded_samples="data/external/pre_excluded_samples.csv"    
   output:
-    #Overrepresented fasta sequences aggregated in the report
-    "results/fastqc/overrepresented.fa",
-    "results/fastqc/failed_overrepresented.fa",
-    "results/fastqc/gc_or.fa",
-    #Upset plots
-    "data/metadata/02_QC_samples_discarded_by_reason.pdf",
-    "data/metadata/02_QC_patients_discarded_by_reason.pdf",
-    #Kept vs discarded metadata
-    "data/metadata/02_discarded_samples.csv",
-    "data/metadata/02_sample_annot_filtered.csv",
-    #Txdata from only kept samples
-    "data/Rds/02_tx_clean.Rds",
-    #A dds from only kept samples, with replicates collapsed
-    "data/Rds/02_QC_dds.Rds",
-    html="reports/02_QC_salmon.html"
+    discarded="data/rnaseq/metadata/02_discarded_samples.csv",
+    meta_filtered = "data/rnaseq/interim/02_sample_annot_filtered.Rds",
+    tx_filtered= "data/rnaseq/interim/02_tx_clean.Rds",
+    html="reports/rnaseq/02_QC_salmon.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-    " --tx '{input.tx}'"
-    " --rnaMeta '{input.rnaMeta}'"
+    " --tx {input.tx}"
+    " --rnaMeta {input.rnaMeta}"
+    " --alignstats {input.alignstats}"
+    " --or_sum '{input.or_sum}'"
+    " --fastqcr '{input.fastqcr}'"
+    
+rule create_dds:
+  input:
+    rmd="reports/rnaseq/02b_create_dds.Rmd",
+    tx_filtered= "data/rnaseq/interim/02_tx_clean.Rds",
+    meta_filtered = "data/rnaseq/metadata/02_sample_annot_filtered.csv"
+  output:
+    dds_qc = "data/Rds/02_QC_dds.Rds",
+    html="reports/rnaseq/02b_create_dds.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --tx {input.tx_filtered}"
+    " --meta {input.tx_filtered}"
 
 rule pam50_ihc:
   input:
