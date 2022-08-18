@@ -57,13 +57,13 @@ head(tx_annot)
 
 ## Quant files
 
-Use the patient id as identifier.
+Patient id is not a good identifier because some patients have been sequenced multiple times. These replicates can be collapsed later. For now, use the fastq file name.
 
 ```{r}
 quant_files <- here("data", "rnaseq", "salmon",
                     str_remove(meta$fastq, ".fastq.gz"), "quant.sf")
 
-names(quant_files) <- meta$patient_ID
+names(quant_files) <- meta$fastq
 ```
 
 If there are samples described by metadata that do not exist as salmon quant files, remove them.
