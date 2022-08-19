@@ -16,7 +16,7 @@ library(tidyverse)
 read_rna_sampledata <- function(path, verbose = T){
   
   sampledata <- read_tsv(path, show_col_types = F) %>%
-    filter(sample_type == "RNA", !is.na(sample_ID), Included == 1) %>%
+    filter(sample_type == "RNA", !is.na(sample_ID)) %>%
     rename(fastq=sample_ID)
   stopifnot(all(str_detect(sampledata$fastq, "fastq.gz")))
   
