@@ -196,8 +196,6 @@ as.data.frame(qc) %>% filter(module=="Per tile sequence quality") %>%
   ggtitle("Per tile sequence quality by batch")
 ```
 
-
-
 ```{r}
 sample_annot <- add_qc_to_metadata(sample_annot, qc, "Per tile sequence quality")
 ```
@@ -210,7 +208,7 @@ Overwhelmingly the samples fail this module.
 summary(qc) %>% filter(module == "Sequence Duplication Levels")
 ```
 
-The 10 samples that pass sequence duplication levels are those with tiny library sizes. All samples above the library size cutoff fail this module.
+The samples that pass sequence duplication levels are those with tiny library sizes. All samples above the library size cutoff fail this module.
 
 ```{r}
 qc %>% filter(module == "Sequence Duplication Levels") %>% ggplot(aes(x=status,y=as.integer(tot.seq))) +
@@ -225,13 +223,12 @@ Add the information to the sample annotation data for bookkeeping.
 sample_annot <- add_qc_to_metadata(sample_annot, qc, "Sequence Duplication Levels")
 ```
 
-### Duplication by sample
-
-What's the distribution of the samples which pass the library size threshold?
 
 ```{r, echo=F}
 seqdup <- retrieve_fastqc_module(qc, sample_annot, module="Sequence Duplication Levels")
 ```
+
+### Duplication by sample
 
 Plot duplication levels by sample
 
@@ -437,35 +434,36 @@ correlations_random <-
   purrr::map(rep("random", 100), get_correlations_for_patient_samples) %>% 
   bind_rows() 
 
-ggplot(
-  #Retrieve flags for first sample
-  left_join(bind_rows(correlations, correlations_random),
-            select(sample_annot, sample_1 = fastq,
-                   #Potential color metrics
-                   lib.size, 
-                   #poor_mapping,
-                   low_count_sample,
-                   #high_dup_sample, too_high_overrepresented_sequences
-                   ),
-            by = "sample_1") %>%
-    #And again for second
-    left_join(.,
+#Retrieve flags for first sample
+corsim <- left_join(bind_rows(correlations, correlations_random),
+          select(sample_annot, sample_1 = fastq,
+                 #Potential color metrics
+                 lib.size, 
+                 #poor_mapping,
+                 low_count_sample,
+                 #high_dup_sample, too_high_overrepresented_sequences
+          ),
+          by = "sample_1") %>%
+  #And again for second
+  left_join(.,
             select(sample_annot, sample_2 = fastq,
                    #Potential color metrics
                    lib.size, 
                    low_count_sample, 
                    #poor_mapping,
                    #high_dup_sample, too_high_overrepresented_sequences
-                   ),
+            ),
             by = "sample_2") %>%
-    mutate(
-      low_count_samples = as.factor(low_count_sample.x + low_count_sample.y),
-      lib.size.ave = (lib.size.x + lib.size.y)/2
-    ),
-  aes(x = !(patient_ID == "random"), y = spearman,
-      color = low_count_samples,
-      #size = lib.size.ave
-      )) +
+  mutate(
+    low_count_samples = as.factor(low_count_sample.x + low_count_sample.y),
+    lib.size.ave = (lib.size.x + lib.size.y)/2
+  ) 
+
+corsim %>%
+  ggplot(aes(x = !(patient_ID == "random"), y = spearman,
+             color = low_count_samples,
+             #size = lib.size.ave
+  )) +
   ggbeeswarm::geom_quasirandom() +
   labs(title = "Correlation in readcounts (all samples)",
        x = "Samples from same patient?",
@@ -514,11 +512,13 @@ ggplot(
 From this we can see that when the library prep otherwise goes well, most samples sequenced from the same patient have a correlation of above 0.9.
 Random patients are also correlated, but not quite as highly.
 
-Identify duplicate patients below the threshold of `r params$cor_min`.
+Identify duplicate patients below the threshold of `r params$cor_min` that aren't discarded for some other reason.
+
+If there are no rows, it's because all samples with low correlations are discarded for some other reason.
 
 ```{r Low correlation patients}
-low_correlation_patients <- 
-  correlations %>% 
+low_correlation_patients <- correlations %>% 
+  filter(patient_ID %in% good_libs$fastq) %>%
   filter(patient_ID %in% pull(filter(correlations, spearman < params$cor_min),
                               patient_ID)) %>% 
   arrange(patient_ID)
@@ -530,27 +530,48 @@ low_correlation_patients %>%
 Examine other flags for low correlation patients.
 
 ```{r}
-low_correlation_patients <- low_correlation_patients %>% 
+low_correlation_df <- low_correlation_patients %>% 
   pivot_longer(cols = c("sample_1", "sample_2"), values_to = "fastq") %>%
-  left_join(., sample_annot %>% select(fastq, lib.size:per_sequence_gc_content),
-            by = "fastq")
+  left_join(., sample_annot %>% select(fastq, batch, lib.size:per_sequence_gc_content),
+            by = "fastq") %>% select(-name, -spearman) %>%
+  distinct()
 
-low_correlation_patients
+low_correlation_df
 ```
 
 Discard the sample that failed the low count threshold. 
 
+```{r}
+exclude_correlation <- low_correlation_df %>% 
+  filter(!low_count_sample) 
+exclude_correlation
+```
+
+Otherwise, choose the newest sample (with no NA in batch)
+
+```{r}
+exclude_correlation <- exclude_correlation %>%
+  filter(!is.na(batch))
+exclude_correlation
+```
+
+Otherwise, pick one at random.
+
+```{r}
+exclude_correlation <- exclude_correlation %>%
+  filter(!duplicated(patient_ID) | !duplicated(patient_ID, fromLast = T))
+exclude_correlation
+```
+
+
 ```{r Low correlation samples}
-low_correlation_samples <- 
-  low_correlation_patients %>% 
-  filter(low_count_sample) %>% 
-  pull(fastq)
+low_correlation_samples <- exclude_correlation$fastq
 
 print(paste("Total of",length(low_correlation_samples),
            "low correlation samples will be discarded."))
 ```
 
-Add duplicate and correlation status to sample annotation
+Add duplicate and correlation status to sample annotation. This ignores samples that would have been excluded anyway for a different reason.
 
 ```{r}
 sample_annot <- sample_annot %>%
@@ -605,22 +626,30 @@ discarded_df <- sample_annot %>%
   filter(keep == F)
 
 discarded_df <- discarded_df %>%
-  select(fastq, sample_name, patient_ID,
+  select(fastq, sample_name, patient_ID, study_group, clin_subtype,
          low_count_sample, poor_mapping, too_high_overrepresented_seq,
-         low_correlation_sample, per_sequence_gc_content, everything())
+         low_correlation_sample, per_sequence_gc_content) %>%
+  mutate(Included = 0)
+  
 discarded_df
 ```
 
 ```{r}
 patients_discarded <- setdiff(unique(discarded_df$patient_ID),
                               unique(sample_annot_filtered$patient_ID))
+patients_discarded
+```
+
+
+```{r}
 summary_discarded_samples <- discarded_df %>%
   summarise(total_samples_discarded=nrow(discarded_df),
             total_patients_discarded=length(patients_discarded),
-            total_low_count = sum(low_count_sample==T),
-            total_poor_mapping = sum(poor_mapping ==T),
-            total_low_cor = sum(low_correlation_sample==T),
-            total_gc_fail = sum(per_sequence_gc_content=="FAIL")
+            total_low_count = sum(low_count_sample==T, na.rm = T),
+            total_poor_mapping = sum(poor_mapping ==T, na.rm = T),
+            total_low_cor = sum(low_correlation_sample==T, na.rm = T),
+            total_gc_fail = sum(per_sequence_gc_content=="FAIL", na.rm = T),
+            missing_fastq = sum(is.na(low_count_sample))
             )
 
 summary_discarded_samples <- summary_discarded_samples %>% t() %>%
@@ -633,7 +662,7 @@ Write discarded samples
 
 ```{r}
 write_csv(discarded_df,
-          path=here("data/rnaseq/metadata/02_discarded_samples.csv"))
+          here("data/rnaseq/metadata/02_discarded_samples.csv"))
 ```
 
 Difference in study group and clinical subtype after filtering:
@@ -662,6 +691,21 @@ subset_tximport <- function(txi, cols){
 
 tx_clean <- subset_tximport(tx, sample_annot_filtered$fastq)
 ```
+
+Set appropriate column names
+
+```{r}
+stopifnot(all(colnames(tx_clean$abundance) == colnames(tx_clean$counts)))
+stopifnot(all(colnames(tx_clean$abundance) == colnames(tx_clean$length)))
+
+stopifnot(all(colnames(tx_clean$abundance) %in% sample_annot_filtered$fastq))
+```
+
+
+```{r}
+colnames(tx_clean$abundance)
+```
+
 
 Save filtered count matrix
 
