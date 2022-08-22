@@ -10,36 +10,74 @@ output:
     highlight: kate
     df_print: paged
 params:
-  tx: "data/rnaseq/interim/02_tx_clean.Rds",
+  tx: "data/rnaseq/interim/02_tx_clean.Rds"
   meta: "data/rnaseq/interim/02_sample_annot_filtered.Rds"
 ---
 
+```{r libraries, message = F}
+library(here)
+library(tidyverse)
+library(tximport)
+library(DESeq2)
+
+theme_set(theme_bw())
+```
+
+Create a dds from tximport
+
 ## Load data
 
+```{r}
+tx <- readRDS(here(params$tx))
+```
+
+```{r}
+meta <- readRDS(here(params$meta))
+```
+
+## Patient ID as column names
+
+The column name within our tx object is derived from the fast file name. Replace it with the patient ID.
+
+```{r}
+stopifnot(all(colnames(tx$abundance) == colnames(tx$counts)))
+stopifnot(all(colnames(tx$abundance) == colnames(tx$length)))
+stopifnot(all(colnames(tx$abundance) %in% meta$fastq))
+
+new_names <- tibble(fastq = colnames(tx$abundance)) %>%
+  left_join(., select(meta, fastq, patient_ID), by ="fastq")
+
+stopifnot(all(new_names$fastq == colnames(tx)))
+```
+
+```{r}
+tx_clean <- tx
+colnames(tx_clean$abundance) <- new_names$fastq
+colnames(tx_clean$counts) <- new_names$fastq
+colnames(tx_clean$length) <- new_names$fastq
+```
+
+```{r}
+stopifnot(all(colnames(tx_clean$abundance) == colnames(tx_clean$counts)))
+stopifnot(all(colnames(tx_clean$abundance) == colnames(tx_clean$length)))
+stopifnot(all(colnames(tx_clean$abundance) == meta$fastq))
+```
 
 ## Create dds
 
 Create dds and collapse technical replicates
 
 ```{r}
-dds <- DESeqDataSetFromTximport(tx_clean, sample_annot_filtered, ~ molecular_subtype + study_group)
-dds <- collapseReplicates(dds, dds$sample_name)
+dds <- DESeqDataSetFromTximport(tx_clean, meta, ~ clin_subtype + study_group)
+dds <- collapseReplicates(dds, dds$patient_ID)
 ```
 
 ```{r}
 dim(dds)
 ```
 
-Convert characters to factors for a few groups.
-
 ```{r}
-dds$PPBC = factor(dds$PPBC,
-                  levels = c(
-                    "nulliparous",
-                    "pregnant",
-                    "lactating",
-                    "involuting"
-                  ))
+stopifnot(length(unique(colnames(dds))) == length(colnames(dds)))
 ```
 
 
@@ -49,21 +87,16 @@ Write dds
 saveRDS(dds, file = here("data/Rds/02_QC_dds.Rds"))
 ```
 
-
 ## Molecular subtype PCA
 
 ```{r}
 get_PCA <- function(dds, labelled_samples = NULL, color.group, shape.group){
   
-  require(DESeq2)
-  require(tidyverse)
-  require(ggrepel)
-  
   vsd = vst(dds, blind=FALSE)
   
   sampleDists <- dist(t(assay(vsd)))
   
-  pcaData <- plotPCA(vsd, intgroup=c(color.group, shape.group), returnData=TRUE) #To do: Make intgroup variables
+  pcaData <- plotPCA(vsd, intgroup=c(color.group, shape.group), returnData=TRUE) 
   percentVar <- round(100 * attr(pcaData, "percentVar"))
   
   if (is.null(labelled_samples)==T){
@@ -85,14 +118,12 @@ get_PCA <- function(dds, labelled_samples = NULL, color.group, shape.group){
 }
 ```
 
-```{r, fig.width=8, fig.height=6}
-get_PCA(dds, color.group = "molecular_subtype", shape.group = "study_group")
+```{r}
+get_PCA(dds, color.group = "clin_subtype", shape.group = "study_group")
 ```
 
-# Session info
+## Session info
 
 ```{r}
 sessionInfo()
 ```
-
-
