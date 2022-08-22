@@ -2,11 +2,11 @@ retrieve_fastqc_module = function(qc, sample_annot, module.type,
                                   dir=here("results/rnaseq/fastqc"),
                                   failorwarn = c("FAIL", "WARN"),
                                   min.lib.size = min_lib_size){
-  
+
   qc <- qc %>% filter(module == !!module.type) %>%
     filter(status %in% failorwarn) %>%
     filter(as.integer(tot.seq) > min.lib.size)
-  
+
   file.paths <- file.path(dir, qc$sample)
   
   or <- fastqcr::qc_read_collection(file = file.paths,
@@ -17,6 +17,7 @@ retrieve_fastqc_module = function(qc, sample_annot, module.type,
                   sample_annot, by = c("fastq"))
   
   # or <- left_join(or, select(qc, -module), by=c("sample_id"="sample"))
+
   
   return(or)
 }

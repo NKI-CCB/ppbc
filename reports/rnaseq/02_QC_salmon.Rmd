@@ -21,7 +21,7 @@ params:
   cor_min: 0.9
 ---
 
-```{r libraries}
+```{r libraries, echo=F}
 library(here)
 library(DESeq2)
 library(fastqcr)
@@ -55,6 +55,7 @@ Data was packaged into a list via tx_import in the previous notebooks (01_proces
 tx <- readRDS(here(params$tx))
 
 rnaMeta<- readRDS(here(params$rnaMeta))
+sample_annot <- readRDS(here(params$rnaMeta))
 ```
 
 Multiqc summary
@@ -121,6 +122,66 @@ multiqc %>%
 
 The majority of samples with poor mapping are below the library size cutoff. 
 
+Multiqc summary
+
+```{r}
+multiqc <- read_tsv(file=here(params$alignstats), show_col_types = F)
+
+colnames(multiqc) <- str_remove(colnames(multiqc), "Salmon_|FastQC_") %>%
+  str_remove(., "mqc-generalstats-") %>%
+  str_remove(., "salmon-|fastqc-")
+
+multiqc <- multiqc %>% rename(fastq = Sample)
+
+head(multiqc)
+```
+
+Fastqcr aggregation
+
+```{r}
+# Don't rename the sample column until later, doing so breaks some functions
+qc <- readRDS(here(params$fastqcr))
+head(qc)
+```
+
+
+## Batch overview
+
+Sequencing batch overview. Most NAs refer to samples that were sequenced more than once, in which case the batch is omitted from the second entry.
+
+```{r}
+sample_annot %>% group_by(batch) %>% count()
+```
+
+## Library size
+
+We previously set a minimum library size of 10e6.7 (`r 10^6.7``). Based on the histogram, we get the following distribution.
+
+```{r}
+# params as exponents are read as characters, and can't be coerced to numbers
+min_lib_size <- 10^6.7
+
+hist(log10(colSums(tx$counts)), breaks=40, main="Log10 library size PPBC") 
+abline(v = log10(min_lib_size), col = "red")
+```
+
+Record library size and mark samples below the threshold
+
+```{r}
+multiqc <- colSums(tx$counts) %>%
+  enframe("fastq", "lib.size") %>%
+  mutate(low_count_sample = lib.size < min_lib_size) %>%
+  mutate(fastq = str_remove(fastq, ".fastq.gz")) %>%
+  left_join(., multiqc, by = "fastq")
+
+multiqc %>%
+  filter(low_count_sample)
+```
+
+## Alignment stats
+
+The majority of samples with poor mapping are below the library size cutoff. 
+
 ```{r}
 multiqc %>% ggplot(aes(x=lib.size, y=percent_mapped, color=low_count_sample)) +
   geom_point() + scale_x_log10() +
@@ -128,7 +189,7 @@ multiqc %>% ggplot(aes(x=lib.size, y=percent_mapped, color=low_count_sample)) +
   geom_hline(yintercept = 75, color="black", linetype = "dashed")
 ```
 
-Add a threshold of `r params$mapping_threshold`` mapped reads.
+Add a threshold of `r params$mapping_threshold` mapped reads.
 
 ```{r}
 multiqc <- multiqc %>%
@@ -151,6 +212,7 @@ sample_annot <- multiqc %>%
 ## Fastqcr
 
 Be aware that Fastqcr reads all fastq samples into its summary, including those which have been pre-excluded based on clinical reasons. Custom reporting functions used in this notebook do exclude those samples.
+
 
 ```{r}
 summary(qc)
@@ -195,6 +257,7 @@ as.data.frame(qc) %>% filter(module=="Per tile sequence quality") %>%
   ggbeeswarm::geom_beeswarm() +
   ggtitle("Per tile sequence quality by batch")
 ```
+
 
 ```{r}
 sample_annot <- add_qc_to_metadata(sample_annot, qc, "Per tile sequence quality")
@@ -436,22 +499,18 @@ correlations_random <-
 
 #Retrieve flags for first sample
 corsim <- left_join(bind_rows(correlations, correlations_random),
-          select(sample_annot, sample_1 = fastq,
-                 #Potential color metrics
+          select(sample_annot,
+                 sample_1 = fastq,
                  lib.size, 
-                 #poor_mapping,
                  low_count_sample,
-                 #high_dup_sample, too_high_overrepresented_sequences
           ),
           by = "sample_1") %>%
   #And again for second
   left_join(.,
-            select(sample_annot, sample_2 = fastq,
-                   #Potential color metrics
+            select(sample_annot,
+                   sample_2 = fastq,
                    lib.size, 
-                   low_count_sample, 
-                   #poor_mapping,
-                   #high_dup_sample, too_high_overrepresented_sequences
+                   low_count_sample
             ),
             by = "sample_2") %>%
   mutate(
@@ -461,14 +520,12 @@ corsim <- left_join(bind_rows(correlations, correlations_random),
 
 corsim %>%
   ggplot(aes(x = !(patient_ID == "random"), y = spearman,
-             color = low_count_samples,
-             #size = lib.size.ave
+             color = low_count_samples
   )) +
   ggbeeswarm::geom_quasirandom() +
   labs(title = "Correlation in readcounts (all samples)",
        x = "Samples from same patient?",
-       y = "Spearman correlation between samples") #+
-  #geom_hline(yintercept = 0.9, color="red")
+       y = "Spearman correlation between samples")
 ```
 
 And if we eliminate those which don't fail one of the other flags?
@@ -585,6 +642,7 @@ sample_annot <- sample_annot %>%
 sample_annot %>% select(duplicate, low_correlation_sample) %>% table()
 ```
 
+
 ## Exclude failed samples
 
 * Library size less than `r params$min_lib_size`
@@ -691,21 +749,6 @@ subset_tximport <- function(txi, cols){
 
 tx_clean <- subset_tximport(tx, sample_annot_filtered$fastq)
 ```
-
-Set appropriate column names
-
-```{r}
-stopifnot(all(colnames(tx_clean$abundance) == colnames(tx_clean$counts)))
-stopifnot(all(colnames(tx_clean$abundance) == colnames(tx_clean$length)))
-
-stopifnot(all(colnames(tx_clean$abundance) %in% sample_annot_filtered$fastq))
-```
-
-
-```{r}
-colnames(tx_clean$abundance)
-```
-
 
 Save filtered count matrix
 
