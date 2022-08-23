@@ -10,8 +10,8 @@ output:
     highlight: kate
     df_print: paged
 params:
-  dds: "data/rnaseq/interim/03_dds_PAM50.Rds"
-  scores: "data/rnaseq/interim/04a_estimate_scores.Rds"
+  coxdata: "data/rnaseq/interim/04_survdata.Rds"
+  dds: "data/rnaseq/interim/04_dds_PAM50_est.Rds"
   color_palette: "data/rnaseq/interim/color_palettes.Rds"
   survival_colors: "data/rnaseq/interim/survival_colors.Rds"
 ---
@@ -20,7 +20,44 @@ params:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Sequential univariate analysis of clinical covariates
+```{r, message=F}
+library(DESeq2)
+library(here)
+library(estimate)
+library(survival)
+library(survminer)
+library(tidyverse)
+library(ggthemes)
+library(RColorBrewer)
+library(ggpubr)
+
+theme_set(theme_bw())
+```
+
+## Load data
+
+Survival data and color palettes.
+
+```{r}
+coxdata <- readRDS(here(params$coxdata))
+dds <- readRDS(here(params$dds))
+color_palettes <- readRDS(here(params$color_palette))
+sp <- readRDS(here(params$survival_colors))
+```
+
+Remove "rest" categories from color palettes.
+
+```{r}
+color_palettes$study_colors <- color_palettes$study_colors[
+  names(color_palettes$study_colors) != "rest"]
+
+color_palettes$ppbc_colors <- color_palettes$ppbc_colors[
+  names(color_palettes$ppbc_colors) != "rest"]
+```
+
+## Sequential analysis of clinical covariates
+
+Check the importance oof our various clinical covariates.
 
 ```{r}
 #colnames(coxdata)
@@ -97,6 +134,7 @@ It has a weak, non significant coefficient.
 ```{r}
 res.simple.univ$year_diagnosis
 ```
+
 We can safely discard this covariate.
 
 Run the model again without it and test for PH assumptions.
@@ -157,7 +195,9 @@ We will stratify HT but not CT.
 ```{r}
 coxph(
   Surv(time=time_OS_months,
-       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + 
+    radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + 
+    PAM50 + PPBC,
   data = coxdata) %>%
   cox.zph()
 ```
@@ -191,7 +231,7 @@ coxph(
   cox.zph()
 ```
 
-## Stage
+### Stage
 
 Stage is just barely not sigificant when looking at Schoenfeld residuals.
 
@@ -206,11 +246,11 @@ ggcoxzph(test.ph.os, var="stage")[[1]]
 However, the Schoenfeld individual test is no logner significant after the other problem covariates have been stratified, as we saw in the previous section.
 No further action is taken here.
 
-# Testing influential observations
+## Testing influential observations
 
 >Specifying the argument type = “dfbeta”, plots the estimated changes in the regression coefficients upon deleting each observation in turn; likewise, type=“dfbetas” produces the estimated changes in the coefficients divided by their standard errors.
 
-Although some notable outliers are present for nearly every covaraite, the points are relatively evenly distributed around the center for all save PPBC-pregnancy.
+Although some notable outliers are present for nearly every covariate, the points are relatively evenly distributed around the center for all save PPBC-pregnancy.
 This cannot be corrected for without discarding some samples, which is not warranted based on these plots.
 
 ```{r, fig.width=7, fig.height=10}
@@ -222,7 +262,7 @@ ggcoxdiagnostics(., type = "dfbeta",
                  linear.predictions = FALSE, ggtheme = theme_bw())
 ```
 
-# Multivariate Cox models
+## Multivariate Cox models
 
 After diagnostics, we discard year of diagnosis and stratify hormonetherapy, chemotherapy and PAM50.
 
@@ -256,65 +296,10 @@ clin.cov.cox <- coxph(
 summary(clin.cov.cox)
 ```
 
-It is worth noting that all but 7 patients underwent surgery, so it is likely that those patients who were inelligble were at an advanced stage of disease progression at diagnosis.
+It is worth noting that most patients underwent surgery, so it is likely that those patients who were inelligble were at an advanced stage of disease progression at diagnosis.
 
 ```{r}
 table(coxdata$surgery)
-```
-
-### KM adjusted overall survival
-
-Stratifying treatment prior to ggadjusted curves results in several strata with zero non-NA points. 
-Arguably stratifying PAM50 accounts for ER status by itself.
-We'll remove the stratification for HT from this analysis.
-
-```{r}
-fit1 = coxph(
-  Surv(time=time_OS_months,
-       event=death) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    hormonetherapy +
-    chemotherapy +
-    herceptin +
-    strata(PAM50) +
-    #PAM50 +
-    PPBC,
-  data = coxdata)
-
-fit0 = coxph(
-  Surv(time=time_OS_months,
-       event=death) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    hormonetherapy +
-    chemotherapy +
-    herceptin +
-    strata(PAM50)
-    #PAM50
-  ,
-  data = coxdata)
-
-km_ppbc_os_adj = ggadjustedcurves(fit1, variable = "PPBC",
-                                  data = coxdata, method="conditional",
-                                  palette = color_palettes$ppbc_colors,
-                                  ggtheme = theme_bw()) +
-  ggtitle("Overall survival adjusted for clinical covariates") +
-  annotate(geom = "text",
-           label = paste("p =", signif(anova(fit1, fit0)[4][2,], 2)),
-           x= 25, y =0.1)
-
-km_ppbc_os_adj
-```
-
-```{r, eval=F, include=F}
-pdf(file.path(resDir, "04_os_ppbc_adjusted.pdf"), width = 8, height=6)
-print(km_ppbc_os_adj)
-dev.off()
 ```
 
 For distant recurrence, stage remains significantly deleterious while surgery is significantly protective.
@@ -335,57 +320,6 @@ drs.clin.cov.cox <- coxph(
     PPBC,
   data = coxdata)
 summary(drs.clin.cov.cox)
-```
-
-### KM adjusted distant recurrence
-
-```{r}
-fit1 = coxph(
-  Surv(time=time_DRS_months,
-       event=distant_recurrence) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    hormonetherapy +
-    chemotherapy +
-    herceptin +
-    strata(PAM50) +
-    #PAM50 +
-    PPBC,
-  data = coxdata)
-
-fit0 = coxph(
-  Surv(time=time_DRS_months,
-       event=distant_recurrence) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    hormonetherapy +
-    chemotherapy +
-    herceptin +
-    strata(PAM50)
-    #PAM50
-  ,
-  data = coxdata)
-
-km_ppbc_drs_adj = ggadjustedcurves(fit1, variable = "PPBC",
-                                  data = coxdata, method="conditional",
-                                  palette = color_palettes$ppbc_colors,
-                                  ggtheme = theme_bw()) +
-  ggtitle("Distant recurrence adjusted for clinical covariates") +
-  annotate(geom = "text",
-           label = paste("p =", signif(anova(fit1, fit0)[4][2,], 2)),
-           x= 25, y =0.1)
-
-km_ppbc_drs_adj
-```
-
-```{r, eval=F, include=F}
-pdf(file.path(resDir, "04_drs_ppbc_adjusted.pdf"), width = 8, height=6)
-print(km_ppbc_drs_adj)
-dev.off()
 ```
 
 ## Adjused models for immune and stromal scores
@@ -428,278 +362,115 @@ coxph(
 
 ```
 
-### KM adjusted immune
-
-Plotting OS only.
-
-```{r}
-names(tertile_colors) = c(1,2,3)
-
-fit1 = coxph(
-  Surv(time=time_OS_months,
-       event=death) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    hormonetherapy +
-    chemotherapy +
-    herceptin +
-    strata(PAM50) +
-    #PAM50 +
-    immune_tertile,
-  data = coxdata)
-
-fit0 = coxph(
-  Surv(time=time_OS_months,
-       event=death) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    hormonetherapy +
-    chemotherapy +
-    herceptin +
-    strata(PAM50)
-    #PAM50
-  ,
-  data = coxdata)
-
-km_ppbc_adj_immune = ggadjustedcurves(fit1, variable = "immune_tertile",
-                                  data = coxdata, method="conditional",
-                                  palette = tertile_colors,
-                                  ggtheme = theme_bw()) +
-  ggtitle("Overall survival of ESTIMATE immune scores, adjusted for clinical covariates") +
-  annotate(geom = "text",
-           label = paste("p =", signif(anova(fit1, fit0)[4][2,], 2)),
-           x= 25, y =0.1) +
-  labs(color = "tertile")
-
-km_ppbc_adj_immune
-```
-
-### KM adjusted stromal
-
-```{r}
-names(tertile_colors) = c(1,2,3)
-
-fit1 = coxph(
-  Surv(time=time_OS_months,
-       event=death) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    hormonetherapy +
-    chemotherapy +
-    herceptin +
-    strata(PAM50) +
-    #PAM50 +
-    stromal_tertile,
-  data = coxdata)
-
-fit0 = coxph(
-  Surv(time=time_OS_months,
-       event=death) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    hormonetherapy +
-    chemotherapy +
-    herceptin +
-    strata(PAM50)
-    #PAM50
-  ,
-  data = coxdata)
-
-km_ppbc_adj_stromal = ggadjustedcurves(fit1, variable = "stromal_tertile",
-                                  data = coxdata, method="conditional",
-                                  palette = tertile_colors,
-                                  ggtheme = theme_bw()) +
-  ggtitle("Overall survival of ESTIMATE stromal scores, adjusted for clinical covariates") +
-  annotate(geom = "text",
-           label = paste("p =", signif(anova(fit1, fit0)[4][2,], 2)),
-           x= 25, y =0.1) +
-  labs(color = "tertile")
-
-km_ppbc_adj_stromal
-```
-
-```{r, eval=F, include=F}
-#pdf(file.path(resDir, "04_os_ppbc_adjusted.pdf"), width = 8, height=6)
-#print(km_ppbc_os_adj)
-#dev.off()
-```
-
 ## Adjused models for time in involution and breastfeeding
 
-As continuous variables, neither involution duration nor breastfeeding duration is significant.
-It doesn't matter whether we look at OS or DRS.
-
 ```{r}
-coxph(
-  Surv(time=time_OS_months,
-       event=death) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    strata(hormonetherapy) +
-    chemotherapy +
-    herceptin +
-    strata(PAM50) +
-    months_involution +
-    months_breastfeeding,
-  data = inv_cox) %>% summary()
+inv_cox <- as.data.frame(colData(dds)) %>%
+  filter(study_group == "ppbcpw") %>%
+  select(patient_ID, months_involution, months_breastfeeding) %>%
+  na.omit() %>%
+  left_join(., coxdata, by = "patient_ID") %>%
+  na.omit()
 
-coxph(
-  Surv(time=time_DRS_months,
-       event=distant_recurrence) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    strata(hormonetherapy) +
-    chemotherapy +
-    herceptin +
-    strata(PAM50) +
-    months_involution +
-    months_breastfeeding,
-  data = inv_cox) %>% summary()
+print(paste(nrow(inv_cox), "of", nrow(filter(coxdata, study_group == "ppbcpw")),
+            "involution samples with complete metadata have breastfeeding and time since weaning"))
 ```
 
-As categorical variables, a shorter time in involution (< 6 months) or breastfeeding (1 < month) is significantly worse than a longer duration in either.
-
-
-```{r}
-coxph(
-  Surv(time=time_OS_months,
-       event=death) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    strata(hormonetherapy) +
-    chemotherapy +
-    herceptin +
-    strata(PAM50) +
-    involution +
-    breastfeeding,
-  data = inv_cox) %>% summary()
-
-coxph(
-  Surv(time=time_DRS_months,
-       event=distant_recurrence) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    strata(hormonetherapy) +
-    chemotherapy +
-    herceptin +
-    strata(PAM50) +
-    involution +
-    breastfeeding,
-  data = inv_cox) %>% summary()
-
-```
-
-There are too few samples to plot adjusted Kaplan-Meier curves.
-
-# Save data
-
-Write all Kaplain-Meiers to a pdf.
-They will be either gg or ggsurvplot objects
+Duration categories:
 
 ```{r}
-kms = sapply(ls(), function(x) class(get(x)))%>%
-  unlist() %>%
-  enframe() %>%
-  filter(value %in% c("gg", "ggsurvplot")) %>%
-  pull(name)
-
-kms = kms %>% str_sub(1, -2)
-
-for(km in kms){
-  print(km)
-}
-```
-
-Choose the order in the pdf
-
-```{r}
-resDir = here("results", "survival")
-dir.create(resDir, showWarnings = F)
-
-pdf(file.path(resDir, "04_kaplan_meiers.pdf"),
-    onefile = T,
-    width = 8, height = 6)
-print(km_ppbc$plot, newpage=F)
-print(km_ppbc_os_adj)
-print(drs_ppbc$plot)
-print(km_ppbc_drs_adj)
-print(km_pam50$plot)
-print(drs_pam50$plot)
-print(km_time_inv$plot)
-print(km_drs_inv$plot)
-print(km_brf$plot)
-print(drs_brf$plot)
-print(km_IS$plot)
-print(drs_IS$plot)
-print(km_ppbc_adj_immune)
-print(km_SS$plot)
-print(drs_SS$plot)
-print(km_ppbc_adj_stromal)
-dev.off()
-```
-
-Immune score and stromal score are already in the coldata.
-We should add the tertiles for ESTIMATE and breastfeeding
-
-```{r}
-dds$immune_tertile = dplyr::ntile(as.data.frame(colData(dds))$immune_score, 3)
-dds$stromal_tertile = dplyr::ntile(as.data.frame(colData(dds))$stromal_score, 3)
-
-#We want this for all samples, even those excluded from Cox analysis
-cd = as.data.frame(colData(dds))
-cd = cd %>%
+inv_cox <- inv_cox %>%
   mutate(involution = case_when(
     months_involution <= 6 ~ "<= 6 months",
-    months_involution > 6 ~ "> 6 months"
-    )) %>% 
-  mutate(involution = factor(involution,
-                             levels = c("<= 6 months", "> 6 months"))) %>%
-  mutate(breastfeeding = case_when(
-    months_breastfeeding <= 1 & study_group == "ppbcpw" ~ "<= 1 month",
-    months_breastfeeding > 1 & study_group == "ppbcpw" ~ "> 1 month"
+    months_involution > 6 ~ "> 6 months",
+  )) %>% mutate(breastfeeding = case_when(
+    months_breastfeeding <= 1 ~ "<= 1 month",
+    months_breastfeeding > 1 ~ "> 1 month",
   )) %>%
   select(patient_ID, months_involution, involution,
          months_breastfeeding, breastfeeding, everything()) %>%
-  mutate(breastfeeding = factor(breastfeeding,
+  mutate(involution = factor(involution,
+                             levels = c("<= 6 months", "> 6 months")),
+         breastfeeding = factor(breastfeeding,
                                 levels = c("<= 1 month", "> 1 month")))
-stopifnot(identical(cd$patient_ID, colData(dds)$patient_ID))
 
-dds$involution_duration = cd$involution
-dds$breastfeeding_duration = cd$breastfeeding
-
-table(dds$involution_duration)
-table(dds$breastfeeding_duration)
+inv_cox <- droplevels(inv_cox)
+inv_cox$involution %>% table()
+inv_cox$breastfeeding %>% table()
 ```
 
-Write both the coldata and the new dds object
+
+Numeric involution and breastfeeding duration:
 
 ```{r}
-write.csv(as.data.frame(colData(dds)),
-          file=here("data","metadata", "04_sample_annot_filtered_PAM50_EST.csv"), row.names = F)
-saveRDS(dds, file=here("data","Rds","04_dds_PAM50_EST.Rds"))
+coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    months_involution +
+    months_breastfeeding,
+  data = inv_cox) %>% summary()
+
+coxph(
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    months_involution +
+    months_breastfeeding,
+  data = inv_cox) %>% summary()
 ```
 
+Categorical variables involution (< 6 months) or breastfeeding (1 < month):
 
+```{r}
+coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    involution +
+    breastfeeding,
+  data = inv_cox) %>% summary()
+
+coxph(
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    involution +
+    breastfeeding,
+  data = inv_cox) %>% summary()
+
+```
 
 ## Session info
 
 ```{r}
 sessionInfo()
 ```
-

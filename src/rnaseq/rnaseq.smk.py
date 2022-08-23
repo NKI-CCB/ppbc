@@ -269,8 +269,6 @@ rule multi_survival:
     dds="data/rnaseq/interim/04_dds_PAM50_est.Rds",
     survival_colors="data/rnaseq/interim/survival_colors.Rds"
   output:
-    #Updated colData for dds
-    "data/rnaseq/metadata/04_sample_annot_filtered_PAM50_EST.csv",
     html="reports/rnaseq/04c_multivariate_survival.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
