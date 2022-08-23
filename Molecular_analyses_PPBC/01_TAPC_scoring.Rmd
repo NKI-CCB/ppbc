@@ -266,6 +266,19 @@ TAPC_plot_all
 ```
 
 
+```{r}
+my_comparisons <- list( c("PPBCPW", "PPBCDL"), c("PPBCPW", "PrBC"), c("PPBCPW", "NPBC") )
+
+TAPC_plot_all <- ggboxplot(PPBC_metadata, x="study_group", y="TAPC_score",
+          color = "study_group", palette = c("#49CE5B", "#112D4E", "#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "TAPC score", xlab = "study group") + 
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.05, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 80) # + stat_pvalue_manual(pwc_delta_estimate_CD3CD8pos_CD20, hide.ns = TRUE, y.position = c(1.25))) + ylim(0,3.6) + stat_pvalue_manual(pwc, hide.ns = TRUE, y.position = c(3.2))
+
+TAPC_plot_all
+```
+
+
 ## without lac
 
 ```{r}
@@ -318,11 +331,13 @@ table(PPBC_metadata_withoutLAC$TAPC_score)
 
 
 ```{r}
+my_comparisons <- list( c("ppbcpw", "prbc"), c("ppbcpw", "npbc"), c("prbc", "npbc") )
+
 TAPC_plot_all_withoutlac <- ggboxplot(PPBC_metadata_withoutLAC, x="study_group", y="TAPC_score",
           color = "study_group", palette = c("#49CE5B", "#AA96DA", "#521262"),
           order = c("ppbcpw", "prbc", "npbc"),
           ylab = "TAPC score", xlab = "study group") + 
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.05, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,3.6) + stat_pvalue_manual(pwc, hide.ns = TRUE, y.position = c(3.2, 3.4))
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.06, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 4) #) + ylim(0,3.6) + stat_pvalue_manual(pwc, hide.ns = TRUE, y.position = c(3.2, 3.4))
 
 TAPC_plot_all_withoutlac
 ```
@@ -786,6 +801,170 @@ clin.cov.cox <- coxph(
     study_group,
   data = PPBC_metadata_withoutLAC_high)
 summary(clin.cov.cox)
+```
+
+
+
+
+
+# scatterplot 
+
+# correlation TAPC - study_group
+
+create logical variable TAPC
+
+```{r}
+PPBC_metadata_withoutLAC$TAPC_short <- NA
+PPBC_metadata_withoutLAC$TAPC_short[PPBC_metadata_withoutLAC$TAPC=="low"] <- 0
+PPBC_metadata_withoutLAC$TAPC_short[PPBC_metadata_withoutLAC$TAPC=="high"] <- 1
+
+table(PPBC_metadata_withoutLAC$TAPC)
+table(PPBC_metadata_withoutLAC$TAPC_short)
+
+PPBC_metadata_withoutLAC$TAPC_short <- as.numeric(PPBC_metadata_withoutLAC$TAPC_short)
+```
+
+```{r}
+PPBC_metadata_withoutLAC$TAPC_score <- as.numeric(PPBC_metadata_withoutLAC$TAPC_score)
+```
+
+
+remove NA values 
+
+
+```{r}
+PPBC_metadata_withoutLAC <- PPBC_metadata_withoutLAC[!is.na(PPBC_metadata_withoutLAC$TAPC_score),]
+
+group_by(PPBC_metadata_withoutLAC, study_group) %>%
+  summarise(
+    count = n(),
+    mean = mean(TAPC_short, na.rm = TRUE),
+    sd = sd(TAPC_short, na.rm = TRUE)
+  )
+```
+
+
+```{r}
+PPBC_metadata_withoutLAC$study_group_tem <- NA
+PPBC_metadata_withoutLAC$study_group_tem[PPBC_metadata_withoutLAC$study_group=="ppbcpw"] <- 1
+PPBC_metadata_withoutLAC$study_group_tem[PPBC_metadata_withoutLAC$study_group=="prbc"] <- 2
+PPBC_metadata_withoutLAC$study_group_tem[PPBC_metadata_withoutLAC$study_group=="npbc"] <- 3
+
+PPBC_metadata_withoutLAC$study_group_tem <- as.numeric(PPBC_metadata_withoutLAC$study_group_tem)
+table(PPBC_metadata_withoutLAC$study_group_tem)
+```
+
+```{r}
+PPBC_metadata$study_group_ordinal <- NA
+PPBC_metadata$study_group_ordinal[PPBC_metadata$study_group=="ppbcpw"] <- 1
+PPBC_metadata$study_group_ordinal[PPBC_metadata$study_group=="ppbcdl"] <- 2
+PPBC_metadata$study_group_ordinal[PPBC_metadata$study_group=="prbc"] <- 3
+PPBC_metadata$study_group_ordinal[PPBC_metadata$study_group=="npbc"] <- 4
+```
+
+## overall
+
+
+### all cases 
+
+```{r}
+scatterplot_TAPC_PPBC <- PPBC_metadata %>%
+    ggplot(aes(x = study_group_ordinal, y = TAPC_score)) +
+    geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_TAPC_PPBC
+```
+
+
+### without lactation
+
+
+```{r}
+scatterplot_TAPC_PPBC <- PPBC_metadata_withoutLAC %>%
+    ggplot(aes(x = study_group_tem, y = TAPC_score)) +
+    geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_TAPC_PPBC
+```
+
+
+
+```{r}
+scatterplot_TAPC_PPBC <- PPBC_metadata_withoutLAC %>%
+    ggplot(aes(x = study_group_tem, y = TAPC_short)) +
+    geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_TAPC_PPBC
+```
+
+
+### ppbcpw versus prbc
+
+
+```{r}
+PPBC_inv_prbc <- subset(PPBC_metadata_withoutLAC, study_group_tem %in% c("1","2"), )
+PPBC_inv_npbc <- subset(PPBC_metadata_withoutLAC, study_group_tem %in% c("1", "3"), )
+```
+
+
+```{r}
+scatterplot_TAPC_PPBC_inv_prbc <- PPBC_inv_prbc %>%
+    ggplot(aes(x = study_group_tem, y = TAPC_score)) +
+    geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_TAPC_PPBC_inv_prbc
+```
+
+```{r}
+scatterplot_TAPC_PPBC_inv_prbc <- PPBC_inv_prbc %>%
+    ggplot(aes(x = study_group_tem, y = TAPC_short)) +
+    geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_TAPC_PPBC_inv_prbc
+```
+
+
+### ppbcpw versus npbc
+
+
+```{r}
+scatterplot_TAPC_PPBC_inv_npbc <- PPBC_inv_npbc %>%
+    ggplot(aes(x = study_group_tem, y = TAPC_score)) +
+    geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_TAPC_PPBC_inv_npbc
+```
+
+
+
+
+```{r}
+scatterplot_TAPC_PPBC_inv_npbc <- PPBC_inv_npbc %>%
+    ggplot(aes(x = study_group_tem, y = TAPC_short)) +
+    geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_TAPC_PPBC_inv_npbc
 ```
 
 

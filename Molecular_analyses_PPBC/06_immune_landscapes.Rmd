@@ -76,7 +76,7 @@ library(rstatix)
 
 read in meta-file 
 ```{r}
-meta <- read_excel("PPBC_metadata.xlsx", sheet = "patient_data")
+meta <- read_excel("PPBC_metadata_20220807.xlsx", sheet = "patient_data")
 ```
 
 ```{r}
@@ -173,6 +173,11 @@ calls_df <- calls %>%
 ```{r}
 calls_df <- na.omit(calls_df)
 ```
+
+```{r}
+calls_df <- as.vector(calls_df)
+```
+
 
 ```{r}
 calls_df <- count(calls_df, cluster, BestCall)
@@ -296,7 +301,6 @@ immune_ppbcdl
 ```
 
 
-
 ## PrBC
 
 
@@ -348,13 +352,13 @@ immune_signature
 
 
 ```{r}
-immune_signature <- subset(immune_signature, cluster %in% c("ppbcpw", "prbc", "npbc"), )
+#immune_signature <- subset(immune_signature, cluster %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), )
 ```
 
 
 ```{r}
 immune_signature$cluster <- ordered(immune_signature$cluster,
-                                levels = c("ppbcpw", "prbc", "npbc"))
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
 table(immune_signature$cluster)
 ```
 
@@ -512,29 +516,41 @@ table(immune_signature_wound_healing$cluster)
 ```
 
 
+```{r}
+my_comparisons <- list( c("ppbcpw", "ppbcdl"), c("ppbcpw", "prbc"), c("ppbcpw", "npbc") )
+```
+
+
 Visualization
 ```{r, fig.width=7, fig.height=4.5}
 pwc_wound_healing <- pwc_wound_healing %>% add_xy_position(x = "cluster")
 
 ggboxplot(immune_signature_wound_healing, x="cluster", y="wound_healing",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "wound_healing at Diagnosis", xlab = "Study Group", lwd = 1) + stat_compare_means(method = "anova") + stat_pvalue_manual(pwc_wound_healing, hide.ns = TRUE) 
 
 ggline(immune_signature_wound_healing, x= "cluster", y= "wound_healing",
        add = c("mean_se", "jitter"),
-       order = c("ppbcpw", "prbc", "npbc"),
+       order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
        ylab = "wound_healing at Diagnosis", xlab = "Study Group") + stat_compare_means(method = "anova")
 
 ANOVA_wound_healing <- ggboxplot(immune_signature_wound_healing, x="cluster", y="wound_healing",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "wound_healing at Diagnosis", xlab = "Study Group") +
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.00015, aes(colour = cluster)) + stat_compare_means(method = "kruskal") + ylim(0,0.01) + stat_pvalue_manual(pwc_wound_healing, hide.ns = TRUE, y.position = c(0.015))
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.00015, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.01) #) + ylim(0,0.01) + stat_pvalue_manual(pwc_wound_healing, hide.ns = TRUE, y.position = c(0.015))
 ANOVA_wound_healing
 ```
 
-
+```{r}
+ANOVA_wound_healing <- ggboxplot(immune_signature_wound_healing, x="cluster", y="wound_healing",
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "wound_healing at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.00015, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.01) + ylim(0, 0.01) #) + ylim(0,0.01) + stat_pvalue_manual(pwc_wound_healing, hide.ns = TRUE, y.position = c(0.015))
+ANOVA_wound_healing
+```
 
 
 ## IFNy dominant
@@ -692,27 +708,35 @@ table(immune_signature_IFNy_dominant$cluster)
 Visualization
 ```{r, fig.width=7, fig.height=4.5}
 pwc_IFNy_dominant <- pwc_IFNy_dominant %>% add_xy_position(x = "cluster")
+my_comparisons <- list( c("ppbcpw", "ppbcdl"), c("ppbcpw", "prbc"), c("ppbcpw", "npbc") )
+
 
 ggboxplot(immune_signature_IFNy_dominant, x="cluster", y="IFNy_dominant",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "IFNy_dominant at Diagnosis", xlab = "Study Group", lwd = 1) + stat_compare_means(method = "anova") + stat_pvalue_manual(pwc_IFNy_dominant, hide.ns = TRUE) 
 
 ggline(immune_signature_IFNy_dominant, x= "cluster", y= "IFNy_dominant",
        add = c("mean_se", "jitter"),
-       order = c("ppbcpw", "prbc", "npbc"),
+       order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
        ylab = "IFNy_dominant at Diagnosis", xlab = "Study Group") + stat_compare_means(method = "anova")
 
 ANOVA_IFNy_dominant <- ggboxplot(immune_signature_IFNy_dominant, x="cluster", y="IFNy_dominant",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "IFNy_dominant at Diagnosis", xlab = "Study Group") +
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.001, aes(colour = cluster)) + stat_compare_means(method = "kruskal") + ylim(0, 0.06) + stat_pvalue_manual(pwc_IFNy_dominant, hide.ns = TRUE, y.position = c(0.06))
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.001, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.8) # + ylim(0, 0.01)# ) + ylim(0, 0.06) + stat_pvalue_manual(pwc_IFNy_dominant, hide.ns = TRUE, y.position = c(0.06))
 ANOVA_IFNy_dominant
 ```
 
-
-
+```{r}
+ANOVA_IFNy_dominant <- ggboxplot(immune_signature_IFNy_dominant, x="cluster", y="IFNy_dominant",
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "IFNy_dominant at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.008, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.8)  + ylim(0, 0.4)# ) + ylim(0, 0.06) + stat_pvalue_manual(pwc_IFNy_dominant, hide.ns = TRUE, y.position = c(0.06))
+ANOVA_IFNy_dominant
+```
 
 
 ## Inflammatory
@@ -869,25 +893,34 @@ table(immune_signature_inflammatory$cluster)
 Visualization
 ```{r, fig.width=7, fig.height=4.5}
 pwc_inflammatory <- pwc_inflammatory %>% add_xy_position(x = "cluster")
+my_comparisons <- list( c("ppbcpw", "ppbcdl"), c("ppbcpw", "prbc"), c("ppbcpw", "npbc") )
 
 ggboxplot(immune_signature_inflammatory, x="cluster", y="inflammatory",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "inflammatory at Diagnosis", xlab = "Study Group", lwd = 1) + stat_compare_means(method = "anova") + stat_pvalue_manual(pwc_inflammatory, hide.ns = TRUE) 
 
 ggline(immune_signature_inflammatory, x= "cluster", y= "inflammatory",
        add = c("mean_se", "jitter"),
-       order = c("ppbcpw", "prbc", "npbc"),
+       order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
        ylab = "inflammatory at Diagnosis", xlab = "Study Group") + stat_compare_means(method = "anova")
 
 ANOVA_inflammatory <- ggboxplot(immune_signature_inflammatory, x="cluster", y="inflammatory",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "inflammatory at Diagnosis", xlab = "Study Group") +
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.012, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test") + ylim(0,0.75) + stat_pvalue_manual(pwc_inflammatory, hide.ns = TRUE, y.position = c(0.70, 0.74))
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.012, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 1.0) #  + ylim(0, 1)# ) + ylim(0, 0.06)
 ANOVA_inflammatory
 ```
 
+```{r}
+ANOVA_inflammatory <- ggboxplot(immune_signature_inflammatory, x="cluster", y="inflammatory",
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "inflammatory at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.012, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.8)  + ylim(0, 0.7)# ) + ylim(0, 0.06)
+ANOVA_inflammatory
+```
 
 
 ## lymphocyte_depleted
@@ -1046,27 +1079,34 @@ table(immune_signature_lymphocyte_depleted$cluster)
 Visualization
 ```{r, fig.width=7, fig.height=4.5}
 pwc_lymphocyte_depleted <- pwc_lymphocyte_depleted %>% add_xy_position(x = "cluster")
+my_comparisons <- list( c("ppbcpw", "ppbcdl"), c("ppbcpw", "prbc"), c("ppbcpw", "npbc") )
 
 ggboxplot(immune_signature_lymphocyte_depleted, x="cluster", y="lymphocyte_depleted",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "lymphocyte_depleted at Diagnosis", xlab = "Study Group", lwd = 1) + stat_compare_means(method = "anova") + stat_pvalue_manual(pwc_lymphocyte_depleted, hide.ns = TRUE) 
 
 ggline(immune_signature_lymphocyte_depleted, x= "cluster", y= "lymphocyte_depleted",
        add = c("mean_se", "jitter"),
-       order = c("ppbcpw", "prbc", "npbc"),
+       order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
        ylab = "lymphocyte_depleted at Diagnosis", xlab = "Study Group") + stat_compare_means(method = "anova")
 
 ANOVA_lymphocyte_depleted <- ggboxplot(immune_signature_lymphocyte_depleted, x="cluster", y="lymphocyte_depleted",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "lymphocyte_depleted at Diagnosis", xlab = "Study Group") +
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.01, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test") + ylim(0,0.75) + stat_pvalue_manual(pwc_lymphocyte_depleted, hide.ns = TRUE, y.position = c(0.73))
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.01, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.8) # + ylim(0, 0.7)# ) + ylim(0, 0.06)
 ANOVA_lymphocyte_depleted
 ```
 
-
-
+```{r}
+ANOVA_lymphocyte_depleted <- ggboxplot(immune_signature_lymphocyte_depleted, x="cluster", y="lymphocyte_depleted",
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "lymphocyte_depleted at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.01, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.8) + ylim(0, 0.7)# ) + ylim(0, 0.06)
+ANOVA_lymphocyte_depleted
+```
 
 
 ## immunologically_quiet
@@ -1224,35 +1264,35 @@ table(immune_signature_immunologically_quiet$cluster)
 Visualization
 ```{r, fig.width=7, fig.height=4.5}
 pwc_immunologically_quiet <- pwc_immunologically_quiet %>% add_xy_position(x = "cluster")
+my_comparisons <- list( c("ppbcpw", "ppbcdl"), c("ppbcpw", "prbc"), c("ppbcpw", "npbc") )
 
 ggboxplot(immune_signature_immunologically_quiet, x="cluster", y="immunologically_quiet",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "immunologically_quiet at Diagnosis", xlab = "Study Group", lwd = 1) + stat_compare_means(method = "anova") + stat_pvalue_manual(pwc_immunologically_quiet, hide.ns = TRUE) 
 
 ggline(immune_signature_immunologically_quiet, x= "cluster", y= "immunologically_quiet",
        add = c("mean_se", "jitter"),
-       order = c("ppbcpw", "prbc", "npbc"),
+       order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
        ylab = "immunologically_quiet at Diagnosis", xlab = "Study Group") + stat_compare_means(method = "anova")
 
 ANOVA_immunologically_quiet <- ggboxplot(immune_signature_immunologically_quiet, x="cluster", y="immunologically_quiet",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "immunologically_quiet at Diagnosis", xlab = "Study Group") +  
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0000005, aes(colour = cluster)) + stat_compare_means(method = "kruskal") + ylim(0,0.00012) + stat_pvalue_manual(pwc_immunologically_quiet, hide.ns = TRUE, y.position = c(0.00012))
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0000005, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.00015) # + ylim(0, 0.7)# ) + ylim(0, 0.06)
 ANOVA_immunologically_quiet
 ```
 
 
 ```{r}
 ANOVA_immunologically_quiet <- ggboxplot(immune_signature_immunologically_quiet, x="cluster", y="immunologically_quiet",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
-          ylab = "immunologically_quiet at Diagnosis", xlab = "Study Group") +
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0000005, aes(colour = cluster)) + stat_compare_means(method = "kruskal") + ylim(0,0.00012) + stat_pvalue_manual(pwc_immunologically_quiet, hide.ns = TRUE, y.position = c(0.00012))
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "immunologically_quiet at Diagnosis", xlab = "Study Group") +  
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.000002, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.8) + ylim(0, 0.00012)# ) + ylim(0, 0.06)
 ANOVA_immunologically_quiet
 ```
-
 
 ## TGFb dominant
 
@@ -1409,26 +1449,34 @@ table(immune_signature_TGFb_dominant$cluster)
 Visualization
 ```{r, fig.width=7, fig.height=4.5}
 pwc_TGFb_dominant <- pwc_TGFb_dominant %>% add_xy_position(x = "cluster")
+my_comparisons <- list( c("ppbcpw", "ppbcdl"), c("ppbcpw", "prbc"), c("ppbcpw", "npbc") )
 
 ggboxplot(immune_signature_TGFb_dominant, x="cluster", y="TGFb_dominant",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "TGFb_dominant at Diagnosis", xlab = "Study Group", lwd = 1) + stat_compare_means(method = "anova") + stat_pvalue_manual(pwc_TGFb_dominant, hide.ns = TRUE) 
 
 ggline(immune_signature_TGFb_dominant, x= "cluster", y= "TGFb_dominant",
        add = c("mean_se", "jitter"),
-       order = c("ppbcpw", "prbc", "npbc"),
+       order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
        ylab = "TGFb_dominant at Diagnosis", xlab = "Study Group") + stat_compare_means(method = "anova")
 
 ANOVA_TGFb_dominant <- ggboxplot(immune_signature_TGFb_dominant, x="cluster", y="TGFb_dominant",
-          color = "cluster", palette = c("#46CDCF", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "prbc", "npbc"),
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "TGFb_dominant at Diagnosis", xlab = "Study Group") +
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0005, aes(colour = cluster)) + stat_compare_means(method = "kruskal") + ylim(0,0.025) + stat_pvalue_manual(pwc_TGFb_dominant, hide.ns = TRUE, y.position = c(0.025))
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0005, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.03) # + ylim(0, 0.7)# ) + ylim(0, 0.06)
 ANOVA_TGFb_dominant
 ```
 
-
+```{r}
+ANOVA_TGFb_dominant <- ggboxplot(immune_signature_TGFb_dominant, x="cluster", y="TGFb_dominant",
+          color = "cluster", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "TGFb_dominant at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.0005, aes(colour = cluster)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.03)  + ylim(0, 0.02)# ) + ylim(0, 0.06)
+ANOVA_TGFb_dominant
+```
 
 # ANOVA per subgroup 
 
@@ -1612,7 +1660,7 @@ Visualization
 pwc_ppbcpw <- pwc_ppbcpw %>% add_xy_position(x = "BestCall")
 
 ggboxplot(immune_signature_ppbcpw, x="BestCall", y="fraction_bestcall",
-          color = "BestCall", #palette = c("#46CDCF", "#AA96DA", "#521262"),
+          color = "BestCall", #palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
           order = c(1,2,3,4,5,6),
           ylab = "ppbcpw at Diagnosis", xlab = "Study Group", lwd = 1) + stat_compare_means(method = "anova") + stat_pvalue_manual(pwc_ppbcpw, hide.ns = TRUE) 
 
@@ -1622,7 +1670,7 @@ ggline(immune_signature_ppbcpw, x= "BestCall", y= "fraction_bestcall",
        ylab = "ppbcpw at Diagnosis", xlab = "Study Group") + stat_compare_means(method = "anova")
 
 ANOVA_ppbcpw <- ggboxplot(immune_signature_ppbcpw, x="BestCall", y="fraction_bestcall",
-          color = "BestCall", #palette = c("#46CDCF", "#AA96DA", "#521262"),
+          color = "BestCall", #palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
           order = c(1,2,3,4,5,6),
           ylab = "ppbcpw at Diagnosis", xlab = "Study Group") +
   geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.02, aes(colour = BestCall)) + stat_compare_means(method = "anova") + ylim(0,1.6) + stat_pvalue_manual(pwc_ppbcpw, hide.ns = TRUE, y.position = c(1.4,1.6))
@@ -1806,7 +1854,7 @@ Visualization
 pwc_prbc <- pwc_prbc %>% add_xy_position(x = "BestCall")
 
 ggboxplot(immune_signature_prbc, x="BestCall", y="fraction_bestcall",
-          color = "BestCall", #palette = c("#46CDCF", "#AA96DA", "#521262"),
+          color = "BestCall", #palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
           order = c(1,2,3,4,5,6),
           ylab = "prbc at Diagnosis", xlab = "Study Group", lwd = 1) + stat_compare_means(method = "anova") + stat_pvalue_manual(pwc_prbc, hide.ns = TRUE) 
 
@@ -1816,7 +1864,7 @@ ggline(immune_signature_prbc, x= "BestCall", y= "fraction_bestcall",
        ylab = "prbc at Diagnosis", xlab = "Study Group") + stat_compare_means(method = "anova")
 
 ANOVA_prbc <- ggboxplot(immune_signature_prbc, x="BestCall", y="fraction_bestcall",
-          color = "BestCall", #palette = c("#46CDCF", "#AA96DA", "#521262"),
+          color = "BestCall", #palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
           order = c(1,2,3,4,5,6),
           ylab = "prbc at Diagnosis", xlab = "Study Group") +
   geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.02, aes(colour = BestCall)) + stat_compare_means(method = "anova") + ylim(0,1.6) + stat_pvalue_manual(pwc_prbc, hide.ns = TRUE, y.position = c(1.4))
@@ -1999,7 +2047,7 @@ Visualization
 pwc_npbc <- pwc_npbc %>% add_xy_position(x = "BestCall")
 
 ggboxplot(immune_signature_npbc, x="BestCall", y="fraction_bestcall",
-          color = "BestCall", #palette = c("#46CDCF", "#AA96DA", "#521262"),
+          color = "BestCall", #palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
           order = c(1,2,3,4,5,6),
           ylab = "npbc at Diagnosis", xlab = "Study Group", lwd = 1) + stat_compare_means(method = "anova") + stat_pvalue_manual(pwc_npbc, hide.ns = TRUE) 
 
@@ -2009,7 +2057,7 @@ ggline(immune_signature_npbc, x= "BestCall", y= "fraction_bestcall",
        ylab = "npbc at Diagnosis", xlab = "Study Group") + stat_compare_means(method = "anova")
 
 ANOVA_npbc <- ggboxplot(immune_signature_npbc, x="BestCall", y="fraction_bestcall",
-          color = "BestCall", #palette = c("#46CDCF", "#AA96DA", "#521262"),
+          color = "BestCall", #palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
           order = c(1,2,3,4,5,6),
           ylab = "npbc at Diagnosis", xlab = "Study Group") +
   geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.02, aes(colour = BestCall)) + stat_compare_means(method = "anova") + ylim(0,1.6) + stat_pvalue_manual(pwc_npbc, hide.ns = TRUE, y.position = c(1.1,1.2,1.3,1.4,1.5))

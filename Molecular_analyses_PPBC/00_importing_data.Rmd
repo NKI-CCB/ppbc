@@ -35,7 +35,7 @@ getwd()
 # Importing the data
 
 ```{r}
-PPBC_metadata <- read_excel("PPBC_metadata_20220805.xlsx", sheet = "patient_data")
+PPBC_metadata <- read_excel("PPBC_metadata_20220807.xlsx", sheet = "patient_data")
 ```
 
 ```{r}

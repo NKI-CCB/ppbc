@@ -52,7 +52,7 @@ library(ggsankey)
 
 read in meta-file 
 ```{r}
-meta <- read_excel("PPBC_metadata.xlsx", sheet = "patient_data")
+meta <- read_excel("PPBC_metadata_20220807.xlsx", sheet = "patient_data")
 ```
 
 ```{r}

@@ -161,19 +161,23 @@ scatterplot_CD38_TAPC
 
 
 ```{r}
-pdf(file="scatterplot_CD38_TAPC.pdf", width = 7, height=5)
-scatterplot_CD38_TAPC
-dev.off()
-```
-
-```{r}
-scatterplot_CD38_TAPC <- qplot(x = TAPC_score, y = TI_CD38_total, data = PPBC_metadata) +
+scatterplot_CD38_TAPC_v2 <- qplot(x = TAPC_score, y = TI_CD38_total, data = PPBC_metadata, color = "study_group") +
         geom_jitter(method = "lm") +
         ggtitle("Fig. A: Strong Positive Association")
-scatterplot_CD38_TAPC
+scatterplot_CD38_TAPC_v2
 ```
 
 
+```{r}
+scatterplot_CD38_TAPC <- PPBC_metadata %>%
+    ggplot(aes(x = TAPC_score, y = TI_CD38_total)) +
+    geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_CD38_TAPC
+```
 
 ```{r}
 PPBC_metadata$TAPC_score <- as.character(PPBC_metadata$TAPC_score)
@@ -213,11 +217,22 @@ scatterplot_CD38_TAPC_inv
 
 
 ```{r}
-pdf(file="scatterplot_CD38_TAPC_inv.pdf", width = 7, height=5)
+scatterplot_CD38_TAPC_inv <- Data_inv %>%
+    ggplot(aes(x = TAPC_score, y = TI_CD38_total)) +
+    geom_jitter() + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "spearman",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
 scatterplot_CD38_TAPC_inv
-dev.off()
 ```
 
+
+```{r}
+scatterplot_CD38_TAPC_inv_v2 <- qplot(x = TAPC_score, y = TI_CD38_total, data = Data_inv) +
+        geom_jitter(method = "lm") 
+scatterplot_CD38_TAPC_inv_v2
+```
 
 
 ## PrBC
@@ -233,11 +248,6 @@ scatterplot_CD38_TAPC_prbc <- qplot(x = TAPC_score, y = TI_CD38_total, data = Da
 scatterplot_CD38_TAPC_prbc
 ```
 
-```{r}
-pdf(file="scatterplot_CD38_TAPC_prbc.pdf", width = 7, height=5)
-scatterplot_CD38_TAPC_prbc
-dev.off()
-```
 
 ## NP-BC
 
@@ -252,26 +262,10 @@ scatterplot_CD38_TAPC_npbc <- qplot(x = TAPC_score, y = TI_CD38_total, data = Da
 scatterplot_CD38_TAPC_npbc
 ```
 
-
-```{r}
-pdf(file="scatterplot_CD38_TAPC_npbc.pdf", width = 7, height=5)
-scatterplot_CD38_TAPC_npbc
-dev.off()
-```
-
-
-
 ```{r}
 scatterplot_CD38_TAPC_all <- grid.arrange(scatterplot_CD38_TAPC_inv, scatterplot_CD38_TAPC_prbc, scatterplot_CD38_TAPC_npbc, ncol = 2, 
              top = textGrob("Anscombe's Quartet"))
 scatterplot_CD38_TAPC_all
-```
-
-
-```{r}
-pdf(file="scatterplot_CD38_TAPC_all.pdf", width = 7, height=5)
-scatterplot_CD38_TAPC_all
-dev.off()
 ```
 
 # correlation IgA/IgG - TAPC
@@ -317,6 +311,17 @@ scatterplot_IgA_TAPC
 ```
 
 
+```{r}
+scatterplot_IgA_TAPC <- PPBC_metadata %>%
+    ggplot(aes(x = TAPC_score, y = IgA)) +
+    geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgA_TAPC
+```
+
 add association line
 ```{r}
 scatterplot_IgA_TAPC <- qplot(x = TAPC_score, y = IgA, data = PPBC_metadata, color = TAPC_score) +
@@ -340,6 +345,16 @@ scatterplot_IgG_TAPC <- qplot(x = TAPC_score, y = IgG, data = PPBC_metadata) +
 scatterplot_IgG_TAPC
 ```
 
+```{r}
+scatterplot_IgG_TAPC <- PPBC_metadata %>%
+    ggplot(aes(x = TAPC_score, y = IgG)) +
+    geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgG_TAPC
+```
 
 ```{r}
 p1 <- qplot(x = `TAPC_score`, y = `IgA`, data = PPBC_metadata) +
@@ -372,6 +387,17 @@ scatterplot_IgA_TAPC_inv
 ```
 
 
+```{r}
+scatterplot_IgA_TAPC_inv <- Data_inv %>%
+    ggplot(aes(x = TAPC_score, y = IgA)) +
+    geom_jitter() +
+  geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgA_TAPC_inv
+```
 
 ### IgG
 
@@ -387,7 +413,16 @@ scatterplot_IgG_TAPC_inv <- qplot(x = TAPC_score, y = IgG, data = Data_inv) +
 scatterplot_IgG_TAPC_inv
 ```
 
-
+```{r}
+scatterplot_IgG_TAPC_inv <- Data_inv %>%
+    ggplot(aes(x = TAPC_score, y = IgG)) +
+    geom_jitter() + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgG_TAPC_inv
+```
 
 ```{r}
 scatterplot_IgA_IgG_TAPC_inv <- grid.arrange(scatterplot_IgA_TAPC_inv, scatterplot_IgG_TAPC_inv, ncol = 2)
@@ -413,7 +448,16 @@ scatterplot_IgA_TAPC_prbc <- qplot(x = TAPC_score, y = IgA, data = Data_prbc) +
 scatterplot_IgA_TAPC_prbc
 ```
 
-
+```{r}
+scatterplot_IgA_TAPC_prbc <- Data_prbc %>%
+    ggplot(aes(x = TAPC_score, y = IgA)) +
+    geom_jitter() + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgA_TAPC_prbc
+```
 
 ### IgG
 
@@ -429,7 +473,16 @@ scatterplot_IgG_TAPC_prbc <- qplot(x = TAPC_score, y = IgG, data = Data_prbc) +
 scatterplot_IgG_TAPC_prbc
 ```
 
-
+```{r}
+scatterplot_IgG_TAPC_prbc <- Data_prbc %>%
+    ggplot(aes(x = TAPC_score, y = IgG)) +
+    geom_jitter() + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgG_TAPC_prbc
+```
 
 ```{r}
 scatterplot_IgA_IgG_TAPC_prbc <- grid.arrange(scatterplot_IgA_TAPC_prbc, scatterplot_IgG_TAPC_prbc, ncol = 2)
@@ -453,6 +506,17 @@ scatterplot_IgA_TAPC_npbc <- qplot(x = TAPC_score, y = IgA, data = Data_npbc) +
 scatterplot_IgA_TAPC_npbc
 ```
 
+```{r}
+scatterplot_IgA_TAPC_npbc <- Data_npbc %>%
+    ggplot(aes(x = TAPC_score, y = IgA)) +
+    geom_jitter() + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgA_TAPC_npbc
+```
+
 ### IgG
 
 ```{r}
@@ -467,6 +531,16 @@ scatterplot_IgG_TAPC_npbc <- qplot(x = TAPC_score, y = IgG, data = Data_npbc) +
 scatterplot_IgG_TAPC_npbc
 ```
 
+```{r}
+scatterplot_IgG_TAPC_npbc <- Data_npbc %>%
+    ggplot(aes(x = TAPC_score, y = IgG)) +
+    geom_jitter() + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgG_TAPC_npbc
+```
 
 ```{r}
 scatterplot_IgA_IgG_TAPC_npbc <- grid.arrange(scatterplot_IgA_TAPC_npbc, scatterplot_IgG_TAPC_npbc, ncol = 2)
@@ -510,7 +584,16 @@ scatterplot_IgA_IgG
 ```
 
 
-
+```{r}
+scatterplot_IgA_IgG <- PPBC_metadata %>%
+    ggplot(aes(x = IgG, y = IgA)) +
+    geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
+    #p value in stat_cor comes from `cor.test`
+    ggpubr::stat_cor(method = "kendall",
+                     aes(label = paste(..r.label.., ..p.label.., sep = 
+"~`,`~")))
+scatterplot_IgA_IgG
+```
 
 ## PPBC-inv
 

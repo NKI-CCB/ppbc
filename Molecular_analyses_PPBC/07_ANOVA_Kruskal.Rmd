@@ -771,13 +771,16 @@ kruskal.test(Plasma_fraction ~ study_group, data = MCP_IG_withoutlac)
 table(MCP_IG$study_group)
 ```
 
+ geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 1, aes(colour = group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 80) # + stat_pvalue_manual(pwc_delta_estimate_CD3CD8pos_CD20, hide.ns = TRUE, y.position = c(1.25))
 
 ```{r}
+my_comparisons <- list( c("ppbcpw", "ppbcdl"), c("ppbcpw", "prbc"), c("ppbcpw", "npbc") )
+
 Cibersort_PC <- ggboxplot(MCP_IG, x="study_group", y="Plasma_fraction",
           color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
           order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "Plasma Fraction", xlab = "B-cell related expression") + 
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "anova") + ylim(0,0.3) + stat_pvalue_manual(pwc, hide.ns = TRUE, y.position = c(0.27, 0.28, 0.3))
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.35) # + ylim(0,0.3) + stat_pvalue_manual(pwc, hide.ns = TRUE, y.position = c(0.27, 0.28, 0.3))
 Cibersort_PC
 ```
 
@@ -1040,13 +1043,13 @@ kruskal.test(memory_B_fraction ~ study_group, data = MCP_IG)
 
 
 ```{r}
-ggboxplot(MCP_IG, x="study_group", y="memory_B_fraction",
+Cibersort_memoryB <- ggboxplot(MCP_IG, x="study_group", y="memory_B_fraction",
           color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
           order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "memoryB Fraction", xlab = "B-cell related expression") + 
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_memB, hide.ns = TRUE, y.position = c(0.20))
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.35) # + ylim(0,0.3) + stat_pvalue_manual(pwc_memB, hide.ns = TRUE, y.position = c(0.20))
+Cibersort_memoryB
 ```
-
 
 without lac 
 
@@ -1294,16 +1297,13 @@ kruskal.test(naive_B_fraction ~ study_group, data = MCP_IG)
 
 
 ```{r}
-Boxplot_naiveB <- ggboxplot(MCP_IG, x="study_group", y="naive_B_fraction",
+Cibersort_naiveB <- ggboxplot(MCP_IG, x="study_group", y="naive_B_fraction",
           color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
           order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "naiveB Fraction", xlab = "B-cell related expression") + 
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_naiveB, hide.ns = TRUE, y.position = c(0.28))
-Boxplot_naiveB
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.35) # + ylim(0,0.3) + stat_pvalue_manual(pwc_naiveB, hide.ns = TRUE, y.position = c(0.28))
+Cibersort_naiveB
 ```
-
-
-
 
 # Naive B - absolute
 
@@ -1552,14 +1552,13 @@ kruskal.test(CD8_fraction ~ study_group, data = MCP_IG)
 
 
 ```{r}
-Boxplot_CD8_fraction <- ggboxplot(MCP_IG, x="study_group", y="CD8_fraction",
+Cibersort_CD8_fraction <- ggboxplot(MCP_IG, x="study_group", y="CD8_fraction",
           color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
           order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
           ylab = "CD8 Fraction", xlab = "B-cell related expression") + 
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.3) + stat_pvalue_manual(pwc_CD8, hide.ns = TRUE, y.position = c(0.20, 0.25))
-Boxplot_CD8_fraction
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 0.3) #) + ylim(0,0.3) + stat_pvalue_manual(pwc_CD8, hide.ns = TRUE, y.position = c(0.20, 0.25))
+Cibersort_CD8_fraction
 ```
-
 
 without lactation
 ```{r}
@@ -3041,31 +3040,31 @@ group_by(MCP_IG, study_group) %>%
 short study group
 ```{r}
 # compute the analysis of variance
-res.aov.NKrest_abs <- aov(NKrest_abs_fraction ~ study_group, data = MCP_IG)
+#res.aov.NKrest_abs <- aov(NKrest_abs_fraction ~ study_group, data = MCP_IG)
 # summary of the analysis
-summary(res.aov.NKrest_abs)
+#summary(res.aov.NKrest_abs)
 ```
 
 ```{r}
-TukeyHSD(res.aov.NKrest_abs)
+#TukeyHSD(res.aov.NKrest_abs)
 ```
 
 ```{r}
-pwc_NKrest_abs <- MCP_IG %>% tukey_hsd(NKrest_abs_fraction ~ study_group)
-pwc_NKrest_abs
+#pwc_NKrest_abs <- MCP_IG %>% tukey_hsd(NKrest_abs_fraction ~ study_group)
+#pwc_NKrest_abs
 ```
 
 ```{r}
-kruskal.test(NKrest_abs_fraction ~ study_group, data = MCP_IG)
+#kruskal.test(NKrest_abs_fraction ~ study_group, data = MCP_IG)
 ```
 
 ```{r}
-Boxplot_NKrest_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="NKrest_abs_fraction",
-          color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
-          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
-          ylab = "NKrest Fraction", xlab = "B-cell related expression") + 
-  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.2) + stat_pvalue_manual(pwc_NKrest_abs, hide.ns = TRUE, y.position = c(0.18))
-Boxplot_NKrest_abs_fraction
+#Boxplot_NKrest_abs_fraction <- ggboxplot(MCP_IG, x="study_group", y="NKrest_abs_fraction",
+ #         color = "study_group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+#          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+#          ylab = "NKrest Fraction", xlab = "B-cell related expression") + 
+#  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.005, aes(colour = study_group)) + stat_compare_means(method = "kruskal") + ylim(0,0.2) + stat_pvalue_manual(pwc_NKrest_abs, hide.ns = TRUE, y.position = c(0.18))
+#Boxplot_NKrest_abs_fraction
 ```
 
 

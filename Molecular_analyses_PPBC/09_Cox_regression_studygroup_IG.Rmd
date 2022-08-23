@@ -80,11 +80,27 @@ table(MCP_Final$study_group)
 ```
 
 
+Exclude lactation group
+
+```{r}
+MCP_Final_withoutLAC <- subset(MCP_Final, PPBC %in% c("involuting","nulliparous", "pregnant"), )
+MCP_Data_withoutLAC <- subset(MCP_Data, PPBC %in% c("involuting","nulliparous", "pregnant"), )
+```
+
+```{r}
+MCP_Final_withoutLAC <- as.data.frame(MCP_Final_withoutLAC)
+MCP_Data_withoutLAC <- as.data.frame(MCP_Data_withoutLAC)
+```
+
+
+
 ```{r}
 MCP_Data$study_group <- ordered(MCP_Data$study_group,
                                 levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
 MCP_Final$study_group <- ordered(MCP_Final$study_group,
                                 levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+MCP_Final_withoutLAC$study_group <- ordered(MCP_Final_withoutLAC$study_group,
+                                levels = c("ppbcpw", "prbc", "npbc"))
 MCP_inv_vs_nonPrBC$study_group <- ordered(MCP_inv_vs_nonPrBC$study_group,
                                 levels = c("ppbcpw", "npbc"))
 MCP_inv_vs_PrBC$study_group <- ordered(MCP_inv_vs_PrBC$study_group,
@@ -98,17 +114,6 @@ table(MCP_Final$study_group)
 ```
 
 
-Exclude lactation group
-
-```{r}
-MCP_Final_withoutLAC <- subset(MCP_Final, PPBC %in% c("involuting","nulliparous", "pregnant"), )
-MCP_Data_withoutLAC <- subset(MCP_Data, PPBC %in% c("involuting","nulliparous", "pregnant"), )
-```
-
-```{r}
-MCP_Final_withoutLAC <- as.data.frame(MCP_Final_withoutLAC)
-MCP_Data_withoutLAC <- as.data.frame(MCP_Data_withoutLAC)
-```
 
 
 
@@ -144,6 +149,8 @@ MCP_inv_vs_lac <- as.data.frame(MCP_inv_vs_lac)
 fit_SG_OS <- survfit(surv_OS ~ study_group, data = MCP_Final)
 #Based on all cases in MCP_Data
 fit_SG_OS_all <- survfit(surv_OS_all ~ study_group, data = MCP_Data)
+#basd on filtered cases in MCP_Final without Lac
+fit_SG_OS_nolac <- survfit(surv_OS_without_lac ~ study_group, data = MCP_Final_withoutLAC)
 ```
 
 ```{r}
@@ -157,6 +164,10 @@ ggsurvplot(fit_SG_OS, data = MCP_Final, pval = TRUE, legend = "top", legend.labs
 
 ggsurvplot(fit_SG_OS_all, data = MCP_Data, pval = TRUE, legend = "top", legend.labs = c("ppbcpw", "ppbcdl", "prbc", "npbc"), legend.title = "study group", title = "OS - Univariate Analysis", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"))
 ```
+```{r}
+ggsurvplot(fit_SG_OS_nolac, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.labs = c("ppbcpw", "prbc", "npbc"), legend.title = "study group", title = "OS - Univariate Analysis", palette = c("#46CDCF","#AA96DA", "#521262"))
+```
+
 
 
 ```{r, fig.width=6.5, fig.height=5}
@@ -175,12 +186,6 @@ MCP_OS_univariate <- ggsurvplot(fit_SG_OS, data = MCP_Final,
     legend.labs = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
 #MCP_OS_univariate <- ggpar(MCP_OS_univariate, xlim = c(0,230))
 MCP_OS_univariate
-```
-
-```{r}
-pdf(file="MCP_OS_univariate.pdf", width = 7, height=5)
-MCP_OS_univariate
-dev.off()
 ```
 
 ```{r, fig.width=6.5, fig.height=5}
@@ -243,6 +248,7 @@ ggsurvplot(
 ```
 
 
+
 ### univariate
 
 No significant difference in study group in a univariate analyses (boarderline for ppbcdl)
@@ -274,8 +280,6 @@ study_strata
 MCP_OS_multivariate <- ggadjustedcurves(study_strata, data=MCP_Final, method="conditional", variable="study_group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"), ylab = "OS Probability", xlab = "Months", ggtheme = theme_bw()) + ggtitle(paste0("Multivariate Cox OS - all study groups"))
 MCP_OS_multivariate
 ```
-
-
 
 Testing proportional hazards assumption -> zie file Kat
 
@@ -405,10 +409,13 @@ km_ppbc_os_adj
 
 ```{r}
 fit_SG_DR <- survfit(surv_DR ~ study_group, data = MCP_Final)
+fit_SG_DR_nolac <- survfit(surv_DR_without_lac ~ study_group, data = MCP_Final_withoutLAC)
 ```
 
 ```{r, fig.width=6.5, fig.height=5}
 ggsurvplot(fit_SG_DR, data = MCP_Final, pval = TRUE, legend = "top", legend.title = "study group",legend.labs = c("ppbcpw", "ppbcdl", "prbc", "npbc"), title = "distant_recurrence - Univariate Analysis", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"))
+
+ggsurvplot(fit_SG_DR_nolac, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.title = "study group",legend.labs = c("ppbcpw", "prbc", "npbc"), title = "distant_recurrence - Univariate Analysis", palette = c("#46CDCF","#AA96DA", "#521262"))
 ```
 
 ```{r, fig.width=6.5, fig.height=5}
@@ -428,11 +435,6 @@ MCP_DRS_univariate <- ggsurvplot(fit_SG_DR, data = MCP_Final,
 MCP_DRS_univariate
 ```
 
-```{r, fig.width=6.5, fig.height=5}
-pdf(file="MCP_DRS_univariate.pdf", width = 7, height=5)
-MCP_DRS_univariate
-dev.off()
-```
 
 ```{r, fig.width=7, fig.height=8}
 ggsurvplot(fit_SG_DR, data = MCP_Final, pval = TRUE, fun = "pct", size = 1, linetype = "strata", legend = "bottom", legend.labs = c("ppbcpw", "ppbcdl", "prbc", "npbc"), legend.title = "study group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"), risk.table = TRUE)
@@ -621,10 +623,13 @@ table(MCP_Final$PAM50, MCP_Final$IG_ID)
 
 ```{r}
 fit_IG_OS <- survfit(surv_OS ~ IG_ID, data = MCP_Final)
+fit_IG_OS_withoutLAC <- survfit(surv_OS_without_lac ~ IG_ID, data = MCP_Final_withoutLAC)
 ```
 
 ```{r, fig.width=7, fig.height=5}
 ggsurvplot(fit_IG_OS, data = MCP_Final, pval = TRUE, legend = "top", legend.labs = c("high", "low", "medium"), legend.title = "IG cluster", title = "OS - Univariate Analysis", palette = c("#a10702", "#ffb600", "#ff7900"))
+
+ggsurvplot(fit_IG_OS_withoutLAC, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.labs = c("high", "low", "medium"), legend.title = "IG cluster", title = "OS - Univariate Analysis", palette = c("#a10702", "#ffb600", "#ff7900"))
 ```
 
 
@@ -646,10 +651,20 @@ plot_OS_IG_univariate <- ggsurvplot(fit_IG_OS, data = MCP_Final,
 plot_OS_IG_univariate
 ```
 
-```{r}
-pdf(file="plot_OS_IG_univariate.pdf", width = 7, height=5)
-plot_OS_IG_univariate
-dev.off()
+```{r, fig.width=7, fig.height=5}
+plot_OS_IG_univariate_withoutLAC <- ggsurvplot(fit_IG_OS_withoutLAC, data = MCP_Final_withoutLAC,
+    xlab = "Months", 
+    ylab = "OS probability",
+    #title =  paste0("OS univariate n = 184"),
+    #linetype = "strata",
+    palette = c("#a10702", "#ffb600", "#ff7900"),
+    ggtheme = theme_bw(),
+    pval = T,
+    risk.table = T,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F,
+    legend.labs = c("high (n=32)", "low (n=64)", "medium (n=88)"))
+plot_OS_IG_univariate_withoutLAC
 ```
 
 #### KM by PAM50
@@ -713,12 +728,6 @@ plot_OS_IG_highVSlow_nolac <-  ggsurvplot(
 plot_OS_IG_highVSlow_nolac
 ```
 
-```{r}
-pdf(file="plot_OS_IG_highVSlow.pdf", width = 7, height=5)
-plot_OS_IG_highVSlow
-dev.off()
-```
-
 
 ### Univariate
 
@@ -754,18 +763,28 @@ table(MCP_Final$IG_ID)
 
 ```{r}
 #with PPBC
-cox_OS_IG_cluster_multivariate <- coxph(Surv(time_OS_months, death) ~ IG_ID + study_group + stage + clin_subtype, data = MCP_Final)
+cox_OS_IG_cluster_multivariate <- coxph(Surv(time_OS_months, death) ~ IG_ID + PPBC + stage + clin_subtype, data = MCP_Final_withoutLAC)
 summary(cox_OS_IG_cluster_multivariate)
 ```
 
+```{r}
+#with study group as covariate 
+study_strata <- coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ stage + IG_ID + clin_subtype + strata(study_group), data = MCP_Final_withoutLAC)
+study_strata
+plot_OS_IG_multivariate <- ggadjustedcurves(study_strata, data=MCP_Final_withoutLAC, method="conditional", variable="study_group", palette = c("#46CDCF","#AA96DA", "#521262"), ggtheme = theme_bw()) + ggtitle("Adjusted survival curve for clinical covariates: Stratified")
+plot_OS_IG_multivariate
+```
 
+"#a10702", "#ffb600", "#ff7900"
 ```{r}
 #without study group as covariate 
 study_strata <- coxph(
   Surv(time=time_OS_months,
-       event=death) ~ stage + PPBC + clin_subtype + strata(IG_ID), data = MCP_Final)
+       event=death) ~ stage + PPBC + clin_subtype + strata(IG_ID), data = MCP_Final_withoutLAC)
 study_strata
-ggadjustedcurves(study_strata, data=MCP_Final, method="conditional", variable="IG_ID", palette = c("#a10702", "#ffb600", "#ff7900")) +
+ggadjustedcurves(study_strata, data=MCP_Final_withoutLAC, method="conditional", variable="IG_ID", palette = c("#a10702", "#ffb600", "#ff7900")) +
   ggtitle("Adjusted survival curve for clinical covariates: Stratified")
 ```
 
@@ -773,17 +792,12 @@ ggadjustedcurves(study_strata, data=MCP_Final, method="conditional", variable="I
 #with study group as covariate 
 study_strata <- coxph(
   Surv(time=time_OS_months,
-       event=death) ~ stage + PPBC + clin_subtype + strata(IG_ID), data = MCP_Final)
+       event=death) ~ stage + PPBC + clin_subtype + strata(IG_ID), data = MCP_Final_withoutLAC)
 study_strata
-plot_OS_IG_multivariate <- ggadjustedcurves(study_strata, data=MCP_Final, method="conditional", variable="IG_ID", palette = c("#a10702", "#ffb600", "#ff7900"), ggtheme = theme_bw()) + ggtitle("Adjusted survival curve for clinical covariates: Stratified")
+plot_OS_IG_multivariate <- ggadjustedcurves(study_strata, data=MCP_Final_withoutLAC, method="conditional", variable="IG_ID", palette = c("#a10702", "#ffb600", "#ff7900"), ggtheme = theme_bw()) + ggtitle("Adjusted survival curve for clinical covariates: Stratified")
 plot_OS_IG_multivariate
 ```
 
-```{r}
-pdf(file="plot_OS_IG_multivariate.pdf", width = 7, height=5)
-plot_OS_IG_multivariate
-dev.off()
-```
 
 
 Testing proportional hazards assumption -> zie file Kat
@@ -791,7 +805,7 @@ Testing proportional hazards assumption -> zie file Kat
 coxph(
   Surv(time=time_OS_months,
        event=death) ~ stage_short_integer + IG_ID + clin_subtype,
-  data = MCP_Final) %>%
+  data = MCP_Final_withoutLAC) %>%
   cox.zph()
 ```
 
@@ -805,7 +819,7 @@ clin.cov.cox <- coxph(
     IG_ID +
     PPBC +
     clin_subtype,
-  data = MCP_Final)
+  data = MCP_Final_withoutLAC)
 summary(clin.cov.cox)
 
 
@@ -815,7 +829,7 @@ clin.cov.cox <- coxph(
        event=death) ~ stage_short_integer +
     IG_ID +
     clin_subtype,
-  data = MCP_Final)
+  data = MCP_Final_withoutLAC)
 summary(clin.cov.cox)
 ```
 
@@ -979,6 +993,7 @@ plot_OS_IGhigh_multivariate
 
 ```{r}
 fit_IG_DR <- survfit(surv_DR ~ IG_ID, data = MCP_Final)
+fit_IG_DR_withoutLAC <- survfit(surv_DR_without_lac ~ IG_ID, data = MCP_Final_withoutLAC)
 ```
 
 
@@ -987,6 +1002,8 @@ fit_IG_DR <- survfit(surv_DR ~ IG_ID, data = MCP_Final)
 
 ```{r, fig.width=7, fig.height=5}
 ggsurvplot(fit_IG_DR, data = MCP_Final, pval = TRUE, legend = "top", legend.title = "IG cluster",legend.labs = c("high", "low", "medium"), title = "DR - Univariate Analysis", palette = c("#a10702", "#ffb600", "#ff7900"))
+
+ggsurvplot(fit_IG_DR_withoutLAC, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.title = "IG cluster",legend.labs = c("high", "low", "medium"), title = "DR - Univariate Analysis", palette = c("#a10702", "#ffb600", "#ff7900"))
 ```
 
 ```{r, fig.width=7, fig.height=5}
@@ -1005,11 +1022,22 @@ plot_DRS_IG_univariate <- ggsurvplot(fit_IG_DR, data = MCP_Final,
 plot_DRS_IG_univariate
 ```
 
-```{r}
-pdf(file="plot_DRS_IG_univariate.pdf", width = 7, height=5)
-plot_DRS_IG_univariate
-dev.off()
+```{r, fig.width=7, fig.height=5}
+plot_DRS_IG_univariate_withoutLAC <- ggsurvplot(fit_IG_DR_withoutLAC, data = MCP_Final_withoutLAC,
+    xlab = "Months", 
+    ylab = "DRS probability",
+    #title =  paste0("OS univariate n = 184"),
+    #linetype = "strata",
+    palette = c("#a10702", "#ffb600", "#ff7900"),
+    ggtheme = theme_bw(),
+    pval = T,
+    risk.table = T,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F,
+    legend.labs = c("high (n=32)", "low (n=64)", "medium (n=88)"))
+plot_DRS_IG_univariate_withoutLAC
 ```
+
 
 ```{r, fig.width=7, fig.height=8}
 ggsurvplot(fit_IG_DR, data = MCP_Final, pval = TRUE, fun = "pct", size = 1, linetype = "strata", legend = "bottom", legend.labs = c("high", "low", "medium"), legend.title = "IG cluster", risk.table = TRUE)
@@ -1046,14 +1074,15 @@ plot_DRS_IG_studygroup
 
 #### KM high vs low
 ```{r, fig.width=7, fig.height=5}
-plot_DRS_IG_studygroup <-  ggsurvplot(
+plot_DRS_IG_highVSlow <-  ggsurvplot(
     fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + IG_ID, data = MCP_Final), 
     xlab = "Months", 
-    ylab = "DRS probability",
-    title = "DRS - IG cluster by study_group",
+    ylab = "OS probability",
+    title = "DRS - IG cluster by study-group",
     palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+    ggtheme = theme_bw(),
     pval = T, facet.by = "IG_ID")
-plot_DRS_IG_studygroup
+plot_DRS_IG_highVSlow
 
 plot_DRS_IG_highVSlow_nolac <-  ggsurvplot(
     fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + IG_ID, data = MCP_Final_withoutLAC), 
@@ -1067,33 +1096,11 @@ plot_DRS_IG_highVSlow_nolac
 ```
 
 
-```{r}
-pdf(file="plot_DRS_IG_studygroup.pdf", width = 7, height=5)
-plot_DRS_IG_studygroup
-dev.off()
-```
-
-```{r}
-plot_DRS_IG_studygroup <-  ggsurvplot(
-    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + IG_ID, data = MCP_Final), 
-    xlab = "Months", 
-    ylab = "DRS probability",
-    title = "DRS - IG cluster by study_group",
-    palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
-    pval = T, facet.by = "IG_ID")
-plot_DRS_IG_studygroup
-```
-
-
-
-
-
-
 
 ### univariate
 ```{r}
 #univariate
-cox_DR_IG_cluster <- coxph(Surv(time_DRS_months, distant_recurrence) ~ IG_ID, data = MCP_Final)
+cox_DR_IG_cluster <- coxph(Surv(time_DRS_months, distant_recurrence) ~ IG_ID, data = MCP_Final_withoutLAC)
 summary(cox_DR_IG_cluster)
 ```
 
@@ -1103,22 +1110,34 @@ summary(cox_DR_IG_cluster)
 
 ```{r}
 #with PPBC 
-cox_DR_IG_cluster_multivariate <- coxph(Surv(time_DRS_months, distant_recurrence) ~ IG_ID + study_group + stage + clin_subtype, data = MCP_Final)
+cox_DR_IG_cluster_multivariate <- coxph(Surv(time_DRS_months, distant_recurrence) ~ IG_ID + PPBC + stage + clin_subtype, data = MCP_Final_withoutLAC)
 summary(cox_DR_IG_cluster_multivariate)
 ```
 
 
+
+
 ```{r}
-MCP_Final <- as.data.frame(MCP_Final)
+MCP_Final_withoutLAC <- as.data.frame(MCP_Final_withoutLAC)
+```
+
+```{r}
+#with study group as covariate 
+study_strata <- coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ stage + IG_ID + clin_subtype + strata(study_group), data = MCP_Final_withoutLAC)
+study_strata
+plot_OS_IG_multivariate <- ggadjustedcurves(study_strata, data=MCP_Final_withoutLAC, method="conditional", variable="study_group", palette = c("#46CDCF","#AA96DA", "#521262"), ggtheme = theme_bw()) + ggtitle("Adjusted survival curve for clinical covariates: Stratified")
+plot_OS_IG_multivariate
 ```
 
 
 ```{r}
 study_strata <- coxph(
   Surv(time=time_DRS_months,
-       event=distant_recurrence) ~ stage + clin_subtype + PPBC + strata(IG_ID), data = MCP_Final)
+       event=distant_recurrence) ~ stage + clin_subtype + PPBC + strata(IG_ID), data = MCP_Final_withoutLAC)
 study_strata
-plot_DRS_IG_multivariate <- ggadjustedcurves(study_strata, data=MCP_Final, method="conditional", variable="IG_ID", palette = c("#a10702", "#ffb600", "#ff7900")) + ggtitle("Adjusted DR curve for clinical covariates: Stratified")
+plot_DRS_IG_multivariate <- ggadjustedcurves(study_strata, data=MCP_Final_withoutLAC, method="conditional", variable="IG_ID", palette = c("#a10702", "#ffb600", "#ff7900")) + ggtitle("Adjusted DR curve for clinical covariates: Stratified")
 plot_DRS_IG_multivariate
 ```
 
@@ -1126,17 +1145,12 @@ plot_DRS_IG_multivariate
 #with study group as covariate 
 study_strata <- coxph(
   Surv(time=time_DRS_months,
-       event=distant_recurrence) ~ stage + PPBC + clin_subtype + strata(IG_ID), data = MCP_Final)
+       event=distant_recurrence) ~ stage + PPBC + clin_subtype + strata(IG_ID), data = MCP_Final_withoutLAC)
 study_strata
-plot_DRS_IG_multivariate <- ggadjustedcurves(study_strata, data=MCP_Final, method="conditional", variable="IG_ID", palette = c("#a10702", "#ffb600", "#ff7900"), ggtheme = theme_bw()) + ggtitle("Adjusted survival curve for clinical covariates: Stratified")
+plot_DRS_IG_multivariate <- ggadjustedcurves(study_strata, data=MCP_Final_withoutLAC, method="conditional", variable="IG_ID", palette = c("#a10702", "#ffb600", "#ff7900"), ggtheme = theme_bw()) + ggtitle("Adjusted survival curve for clinical covariates: Stratified")
 plot_DRS_IG_multivariate
 ```
 
-```{r}
-pdf(file="plot_DRS_IG_multivariate.pdf", width = 7, height=5)
-plot_DRS_IG_multivariate
-dev.off()
-```
 
 Testing proportional hazards assumption -> zie file Kat
 
@@ -1144,7 +1158,7 @@ Testing proportional hazards assumption -> zie file Kat
 coxph(
   Surv(time=time_DRS_months,
        event=distant_recurrence) ~ PPBC + stage_short_integer + IG_ID + clin_subtype,
-  data = MCP_Final) %>%
+  data = MCP_Final_withoutLAC) %>%
   cox.zph()
 ```
 
@@ -1157,7 +1171,7 @@ clin.cov.cox <- coxph(
     IG_ID +
     PPBC +
     clin_subtype,
-  data = MCP_Final)
+  data = MCP_Final_withoutLAC)
 summary(clin.cov.cox)
 
 #without study group
@@ -1166,7 +1180,7 @@ clin.cov.cox <- coxph(
        event=distant_recurrence) ~ stage_short_integer +
     IG_ID +
     clin_subtype,
-  data = MCP_Final)
+  data = MCP_Final_withoutLAC)
 summary(clin.cov.cox)
 ```
 
@@ -1936,112 +1950,165 @@ plot_DRS_IGhigh_multivariate
 
 # TIL
 
-```{r}
-summary(MCP_Data$TIL)
-table(MCP_Data$TIL)
-table(MCP_Data$TIL, MCP_Data$study_group)
-```
+create TIL groups based on TILprecent
 
 ```{r}
-summary(MCP_Final$TIL)
-table(MCP_Final$TIL)
-table(MCP_Final$TIL, MCP_Final$study_group)
-table(MCP_Final$TIL_short)
+table(MCP_Final_withoutLAC$TIL)
+```
+
+
+FALSE = under the median 
+TRUE = above the median 
+
+```{r}
+MCP_Final_withoutLAC$TILmedian <- MCP_Final_withoutLAC$TILprecent > median(MCP_Final_withoutLAC$TILprecent, na.rm=T)
+table(MCP_Final_withoutLAC$TILmedian)
+```
+
+
+Prof. Floris - ALSO check TIL based below or above 5%, 30% or 50% 
+
+5%
+```{r}
+MCP_Final_withoutLAC <- MCP_Final_withoutLAC %>% mutate(TIL5 =
+                     case_when(TILprecent <= 5 ~ "low", 
+                               TILprecent > 5 ~ "high")
+)
+table(MCP_Final_withoutLAC$TIL5)
+```
+
+
+30%
+```{r}
+MCP_Final_withoutLAC <- MCP_Final_withoutLAC %>% mutate(TIL30 =
+                     case_when(TILprecent <= 30 ~ "low", 
+                               TILprecent > 30 ~ "high")
+)
+table(MCP_Final_withoutLAC$TIL30)
+```
+
+50%
+```{r}
+MCP_Final_withoutLAC <- MCP_Final_withoutLAC %>% mutate(TIL50 =
+                     case_when(TILprecent <= 50 ~ "low", 
+                               TILprecent > 50 ~ "high")
+)
+table(MCP_Final_withoutLAC$TIL50)
 ```
 
 ## OS 
 
 ```{r}
-fit_TIL_OS <- survfit(surv_OS ~ TIL, data = MCP_Final)
-fit_TIL_short_OS <- survfit(surv_OS ~ TIL_short, data = MCP_Final)
+fit_TIL_OS <- survfit(surv_OS_without_lac ~ TIL, data = MCP_Final_withoutLAC)
+fit_TIL_short_OS <- survfit(surv_OS_without_lac ~ TILmedian, data = MCP_Final_withoutLAC)
+fit_TIL5 <- survfit(surv_OS_without_lac ~ TIL5, data = MCP_Final_withoutLAC)
+fit_TIL30 <- survfit(surv_OS_without_lac ~ TIL30, data = MCP_Final_withoutLAC)
+fit_TIL50 <- survfit(surv_OS_without_lac ~ TIL50, data = MCP_Final_withoutLAC)
 ```
 
 ### Kaplan-Meier
 
 ```{r, fig.width=7, fig.height=6}
-ggsurvplot(fit_TIL_OS, data = MCP_Final, pval = TRUE, legend = "top", legend.title = "TIL",legend.labs = c("high", "low", "medium"), palette = c("#a10702", "#ffb600", "#ff7900"), title = "OS - Univariate Analysis")
+ggsurvplot(fit_TIL_OS, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.title = "TIL",legend.labs = c("high", "low", "medium"), palette = c("#a10702", "#ffb600", "#ff7900"), title = "OS - Univariate Analysis")
 
-ggsurvplot(fit_TIL_short_OS, data = MCP_Final, pval = TRUE, legend = "top", legend.title = "TIL",legend.labs = c("high", "low"), palette = c("#a10702", "#ffb600"), title = "OS - Univariate Analysis")
+ggsurvplot(fit_TIL_short_OS, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.title = "TIL",legend.labs = c("FALSE", "TRUE"), palette = c("#ffb600", "#a10702"), title = "OS - Univariate Analysis")
+
+ggsurvplot(fit_TIL5, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.title = "TIL",legend.labs = c("high", "low"), palette = c("#a10702", "#ffb600"), title = "OS - Univariate Analysis")
+
+ggsurvplot(fit_TIL30, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.title = "TIL",legend.labs = c("high", "low"), palette = c("#a10702", "#ffb600"), title = "OS - Univariate Analysis")
+
+ggsurvplot(fit_TIL50, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.title = "TIL",legend.labs = c("high", "low"), palette = c("#a10702", "#ffb600"), title = "OS - Univariate Analysis")
 ```
 
-
-```{r, fig.width=7, fig.height=8}
-ggsurvplot(fit_TIL_OS, data = MCP_Final, pval = TRUE, fun = "pct", size = 1, linetype = "strata", legend = "bottom", palette = c("#a10702", "#ffb600", "#ff7900"), legend.labs = c("high", "low", "medium"), legend.title = "TIL", risk.table = TRUE)
-```
 
 #### KM by study group
 
 ```{r, fig.width=7, fig.height=5}
-ggsurvplot(
-    fit = survfit(Surv(time=time_OS_months, event=death) ~ TIL + study_group, data = MCP_Final), 
-    xlab = "Months", 
-    ylab = "Overall survival probability",
-    title = "TIL by study group",
-    palette = c("#a10702", "#ffb600", "#ff7900"),
-    pval = T, facet.by = "study_group")
-
 TIL_OS_studygroup <- ggsurvplot(
-    fit = survfit(Surv(time=time_OS_months, event=death) ~ TIL_short + study_group, data = MCP_Final), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ TILmedian + study_group, data = MCP_Final_withoutLAC), 
     xlab = "Months", 
     ylab = "Overall survival probability",
-    title = "TIL by study group",
+    title = "TIL median by study group",
     palette = c("#a10702", "#ffb600"),
     ggtheme = theme_bw(),
     pval = T, facet.by = "study_group")
 TIL_OS_studygroup
+
+TIL_OS_studygroup_TIL5 <- ggsurvplot(
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ TIL5 + study_group, data = MCP_Final_withoutLAC), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "TIL 5% by study group",
+    palette = c("#a10702", "#ffb600"),
+    ggtheme = theme_bw(),
+    pval = T, facet.by = "study_group")
+TIL_OS_studygroup_TIL5
+
+TIL_OS_studygroup_TIL30 <- ggsurvplot(
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ TIL30 + study_group, data = MCP_Final_withoutLAC), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "TIL 30% by study group",
+    palette = c("#a10702", "#ffb600"),
+    ggtheme = theme_bw(),
+    pval = T, facet.by = "study_group")
+TIL_OS_studygroup_TIL30
+
+TIL_OS_studygroup_TIL50 <- ggsurvplot(
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ TIL50 + study_group, data = MCP_Final_withoutLAC), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "TIL 50% by study group",
+    palette = c("#a10702", "#ffb600"),
+    ggtheme = theme_bw(),
+    pval = T, facet.by = "study_group")
+TIL_OS_studygroup_TIL50
 ```
 
 
 #### KM by high-low TIL
 
-```{r}
-table(MCP_Final$TIL, MCP_Final$study_group)
-```
-
 
 ```{r, fig.width=7, fig.height=5}
-ggsurvplot(
-    fit = survfit(Surv(time=time_OS_months, event=death) ~ study_group + TIL, data = MCP_Final), 
-    xlab = "Months", 
-    ylab = "Overall survival probability",
-    title = "TIL by study group",
-    palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
-    pval = T, facet.by = "TIL")
-
-TIL_per_studygroup <- ggsurvplot(
-    fit = survfit(Surv(time=time_OS_months, event=death) ~ study_group + TIL_short, data = MCP_Final), 
-    xlab = "Months", 
-    ylab = "Overall survival probability",
-    title = "TIL by study group",
-    palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
-    pval = T, facet.by = "TIL_short")
-TIL_per_studygroup
-
-
 TIL_OS_per_studygroup_without_lac <- ggsurvplot(
-    fit = survfit(Surv(time=time_OS_months, event=death) ~ study_group + TIL_short, data = MCP_Final_withoutLAC ), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ study_group + TILmedian, data = MCP_Final_withoutLAC ), 
     xlab = "Months", 
     ylab = "Overall survival probability",
-    title = "TIL by study group",
+    title = "TIL median by study group",
     palette = c("#46CDCF","#AA96DA", "#521262"),
     ggtheme = theme_bw(),
-    pval = T, facet.by = "TIL_short")
+    pval = T, facet.by = "TILmedian")
 TIL_OS_per_studygroup_without_lac
-```
 
-
-#### KM by PAM50
-
-```{r, fig.width=7, fig.height=5}
-plot_OS_TIL_PAM50_short <- ggsurvplot(
-    fit = survfit(Surv(time=time_OS_months, event=death) ~ PAM50 + TIL_short, data = MCP_Final), 
+TIL_OS_per_studygroup_without_lac_TIL5 <- ggsurvplot(
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ study_group + TIL5, data = MCP_Final_withoutLAC ), 
     xlab = "Months", 
     ylab = "Overall survival probability",
-    title = "OS - TIL clusters faceted by PAM50",
+    title = "TIL 5% by study group",
+    palette = c("#46CDCF","#AA96DA", "#521262"),
     ggtheme = theme_bw(),
-    palette = c("#a10702", "#ffb600", "#ff7900"),
-    pval = T, facet.by = "PAM50")
-plot_OS_TIL_PAM50_short
+    pval = T, facet.by = "TIL5")
+TIL_OS_per_studygroup_without_lac_TIL5
+
+TIL_OS_per_studygroup_without_lac_TIL30 <- ggsurvplot(
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ study_group + TIL30, data = MCP_Final_withoutLAC ), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "TIL 30% by study group",
+    palette = c("#46CDCF","#AA96DA", "#521262"),
+    ggtheme = theme_bw(),
+    pval = T, facet.by = "TIL30")
+TIL_OS_per_studygroup_without_lac_TIL30
+
+TIL_OS_per_studygroup_without_lac_TIL50 <- ggsurvplot(
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ study_group + TIL50, data = MCP_Final_withoutLAC ), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "TIL 50% by study group",
+    palette = c("#46CDCF","#AA96DA", "#521262"),
+    ggtheme = theme_bw(),
+    pval = T, facet.by = "TIL50")
+TIL_OS_per_studygroup_without_lac_TIL50
 ```
 
 
@@ -2049,8 +2116,20 @@ plot_OS_TIL_PAM50_short
 
 
 ```{r}
-cox_OS_TIL <- coxph(Surv(time_OS_months, death) ~ TIL, data = MCP_Final)
+cox_OS_TIL <- coxph(Surv(time_OS_months, death) ~ TILprecent, data = MCP_Final_withoutLAC)
 summary(cox_OS_TIL)
+
+cox_OS_TILmedian <- coxph(Surv(time_OS_months, death) ~ TILmedian, data = MCP_Final_withoutLAC)
+summary(cox_OS_TILmedian)
+
+cox_OS_TIL5 <- coxph(Surv(time_OS_months, death) ~ TIL5, data = MCP_Final_withoutLAC)
+summary(cox_OS_TIL5)
+
+cox_OS_TIL30 <- coxph(Surv(time_OS_months, death) ~ TIL30, data = MCP_Final_withoutLAC)
+summary(cox_OS_TIL30)
+
+cox_OS_TIL50 <- coxph(Surv(time_OS_months, death) ~ TIL50, data = MCP_Final_withoutLAC)
+summary(cox_OS_TIL50)
 ```
 
 ### multivariate
@@ -2059,11 +2138,20 @@ summary(cox_OS_TIL)
 
 ```{r}
 #multivariate WITHOUT IG_ID as covariate 
-cox_OS_TIL_multivariate <- coxph(Surv(time_OS_months, death) ~ TIL + study_group + stage + clin_subtype, data = MCP_Final)
+cox_OS_TIL_multivariate <- coxph(Surv(time_OS_months, death) ~ TILprecent + study_group + stage + clin_subtype, data = MCP_Final_withoutLAC)
 summary(cox_OS_TIL_multivariate)
 
-cox_OS_TIL_multivariate <- coxph(Surv(time_OS_months, death) ~ TIL_short + study_group + stage + clin_subtype, data = MCP_Final)
-summary(cox_OS_TIL_multivariate)
+cox_OS_TIL_multivariate_median <- coxph(Surv(time_OS_months, death) ~ TILmedian + study_group + stage + clin_subtype, data = MCP_Final_withoutLAC)
+summary(cox_OS_TIL_multivariate_median)
+
+cox_OS_TIL_multivariate_TIL5 <- coxph(Surv(time_OS_months, death) ~ TIL5 + study_group + stage + clin_subtype, data = MCP_Final_withoutLAC)
+summary(cox_OS_TIL_multivariate_TIL5)
+
+cox_OS_TIL_multivariate_TIL30 <- coxph(Surv(time_OS_months, death) ~ TIL30 + study_group + stage + clin_subtype, data = MCP_Final_withoutLAC)
+summary(cox_OS_TIL_multivariate_TIL30)
+
+cox_OS_TIL_multivariate_TIL50 <- coxph(Surv(time_OS_months, death) ~ TIL50 + study_group + stage + clin_subtype, data = MCP_Final_withoutLAC)
+summary(cox_OS_TIL_multivariate_TIL50)
 ```
 
 
@@ -2072,8 +2160,8 @@ summary(cox_OS_TIL_multivariate)
 subset data low IG signature versus high IG signature 
 
 ```{r}
-MCP_Final_without_laclow <- subset(MCP_Final_withoutLAC , TIL_short %in% c("low"), )
-MCP_Final_without_lachigh <- subset(MCP_Final_withoutLAC , TIL_short %in% c("high"), )
+MCP_Final_without_laclow <- subset(MCP_Final_withoutLAC , TILmedian %in% c("FALSE"), )
+MCP_Final_without_lachigh <- subset(MCP_Final_withoutLAC , TILmedian %in% c("TRUE"), )
 ```
 
 Testing proportional hazards assumption 
@@ -2171,99 +2259,128 @@ plot_OS_high_multivariate
 ## DR 
 
 ```{r}
-fit_TIL_DR <- survfit(surv_DR ~ TIL, data = MCP_Final)
-fit_TIL_short_DR <- survfit(surv_DR ~ TIL_short, data = MCP_Final)
+fit_TIL_DR <- survfit(surv_DR_without_lac ~ TIL, data = MCP_Final_withoutLAC)
+fit_TIL_short_DR <- survfit(surv_DR_without_lac ~ TILmedian, data = MCP_Final_withoutLAC)
+fit_TIL5_DR <- survfit(surv_DR_without_lac ~ TIL5, data = MCP_Final_withoutLAC)
+fit_TIL30_DR <- survfit(surv_DR_without_lac ~ TIL30, data = MCP_Final_withoutLAC)
+fit_TIL50_DR <- survfit(surv_DR_without_lac ~ TIL50, data = MCP_Final_withoutLAC)
 ```
 
 ```{r, fig.width=7, fig.height=6}
-ggsurvplot(fit_TIL_DR, data = MCP_Final, pval = TRUE, legend = "top", legend.title = "TIL", palette = c("#a10702", "#ffb600", "#ff7900"), legend.labs = c("high", "low", "medium"), title = "DR - Univariate Analysis")
+ggsurvplot(fit_TIL_DR, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.title = "TIL", palette = c("#a10702", "#ffb600", "#ff7900"), legend.labs = c("high", "low", "medium"), title = "DR - Univariate Analysis")
 
-ggsurvplot(fit_TIL_short_DR, data = MCP_Final, pval = TRUE, legend = "top", legend.title = "TIL", palette = c("#a10702", "#ffb600"), legend.labs = c("high", "low"), title = "DR - Univariate Analysis")
+ggsurvplot(fit_TIL_short_DR, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.title = "TIL", palette = c("#ffb600", "#a10702"), legend.labs = c("FALSE", "TRUE"), title = "DR TILmedian - Univariate Analysis")
+
+ggsurvplot(fit_TIL5_DR, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.title = "TIL", palette = c("#a10702", "#ffb600"), legend.labs = c("high", "low"), title = "DR TIL 5% - Univariate Analysis")
+
+ggsurvplot(fit_TIL30_DR, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.title = "TIL", palette = c("#a10702", "#ffb600"), legend.labs = c("high", "low"), title = "DR TIL 30% - Univariate Analysis")
+
+ggsurvplot(fit_TIL50_DR, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.title = "TIL", palette = c("#a10702", "#ffb600"), legend.labs = c("high", "low"), title = "DR TIL 50% - Univariate Analysis")
 ```
 
-
-```{r, fig.width=7, fig.height=8}
-ggsurvplot(fit_TIL_DR, data = MCP_Final, pval = TRUE, fun = "pct", size = 1, linetype = "strata", palette = c("#a10702", "#ffb600", "#ff7900"), legend = "bottom", legend.labs = c("high", "low", "medium"), legend.title = "TIL", risk.table = TRUE)
-```
 
 #### KM by study group
 
 ```{r, fig.width=7, fig.height=5}
-ggsurvplot(
-    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ TIL + study_group, data = MCP_Final), 
-    xlab = "Months", 
-    ylab = "DRS probability",
-    title = "TIL by study group",
-    palette = c("#a10702", "#ffb600", "#ff7900"),
-    pval = T, facet.by = "study_group")
-
 TIL_DRS_studygroup <- ggsurvplot(
-    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ TIL_short + study_group, data = MCP_Final), 
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ TILmedian + study_group, data = MCP_Final_withoutLAC), 
     xlab = "Months", 
     ylab = "DRS probability",
-    title = "TIL by study group",
+    title = "TIL median by study group",
     palette = c("#a10702", "#ffb600"),
     ggtheme = theme_bw(),
     pval = T, facet.by = "study_group")
 TIL_DRS_studygroup
+
+TIL_DRS_studygroup_TIL5 <- ggsurvplot(
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ TIL5 + study_group, data = MCP_Final_withoutLAC), 
+    xlab = "Months", 
+    ylab = "DRS probability",
+    title = "TIL 5% by study group",
+    palette = c("#a10702", "#ffb600"),
+    ggtheme = theme_bw(),
+    pval = T, facet.by = "study_group")
+TIL_DRS_studygroup_TIL5
+
+TIL_DRS_studygroup_TIL30 <- ggsurvplot(
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ TIL30 + study_group, data = MCP_Final_withoutLAC), 
+    xlab = "Months", 
+    ylab = "DRS probability",
+    title = "TIL 30%  by study group",
+    palette = c("#a10702", "#ffb600"),
+    ggtheme = theme_bw(),
+    pval = T, facet.by = "study_group")
+TIL_DRS_studygroup_TIL30
+
+TIL_DRS_studygroup_TIL50 <- ggsurvplot(
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ TIL50 + study_group, data = MCP_Final_withoutLAC), 
+    xlab = "Months", 
+    ylab = "DRS probability",
+    title = "TIL 50% by study group",
+    palette = c("#a10702", "#ffb600"),
+    ggtheme = theme_bw(),
+    pval = T, facet.by = "study_group")
+TIL_DRS_studygroup_TIL50
 ```
 
 #### KM by high-low TIL
 
-```{r}
-table(MCP_Final$TIL, MCP_Final$study_group)
-```
-
-
 ```{r, fig.width=7, fig.height=5}
-ggsurvplot(
-    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + TIL, data = MCP_Final), 
-    xlab = "Months", 
-    ylab = "DRS probability",
-    title = "TIL by study group",
-    palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
-    pval = T, facet.by = "TIL")
-
-TIL_per_studygroup_DRS <- ggsurvplot(
-    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + TIL_short, data = MCP_Final), 
-    xlab = "Months", 
-    ylab = "DRS probability",
-    title = "TIL by study group",
-    palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
-    pval = T, facet.by = "TIL_short")
-TIL_per_studygroup_DRS
-
 TIL_per_studygroup_DRS_without_lac <- ggsurvplot(
-    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + TIL_short, data = MCP_Final_withoutLAC ), 
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + TILmedian, data = MCP_Final_withoutLAC ), 
     xlab = "Months", 
     ylab = "DRS probability",
     title = "TIL by study group",
     palette = c("#46CDCF", "#AA96DA", "#521262"),
     ggtheme = theme_bw(),
-    pval = T, facet.by = "TIL_short")
+    pval = T, facet.by = "TILmedian")
 TIL_per_studygroup_DRS_without_lac
-```
 
-
-#### KM by PAM50
-
-```{r, fig.width=7, fig.height=5}
-plot_DRS_TIL_PAM50_short <- ggsurvplot(
-    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ PAM50 + TIL_short, data = MCP_Final), 
+TIL_per_studygroup_DRS_without_lac_TIL5 <- ggsurvplot(
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + TIL5, data = MCP_Final_withoutLAC ), 
     xlab = "Months", 
-    ylab = "Overall survival probability",
-    title = "DRS - TIL clusters faceted by PAM50",
+    ylab = "DRS probability",
+    title = "TIL 5% by study group",
+    palette = c("#46CDCF", "#AA96DA", "#521262"),
     ggtheme = theme_bw(),
-    palette = c("#a10702", "#ffb600", "#ff7900"),
-    pval = T, facet.by = "PAM50")
-plot_DRS_TIL_PAM50_short
+    pval = T, facet.by = "TIL5")
+TIL_per_studygroup_DRS_without_lac_TIL5
+
+TIL_per_studygroup_DRS_without_lac_TIL30 <- ggsurvplot(
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + TIL30, data = MCP_Final_withoutLAC ), 
+    xlab = "Months", 
+    ylab = "DRS probability",
+    title = "TIL 30% by study group",
+    palette = c("#46CDCF", "#AA96DA", "#521262"),
+    ggtheme = theme_bw(),
+    pval = T, facet.by = "TIL30")
+TIL_per_studygroup_DRS_without_lac_TIL30
+
+TIL_per_studygroup_DRS_without_lac_TIL50 <- ggsurvplot(
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + TIL50, data = MCP_Final_withoutLAC ), 
+    xlab = "Months", 
+    ylab = "DRS probability",
+    title = "TIL 50% by study group",
+    palette = c("#46CDCF", "#AA96DA", "#521262"),
+    ggtheme = theme_bw(),
+    pval = T, facet.by = "TIL50")
+TIL_per_studygroup_DRS_without_lac_TIL50
 ```
 
 
 ### univariate
 ```{r}
-cox_DR_TIL <- coxph(Surv(time_DRS_months, distant_recurrence) ~ TIL, data = MCP_Final)
+cox_DR_TIL <- coxph(Surv(time_DRS_months, distant_recurrence) ~ TILmedian, data = MCP_Final_withoutLAC)
 summary(cox_DR_TIL)
+
+cox_DR_TIL_TIL5 <- coxph(Surv(time_DRS_months, distant_recurrence) ~ TIL5, data = MCP_Final_withoutLAC)
+summary(cox_DR_TIL_TIL5)
+
+cox_DR_TIL_TIL30 <- coxph(Surv(time_DRS_months, distant_recurrence) ~ TIL30, data = MCP_Final_withoutLAC)
+summary(cox_DR_TIL_TIL30)
+
+cox_DR_TIL_TIL50 <- coxph(Surv(time_DRS_months, distant_recurrence) ~ TIL50, data = MCP_Final_withoutLAC)
+summary(cox_DR_TIL_TIL50)
 ```
 
 ### multivariate
@@ -2271,12 +2388,17 @@ summary(cox_DR_TIL)
 #### IG cluster NOT covariate
 
 ```{r}
-#multivariate NOT including IG_ID as a covariate
-cox_DR_TIL_multivariate <- coxph(Surv(time_DRS_months, distant_recurrence) ~ TIL + study_group + stage + clin_subtype, data = MCP_Final)
-summary(cox_DR_TIL_multivariate)
-
-cox_DR_TIL_multivariate_short <- coxph(Surv(time_DRS_months, distant_recurrence) ~ TIL_short + study_group + stage + clin_subtype, data = MCP_Final)
+cox_DR_TIL_multivariate_short <- coxph(Surv(time_DRS_months, distant_recurrence) ~ TILmedian + study_group + stage + clin_subtype, data = MCP_Final_withoutLAC)
 summary(cox_DR_TIL_multivariate_short)
+
+cox_DR_TIL_multivariate_short_TIL5 <- coxph(Surv(time_DRS_months, distant_recurrence) ~ TIL5 + study_group + stage + clin_subtype, data = MCP_Final_withoutLAC)
+summary(cox_DR_TIL_multivariate_short_TIL5)
+
+cox_DR_TIL_multivariate_short_TIL30 <- coxph(Surv(time_DRS_months, distant_recurrence) ~ TIL30 + study_group + stage + clin_subtype, data = MCP_Final_withoutLAC)
+summary(cox_DR_TIL_multivariate_short_TIL30)
+
+cox_DR_TIL_multivariate_short_TIL50 <- coxph(Surv(time_DRS_months, distant_recurrence) ~ TIL50 + study_group + stage + clin_subtype, data = MCP_Final_withoutLAC)
+summary(cox_DR_TIL_multivariate_short_TIL50)
 ```
 
 

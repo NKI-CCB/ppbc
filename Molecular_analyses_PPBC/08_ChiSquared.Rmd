@@ -502,11 +502,6 @@ Plot_IG_study_group <- gg_IG_ID_short_prop_v2 %+%
 Plot_IG_study_group
 ```
 
-```{r}
-pdf(file="Plot_IG_study_group.pdf", width = 7, height=5)
-Plot_IG_study_group
-dev.off()
-```
 
 ## PAM50
 

@@ -370,6 +370,17 @@ CD38_plot_TI_total <- ggboxplot(PPBC_metadata, x="group", y="TI_CD38_total",
 CD38_plot_TI_total
 ```
 
+```{r, fig.width=7, fig.height=4.5}
+my_comparisons <- list( c("PPBCPW", "PPBCDL"), c("PPBCPW", "PrBC"), c("PPBCPW", "NPBC") )
+
+CD38_plot_TI_total <- ggboxplot(PPBC_metadata, x="group", y="TI_CD38_total",
+          color = "group", palette = c("#46CDCF", "#112D4E", "#AA96DA", "#521262"),
+          order = c("PPBCPW", "PPBCDL", "PrBC", "NPBC"),
+          ylab = "CD38 score", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 1, aes(colour = group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 60) + ylim(0,60) # + stat_pvalue_manual(pwc_delta_estimate_CD3CD8pos_CD20, hide.ns = TRUE, y.position = c(1.25))
+CD38_plot_TI_total
+```
+
 
 ### without lactation
 
@@ -390,7 +401,6 @@ CD38_plot_TI_total <- ggboxplot(PPBC_metadata_withoutlac, x="group", y="TI_CD38_
   geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 1, aes(colour = group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 80) # + stat_pvalue_manual(pwc_delta_estimate_CD3CD8pos_CD20, hide.ns = TRUE, y.position = c(1.25))
 CD38_plot_TI_total
 ```
-
 
 
 
@@ -624,18 +634,18 @@ sg_TI_os <-  ggsurvplot(
 sg_TI_os
 ```
 
-
 ```{r}
 sg_TI_os_without_lac <-  ggsurvplot(
     fit = survfit(Surv(time=time_OS_months, event=death) ~ group + TI_CD38, data = CD38_without_lac), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = "CD38 count by study group in tumor",
+    palette = c("#46CDCF", "#AA96DA", "#521262"),
+    ggtheme = theme_bw(),
     pval = T, facet.by = "TI_CD38")
 
 sg_TI_os_without_lac
 ```
-
 
 
 ```{r}
@@ -939,11 +949,12 @@ sg_TI_DRS_without_lac <-  ggsurvplot(
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = "CD38 count by study group in tumor",
+    palette = c("#46CDCF", "#AA96DA", "#521262"),
+    ggtheme = theme_bw(),
     pval = T, facet.by = "TI_CD38")
 
 sg_TI_DRS_without_lac
 ```
-
 
 
 ```{r}

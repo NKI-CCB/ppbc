@@ -58,6 +58,45 @@ MCP_Final_without_lac$study_group <- ordered(MCP_Final_without_lac$study_group,
 
 Boxplot -> usd from file Kat 
 
+```{r}
+my_comparisons <- list(c("ppbcpw", "ppbcdl"), c("ppbcpw", "prbc"), c("ppbcpw", "npbc"), c("prbc", "npbc") )
+
+ANOVA_IgA <- ggboxplot(MCP_Final, x="study_group", y="IgA",
+          color = "study_group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "IgA at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.2, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 15) # stat_pvalue_manual(pwc_IgA, hide.ns = TRUE, y.position = c(1000))
+ANOVA_IgA
+```
+
+
+```{r}
+ANOVA_IgD <- ggboxplot(MCP_Final, x="study_group", y="IgD",
+          color = "study_group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "IgD at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.2, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 15) # stat_pvalue_manual(pwc_IgA, hide.ns = TRUE, y.position = c(1000))
+ANOVA_IgD
+```
+
+```{r}
+ANOVA_IgG <- ggboxplot(MCP_Final, x="study_group", y="IgG",
+          color = "study_group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "IgG at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.2, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 20) # stat_pvalue_manual(pwc_IgA, hide.ns = TRUE, y.position = c(1000))
+ANOVA_IgG
+```
+
+```{r}
+ANOVA_IgM <- ggboxplot(MCP_Final, x="study_group", y="IgM",
+          color = "study_group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "IgM at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.2, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 12) # stat_pvalue_manual(pwc_IgA, hide.ns = TRUE, y.position = c(1000))
+ANOVA_IgM
+```
+
 ## Kaplan-meier
 
 ### IgA

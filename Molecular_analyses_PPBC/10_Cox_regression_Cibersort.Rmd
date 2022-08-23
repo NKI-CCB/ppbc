@@ -565,6 +565,7 @@ plot_OS_Plasma_highVSlow_short_without_lac <-  ggsurvplot(
 plot_OS_Plasma_highVSlow_short_without_lac
 ```
 
+
 ### Univariate
 
 ```{r}
@@ -576,15 +577,39 @@ summary(cox_OS_Plasma_cluster)
 ### multivariate
 
 ```{r}
+table(MCP_Final$study_group)
+```
+
+
+```{r}
 #multivariate
 clin.cov.cox <- coxph(
   Surv(time=time_OS_months,
-       event=death) ~ stage_short_integer +
-    study_group +
+       event=death) ~ stage +
+    PPBC +
     Plasma_cat +
     clin_subtype,
   data = MCP_Final)
 summary(clin.cov.cox)
+```
+
+```{r}
+study_strata <- coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ Plasma_cat + strata(study_group), data = MCP_Final)
+study_strata
+MCP_OS_multivariate_Plasma <- ggadjustedcurves(study_strata, data=MCP_Final, method="conditional", variable="study_group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"), ylab = "DRS Probability", xlab = "Months", ggtheme = theme_bw()) + ggtitle("OS multivariate")
+MCP_OS_multivariate_Plasma
+```
+
+
+```{r}
+study_strata <- coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ Plasma_cat + stage + clin_subtype + strata(study_group), data = MCP_Final)
+study_strata
+MCP_OS_multivariate_Plasma <- ggadjustedcurves(study_strata, data=MCP_Final, method="conditional", variable="study_group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"), ylab = "DRS Probability", xlab = "Months", ggtheme = theme_bw()) + ggtitle("OS multivariate")
+MCP_OS_multivariate_Plasma
 ```
 
 
@@ -699,6 +724,7 @@ plot_DRS_Plasma_studygroup_short <-  ggsurvplot(
     xlab = "Months", 
     ylab = "DRS probability",
     title = "DRS - Plasma cluster by study_group",
+    ggtheme = theme_bw(),
     palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
     pval = T, facet.by = "Plasma_cat")
 plot_DRS_Plasma_studygroup_short
@@ -714,6 +740,7 @@ plot_DRS_Plasma_studygroup_short_without_lac <-  ggsurvplot(
 plot_DRS_Plasma_studygroup_short_without_lac
 ```
 
+
 ### univariate
 
 ```{r}
@@ -726,10 +753,19 @@ summary(cox_DR_Plasma_cluster)
 
 ```{r}
 #multivariate 
-cox_DR_Plasma_cluster_multivariate <- coxph(Surv(time_DRS_months, distant_recurrence) ~ Plasma_cat + study_group + stage + clin_subtype, data = MCP_Final)
+cox_DR_Plasma_cluster_multivariate <- coxph(Surv(time_DRS_months, distant_recurrence) ~ Plasma_cat + PPBC + stage + clin_subtype, data = MCP_Final)
 summary(cox_DR_Plasma_cluster_multivariate)
 ```
 
+
+```{r}
+study_strata <- coxph(
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ Plasma_cat + stage + clin_subtype + strata(study_group), data = MCP_Final)
+study_strata
+MCP_DRS_multivariate_Plasma <- ggadjustedcurves(study_strata, data=MCP_Final, method="conditional", variable="study_group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"), ylab = "DRS Probability", xlab = "Months", ggtheme = theme_bw()) + ggtitle("OS multivariate")
+MCP_DRS_multivariate_Plasma
+```
 
 #### within study groups
 
@@ -1161,6 +1197,7 @@ plot_OS_memoryB_highVSlow_short_without_lac <-  ggsurvplot(
 plot_OS_memoryB_highVSlow_short_without_lac
 ```
 
+
 ### Univariate
 ```{r}
 #univariate
@@ -1305,6 +1342,7 @@ plot_DRS_memoryB_studygroup_short <-  ggsurvplot(
     xlab = "Months", 
     ylab = "DRS probability",
     title = "DRS - memoryB cluster by study_group",
+    ggtheme = theme_bw(),
     palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
     pval = T, facet.by = "memoryB_ID")
 plot_DRS_memoryB_studygroup_short
@@ -1619,6 +1657,7 @@ plot_DRS_naiveB_studygroup_short <-  ggsurvplot(
     xlab = "Months", 
     ylab = "DRS probability",
     title = "DRS - naiveB cluster by study_group",
+    ggtheme = theme_bw(),
     palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
     pval = T, facet.by = "naiveB_ID")
 plot_DRS_naiveB_studygroup_short
@@ -1633,6 +1672,8 @@ plot_DRS_naiveB_studygroup_short_without_lac <-  ggsurvplot(
     pval = T, facet.by = "naiveB_ID")
 plot_DRS_naiveB_studygroup_short_without_lac
 ```
+
+
 
 ### univariate
 ```{r}
@@ -2121,7 +2162,6 @@ plot_OS_CD8_highVSlow_short_without_lac <-  ggsurvplot(
 plot_OS_CD8_highVSlow_short_without_lac
 ```
 
-
 ```{r}
 MCP_inv_npbc <- as.data.frame(MCP_inv_npbc)
 MCP_inv_prbc <- as.data.frame(MCP_inv_prbc)
@@ -2291,14 +2331,15 @@ plot_DRS_CD8_studygroup_short_without_lac
 #### KM high vs low
 
 ```{r, fig.width=7, fig.height=5}
-plot_DRS_CD8_studygroup_short <-  ggsurvplot(
+plot_DRS_CD8_highVSlow_short <-  ggsurvplot(
     fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + CD8_ID, data = MCP_Final), 
     xlab = "Months", 
     ylab = "DRS probability",
     title = "DRS - CD8 cluster by study_group",
     palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+    ggtheme = theme_bw(),
     pval = T, facet.by = "CD8_ID")
-plot_DRS_CD8_studygroup_short
+plot_DRS_CD8_highVSlow_short
 
 plot_DRS_CD8_studygroup_short_without_lac <-  ggsurvplot(
     fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + CD8_ID, data = MCP_Final_withoutLAC), 
