@@ -338,9 +338,34 @@ stromal_df %>%
 
 ## Save output
 
+Raw scores.
+
 ```{r}
 saveRDS(list(estimate = scores, purity = purity_score),
         here("data/rnaseq/interim/04a_estimate_scores.Rds"))
+```
+
+Add scores to dds.
+
+```{r}
+stopifnot(all(purity_score$patient_ID == colData(dds)$patient_ID))
+dds$ESTIMATE_score <- purity_score$ESTIMATEScore
+dds$immune_score <- purity_score$ImmuneScore
+dds$stromal_score <- purity_score$StromalScore
+dds$tumor_purity <- purity_score$tumor_purity
+```
+
+Define tertiles.
+
+```{r}
+dds$immune_tertile <- dplyr::ntile(as.data.frame(colData(dds))$immune_score, 3)
+dds$stromal_tertile <- dplyr::ntile(as.data.frame(colData(dds))$stromal_score, 3)
+```
+
+Write dds.
+
+```{r}
+saveRDS(dds, here("data/rnaseq/interim/04_dds_PAM50_est.Rds"))
 ```
 
 ## Session info

@@ -233,7 +233,8 @@ rule estimate:
     estimate_filter="results/rnaseq/ESTIMATE/filterCommonGenes.gct",
     estimate_score="results/rnaseq/ESTIMATE/results_estimate_score.gct",
     processed_scores="data/rnaseq/interim/04a_estimate_scores.Rds",
-    html="reports/rnaseq/04a_estimate_tumor_purity.html"
+    html="reports/rnaseq/04a_estimate_tumor_purity.html",
+    dds="data/rnaseq/interim/04_dds_PAM50_est.Rds"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --dds {input.dds}"
@@ -244,12 +245,11 @@ rule uni_survival:
   input:
     script="src/utils/rmarkdown.R",
     rmd="reports/rnaseq/04b_univariate_survival.Rmd",
-    dds="data/rnaseq/interim/03_dds_PAM50.Rds",
+    dds="data/rnaseq/interim/04_dds_PAM50_est.Rds",
     scores="data/rnaseq/interim/04a_estimate_scores.Rds",
     color_palette="data/rnaseq/interim/color_palettes.Rds",
     survival_colors="data/rnaseq/interim/survival_colors.Rds"
   output:
-    survmeta="data/rnaseq/metadata/04_survival_metadata.Rds",
     excluded="data/rnaseq/metadata/04_samples_excluded_survival.csv",
     coxdata="data/rnaseq/interim/04_survdata.Rds",
     html="reports/rnaseq/04b_univariate_survival.html"
@@ -262,14 +262,22 @@ rule uni_survival:
 
 rule multi_survival:
   input:
-    coxdata="data/rnaseq/interim/04_survdata.Rds"
+    script="src/utils/rmarkdown.R",
+    rmd="reports/rnaseq/04c_multivariate_survival.Rmd",
+    coxdata="data/rnaseq/interim/04_survdata.Rds",
+    color_palette="data/rnaseq/interim/color_palettes.Rds",
+    dds="data/rnaseq/interim/04_dds_PAM50_est.Rds",
+    survival_colors="data/rnaseq/interim/survival_colors.Rds"
   output:
     #Updated colData for dds
     "data/rnaseq/metadata/04_sample_annot_filtered_PAM50_EST.csv",
-    #Updated dds
-    "data/rnaseq/interim/04_dds_PAM50_EST.Rds"
+    html="reports/rnaseq/04c_multivariate_survival.html"
   shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}" 
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --coxdata {input.coxdata}"
+    " --dds {input.dds}"
+    " --color_palette {input.color_palette}"
+    " --survival_colors {input.survival_colors}"
     
 pca_pdfs = [
   "scree", "sigPCA_batch", "firstPCA_batch",

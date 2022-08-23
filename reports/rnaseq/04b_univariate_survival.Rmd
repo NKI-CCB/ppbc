@@ -10,7 +10,7 @@ output:
     highlight: kate
     df_print: paged
 params:
-  dds: "data/rnaseq/interim/03_dds_PAM50.Rds"
+  dds: "data/rnaseq/interim/04_dds_PAM50_est.Rds"
   scores: "data/rnaseq/interim/04a_estimate_scores.Rds"
   color_palette: "data/rnaseq/interim/color_palettes.Rds"
   survival_colors: "data/rnaseq/interim/survival_colors.Rds"
