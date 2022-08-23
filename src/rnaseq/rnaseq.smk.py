@@ -205,7 +205,7 @@ rule color_palettes:
     script="src/utils/rmarkdown.R",
     dds="data/rnaseq/interim/03_dds_PAM50.Rds"
   output:
-    html="reports/rnaseq/color_palettes.html",
+    html="reports/rnaseq/03b_color_palettes.html",
     color_palettes="data/rnaseq/interim/color_palettes.Rds"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
@@ -224,32 +224,36 @@ rule survival_colors:
 rule surv_est:
   input:
     script="src/utils/rmarkdown.R",
-    rmd="reports/04_survival_and_ESTIMATE.Rmd",
-    dds="data/Rds/03_dds_PAM50.Rds",
-    tx_annot="data/metadata/01_tx_annot.tsv",
-    color_palette="data/Rds/color_palettes.Rds"
+    rmd="reports/rnaseq/04_survival_and_ESTIMATE.Rmd",
+    dds="data/rnaseq/interim/03_dds_PAM50.Rds",
+    genes="data/rnaseq/metadata/01_gene_annot.tsv",
+    color_palette="data/rnaseq/interim/color_palettes.Rds",
+    survival_colors="data/rnaseq/interim/survival_colors.Rds"
   output:
+    #Necessary input for ESTIMATE
+    "data/rnaseq/interim/hugo_fpkm.txt",
     #Files from ESTIMATE
-    "data/RNA-seq/hugo_fpkm.txt",
-    "results/ESTIMATE/filterCommonGenes.gct",
-    "results/ESTIMATE/results_estimate_score.gct",
+    "results/rnaseq/ESTIMATE/filterCommonGenes.gct",
+    "results/rnaseq/ESTIMATE/results_estimate_score.gct",
     #Survival metadata
-    "data/metadata/04_samples_with_missing_survival_data.csv",
-    "data/metadata/04_survival_metadata.csv",
-    "data/metadata/04_samples_excluded_survival.xlsx",
+    "data/rnaseq/metadata/04_samples_with_missing_survival_data.csv",
+    "data/rnaseq/metadata/04_survival_metadata.Rds",
+    "data/rnaseq/metadata/04_samples_excluded_survival.xlsx",
     #Samples x features matrix for Cox regressions
-    "data/Rds/04_survdata.Rds",
+    "data/rnaseq/interim/04_survdata.Rds",
     #Kaplan-meier survival curves
-    "results/survival/04_kaplan_meiers.pdf",
+    "results/rnaseq/survival/04_kaplan_meiers.pdf",
     #Updated colData for dds
-    "data/metadata/04_sample_annot_filtered_PAM50_EST.csv",
+    "data/rnaseq/metadata/04_sample_annot_filtered_PAM50_EST.csv",
     #Updated dds
-    "data/Rds/04_dds_PAM50_EST.Rds",
-    #Notebook environment
-    "reports/04_survival_and_ESTIMATE.RData",
-    html="reports/04_survival_and_ESTIMATE.html"
+    "data/rnaseq/interim/04_dds_PAM50_EST.Rds",
+    html="reports/rnaseq/04_survival_and_ESTIMATE.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --dds {input.dds}"
+    " --genes {input.genes}"
+    " --color_palette {input.color_palette}"
+    " --survival_colors {input.survival_colors}"
 
 pca_pdfs = [
   "scree", "sigPCA_batch", "firstPCA_batch",

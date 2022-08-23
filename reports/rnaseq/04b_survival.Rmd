@@ -1,362 +1,11 @@
 ---
-title: "Survival and ESTIMATE"
-date: "`r Sys.Date()`"
-author: "Kat Moore"
-output: 
-  html_document:
-    toc: yes
-    toc_float: yes
-    toc_depth: 4
-    highlight: tango
-    df_print: paged
+title: "Untitled"
+output: html_document
+date: '2022-08-23'
 ---
 
-```{r, include=F}
-rm(list = ls())
-```
-
-```{r, include=F}
-library(DESeq2)
-library(here)
-library(estimate)
-library(tidyverse)
-library(survival)
-library(survminer)
-library(ggthemes)
-library(RColorBrewer)
-library(ggpubr)
-```
-
-```{r Default ggplot themes, include=F}
-options(ggplot2.continuous.colour = "viridis")
-options(ggplot2.continuous.fill = "viridis")
-scale_colour_discrete <- scale_color_colorblind
-#scale_colour_discrete <- scale_colour_viridis_d
-
-#For fill
-#viridis_qualitative_pal7 <- c("#440154FF", "#FDE725FF", "#443A83FF", 
-#                              "#8FD744FF", "#31688EFF",  "#35B779FF", 
-#                              "#21908CFF")
-
-scale_fill_discrete <- function(...) {
-  #scale_fill_manual(..., values = viridis_pal()(7)) #Wrong order
-  #scale_fill_manual(..., values = viridis_qualitative_pal7)
-  scale_fill_manual(..., values = colorblind_pal()(8))
-}
-
-theme_set(theme_bw())
-```
-
-In this notebook, we use ESTIMATE to calculate immune/stromal scores and tumor purity for the PPBC dataset.
-Several survival analyses are also performed.
-
-# Load data
-
-```{r}
-dds <- readRDS(here("data/Rds/03_dds_PAM50.Rds"))
-
-tx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
-
-color_palettes = readRDS(here("data/Rds/color_palettes.Rds"))
-
-sp = readRDS(here("data/Rds/survival_colors.Rds"))
-```
-
-We only need the gene id and hgnc symbol for this script.
-
-```{r}
-tx_annot = tx_annot %>%
-  select(gene_id, hgnc_symbol) %>%
-  distinct()
-```
-
-# Conversion to FPKM with HUGO symbols
-
-Esimate requires transcript length normalization and gene names instead of ensembl ids.
-
-Debatable: whether to use robust = T or F when calculating fpkm for the purposes of determining tumor purity with Estimate. 
-When True, estimateSizeFactors is called to more accurately normalize by library size. 
-Use the robust = F option to disable the median ratio normalization and just get classical fpkm via colSums.
-
-Since we prefer a more robust correction for library size, choose robust = T.
-
-```{r}
-fpkm <- DESeq2::fpkm(dds, robust = T)
-```
-
-Add the HUGO symbols
-
-```{r}
-fpkm <- fpkm %>%
-  as.data.frame() %>%
-  rownames_to_column("gene_id") %>%
-  right_join(select(tx_annot, gene_id, hgnc_symbol),
-             .,
-             by = "gene_id")
-```
-
-Make sure we don't have any NAs in the HGNC field.
-
-```{r}
-print(paste("Removing",
-            sum(is.na(fpkm$hgnc_symbol)),
-            "genes without HUGO ids from the fpkm matrix."))
-
-fpkm <- fpkm %>% filter(!is.na(hgnc_symbol))
-```
-
-```{r}
-print(paste(nrow(fpkm), "genes remaining in the fpkm matrix."))
-```
-
-Drop the ensembl id column.
-
-```{r}
-fpkm <- fpkm %>% select(-gene_id)
-```
-
-# De-duplicate gene symbols
-
-When dealing with duplicated gene names, take the mean fpkm.
-
-```{r}
-summarize_expression_duplicate_ids <- function(mat, id_column, f=colMeans,
-                                               final_gene_symbol_colname="GeneSymbol"){
-  require(dplyr)
-  
-  print(paste("Starting with gene expression matrix containing", nrow(mat), "rows."))
-  
-  #Easiest way to write functions with dplyr is to standardize the column name
-  
-  if(id_column != "symbol"){
-    colnames(mat)[colnames(mat)==id_column] <- "symbol"
-  }
-  
-  #Make frequency table
-  id_table <- as.data.frame(table(mat$symbol))
-  
-  #Identify duplicate genes
-  dups <- id_table$Var1[id_table$Freq > 1]
-  stopifnot(length(dups) == length(unique(dups)))
-  print(paste("Number of genes with duplicate names:", length(dups)))
-  
-  #Set aside rows with unique gene names
-  nodup_df <- mat[!mat$symbol %in% dups,]
-  
-  #Set aside rows with duplicate ids
-  dup_df <- mat[mat$symbol %in% dups,]
-  stopifnot(nrow(nodup_df) + nrow(dup_df) == nrow(mat))
-  
-  #Sort by recurring id
-  dup_df <- dup_df[order(dup_df$symbol),]
-  
-  print(paste("Number of rows with duplicate gene ids:", nrow(dup_df)))
-  
-  #Mean expression fpkm of genes with the same symbol
-  mean_exps <- matrix(ncol = ncol(dup_df)-1, nrow=0) #Empty matrix, -1 gene symbol column
-
-  for (i in 1:length(unique(dup_df$symbol))){
-    #Subset rows with same symbol, discard symbol column, then apply aggregate function
-    exp <- f(as.matrix(dup_df[dup_df$symbol==unique(dup_df$symbol)[i], -1])) 
-    mean_exps <- rbind(mean_exps, exp)
-  }
-  stopifnot(nrow(mean_exps) == length(unique(dup_df$symbol)))
-  
-  rownames(mean_exps) <- unique(dup_df$symbol)
-  mean_exps <- as.data.frame(mean_exps) %>% rownames_to_column("symbol")
-  
-  dedupped_df <- rbind(mean_exps, nodup_df)
-  dedupped_df <- dedupped_df[order(dedupped_df$symbol),]
-  
-  stopifnot(length(unique(dedupped_df$symbol))==length(dedupped_df$symbol)) #All symbols should not be unique
-  stopifnot(nrow(mat) - #starting number
-            nrow(dup_df) + #rows with duplicate genes...
-            length(dups) == #...which condense down into this many unique genes...
-            nrow(dedupped_df)) #...should equal the number of rows in the final matrix
-
-  print(paste("Number of genes after applying", substitute(f),  "to duplicate ids:", nrow(dedupped_df)))
-  
-  #For estimate, the column with identifiers HAS to be called GeneSymbol or EntrezGeneID
-  colnames(dedupped_df)[colnames(dedupped_df)=="symbol"] <- final_gene_symbol_colname
-  
-  return(dedupped_df)
-}
-```
-
-```{r}
-clean_fpkm <- summarize_expression_duplicate_ids(fpkm, "hgnc_symbol")
-```
-
-```{r}
-head(clean_fpkm)
-```
-
-The input for ESTIMATE can supposedly be a dataframe, but the function throws an error unless provided with a file..
-
-```{r}
-write.table(clean_fpkm, sep = "\t", file = here("data","RNA-seq","hugo_fpkm.txt"), col.names = T, row.names =F, quote=F)
-```
-
-# ESTIMATE
-
-Estimate really only has two functions of interest for us. 
-The first is filterCommonGenes, which unifies genes symbols provided versus the 10,412 used for determining tumor purity.
-
-It requires writing a file instead of returning an object within the R environment. 
-
-```{r}
-dir.create(here("results","ESTIMATE"), showWarnings = F)
-
-filterCommonGenes(input.f=here("data","RNA-seq","hugo_fpkm.txt"),
-                  output.f = here("results/ESTIMATE/filterCommonGenes.gct"), id="GeneSymbol")
-```
-
-The next function computes stromal, immune, and ESTIMATE scores per sample using gene expression data. It also insists on writing files.
-
-```{r}
-estimateScore(input.ds = here("results","ESTIMATE","filterCommonGenes.gct"),
-              output.ds = here("results","ESTIMATE","results_estimate_score.gct"),
-              platform="illumina")
-```
-
-```{r}
-scores <- read.delim(here("results","ESTIMATE","results_estimate_score.gct"), skip=2, sep="\t")
-scores[,1:6]
-```
-
-## Purity score calculation
-
-Note: Only validated for microarray data:
-Tumour purity=cos (0.6049872018+0.0001467884 × ESTIMATE score)
-[Source](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3826632/)
-
-```{r}
-purity_score <- scores %>%
-  dplyr::select(-Description) %>%
-  rename(score=NAME) %>%
-  gather(key="sample_name", -score, value=value) %>%
-  mutate(sample_name=str_replace_all(sample_name, "\\.","-")) %>%
-  spread(key=score,value=value) %>%
-  mutate(tumor_purity = cos(0.6049872018+0.0001467884 * ESTIMATEScore))
-```
-
-# Stromal and Immune Scores
-
-## General
-
-Bar plot
-
-```{r}
-scores %>% dplyr::select(-Description) %>%
-  gather(key = "sample_name", -NAME, value="Score") %>%
-  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
-  arrange(PPBC) %>%
-  ggplot(aes(x=factor(sample_name, levels = unique(sample_name)),y=Score, fill=PPBC)) +
-  geom_bar(stat="identity") +
-  facet_wrap(~NAME, ncol=1) +
-  theme(axis.text.x=element_blank()) +
-  xlab("Samples") +
-  scale_fill_manual(values = color_palettes$ppbc_colors)
-``` 
-
-Box plots
-
-```{r}
-scores %>% dplyr::select(-Description) %>%
-  gather(key = "sample_name", -NAME, value="Score") %>%
-  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
-  filter(NAME != "ESTIMATEScore") %>%
-  ggplot(aes(x=PPBC,y=Score, color=PPBC)) +
-  geom_boxplot(alpha = 0) +
-  ggbeeswarm::geom_quasirandom(method="smile") +
-  facet_wrap(~NAME, ncol=2) +
-  theme(legend.position = "none") +
-  scale_color_manual(values = color_palettes$ppbc_colors)
-  #xlab("Samples")
-```
-
-## Immune scores
-
-```{r}
-comps <- list( c("nulliparous", "involuting"),
-               c("lactating", "involuting"),
-               c("pregnant", "involuting") )
-
-
-immune_df = scores %>% dplyr::select(-Description) %>%
-  gather(key = "sample_name", -NAME, value="Score") %>%
-  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
-  filter(NAME == "ImmuneScore") 
-
-immune_df %>%
-  ggboxplot(x="PPBC", y="Score", add="dotplot", 
-          color = "PPBC", notch = T) +
-  theme(legend.position = "none") +
-  ggtitle("Immune Score by study group") + 
-  stat_compare_means(comparisons = comps)+ 
-  stat_compare_means(label.y = 3500) +
-  scale_color_manual(values = color_palettes$ppbc_colors) +
-  scale_fill_manual(values = color_palettes$ppbc_colors)
-```
-
-```{r}
-comps <- list( c("Basal", "LumA"),
-               c("Basal", "LumB"),
-               c("Basal", "Her2"),
-               c("Basal", "Normal"))
-
-immune_df %>%
-  ggboxplot(x="PAM50", y="Score", add="dotplot", 
-          color = "PAM50", notch = F,
-          order = c("LumA", "LumB", "Basal", "Her2", "Normal")) +
-  theme(legend.position = "none") +
-  ggtitle("Immune Score by PAM50") + 
-  stat_compare_means(comparisons = comps)+ 
-  stat_compare_means(label.y = 3500) +
-  scale_color_manual(values = color_palettes$pam_colors) +
-  scale_fill_manual(values = color_palettes$pam_colors)
-```
-
-## Stromal Scores
-
-```{r}
-comps <- list( c("nulliparous", "involuting"),
-               c("lactating", "involuting"),
-               c("pregnant", "involuting") )
-
-
-stromal_df <- scores %>% dplyr::select(-Description) %>%
-  gather(key = "sample_name", -NAME, value="Score") %>%
-  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
-  filter(NAME == "StromalScore") 
-
-stromal_df %>%
-  ggboxplot(x="PPBC", y="Score", add="dotplot", 
-          color = "PPBC", notch = T) +
-  theme(legend.position = "none") +
-  ggtitle("Stromal Score by study group") + 
-  stat_compare_means(comparisons = comps)+ 
-  stat_compare_means(label.y = 2500) +
-  scale_color_manual(values = color_palettes$ppbc_colors) +
-  scale_fill_manual(values = color_palettes$ppbc_colors)
-```
-
-```{r}
-comps <- list( c("Basal", "LumA"),
-               c("Basal", "LumB"),
-               c("Basal", "Her2"),
-               c("Basal", "Normal"))
-
-stromal_df %>%
-  ggboxplot(x="PAM50", y="Score", add="dotplot", 
-          color = "PAM50", notch = F,
-          order = c("LumA", "LumB", "Basal", "Her2", "Normal")) +
-  theme(legend.position = "none") +
-  ggtitle("Stromal Score by PAM50") + 
-  stat_compare_means(comparisons = comps)+ 
-  stat_compare_means(label.y = 2500)+
-  scale_color_manual(values = color_palettes$pam_colors) +
-  scale_fill_manual(values = color_palettes$pam_colors)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Survival setup
@@ -364,7 +13,7 @@ stromal_df %>%
 Add immune, stromal and tumor purity to metadata
 
 ```{r}
-stopifnot(all(colData(dds)$sample_name == purity_score$sample_name))
+stopifnot(all(colData(dds)$patient_ID == purity_score$patient_ID))
 dds$immune_score = purity_score$ImmuneScore
 dds$stromal_score = purity_score$StromalScore
 dds$tumor_purity = purity_score$tumor_purity
@@ -379,7 +28,7 @@ We will try to keep the columns of the metadata as consistent as possible betwee
 ```{r}
 sd = as.data.frame(colData(dds))
 sd = sd %>%
-  select(sample_name, patient_ref, reason_death, 
+  select(patient_ID, patient_ref, reason_death, 
          study_group, PPBC, PAM50,
          grade = grade_integer, stage = stage_short_integer,
          months_of_followup, year_of_diagnosis = year_diagnosis,
@@ -426,7 +75,7 @@ print(paste("Started with", nrow(sd), "samples"))
 
 print(paste("Samples with missing values in survival data:",
             length(samples_missing_info)))
-excluded = sd %>% filter(sample_name %in% samples_missing_info$sample_name) %>%
+excluded = sd %>% filter(patient_ID %in% samples_missing_info$patient_ID) %>%
   mutate(reason = "missing survival data")
 
 print(paste("Samples excluded due to patient death unrelated to disease:",
@@ -444,7 +93,7 @@ excluded = bind_rows(excluded,
                      mutate(filter(sd, months_of_followup < 20 & reason_death == "BC"),
                             reason = "insufficient followup"))
 
-metadata = sd %>% filter(!sample_name %in% samples_missing_info$sample_name) %>%
+metadata = sd %>% filter(!patient_ID %in% samples_missing_info$patient_ID) %>%
   filter(reason_death %in% c("alive", "BC")) %>%
   filter(months_of_followup >= 20 | reason_death == "BC")
 
@@ -463,11 +112,11 @@ write_csv(metadata,
 Overview excluded samples:
 
 ```{r}
-excluded = select(excluded, reason, everything()) %>% arrange(sample_name)
+excluded = select(excluded, reason, everything()) %>% arrange(patient_ID)
 
-table(excluded$sample_name, excluded$reason)
+table(excluded$patient_ID, excluded$reason)
 
-openxlsx::write.xlsx(list(overview = table(excluded$sample_name, excluded$reason),
+openxlsx::write.xlsx(list(overview = table(excluded$patient_ID, excluded$reason),
                           metadata_excluded_samples = excluded),
                           here("data/metadata/04_samples_excluded_survival.xlsx"))
 ```
@@ -508,14 +157,14 @@ bind_rows(immune_df, stromal_df) %>%
 
 ```{r add tertitles to metadata}
 coxdata = right_join(
-  select(immune_df, sample_name, immune_tertile = tertile),
-  coxdata, by = "sample_name")
+  select(immune_df, patient_ID, immune_tertile = tertile),
+  coxdata, by = "patient_ID")
 coxdata = right_join(
-  select(stromal_df, sample_name, stromal_tertile = tertile),
-  coxdata, by = "sample_name")
+  select(stromal_df, patient_ID, stromal_tertile = tertile),
+  coxdata, by = "patient_ID")
 
 coxdata = coxdata %>%
-  select(sample_name:PAM50, immune_tertile, stromal_tertile, everything())
+  select(patient_ID:PAM50, immune_tertile, stromal_tertile, everything())
 ```
 
 Subset the data down to involution only samples for analyses related to breastfeeding.
@@ -525,9 +174,9 @@ Omit missing values.
 ```{r}
 inv_cox = as.data.frame(colData(dds)) %>%
   filter(study_group == "ppbc_inv") %>%
-  select(sample_name, months_involution_breastfeeding, breastfeeding_months) %>%
+  select(patient_ID, months_involution_breastfeeding, breastfeeding_months) %>%
   na.omit() %>%
-  left_join(., coxdata, by = "sample_name") %>%
+  left_join(., coxdata, by = "patient_ID") %>%
   na.omit()
 
 print(paste(nrow(inv_cox), "of", nrow(filter(coxdata, study_group == "ppbc_inv")),
@@ -536,8 +185,8 @@ print(paste(nrow(inv_cox), "of", nrow(filter(coxdata, study_group == "ppbc_inv")
 
 ```{r}
 inv_cox %>%
-  select(sample_name, months_involution_breastfeeding, breastfeeding_months) %>%
-  gather(key = "type", -sample_name, value = "months") %>%
+  select(patient_ID, months_involution_breastfeeding, breastfeeding_months) %>%
+  gather(key = "type", -patient_ID, value = "months") %>%
   ggplot(aes(x = months, fill = type)) +
   geom_density(alpha = 0.5) +
   ggtitle("Distribution of breastfeeding and involution duration")
@@ -563,7 +212,7 @@ inv_cox = inv_cox %>%
     breastfeeding_months <= 1 ~ "<= 1 month",
     breastfeeding_months > 1 ~ "> 1 month",
   )) %>%
-  select(sample_name, months_involution_breastfeeding, involution,
+  select(patient_ID, months_involution_breastfeeding, involution,
          breastfeeding_months, breastfeeding, everything()) %>%
   mutate(involution = factor(involution,
                              levels = c("<= 6 months", "> 6 months")),
@@ -1699,11 +1348,11 @@ cd = cd %>%
     breastfeeding_months <= 1 & study_group == "ppbc_inv" ~ "<= 1 month",
     breastfeeding_months > 1 & study_group == "ppbc_inv" ~ "> 1 month"
   )) %>%
-  select(sample_name, months_involution_breastfeeding, involution,
+  select(patient_ID, months_involution_breastfeeding, involution,
          breastfeeding_months, breastfeeding, everything()) %>%
   mutate(breastfeeding = factor(breastfeeding,
                                 levels = c("<= 1 month", "> 1 month")))
-stopifnot(identical(cd$sample_name, colData(dds)$sample_name))
+stopifnot(identical(cd$patient_ID, colData(dds)$patient_ID))
 
 dds$involution_duration = cd$involution
 dds$breastfeeding_duration = cd$breastfeeding
