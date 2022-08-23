@@ -162,7 +162,7 @@ rule QC_salmon:
     " --or_sum '{input.or_sum}'"
     " --fastqcr '{input.fastqcr}'"
 
-#### DeseqDataset and color configuration ####
+#### DeseqDataset and PAM50 ####
     
 rule create_dds:
   input:
@@ -171,7 +171,7 @@ rule create_dds:
     meta_filtered = "data/rnaseq/interim/02_sample_annot_filtered.Rds",
     script="src/utils/rmarkdown.R"
   output:
-    dds_qc = "data/Rds/02_QC_dds.Rds",
+    dds_qc = "data/rnaseq/interim/02_QC_dds.Rds",
     html="reports/rnaseq/02b_create_dds.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
@@ -182,13 +182,13 @@ rule pam50:
   input:
     script="src/utils/rmarkdown.R",
     rmd="reports/rnaseq/03_PAM50_IHC.Rmd",
-    dds="data/Rds/02_QC_dds.Rds",
+    dds="data/rnaseq/interim/02_QC_dds.Rds",
     entrez="data/external/gene_ref/entrez_biomart_ensemblgenes_v94.txt"
   output:
     # Samples discarded due to clear incongruity
     removed="data/rnaseq/metadata/03_removed_pam50_outliers.csv",
     # New dds post Pam50 determination
-    pamdds="data/rnaseq/interim/03_dds_PAM50.Rds",
+    dds="data/rnaseq/interim/03_dds_PAM50.Rds",
     # New metadata post PAM50 determination
     pamsd="data/rnaseq/metadata/03_sample_annot_filtered_PAM50.csv",
     html="reports/rnaseq/03_PAM50_IHC.html"
@@ -197,22 +197,27 @@ rule pam50:
     " --dds {input.dds}"
     " --entrez {input.entrez}"
 
+#### Color configuration ####
+
 rule color_palettes:
   input:
-    rmd="reports/color_palettes.Rmd",
+    rmd="reports/rnaseq/03b_color_palettes.Rmd",
     script="src/utils/rmarkdown.R",
-    dds="data/Rds/03_dds_PAM50.Rds"
+    dds="data/rnaseq/interim/03_dds_PAM50.Rds"
   output:
-    html="reports/color_palettes.html",
-    color_palettes="data/Rds/color_palettes.Rds"
+    html="reports/rnaseq/color_palettes.html",
+    color_palettes="data/rnaseq/interim/color_palettes.Rds"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --dds {input.dds}"
 
 rule survival_colors:
+  input:
+    script="src/rnaseq/survival_colors.R"
   output:
-    "data/Rds/survival_colors.Rds"
+    colors="data/rnaseq/interim/survival_colors.Rds"
   shell:
-    "Rscript src/survival_colors.R"
+    "Rscript {input.script}"
     
 #### Survival and ESTIMATE ####
 

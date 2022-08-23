@@ -7,7 +7,4 @@ surv_colors = list(
 
 
 saveRDS(object = surv_colors,
-        file = here::here("data/Rds/survival_colors.Rds"))
-
-#scales::show_col(surv_colors$involution_duration)
-#scales::show_col(surv_colors$breastfeeding_duration)
+        file = here::here("data/rnaseq/interim/survival_colors.Rds"))

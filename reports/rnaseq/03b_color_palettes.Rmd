@@ -7,19 +7,17 @@ output:
     toc: yes
     toc_float: yes
     toc_depth: 4
-    highlight: tango
+    highlight: kate
     df_print: paged
+params:
+  dds: "data/rnaseq/interim/03_dds_PAM50.Rds"
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, include=F}
-rm(list = ls())
-```
-
-```{r, include=F}
+```{r, message=F}
 library(tidyverse)
 library(here)
 library(RColorBrewer)
@@ -29,7 +27,7 @@ library(DESeq2)
 This notebook defines color palettes to be used consistently in plots throughout the pipeline.
 
 ```{r}
-dds = readRDS(here("data/Rds/03_dds_PAM50.Rds"))
+dds <- readRDS(here(params$dds))
 ```
 
 ```{r}
@@ -75,7 +73,7 @@ color_grid = function (colours, labels = T, names = T, borders = NULL, cex_label
 }
 ```
 
-# Define PPBC colors
+## Define PPBC colors
 
 Hanne has indicated her preferred palette for study group.
 Demonstrate palette for both the encoded and non-encoded version.
@@ -94,10 +92,10 @@ levels(dds$PPBC)
 
 ```{r}
 study_colors = c(
-  ppbc_inv = "#46CDCF",
-  ppbc_lac = "#112D4E",
+  ppbcpw = "#46CDCF",
+  ppbcdl= "#112D4E",
   prbc = "#AA96DA",
-  non_prbc = "#521262",
+  npbc = "#521262",
   rest = "#F73859"
 )
 color_grid(study_colors)
@@ -113,15 +111,18 @@ ppbc_colors = c(
 color_grid(ppbc_colors)
 ```
 
-#Define PAM50 colors
+## Define PAM50 colors
 
 ```{r}
 levels(dds$PAM50)
 ```
 
 ```{r}
-pam_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(dds$PAM50)),"Paired"))(length(unique(dds$PAM50))))
-#names(pam_colors)= levels(dds$PAM50) #Change the order
+pam_colors <- suppressWarnings(
+  colorRampPalette(
+    brewer.pal(length(unique(dds$PAM50)),"Paired"))(length(unique(dds$PAM50)))
+  )
+
 names(pam_colors) = c(
   "Basal",
   "Normal",
@@ -133,22 +134,26 @@ names(pam_colors) = c(
 color_grid(pam_colors)
 ```
 
-# Define gene biotype colors
+## Define gene biotype colors
 
 Reduce the possible types of genes down to those defined in deseq_report_functons::annotate_results()
 
 ```{r}
-gene_types = c("other noncoding", "immune protein coding", "protein coding", "immunoglobulin", "T cell receptor")
-gene_colors = suppressWarnings(colorRampPalette(brewer.pal(length(unique(gene_types)),"Dark2"))(length(unique(gene_types))))
-names(gene_colors) = gene_types
+gene_types <- c("other noncoding", "immune protein coding",
+                "protein coding", "immunoglobulin", "T cell receptor")
+gene_colors <- suppressWarnings(
+  colorRampPalette(
+    brewer.pal(length(unique(gene_types)),"Dark2"))(length(unique(gene_types)))
+  )
+names(gene_colors) <- gene_types
 color_grid(gene_colors)
 ```
 
-# Tertile colors
+## Tertile colors
 
 ```{r}
-tertile_colors = colorRampPalette(brewer.pal(3,"YlOrRd"))(3)
-names(tertile_colors) = c("low", "medium", "high")
+tertile_colors <- colorRampPalette(brewer.pal(3,"YlOrRd"))(3)
+names(tertile_colors) <- c("low", "medium", "high")
 color_grid(tertile_colors)
 ```
 
@@ -159,14 +164,11 @@ saveRDS(list(study_colors = study_colors,
              gene_colors = gene_colors,
              tertile_colors = tertile_colors
              ),
-        here("data", "Rds", "color_palettes.Rds"))
+        here("data", "rnaseq", "interim", "color_palettes.Rds"))
 ```
 
-# Session info
+## Session info
 
 ```{r}
 sessionInfo()
 ```
-
-
-

@@ -84,7 +84,7 @@ stopifnot(length(unique(colnames(dds))) == length(colnames(dds)))
 Write dds
 
 ```{r}
-saveRDS(dds, file = here("data/Rds/02_QC_dds.Rds"))
+saveRDS(dds, file = here("data/rnaseq/interim/02_QC_dds.Rds"))
 ```
 
 ## Molecular subtype PCA
