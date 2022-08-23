@@ -1,5 +1,5 @@
 ---
-title: "Survival and ESTIMATE"
+title: "ESTIMATE scores for PPBC"
 date: "`r Sys.Date()`"
 author: "Kat Moore"
 output: 
@@ -21,8 +21,6 @@ library(DESeq2)
 library(here)
 library(estimate)
 library(tidyverse)
-library(survival)
-library(survminer)
 library(ggthemes)
 library(RColorBrewer)
 library(ggpubr)
@@ -41,8 +39,6 @@ dds <- readRDS(here(params$dds))
 tx_annot <- read_tsv(here(params$genes), show_col_types = F)
 
 color_palettes <- readRDS(here(params$color_palette))
-
-sp <- readRDS(here(params$survival_colors))
 ```
 
 We only need the gene id and hgnc symbol for this script.
@@ -228,7 +224,7 @@ purity_score <- scores %>%
   mutate(tumor_purity = cos(0.6049872018+0.0001467884 * ESTIMATEScore))
 ```
 
-### Stromal and Immune Scores
+## Stromal and Immune Scores
 
 ```{r}
 scores %>% dplyr::select(-Description) %>%
@@ -257,7 +253,7 @@ scores %>% dplyr::select(-Description) %>%
   #xlab("Samples")
 ```
 
-### Immune scores
+## Immune scores by study group
 
 ```{r}
 comps <- list( c("nulliparous", "involuting"),
@@ -298,7 +294,7 @@ immune_df %>%
   scale_fill_manual(values = color_palettes$pam_colors)
 ```
 
-### Stromal Scores
+## Stromal Scores by study group
 
 ```{r}
 comps <- list( c("nulliparous", "involuting"),
@@ -338,6 +334,13 @@ stromal_df %>%
   stat_compare_means(label.y = 2500)+
   scale_color_manual(values = color_palettes$pam_colors) +
   scale_fill_manual(values = color_palettes$pam_colors)
+```
+
+## Save output
+
+```{r}
+saveRDS(list(estimate = scores, purity = purity_score),
+        here("data/rnaseq/interim/04a_estimate_scores.Rds"))
 ```
 
 ## Session info

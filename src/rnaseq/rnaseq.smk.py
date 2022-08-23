@@ -221,40 +221,56 @@ rule survival_colors:
     
 #### Survival and ESTIMATE ####
 
-rule surv_est:
+rule estimate:
   input:
     script="src/utils/rmarkdown.R",
-    rmd="reports/rnaseq/04_survival_and_ESTIMATE.Rmd",
+    rmd="reports/rnaseq/04a_estimate_tumor_purity.Rmd",
     dds="data/rnaseq/interim/03_dds_PAM50.Rds",
     genes="data/rnaseq/metadata/01_gene_annot.tsv",
     color_palette="data/rnaseq/interim/color_palettes.Rds",
-    survival_colors="data/rnaseq/interim/survival_colors.Rds"
   output:
-    #Necessary input for ESTIMATE
-    "data/rnaseq/interim/hugo_fpkm.txt",
-    #Files from ESTIMATE
-    "results/rnaseq/ESTIMATE/filterCommonGenes.gct",
-    "results/rnaseq/ESTIMATE/results_estimate_score.gct",
-    #Survival metadata
-    "data/rnaseq/metadata/04_samples_with_missing_survival_data.csv",
-    "data/rnaseq/metadata/04_survival_metadata.Rds",
-    "data/rnaseq/metadata/04_samples_excluded_survival.xlsx",
-    #Samples x features matrix for Cox regressions
-    "data/rnaseq/interim/04_survdata.Rds",
-    #Kaplan-meier survival curves
-    "results/rnaseq/survival/04_kaplan_meiers.pdf",
-    #Updated colData for dds
-    "data/rnaseq/metadata/04_sample_annot_filtered_PAM50_EST.csv",
-    #Updated dds
-    "data/rnaseq/interim/04_dds_PAM50_EST.Rds",
-    html="reports/rnaseq/04_survival_and_ESTIMATE.html"
+    hugo="data/rnaseq/interim/hugo_fpkm.txt",
+    estimate_filter="results/rnaseq/ESTIMATE/filterCommonGenes.gct",
+    estimate_score="results/rnaseq/ESTIMATE/results_estimate_score.gct",
+    processed_scores="data/rnaseq/interim/04a_estimate_scores.Rds",
+    html="reports/rnaseq/04a_estimate_tumor_purity.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --dds {input.dds}"
     " --genes {input.genes}"
     " --color_palette {input.color_palette}"
+
+rule uni_survival:
+  input:
+    script="src/utils/rmarkdown.R",
+    rmd="reports/rnaseq/04b_univariate_survival.Rmd",
+    dds="data/rnaseq/interim/03_dds_PAM50.Rds",
+    scores="data/rnaseq/interim/04a_estimate_scores.Rds",
+    color_palette="data/rnaseq/interim/color_palettes.Rds",
+    survival_colors="data/rnaseq/interim/survival_colors.Rds"
+  output:
+    survmeta="data/rnaseq/metadata/04_survival_metadata.Rds",
+    excluded="data/rnaseq/metadata/04_samples_excluded_survival.csv",
+    coxdata="data/rnaseq/interim/04_survdata.Rds",
+    html="reports/rnaseq/04b_univariate_survival.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}" 
+    " --dds {input.dds}"
+    " --scores {input.scores}"
+    " --color_palette {input.color_palette}"
     " --survival_colors {input.survival_colors}"
 
+rule multi_survival:
+  input:
+    coxdata="data/rnaseq/interim/04_survdata.Rds"
+  output:
+    #Updated colData for dds
+    "data/rnaseq/metadata/04_sample_annot_filtered_PAM50_EST.csv",
+    #Updated dds
+    "data/rnaseq/interim/04_dds_PAM50_EST.Rds"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}" 
+    
 pca_pdfs = [
   "scree", "sigPCA_batch", "firstPCA_batch",
   "sigPCA_PPBC", "firstPCA_PPBC", "sigPCA_Pam50"
@@ -278,7 +294,7 @@ rule batch_effects:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
 
-#### Min count threshold ####
+#### Differential expression ####
 
 rule min_count_threshold:
   input:
