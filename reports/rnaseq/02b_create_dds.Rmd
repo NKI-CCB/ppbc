@@ -80,8 +80,35 @@ dim(dds)
 stopifnot(length(unique(colnames(dds))) == length(colnames(dds)))
 ```
 
+## Add duration categories
 
-Write dds
+```{r}
+cd <- as.data.frame(colData(dds))
+cd <- cd %>%
+  mutate(involution = case_when(
+    months_involution <= 6 ~ "<= 6 months",
+    months_involution > 6 ~ "> 6 months"
+    )) %>% 
+  mutate(involution = factor(involution,
+                             levels = c("<= 6 months", "> 6 months"))) %>%
+  mutate(breastfeeding = case_when(
+    months_breastfeeding <= 1 & study_group == "ppbcpw" ~ "<= 1 month",
+    months_breastfeeding > 1 & study_group == "ppbcpw" ~ "> 1 month"
+  )) %>%
+  select(patient_ID, months_involution, involution,
+         months_breastfeeding, breastfeeding, everything()) %>%
+  mutate(breastfeeding = factor(breastfeeding,
+                                levels = c("<= 1 month", "> 1 month")))
+stopifnot(identical(cd$patient_ID, colData(dds)$patient_ID))
+
+dds$involution_duration = cd$involution
+dds$breastfeeding_duration = cd$breastfeeding
+
+table(dds$involution_duration)
+table(dds$breastfeeding_duration)
+```
+
+## Write dds
 
 ```{r}
 saveRDS(dds, file = here("data/rnaseq/interim/02_QC_dds.Rds"))
