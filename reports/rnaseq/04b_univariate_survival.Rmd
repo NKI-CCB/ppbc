@@ -164,12 +164,6 @@ print(paste(nrow(metadata), "samples remaining post filtering"))
 stopifnot(all(rowSums(is.na(metadata)) == 0))
 ```
 
-Save metadata
-
-```{r}
-saveRDS(metadata, here("data/rnaseq/metadata/04_survival_metadata.Rds"))
-```
-
 Overview excluded samples:
 
 ```{r}
@@ -190,7 +184,6 @@ The metadata as prepared can be used as input for survival analyses.
 
 ```{r}
 coxdata <- metadata
-saveRDS(coxdata, here("data/rnaseq/interim/04_survdata.Rds"))
 ```
 
 ## Univariate survival curves
@@ -673,6 +666,12 @@ drs_brf$plot
 
 ```{r}
 survdiff(Surv(time=time_DRS_months, event=distant_recurrence) ~ breastfeeding, data = inv_cox)
+```
+
+## Save data
+
+```{r}
+saveRDS(coxdata, here("data/rnaseq/interim/04_survdata.Rds"))
 ```
 
 ## Session info
