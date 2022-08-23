@@ -152,7 +152,7 @@ rule QC_salmon:
   output:
     discarded="data/rnaseq/metadata/02_discarded_samples.csv",
     meta_filtered = "data/rnaseq/interim/02_sample_annot_filtered.Rds",
-    tx_filtered= "data/rnaseq/interim/02_tx_clean.Rds",
+    tx_clean= "data/rnaseq/interim/02_tx_clean.Rds",
     html="reports/rnaseq/02_QC_salmon.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
@@ -161,37 +161,41 @@ rule QC_salmon:
     " --alignstats {input.alignstats}"
     " --or_sum '{input.or_sum}'"
     " --fastqcr '{input.fastqcr}'"
+
+#### DeseqDataset and color configuration ####
     
 rule create_dds:
   input:
     rmd="reports/rnaseq/02b_create_dds.Rmd",
-    tx_filtered= "data/rnaseq/interim/02_tx_clean.Rds",
-    meta_filtered = "data/rnaseq/metadata/02_sample_annot_filtered.csv"
+    tx_clean= "data/rnaseq/interim/02_tx_clean.Rds",
+    meta_filtered = "data/rnaseq/interim/02_sample_annot_filtered.Rds",
+    script="src/utils/rmarkdown.R"
   output:
     dds_qc = "data/Rds/02_QC_dds.Rds",
     html="reports/rnaseq/02b_create_dds.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-    " --tx {input.tx_filtered}"
-    " --meta {input.tx_filtered}"
+    " --tx {input.tx_clean}"
+    " --meta {input.meta_filtered}"
 
-rule pam50_ihc:
+rule pam50:
   input:
     script="src/utils/rmarkdown.R",
-    rmd="reports/03_PAM50_IHC.Rmd",
-    #A DESeqDataSet
-    dds="data/Rds/02_QC_dds.Rds"
+    rmd="reports/rnaseq/03_PAM50_IHC.Rmd",
+    dds="data/Rds/02_QC_dds.Rds",
+    entrez="data/external/gene_ref/entrez_biomart_ensemblgenes_v94.txt"
   output:
-    "data/metadata/03_ihc_outliers.csv",
     # Samples discarded due to clear incongruity
-    "data/metadata/03_removed_pam50_outliers.csv",
+    removed="data/rnaseq/metadata/03_removed_pam50_outliers.csv",
     # New dds post Pam50 determination
-    "data/Rds/03_dds_PAM50.Rds",
+    pamdds="data/rnaseq/interim/03_dds_PAM50.Rds",
     # New metadata post PAM50 determination
-    "data/metadata/03_sample_annot_filtered_PAM50.csv",
-    html="reports/03_PAM50_IHC.html"
+    pamsd="data/rnaseq/metadata/03_sample_annot_filtered_PAM50.csv",
+    html="reports/rnaseq/03_PAM50_IHC.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --dds {input.dds}"
+    " --entrez {input.entrez}"
 
 rule color_palettes:
   input:
@@ -209,6 +213,8 @@ rule survival_colors:
     "data/Rds/survival_colors.Rds"
   shell:
     "Rscript src/survival_colors.R"
+    
+#### Survival and ESTIMATE ####
 
 rule surv_est:
   input:
@@ -244,6 +250,8 @@ pca_pdfs = [
   "scree", "sigPCA_batch", "firstPCA_batch",
   "sigPCA_PPBC", "firstPCA_PPBC", "sigPCA_Pam50"
 ]
+
+#### Batch effects ####
     
 rule batch_effects:
   input:
@@ -260,7 +268,9 @@ rule batch_effects:
     html="reports/05_batch_effects.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-    
+
+#### Min count threshold ####
+
 rule min_count_threshold:
   input:
     script = "src/utils/rmarkdown.R",
