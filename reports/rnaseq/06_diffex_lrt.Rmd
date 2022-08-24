@@ -16,6 +16,7 @@ params:
   tools: "src/rnaseq/deseq_report_functions.R"
   cp: "data/rnaseq/interim/color_palettes.Rds"
   sp: "data/rnaseq/interim/survival_colors.Rds"
+  vsd: "data/rnaseq/interim/06_vsd.Rds"
 ---
 
 ```{r, message=F}
@@ -103,7 +104,7 @@ sc <- readRDS(here(params$sp))
 ## Variance stabilizing transformation
 
 ```{r}
-vsd = readRDS(here("data","rnaseq","interim","06_vsd.Rds"))
+vsd = readRDS(here(params$vsd))
 ```
 
 A version without the lac group is also produced.

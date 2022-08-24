@@ -350,6 +350,7 @@ rule lrt_report:
     expand("data/rnaseq/interim/06_{dds}.Rds", dds=dds_lrt),
     expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
     dds="data/rnaseq/interim/05b_dds_filtered.Rds",
+    vsd="data/rnaseq/interim/06_vsd.Rds",
     #ImmPort database: https://www.innatedb.com/redirect.do?go=resourcesGeneLists
     immune_genes="data/external/gene_ref/InnateDB_genes.csv",
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
@@ -371,6 +372,7 @@ rule lrt_report:
     " --cp {input.cp}"
     " --sp {input.sp}"
     " --tools {input.tools}"
+    " --vsd {input.vsd}"
 
 pairwise_refs = ["npbc", "ppbcdl", "prbc"]
 
@@ -399,30 +401,31 @@ pairwise_prefixes = [
 
 rule pairwise_report:
   input:
-    pairwise_dds=expand("data/Rds/07_dds_pairwise_ref_{pw}.Rds", pw=pairwise_refs),
+    pairwise_dds=expand("data/rnaseq/interim/07_dds_pairwise_ref_{pw}.Rds", pw=pairwise_refs),
     sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
     immune_genes="data/external/gene-sets/InnateDB_genes.csv",
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds",
-    vsd="data/Rds/06_vsd.Rds",
-    tools="src/deseq_report_functions.R",
-    apeglm_results=expand("data/Rds/07_ape_{pw}.Rds", pw=pairwise_apeglm),
+    cp="data/rnaseq/interim/color_palettes.Rds",
+    sp="data/rnaseq/interim/survival_colors.Rds",
+    vsd="data/rnaseq/interim/06_vsd.Rds",
+    tools="src/rnaseq/deseq_report_functions.R",
+    apeglm_results=expand("data/rnaseq/interim/07_ape_{pw}.Rds", pw=pairwise_apeglm),
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    rmd="reports/07_diffex_pairwise.Rmd",
+    rmd="reports/rnaseq/07_diffex_pairwise.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    "results/diffex/figs/07_pairwise/heatmaps/n_siggenes_pairwise_hm.pdf",
-    #"results/diffex/figs/07_pairwise/heatmaps/07_commoninvpaths_hm.pdf",
-    "results/diffex/figs/07_pairwise/upset_pairwise.pdf",
-    "results/diffex/07_pairwise_comparisons_allgenes.xlsx",
-    "results/diffex/07_pairwise_comparisons_sig_genes.xlsx",
-    "results/diffex/07_pairwise_comparisons_pathways.xlsx",
-    expand("results/diffex/figs/07_pairwise/heatmaps/hm_{pf}.pdf", pf=pairwise_prefixes),
-    expand("results/diffex/figs/07_pairwise/volcano_plots/volc_{pf}.jpeg", pf=pairwise_prefixes),
-    expand("results/diffex/figs/07_pairwise/volcano_plots/volc_{pf}.outliers.jpeg", pf=pairwise_prefixes),
-    html="reports/07_diffex_pairwise.html"
+    all_genes="results/rnaseq/diffex/07_pairwise_comparisons_allgenes.xlsx",
+    sig_genes="results/rnaseq/diffex/07_pairwise_comparisons_sig_genes.xlsx",
+    pathways="results/rnaseq/diffex/07_pairwise_comparisons_pathways.xlsx",
+    html="reports/rnaseq/07_diffex_pairwise.html"
   shell:
      "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+     " --dds {input.dds}"
+     " --gx_annot {input.gx_annot}"
+     " --immune_genes {input.immune_genes}"
+     " --cp {input.cp}"
+     " --sp {input.sp}"
+     " --tools {input.tools}"
+     " --vsd {input.vsd}"
 
 ovr_comps = ["inv_vs_rest", "prbc_vs_rest", "lac_vs_rest", "nonprbc_vs_rest"]
      
