@@ -1,6 +1,6 @@
 #### Enrichment analysis functions
 #Hypergeom tests by Evert Bosdriesz
-source(here("src", "enrichment-analysis-functions.R"))
+source(here("src","rnaseq","enrichment-analysis-functions.R"))
 
 
 #### Standard report functions ####
@@ -328,7 +328,7 @@ deseq_heatmap = function(mat, sampledata, sig_results,
   require(tidyverse)
   
   stopifnot(groups_to_plot %in% levels(sampledata[,intgroup])) #Now accepts other columns
-  stopifnot(identical(colnames(mat), sampledata$sample_name)) #Ensure that a column containing all sample names exists
+  stopifnot(identical(colnames(mat), sampledata$patient_ID)) #Ensure that a column containing all sample names exists
 
   if(is.null(title)==T){
     title = if_else(identical(groups_to_plot,levels(sampledata[, intgroup])),
@@ -345,8 +345,8 @@ deseq_heatmap = function(mat, sampledata, sig_results,
   #Reduce genes and sample data to compared groups only
   #sampledata = sampledata %>% dplyr::filter(study_group %in% groups_to_plot)
   sampledata = sampledata %>% dplyr::filter(!!as.symbol(intgroup) %in% groups_to_plot)
-  mat = mat[,colnames(mat) %in% sampledata$sample_name]
-  stopifnot(identical(colnames(mat), sampledata$sample_name))
+  mat = mat[,colnames(mat) %in% sampledata$patient_ID]
+  stopifnot(identical(colnames(mat), sampledata$patient_ID))
   
   #Toggle row labels depending on size of heatmap
   if (nrow(mat) <= maxn_rownames){

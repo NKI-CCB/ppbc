@@ -7,6 +7,7 @@ data/rnaseq/*
 data/vectra/*
 data/external/index
 data/external/gene_ref
+data/external/gmt
 bin
 
 .here

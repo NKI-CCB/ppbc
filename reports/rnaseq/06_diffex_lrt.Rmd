@@ -1,5 +1,5 @@
 ---
-title: "Likelihood ratio test, standard count threshhold"
+title: "Likelihood ratio test"
 Author: Kat Moore
 date: "`r Sys.Date()`"
 output: 
@@ -7,42 +7,42 @@ output:
     toc: yes
     toc_float: yes
     df_print: paged
-    theme: darkly
-    highlight: breezedark
+    highlight: kate
     canon: true
+params:
+  dds: "data/rnaseq/interim/05b_dds_filtered.Rds"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+  immune_genes: "data/external/gene_ref/InnateDB_genes.csv"
+  tools: "src/rnaseq/deseq_report_functions.R"
+  cp: "data/rnaseq/interim/color_palettes.Rds"
+  sp: "data/rnaseq/interim/survival_colors.Rds"
 ---
 
-```{r, include=F}
-rm(list = ls())
-```
-
-```{r, include=F}
-#library(devtools)
-#install_github("jokergoo/ComplexHeatmap")
-#install_github("mikelove/DESeq2")
-#install_github("azhu513/apeglm")
-
+```{r, message=F}
 library(DESeq2)
 library(apeglm)
 library(here)
+library(flexgsea)
 library(tidyverse)
 library(ggrepel)
 library(ComplexHeatmap)
 library(openxlsx)
 library(scrime)
 library(RColorBrewer)
+
+theme_set(theme_bw())
 ```
 
-In this notebook, we enact differential expression as a fourway comparison between all 4 postpartum breast cancer groups, using the DESeq2 package and a likelihood ratio test. We perform this using the standard count threshold of non-zero expression in at least one third of all samples.
+In this notebook, we enact differential expression as a fourway comparison between all 4 postpartum breast cancer groups, using the DESeq2 package and a likelihood ratio test. 
 
 # Load and pre-process data {.tabset}
 
 ## Gene and sample data
 
 ```{r}
-dds <- readRDS(file = here("data/Rds/05b_dds_filtered.Rds"))
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
-gx_annot = gx_annot %>%
+dds <- readRDS(file = here(params$dds))
+gx_annot <- read_tsv(here(params$gx_annot), show_col_types = F)
+gx_annot <- gx_annot %>%
   select(ensembl_gene_id = gene_id, gene_name,
          gene_type, description = gene_description) %>%
   distinct()
@@ -59,7 +59,6 @@ gene_sets = list(
 )
 ```
 
-
 ## Retrieve immune genes
 
 For downstream analyses, we'd like to know which of the differentially expressed genes are immunologically relevant.
@@ -71,14 +70,14 @@ Either immune/immuno/interleukin is part of the gene name and description OR the
 The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
 
 ```{r}
-immune_gene_list <- read_csv(here("data", "external","gene-sets","InnateDB_genes.csv"))
+immune_gene_list <- read_csv(here(params$immune_genes), show_col_types = F)
 head(immune_gene_list)
 ```
 
 ## Helper functions
 
 ```{r}
-source(here("src", "deseq_report_functions.R"))
+source(here(params$tools))
 ```
 
 ## Color palettes
@@ -86,7 +85,7 @@ source(here("src", "deseq_report_functions.R"))
 Defined in the corresponding notebook:
 
 ```{r}
-cp = readRDS(here("data/Rds/color_palettes.Rds"))
+cp = readRDS(here(params$cp))
 study_colors = cp$study_colors
 gene_colors = cp$gene_colors
 pam_colors = cp$pam_colors
@@ -96,7 +95,7 @@ We'll need a palette for survival and drs too.
 For now, this will be a binary yes or no.
 
 ```{r}
-sc = readRDS(here("data/Rds/survival_colors.Rds"))
+sc <- readRDS(here(params$sp))
 
 #color_grid(sc$distant_recurrence)
 ```
@@ -104,13 +103,13 @@ sc = readRDS(here("data/Rds/survival_colors.Rds"))
 ## Variance stabilizing transformation
 
 ```{r}
-vsd = readRDS(here("data","Rds","06_vsd.Rds"))
+vsd = readRDS(here("data","rnaseq","interim","06_vsd.Rds"))
 ```
 
 A version without the lac group is also produced.
 
 ```{r}
-vsd.nolac = readRDS(here("data", "Rds", "06_vsd_nolac.Rds"))
+vsd.nolac = readRDS(here("data", "rnaseq","interim", "06_vsd_nolac.Rds"))
 ```
 
 # Likelihood ratio test {.tabset}
@@ -129,7 +128,7 @@ We will test it versus a formula that lacks the study group for genes of interes
 This object was produced via `src/06_diffex_LRT.R`
 
 ```{r}
-ddsLRT = readRDS(here("data/Rds/06_ddsLRT.Rds"))
+ddsLRT = readRDS(here("data/rnaseq/interim/06_ddsLRT.Rds"))
 ```
 
 ```{r}
@@ -145,9 +144,6 @@ Because we don't want to filter based on a pairwise log fold change when examini
 ## Summary
 
 ```{r}
-ddsLRT$death <- ddsLRT$overall_survival
-vsd$death <- vsd$overall_survival
-
 repLRT = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0, 
                       variance_stabilized_dds = vsd,
                       #groups = c("ppbc_inv", "rest"),
@@ -224,7 +220,7 @@ Both upstream and downstream results indicate that lactation samples, by far the
 For this reason, we also examine the results when excluding the lactation group.
 
 ```{r}
-ddsLRT = readRDS(here("data", "Rds", "06_ddsLRT_nolac.Rds"))
+ddsLRT = readRDS(here("data", "rnaseq", "interim", "06_ddsLRT_nolac.Rds"))
 ```
 
 ```{r}
@@ -235,9 +231,6 @@ resLRT@elementMetadata$description
 ## Summary
 
 ```{r}
-ddsLRT$death = ddsLRT$overall_survival
-vsd.nolac$death = vsd.nolac$overall_survival
-
 repLRT.nolac = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0, 
                       variance_stabilized_dds = vsd.nolac,
                       #groups = c("ppbc_inv", "rest"),
@@ -331,35 +324,6 @@ tibble(
   ggtitle("All genes in LRT with and without lac samples")
 ```
 
-```{r, include=F}
-#Save the above plots
-dir.create(here("results", "diffex", "figs", "06_LRT"), showWarnings = F, recursive = T)
-
-tibble(
-  lac.padj = arrange(repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id %in% sig.somewhere,c("ensembl_gene_id","padj")],
-                     ensembl_gene_id)$padj,
-  nolac.padj = arrange(repLRT.nolac$annotated_results[repLRT.nolac$annotated_results$ensembl_gene_id %in% sig.somewhere,c("ensembl_gene_id","padj")],
-                       ensembl_gene_id)$padj
-  ) %>%
-  ggplot(aes(x = lac.padj, y = nolac.padj)) +
-  geom_point() +
-  theme_bw() +
-  ggtitle("Significant genes in LRT with and without lac samples")
-
-ggsave(here("results", "diffex", "figs", "06_LRT", "06_siggenes_fdrvsexcludelac.pdf"), height=6, width=8)
-
-tibble(
-  lac.padj = repLRT$annotated_results %>% arrange(ensembl_gene_id) %>% pull(padj),
-  nolac.padj = repLRT.nolac$annotated_results %>% arrange(ensembl_gene_id) %>% pull(padj)
-  ) %>%
-  ggplot(aes(x = lac.padj, y = nolac.padj)) +
-  geom_point() +
-  theme_bw() +
-  ggtitle("All genes in LRT with and without lac samples")
-
-ggsave(here("results", "diffex", "figs", "06_LRT", "06_allgenes_fdrvsexcludelac.pdf"), height=6, width=8)
-```
-
 ## Heatmap
 
 ```{r, fig.height=6, fig.width=10}
@@ -413,7 +377,7 @@ repLRT.nolac$outlier_bees[1:5]
 # Batch {.tabset}
 
 ```{r}
-ddsLRT = readRDS(here("data", "Rds", "06_ddsLRT_batch.Rds"))
+ddsLRT = readRDS(here("data", "rnaseq", "interim","06_ddsLRT_batch.Rds"))
 resLRT = results(ddsLRT)
 resLRT@elementMetadata$description
 ```
@@ -422,12 +386,8 @@ resLRT@elementMetadata$description
 ## Summary
 
 ```{r}
-ddsLRT$death <- ddsLRT$overall_survival
-vsd$death <- vsd$overall_survival
-
 repBatch = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0, 
                         variance_stabilized_dds = vsd,
-                        #groups = c("ppbc_inv", "rest"),
                         top_vars = c("PPBC", "death"),
                         top_colors = list(PPBC = cp$ppbc_colors,
                                           death = sc$overall_survival),
@@ -471,7 +431,7 @@ repBatch$pathway_plots
 # Batch - no lac {.tabset}
 
 ```{r}
-ddsLRT = readRDS(here("data", "Rds", "06_ddsLRT_batch_nolac.Rds"))
+ddsLRT = readRDS(here("data", "rnaseq", "interim", "06_ddsLRT_batch_nolac.Rds"))
 resLRT = results(ddsLRT)
 resLRT@elementMetadata$description
 ```
@@ -479,12 +439,8 @@ resLRT@elementMetadata$description
 ## Summary
 
 ```{r}
-ddsLRT$death <- ddsLRT$overall_survival
-vsd$death <- vsd$overall_survival
-
 repBatch.nolac = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0, 
                         variance_stabilized_dds = vsd.nolac,
-                        #groups = c("ppbc_inv", "rest"),
                         top_vars = c("PPBC", "death"),
                         top_colors = list(PPBC = cp$ppbc_colors,
                                           death = sc$overall_survival),
@@ -503,7 +459,6 @@ repBatch.nolac$significant_genes %>% head(30)
 ```{r, fig.height=6, fig.width=10}
 repBatch.nolac$heatmap
 ```
-
 
 ## Box plots
 
@@ -530,18 +485,14 @@ repBatch.nolac$pathway_plots
 # PAM50 {.tabset}
 
 ```{r}
-ddsLRT = readRDS(here("data", "Rds", "06_ddsLRT_pam.Rds"))
+ddsLRT = readRDS(here("data", "rnaseq", "interim", "06_ddsLRT_pam.Rds"))
 resLRT = results(ddsLRT)
 resLRT@elementMetadata$description
 ```
 
-
 ## Summary
 
 ```{r}
-ddsLRT$death <- ddsLRT$overall_survival
-vsd$death <- vsd$overall_survival
-
 repPam = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0, 
                       variance_stabilized_dds = vsd,
                       #groups = c("ppbc_inv", "rest"),
@@ -564,7 +515,6 @@ repPam$significant_genes %>% head(30)
 repPam$heatmap
 ```
 
-
 ## Box plots
 
 Plot the top 5 most significant.
@@ -582,7 +532,6 @@ repPam$pathways %>% bind_rows() %>%
   filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
 ```
 
-
 ```{r, fig.height=6, fig.width=8}
 repPam$pathway_plots
 ```
@@ -590,7 +539,7 @@ repPam$pathway_plots
 # PAM50 - no lac {.tabset}
 
 ```{r}
-ddsLRT = readRDS(here("data", "Rds", "06_ddsLRT_pam_nolac.Rds"))
+ddsLRT = readRDS(here("data", "rnaseq", "interim", "06_ddsLRT_pam_nolac.Rds"))
 resLRT = results(ddsLRT)
 resLRT@elementMetadata$description
 ```
@@ -598,9 +547,6 @@ resLRT@elementMetadata$description
 ## Summary
 
 ```{r}
-ddsLRT$death <- ddsLRT$overall_survival
-vsd.nolac$death <- vsd.nolac$overall_survival
-
 repPam.nolac = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0, 
                         variance_stabilized_dds = vsd.nolac,
                         #groups = c("ppbc_inv", "rest"),
@@ -623,7 +569,6 @@ repPam.nolac$significant_genes %>% head(30)
 repPam.nolac$heatmap
 ```
 
-
 ## Box plots
 
 Plot the top 5 most significant.
@@ -641,7 +586,6 @@ repPam.nolac$pathways %>% bind_rows() %>%
   filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr) %>%
   head(30)
 ```
-
 
 ```{r, fig.height=6, fig.width=8}
 repPam.nolac$pathway_plots
@@ -679,15 +623,6 @@ limma::vennDiagram(vc,
   main = "Overlap significant genes from likelihood ratio tests")
 ```
 
-```{r, include=F}
-pdf(here("results", "diffex", "figs", "06_LRT", "06_venn_lrts.pdf"), height = 6, width=9)
-limma::vennDiagram(vc,
-  names = colnames(sig_genes), 
-  cex = 1,
-  main = "Overlap significant genes from likelihood ratio tests")
-dev.off()
-```
-
 Which genes are unique to study group?
 
 ```{r}
@@ -704,62 +639,6 @@ Showing just the gene names from the unique group:
 repLRT$significant_genes %>%
   filter(ensembl_gene_id %in% unique_ppbc_genes) %>%
   pull(gene_name)
-```
-
-### Heatmap unique genes
-
-```{r}
-mat_unique_ppbc <- assay(vsd[rownames(vsd) %in% unique_ppbc_genes,])
-gx_annot$gene_name[match(rownames(mat_unique_ppbc), gx_annot$ensembl_gene_id)]
-```
-
-
-```{r, fig.height=6, fig.width=9}
-
-
-stopifnot(all(repLRT$significant_genes %>% filter(ensembl_gene_id %in% unique_ppbc_genes) %>% pull(gene_name) %in%
-                gx_annot$gene_name[match(rownames(mat_unique_ppbc), gx_annot$ensembl_gene_id)]))
-
-rownames(mat_unique_ppbc) = gx_annot$gene_name[match(rownames(mat_unique_ppbc), gx_annot$ensembl_gene_id)]
-
-quantile_breaks <- function(xs, n = 10) {
-  breaks <- quantile(xs, probs = seq(0, 1, length.out = n))
-  breaks[!duplicated(breaks)]
-}
-
-mat_breaks <- quantile_breaks(scrime::rowScales(mat_unique_ppbc), n = 10)
-
-pheatmap::pheatmap(mat_unique_ppbc,
-                   show_colnames = F,
-                   show_rownames = F,
-                   scale="row",
-                   annotation_col = as.data.frame(colData(vsd))[,c("PAM50", "study_group")],
-                   annotation_colors = list(PAM50 = pam_colors, study_group = study_colors, Type = gene_colors),
-                   annotation_row = column_to_rownames(select(filter(repLRT$significant_genes, ensembl_gene_id %in% unique_ppbc_genes),
-                                           gene_name, Type),"gene_name"),
-                   #color = viridis::viridis(length(mat_breaks) - 1),
-                   color = colorRampPalette(rev(brewer.pal(n = (length(mat_breaks) - 1), name = "RdYlBu")))(length(mat_breaks) - 1),
-                   breaks = mat_breaks,
-                   main="Genes uniquely significant in LRT study group (vs batch and PAM50)")
-
-```
-
-```{r, include=F}
-dir.create(here("results", "diffex", "figs", "06_LRT", "heatmaps"), showWarnings = F)
-
-pheatmap::pheatmap(mat_unique_ppbc,
-                   show_colnames = F,
-                   scale="row",
-                   annotation_col = as.data.frame(colData(vsd))[,c("PAM50", "study_group")],
-                   annotation_colors = list(PAM50 = pam_colors, study_group = study_colors, Type = gene_colors),
-                   annotation_row = column_to_rownames(select(filter(repLRT$significant_genes, ensembl_gene_id %in% unique_ppbc_genes),
-                                           gene_name, Type),"gene_name"),
-                   color = colorRampPalette(rev(brewer.pal(n = (length(mat_breaks) - 1), name = "RdYlBu")))(length(mat_breaks) - 1),
-                   breaks = mat_breaks,
-                   main="Genes uniquely significant in LRT study group (vs batch and PAM50)",
-                   filename = here("results", "diffex", "figs", "06_LRT", "heatmaps", "06_hm_unique_ppbc_lrt_genes.pdf"),
-                   width= 9, height = 7)
-
 ```
 
 ## Venn pathways
@@ -816,11 +695,13 @@ names(reslist)
 Save the individual results lists, without the figures.
 
 ```{r}
+dir.create(here("results/rnaseq/diffex"), showWarnings = F)
 #Save the results for all genes in an Excel file with multiple tabs
 #The tab names will be the list names
 resdf = lapply(reslist, function(x) x$annotated_results)
 names(resdf) = paste(names(resdf),"all", sep="_")
-openxlsx::write.xlsx(resdf, file = here("results", "diffex", "06_LRT_allgenes.xlsx"))
+openxlsx::write.xlsx(resdf, file = here("results", "rnaseq",
+                                        "diffex", "06_LRT_allgenes.xlsx"))
 
 #Save the significant genes in a multi-tab excel file
 resdf = lapply(reslist, function(x) x$significant_genes)
@@ -832,7 +713,8 @@ enframe(unlist(lapply(reslist, function(x) x$sig_threshold)), "name", "value") %
   mutate(name = str_remove(name, ".nolac")) %>%
   separate(name, into = c("comparison", "threshold"), sep="\\.")
 names(resdf)[length(resdf)] = "thresholds"
-openxlsx::write.xlsx(resdf, file = here("results", "diffex", "06_LRT_sig_genes.xlsx"))
+openxlsx::write.xlsx(resdf, file = here("results", "rnaseq",
+                                        "diffex", "06_LRT_sig_genes.xlsx"))
 
 rm(resdf)
 ```
@@ -856,80 +738,14 @@ for (i in 2:length(resdf[[1]])){
 names(pathlist) = lapply(pathlist, function(x) unique(x$collection)) %>% unlist(use.names = F)
 pathlist = lapply(pathlist, function(x) x[order(x$fdr),])
 
-openxlsx::write.xlsx(pathlist, file = here("results", "diffex", "06_LRT_pathways.xlsx"))
+openxlsx::write.xlsx(pathlist, file = here("results", "rnaseq",
+                                           "diffex", "06_LRT_pathways.xlsx"))
 
 rm(resdf)
 ```
 
-## Heatmaps
-
-```{r}
-dir.create(here("results","diffex", "figs", "06_LRT"), showWarnings = F)
-dir.create(here("results","diffex", "figs", "06_LRT" ,"heatmaps"), showWarnings = F)
-
-hmlist = lapply(reslist, function(x) x$heatmap)
-names(hmlist) = names(hmlist) %>% str_replace_all("rep", "hm")
-
-for (i in 1:length(hmlist)){
-  pdf(here("results", "diffex", "figs", "06_LRT", "heatmaps", paste0(names(hmlist)[i],".pdf")), width = 10, height = 8)
-  print(hmlist[[i]])
-  dev.off()
-}
-
-rm(hmlist)
-
-```
-
-## Volcano plot outliers
-
-Volcano plots of significant genes are hard to interpret in an LRT with multiple levels. Use outliers only for diagnostics.
-
-```{r}
-outvplist = lapply(reslist, function(x) x$volc_outliers)
-names(outvplist) = names(outvplist) %>% str_replace("rep", "volc")
-
-dir.create(here("results","diffex", "figs", "06_LRT" ,"volcano_plots"), showWarnings = F)
-lapply(names(outvplist), 
-       function(x) ggsave(filename=here("results","diffex", "figs", "06_LRT","volcano_plots",
-                                        paste(x,".outliers.jpeg",sep="")), plot=outvplist[[x]],
-                          height = 6, width = 8))
-rm(outvplist)
-```
-
-## Pathway dotplots 
-
-```{r}
-dir.create(here("results","diffex", "figs", "06_LRT" ,"fisher_pathway"), showWarnings = F)
-pathwaylist = lapply(reslist, function(x) x$pathway_plots)
-for(i in 1:length(pathwaylist)){
-  thiscomp = pathwaylist[[i]]
-  compname = str_replace(str_remove(names(pathwaylist[i]), "rep_"),"_","_vs_")
-  for (j in 1:length(thiscomp)){
-    if (length(thiscomp) < 1){next}
-    thissig = thiscomp[[j]]
-    file=paste0(paste(compname, names(thiscomp[j]), sep="-"),".jpeg")
-    #print(file)
-    ggsave(filename=here("results","diffex", "figs",
-                         "06_LRT","fisher_pathway",file),
-           plot=thissig, height = 6, width = 8)
-  }
-}
-
-
-rm(pathwaylist)
-```
-
-```{r, eval=F}
-#Too large to be worth it
-#rm(reslist) 
-#rm(gene_sets)
-
-#save.image(here("reports/06_diffex_lrt.Rdata"))
-```
-
-## Session info
+# Session info
 
 ```{r}
 sessionInfo()
 ```
-

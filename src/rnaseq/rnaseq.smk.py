@@ -344,35 +344,33 @@ gene_sets = [
   "c2.cp.v7.0.symbols", "c2.cgp.v7.0.symbols"
 ]
 
-lrt_reports = [
-  "LRT", "LRT.nolac", "Batch",
-  "Batch.nolac", "Pam", "Pam.nolac"
-]
-
+# This notebook has serious bloat but no time to refactor it now
 rule lrt_report:
   input:
-    expand("data/Rds/06_{dds}.Rds", dds=dds_lrt),
+    expand("data/rnaseq/interim/06_{dds}.Rds", dds=dds_lrt),
     expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    dds="data/Rds/05b_dds_filtered.Rds",
+    dds="data/rnaseq/interim/05b_dds_filtered.Rds",
     #ImmPort database: https://www.innatedb.com/redirect.do?go=resourcesGeneLists
-    immune_genes="data/external/gene-sets/InnateDB_genes.csv",
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    cp="data/Rds/color_palettes.Rds",
-    tools="src/deseq_report_functions.R",
-    rmd="reports/06_diffex_lrt.Rmd",
+    immune_genes="data/external/gene_ref/InnateDB_genes.csv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    cp="data/rnaseq/interim/color_palettes.Rds",
+    sp="data/rnaseq/interim/survival_colors.Rds",
+    tools="src/rnaseq/deseq_report_functions.R",
+    rmd="reports/rnaseq/06_diffex_lrt.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    padj_comp="results/diffex/figs/06_LRT/06_allgenes_fdrvsexcludelac.pdf",
-    padj_comp_sig="results/diffex/figs/06_LRT/06_siggenes_fdrvsexcludelac.pdf",
-    sig_genes="results/diffex/06_LRT_sig_genes.xlsx",
-    all_genes="results/diffex/06_LRT_allgenes.xlsx",
-    pathways="results/diffex/06_LRT_pathways.xlsx",
-    heatmaps=expand("results/diffex/figs/06_LRT/heatmaps/hm{comp}.pdf", comp=lrt_reports),
-    volcanos=expand("results/diffex/figs/06_LRT/volcano_plots/volc{comp}.outliers.jpeg", comp=lrt_reports),
-    #rdata="reports/06_diffex_lrt.Rdata",
-    html="reports/06_diffex_lrt.html"
+    sig_genes="results/rnaseq/diffex/06_LRT_sig_genes.xlsx",
+    all_genes="results/rnaseq/diffex/06_LRT_allgenes.xlsx",
+    pathways="results/rnaseq/diffex/06_LRT_pathways.xlsx",
+    html="reports/rnaseq/06_diffex_lrt.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --dds {input.dds}"
+    " --gx_annot {input.gx_annot}"
+    " --immune_genes {input.immune_genes}"
+    " --cp {input.cp}"
+    " --sp {input.sp}"
+    " --tools {input.tools}"
 
 pairwise_refs = ["non_prbc", "ppbc_lac", "prbc"]
 
@@ -408,7 +406,7 @@ rule pairwise_report:
     vsd="data/Rds/06_vsd.Rds",
     tools="src/deseq_report_functions.R",
     apeglm_results=expand("data/Rds/07_ape_{pw}.Rds", pw=pairwise_apeglm),
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     rmd="reports/07_diffex_pairwise.Rmd",
     script="src/utils/rmarkdown.R"
   output:
@@ -450,7 +448,7 @@ rule one_vs_rest_report:
     sp="data/Rds/survival_colors.Rds",
     vsd="data/Rds/06_vsd.Rds",
     tools="src/deseq_report_functions.R",
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     rmd="reports/08_diffex_onevsrest.Rmd",
     script="src/utils/rmarkdown.R"
   output:
@@ -479,7 +477,7 @@ rule genewise_diffex_reports:
     sp="data/Rds/survival_colors.Rds",
     tools="src/deseq_report_functions.R",
     vsd="data/Rds/08_vsd_ovr.Rds",
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     rmd="reports/09_genewise_diffex_reports.Rmd",
     script="src/utils/rmarkdown.R"
   output:
@@ -493,7 +491,7 @@ rule flexgsea:
     script = "src/deseq_flexgsea.R",
     lib = "src/deseq_report_functions.R",
     dds = "data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-    tx_annot = "data/metadata/01_tx_annot.tsv",
+    tx_annot = "data/rnaseq/metadata/01_gene_annot.tsv",
     gene_sets = expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets)
   output:
     # 30+ results files in this dir
@@ -513,7 +511,7 @@ rule flexgsea_report:
     ancient("results/flexgsea/deseq/results/inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"),
     script = "src/utils/rmarkdown.R",
     rmd = "reports/09b_flexgsea_results.Rmd",
-    tx_annot = "data/metadata/01_tx_annot.tsv",
+    tx_annot = "data/rnaseq/metadata/01_gene_annot.tsv",
     colors = "data/Rds/color_palettes.Rds"
   params:
     fdr_thresh = 0.25
@@ -555,7 +553,7 @@ rule inv_clustering:
     sp="data/Rds/survival_colors.Rds",
     tools="src/deseq_report_functions.R",
     vsd="data/Rds/08_vsd_ovr.Rds",
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     surv="data/Rds/04_survdata.Rds"
   output:
     "results/clustering/11_hm_clust_DEG_inv_vs_rest.pdf",
@@ -578,7 +576,7 @@ genewise_cox =[
 
 rule genewise_survival:
   input:
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     survdata="data/Rds/04_survdata.Rds",
     dds = "data/Rds/08_dds_ovr_inv_vs_rest.Rds",
   output:
@@ -600,7 +598,7 @@ rule report_genewise_survival:
     sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
     script="src/12_batch_survival_reports.R",
     rmd="reports/12_genewise_survival.Rmd",
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     coxdata="data/Rds/12_coxdata.Rds",
     tools="src/enrichment-analysis-functions.R",
     pw="results/diffex/07_pairwise_comparisons_allgenes.xlsx",
@@ -633,7 +631,7 @@ interaction_models = [
     
 rule surv_inv_int:
   input:
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     coxdata="data/Rds/12_coxdata.Rds",
     script="src/13_survival_involution_interaction.R"
   output:
@@ -653,7 +651,7 @@ rule report_interaction_survival:
     sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
     script="src/13_batch_involution_interaction_reports.R",
     rmd="reports/13_involutionxgene_interaction_models.Rmd",
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     coxdata="data/Rds/12_coxdata.Rds",
     tools="src/enrichment-analysis-functions.R",
     pw="results/diffex/07_pairwise_comparisons_allgenes.xlsx",
@@ -668,7 +666,7 @@ rule report_interaction_survival:
 
 rule app_setup:
   input:
-    "data/metadata/01_tx_annot.tsv",
+    "data/rnaseq/metadata/01_gene_annot.tsv",
     "data/external/ensembl_universal_ids_v94.txt",
     "results/survival/12_cox_allgenes.xlsx",
     "results/survival/13_multi_interaction_os.csv",
@@ -785,7 +783,7 @@ rule report_cox_glm:
     diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
     gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
     int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     rmd="reports/15_cox_elastic_net.Rmd",
     script="src/utils/rmarkdown.R"
   output:
@@ -803,7 +801,7 @@ rule report_inv_cox_glm:
     diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
     gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
     int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     rmd="reports/15b_inv_cox_elastic_net.Rmd",
     script="src/utils/rmarkdown.R"
   output:
@@ -819,7 +817,7 @@ rule report_all_inv_cox_glm:
     diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
     gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
     int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     rmd="reports/15c_inv_cox_elastic_net.Rmd",
     script="src/utils/rmarkdown.R"
   output:
@@ -845,7 +843,7 @@ rule diffex_involution:
     rmd="reports/09_diffex_time_involution.Rmd",
     dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
     vsd="data/Rds/08_vsd_ovr.Rds",
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
     cp="data/Rds/color_palettes.Rds",
     sp="data/Rds/survival_colors.Rds"
@@ -865,7 +863,7 @@ rule diffex_breastfeeding:
     rmd="reports/09_diffex_breastfeeding_duration.Rmd",
     dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
     vsd="data/Rds/08_vsd_ovr.Rds",
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
     cp="data/Rds/color_palettes.Rds",
     sp="data/Rds/survival_colors.Rds"
@@ -890,7 +888,7 @@ rule gene_unity_setup:
     int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
     efeat=expand("results/survival/{feat}.xlsx", feat=enet_features),
     subdiffex=expand("{dir}/14_subgroup_diffex_{comp}_allgenes.xlsx", comp=sub_diffex, dir=diffex_dir),
-    gx_annot="data/metadata/01_tx_annot.tsv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     coxdata="data/Rds/12_coxdata.Rds",
     dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds"
   output:
