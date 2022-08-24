@@ -315,7 +315,9 @@ rule min_count_threshold:
 #Setting the number of threads prevents unwanted parallelization    
 rule lrt_diffex:
   input:
-    dds="data/rnaseq/interim/05b_dds_filtered.Rds"
+    dds="data/rnaseq/interim/05b_dds_filtered.Rds",
+    gene_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    script = "src/rnaseq/diffex_lrt.R"
   output:
     "data/rnaseq/interim/06_vsd.Rds",
     "data/rnaseq/interim/06_vsd_nolac.Rds",
@@ -328,7 +330,7 @@ rule lrt_diffex:
   shell:
     """
     export OMP_NUM_THREADS=1 
-    Rscript src/06_diffex_lrt.R
+    Rscript {input.script}
     """
 
 dds_lrt = [
