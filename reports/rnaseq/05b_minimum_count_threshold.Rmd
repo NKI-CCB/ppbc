@@ -7,24 +7,24 @@ output:
     toc: yes
     toc_float: yes
     df_print: paged
-    theme: darkly
-    highlight: breezedark
+    highlight: kate
     canon: true
+params:
+  dds: "data/rnaseq/interim/05_dds_PAM50_batch.Rds"
 bibliography: references.bib
 ---
 
-```{r setup, include=FALSE}
+```{r setup, message=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(DESeq2)
 library(here)
 library(tidyverse)
-
 ```
 
 Load count matrix:
 
 ```{r}
-dds <- readRDS(file = here("data/Rds/05_dds_PAM50_batch.Rds"))
+dds <- readRDS(file = here(params$dds))
 
 dim(dds)
 ```
@@ -34,17 +34,11 @@ Minimum count threshold: remove any features (rows) without at least 1 read per 
 ```{r}
 table(dds$PPBC)
 ```
+
 In our case, one group (lactating) is much smaller than the rest.
 We therefore choose the lowest n in all groups except lactating.
 
 Minimum n:
-
-```{r, eval=F, include=F}
-#This is how it would be if we chose lactating as the minimum group
-min.n <- min(table(dds$PPBC))
-
-min.n
-```
 
 ```{r}
 min.n <- min(table(dds$PPBC)[names(table(dds$PPBC))!="lactating"])
@@ -74,7 +68,5 @@ Subset the dds and save:
 dds <- dds[keep,]
 dim(dds)
 
-saveRDS(dds, here("data/Rds/05b_dds_filtered.Rds"))
+saveRDS(dds, here("data/rnaseq/interim/05b_dds_filtered.Rds"))
 ```
-
-

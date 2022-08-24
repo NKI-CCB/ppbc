@@ -276,56 +276,55 @@ rule multi_survival:
     " --dds {input.dds}"
     " --color_palette {input.color_palette}"
     " --survival_colors {input.survival_colors}"
-    
-pca_pdfs = [
-  "scree", "sigPCA_batch", "firstPCA_batch",
-  "sigPCA_PPBC", "firstPCA_PPBC", "sigPCA_Pam50"
-]
 
 #### Batch effects ####
     
 rule batch_effects:
   input:
     script="src/utils/rmarkdown.R",
-    rmd="reports/05_batch_effects.Rmd",
-    dds="data/Rds/04_dds_PAM50_EST.Rds",
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    cp="data/Rds/color_palettes.Rds"
+    rmd="reports/rnaseq/05_batch_effects.Rmd",
+    dds="data/rnaseq/interim/04_dds_PAM50_est.Rds",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    sampledata="data/external/sample_data.tsv",
+    cp="data/rnaseq/interim/color_palettes.Rds"
   output:
-    expand("results/PCA/05_{pca}.pdf", pca=pca_pdfs),
-    metadata="data/metadata/05_sample_annot_filtered.csv",
-    dds="data/Rds/05_dds_PAM50_batch.Rds",
-    rdata="reports/05_batch_effects.RData",
-    html="reports/05_batch_effects.html"
+    metadata="data/rnaseq/metadata/05_sample_annot_filtered.csv",
+    dds="data/rnaseq/interim/05_dds_PAM50_batch.Rds",
+    html="reports/rnaseq/05_batch_effects.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --dds {input.dds}"
+    " --gx_annot {input.gx_annot}"
+    " --cp {input.cp}"
+    " --sampledata {input.sampledata}"
 
 #### Differential expression ####
 
 rule min_count_threshold:
   input:
     script = "src/utils/rmarkdown.R",
-    rmd = "reports/05b_minimum_count_threshold.Rmd",
-    dds = "data/Rds/05_dds_PAM50_batch.Rds"
+    rmd = "reports/rnaseq/05b_minimum_count_threshold.Rmd",
+    dds = "data/rnaseq/interim/05_dds_PAM50_batch.Rds"
   output:
-    dds = "data/Rds/05b_dds_filtered.Rds",
-    html = "reports/05b_minimum_count_threshold.html"
+    dds = "data/rnaseq/interim/05b_dds_filtered.Rds",
+    html = "reports/rnaseq/05b_minimum_count_threshold.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+     " --dds {input.dds}"
 
 #Setting the number of threads prevents unwanted parallelization    
 rule lrt_diffex:
   input:
-    dds="data/Rds/05b_dds_filtered.Rds"
+    dds="data/rnaseq/interim/05b_dds_filtered.Rds"
   output:
-    "data/Rds/06_vsd.Rds",
-    "data/Rds/06_vsd_nolac.Rds",
-    "data/Rds/06_ddsLRT.Rds",
-    "data/Rds/06_ddsLRT_nolac.Rds",
-    "data/Rds/06_ddsLRT_pam.Rds",
-    "data/Rds/06_ddsLRT_pam_nolac.Rds",
-    "data/Rds/06_ddsLRT_batch.Rds",
-    "data/Rds/06_ddsLRT_batch_nolac.Rds"
+    "data/rnaseq/interim/06_vsd.Rds",
+    "data/rnaseq/interim/06_vsd_nolac.Rds",
+    "data/rnaseq/interim/06_ddsLRT.Rds",
+    "data/rnaseq/interim/06_ddsLRT_nolac.Rds",
+    "data/rnaseq/interim/06_ddsLRT_pam.Rds",
+    "data/rnaseq/interim/06_ddsLRT_pam_nolac.Rds",
+    "data/rnaseq/interim/06_ddsLRT_batch.Rds",
+    "data/rnaseq/interim/06_ddsLRT_batch_nolac.Rds"
   shell:
     """
     export OMP_NUM_THREADS=1 
