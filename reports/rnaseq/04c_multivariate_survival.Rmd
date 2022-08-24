@@ -367,9 +367,9 @@ coxph(
 ```{r}
 inv_cox <- as.data.frame(colData(dds)) %>%
   filter(study_group == "ppbcpw") %>%
-  select(patient_ID, months_involution, months_breastfeeding) %>%
+  select(sample_name, months_involution, months_breastfeeding) %>%
   na.omit() %>%
-  left_join(., coxdata, by = "patient_ID") %>%
+  left_join(., coxdata, by = "sample_name") %>%
   na.omit()
 
 print(paste(nrow(inv_cox), "of", nrow(filter(coxdata, study_group == "ppbcpw")),
@@ -387,7 +387,7 @@ inv_cox <- inv_cox %>%
     months_breastfeeding <= 1 ~ "<= 1 month",
     months_breastfeeding > 1 ~ "> 1 month",
   )) %>%
-  select(patient_ID, months_involution, involution,
+  select(sample_name, months_involution, involution,
          months_breastfeeding, breastfeeding, everything()) %>%
   mutate(involution = factor(involution,
                              levels = c("<= 6 months", "> 6 months")),

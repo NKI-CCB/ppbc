@@ -118,7 +118,7 @@ fix_batches <- function(df, ref, verbose=T){
   df <- df %>%
     bind_rows(., batch_na) %>%
     arrange(patient_ID)
-  
+
   # Ensure the new batches match the reference
   stopifnot(nrow(bind_cols(
     distinct(select(df, patient_ID, batch)),
@@ -130,7 +130,7 @@ fix_batches <- function(df, ref, verbose=T){
     distinct(select(ref, ref_patient_ID=patient_ID, ref_batch = batch))
   ) %>% filter(ref_patient_ID != patient_ID))==0)
   
-  df
+  df %>% arrange(sample_name)
 }
 
 sd <- fix_batches(df = sd, ref = sample_batch)
@@ -217,9 +217,9 @@ And put first 10 components into a data frame with sample annotations.
 
 ```{r pca-data-frame}
 pca.df <- as.data.frame(nc.pca$x[, 1:100])
-pca.df$patient_ID <- rownames(nc.pca$x)
-pca.df <- inner_join(pca.df, sd, by='patient_ID')
-pca.df <- pca.df %>% select(patient_ID, batch, everything())
+pca.df$sample_name <- rownames(nc.pca$x)
+pca.df <- inner_join(pca.df, sd, by='sample_name')
+pca.df <- pca.df %>% select(sample_name, batch, everything())
 head(pca.df)
 ```
 
@@ -321,7 +321,7 @@ gg_pca(pca.df, "PC1", "PC2",
 We use the Kruskal-Wallis Ranked Sum Test.
 
 ```{r kw-test}
-batch <- sd[match(colnames(normcounts), sd$patient_ID),]$batch
+batch <- sd[match(colnames(normcounts), sd$sample_name),]$batch
 
 res <- apply(normcounts, 1, function (x) {kruskal.test(x, batch)})
 ```
@@ -527,9 +527,9 @@ normcounts.nolac <- blind_vst(dds.nolac)
 #Calculate PCs
 nc.pca.nolac <- prcomp(t(normcounts.nolac[,colSums(normcounts.nolac) > nrow(normcounts.nolac)]))
 pca.df.nl <- as.data.frame(nc.pca.nolac$x[, 1:100])
-pca.df.nl$patient_ID <- rownames(nc.pca.nolac$x)
-pca.df.nl <- inner_join(pca.df.nl, sd, by='patient_ID')
-pca.df.nl = pca.df.nl %>% select(patient_ID, batch, everything())
+pca.df.nl$sample_name <- rownames(nc.pca.nolac$x)
+pca.df.nl <- inner_join(pca.df.nl, sd, by='sample_name')
+pca.df.nl = pca.df.nl %>% select(sample_name, batch, everything())
 #head(pca.df.nl)
 ```
 
@@ -713,10 +713,10 @@ as.matrix(table(sd$PAM50, sd$PPBC)) %>%
 Add corrected batch info to dds.
 
 ```{r}
-sd <- sd[match(sd$patient_ID, colnames(dds)),]
+sd <- sd[match(sd$sample_name, colnames(dds)),]
 
-stopifnot(all(sd$patient_ID==colnames(dds)))
-stopifnot(all(sd$patient_ID==colData(dds)$patient_ID))
+stopifnot(all(sd$sample_name==colnames(dds)))
+stopifnot(all(sd$sample_name==colData(dds)$sample_name))
 
 dds$batch <- sd$batch
 ```

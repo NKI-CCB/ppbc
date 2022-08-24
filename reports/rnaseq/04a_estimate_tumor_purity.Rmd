@@ -219,7 +219,7 @@ Tumour purity=cos (0.6049872018+0.0001467884 × ESTIMATE score)
 purity_score <- scores %>%
   dplyr::select(-Description) %>%
   rename(score=NAME) %>%
-  gather(key="patient_ID", -score, value=value) %>%
+  gather(key="sample_name", -score, value=value) %>%
   spread(key=score,value=value) %>%
   mutate(tumor_purity = cos(0.6049872018+0.0001467884 * ESTIMATEScore))
 ```
@@ -228,10 +228,10 @@ purity_score <- scores %>%
 
 ```{r}
 scores %>% dplyr::select(-Description) %>%
-  gather(key = "patient_ID", -NAME, value="Score") %>%
-  left_join(., as.data.frame(colData(dds)), by="patient_ID") %>%
+  gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
   arrange(PPBC) %>%
-  ggplot(aes(x=factor(patient_ID, levels = unique(patient_ID)),y=Score, fill=PPBC)) +
+  ggplot(aes(x=factor(sample_name, levels = unique(sample_name)),y=Score, fill=PPBC)) +
   geom_bar(stat="identity") +
   facet_wrap(~NAME, ncol=1) +
   theme(axis.text.x=element_blank()) +
@@ -241,8 +241,8 @@ scores %>% dplyr::select(-Description) %>%
 
 ```{r}
 scores %>% dplyr::select(-Description) %>%
-  gather(key = "patient_ID", -NAME, value="Score") %>%
-  left_join(., as.data.frame(colData(dds)), by="patient_ID") %>%
+  gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
   filter(NAME != "ESTIMATEScore") %>%
   ggplot(aes(x=PPBC,y=Score, color=PPBC)) +
   geom_boxplot(alpha = 0) +
@@ -261,8 +261,8 @@ comps <- list( c("nulliparous", "involuting"),
                c("pregnant", "involuting") )
 
 immune_df <- scores %>% dplyr::select(-Description) %>%
-  gather(key = "patient_ID", -NAME, value="Score") %>%
-  left_join(., as.data.frame(colData(dds)), by="patient_ID") %>%
+  gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
   filter(NAME == "ImmuneScore") 
 
 immune_df %>%
@@ -303,8 +303,8 @@ comps <- list( c("nulliparous", "involuting"),
 
 
 stromal_df <- scores %>% dplyr::select(-Description) %>%
-  gather(key = "patient_ID", -NAME, value="Score") %>%
-  left_join(., as.data.frame(colData(dds)), by="patient_ID") %>%
+  gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
   filter(NAME == "StromalScore") 
 
 stromal_df %>%
@@ -348,7 +348,7 @@ saveRDS(list(estimate = scores, purity = purity_score),
 Add scores to dds.
 
 ```{r}
-stopifnot(all(purity_score$patient_ID == colData(dds)$patient_ID))
+stopifnot(all(purity_score$sample_name == colData(dds)$sample_name))
 dds$ESTIMATE_score <- purity_score$ESTIMATEScore
 dds$immune_score <- purity_score$ImmuneScore
 dds$stromal_score <- purity_score$StromalScore

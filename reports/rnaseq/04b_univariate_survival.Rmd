@@ -61,7 +61,7 @@ Add immune, stromal and tumor purity to metadata
 ```{r}
 purity_score <- scores$purity
 scores <- scores$estimate
-stopifnot(all(colData(dds)$patient_ID == purity_score$patient_ID))
+stopifnot(all(colData(dds)$sample_name == purity_score$sample_name))
 dds$immune_score = purity_score$ImmuneScore
 dds$stromal_score = purity_score$StromalScore
 dds$tumor_purity = purity_score$tumor_purity
@@ -71,13 +71,13 @@ Separate dataframes for some downstream analyses.
 
 ```{r}
 immune_df <- scores %>% dplyr::select(-Description) %>%
-  gather(key = "patient_ID", -NAME, value="Score") %>%
-  left_join(., as.data.frame(colData(dds)), by="patient_ID") %>%
+  gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
   filter(NAME == "ImmuneScore")
 
 stromal_df <- scores %>% dplyr::select(-Description) %>%
-  gather(key = "patient_ID", -NAME, value="Score") %>%
-  left_join(., as.data.frame(colData(dds)), by="patient_ID") %>%
+  gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
   filter(NAME == "StromalScore") 
 ```
 
@@ -96,7 +96,7 @@ as.data.frame(colData(dds)) %>% colnames()
 ```{r}
 sd <- as.data.frame(colData(dds))
 sd <- sd %>%
-  select(patient_ID, reason_death, 
+  select(sample_name, reason_death, 
          study_group, PPBC, PAM50,
          grade, stage,
          FU_time_months, year_diagnosis, year_birth,
@@ -137,7 +137,7 @@ print(paste("Started with", nrow(sd), "samples"))
 
 print(paste("Samples with missing values in survival data:",
             length(samples_missing_info)))
-excluded <- sd %>% filter(patient_ID %in% samples_missing_info$patient_ID) %>%
+excluded <- sd %>% filter(sample_name %in% samples_missing_info$sample_name) %>%
   mutate(reason = "missing survival data")
 
 print(paste("Samples excluded due to patient death unrelated to disease:",
@@ -155,7 +155,7 @@ excluded <- bind_rows(excluded,
                      mutate(filter(sd, FU_time_months < 20 & reason_death == "BC"),
                             reason = "insufficient followup"))
 
-metadata <- sd %>% filter(!patient_ID %in% samples_missing_info$patient_ID) %>%
+metadata <- sd %>% filter(!sample_name %in% samples_missing_info$sample_name) %>%
   filter(reason_death %in% c("alive", "BC")) %>%
   filter(FU_time_months >= 20 | reason_death == "BC")
 
@@ -168,12 +168,12 @@ Overview excluded samples:
 
 ```{r}
 excluded_samples <- excluded %>%
-  select(patient_ID, reason_exclusion = reason, study_group) %>%
+  select(sample_name, reason_exclusion = reason, study_group) %>%
   remove_rownames() %>%
-  arrange(patient_ID)
+  arrange(sample_name)
 
 
-table(excluded$patient_ID, excluded$reason)
+table(excluded$sample_name, excluded$reason)
 
 write_csv(excluded_samples,
           here("data/rnaseq/metadata/04_samples_excluded_survival.csv"))
@@ -214,15 +214,15 @@ bind_rows(immune_df, stromal_df) %>%
 
 ```{r add tertitles to metadata}
 coxdata <- right_join(
-  select(immune_df, patient_ID, immune_tertile = tertile),
-  coxdata, by = "patient_ID")
+  select(immune_df, sample_name, immune_tertile = tertile),
+  coxdata, by = "sample_name")
 
 coxdata <- right_join(
-  select(stromal_df, patient_ID, stromal_tertile = tertile),
-  coxdata, by = "patient_ID")
+  select(stromal_df, sample_name, stromal_tertile = tertile),
+  coxdata, by = "sample_name")
 
 coxdata <- coxdata %>%
-  select(patient_ID:PAM50, immune_tertile, stromal_tertile, everything())
+  select(sample_name:PAM50, immune_tertile, stromal_tertile, everything())
 ```
 
 Subset the data down to involution only samples for analyses related to breastfeeding.
@@ -232,9 +232,9 @@ Omit missing values.
 ```{r}
 inv_cox <- as.data.frame(colData(dds)) %>%
   filter(study_group == "ppbcpw") %>%
-  select(patient_ID, months_involution, months_breastfeeding) %>%
+  select(sample_name, months_involution, months_breastfeeding) %>%
   na.omit() %>%
-  left_join(., coxdata, by = "patient_ID") %>%
+  left_join(., coxdata, by = "sample_name") %>%
   na.omit()
 
 print(paste(nrow(inv_cox), "of", nrow(filter(coxdata, study_group == "ppbcpw")),
@@ -243,8 +243,8 @@ print(paste(nrow(inv_cox), "of", nrow(filter(coxdata, study_group == "ppbcpw")),
 
 ```{r}
 inv_cox %>%
-  select(patient_ID, months_involution, months_breastfeeding) %>%
-  gather(key = "type", -patient_ID, value = "months") %>%
+  select(sample_name, months_involution, months_breastfeeding) %>%
+  gather(key = "type", -sample_name, value = "months") %>%
   ggplot(aes(x = months, fill = type)) +
   geom_density(alpha = 0.5) +
   ggtitle("Distribution of breastfeeding and involution duration")
@@ -274,7 +274,7 @@ inv_cox <- inv_cox %>%
     months_breastfeeding <= 1 ~ "<= 1 month",
     months_breastfeeding > 1 ~ "> 1 month",
   )) %>%
-  select(patient_ID, months_involution, involution,
+  select(sample_name, months_involution, involution,
          months_breastfeeding, breastfeeding, everything()) %>%
   mutate(involution = factor(involution,
                              levels = c("<= 6 months", "> 6 months")),

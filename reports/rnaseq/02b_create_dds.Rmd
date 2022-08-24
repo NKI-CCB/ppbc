@@ -35,9 +35,9 @@ tx <- readRDS(here(params$tx))
 meta <- readRDS(here(params$meta))
 ```
 
-## Patient ID as column names
+## Sample name as column names
 
-The column name within our tx object is derived from the fast file name. Replace it with the patient ID.
+The column name within our tx object is derived from the fast file name. Replace it with the sample name.
 
 ```{r}
 stopifnot(all(colnames(tx$abundance) == colnames(tx$counts)))
@@ -45,7 +45,7 @@ stopifnot(all(colnames(tx$abundance) == colnames(tx$length)))
 stopifnot(all(colnames(tx$abundance) %in% meta$fastq))
 
 new_names <- tibble(fastq = colnames(tx$abundance)) %>%
-  left_join(., select(meta, fastq, patient_ID), by ="fastq")
+  left_join(., select(meta, fastq, sample_name), by ="fastq")
 
 stopifnot(all(new_names$fastq == colnames(tx)))
 ```
@@ -69,7 +69,7 @@ Create dds and collapse technical replicates
 
 ```{r}
 dds <- DESeqDataSetFromTximport(tx_clean, meta, ~ clin_subtype + study_group)
-dds <- collapseReplicates(dds, dds$patient_ID)
+dds <- collapseReplicates(dds, dds$sample_name)
 ```
 
 ```{r}
@@ -79,6 +79,11 @@ dim(dds)
 ```{r}
 stopifnot(length(unique(colnames(dds))) == length(colnames(dds)))
 ```
+
+```{r}
+colnames(dds)
+```
+
 
 ## Add duration categories
 
@@ -95,11 +100,11 @@ cd <- cd %>%
     months_breastfeeding <= 1 & study_group == "ppbcpw" ~ "<= 1 month",
     months_breastfeeding > 1 & study_group == "ppbcpw" ~ "> 1 month"
   )) %>%
-  select(patient_ID, months_involution, involution,
+  select(sample_name, months_involution, involution,
          months_breastfeeding, breastfeeding, everything()) %>%
   mutate(breastfeeding = factor(breastfeeding,
                                 levels = c("<= 1 month", "> 1 month")))
-stopifnot(identical(cd$patient_ID, colData(dds)$patient_ID))
+stopifnot(identical(cd$sample_name, colData(dds)$sample_name))
 
 dds$involution_duration = cd$involution
 dds$breastfeeding_duration = cd$breastfeeding
