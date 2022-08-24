@@ -1,28 +1,27 @@
 ---
 title: "Batch effects in ppbc"
-author: Kat Moore and Tycho Bismeijer
+author: "Kat Moore and Tycho Bismeijer"
 date: "`r Sys.Date()`"
 output: 
   html_document:
     toc: yes
     toc_float: yes
     toc_depth: 4
-    highlight: tango
+    highlight: kate
     df_print: paged
+params:
+    dds: "data/rnaseq/interim/04_dds_PAM50_est.Rds"
+    gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+    cp: "data/rnaseq/interim/color_palettes.Rds"
+    sampledata: "data/external/sample_data.tsv"
 ---
-
-
-```{r, include=F}
-rm(list = ls())
-```
 
 In this notebook we examine and visualize the presence of a batch effect within the PPBC dataset.
 Additional elements within the design formula are assessed for association with principal components and for colinearity.
 
-Based off the notebook imagene-batch-effects.Rmd by Tycho Bismeijer. 
-Adapted for the post-partum breast cancer project (ppbc).
+Based off the notebook imagene-batch-effects.Rmd by Tycho Bismeijer.
 
-```{r, include=F}
+```{r, message=F}
 library(here)
 library(openxlsx)
 library(DESeq2)
@@ -30,16 +29,19 @@ library(tidyverse)
 library(RColorBrewer)
 library(scales) #For shape_pal
 library(corrplot)
+library(pheatmap)
+
+theme_set(theme_bw())
 ```
 
-# Load data
+## Load data
 
 ```{r Load data}
 #Count matrix post QC, with PAM50 and tumor purity determined, and replicates collapsed
-dds <- readRDS(file=here("data/Rds/04_dds_PAM50_EST.Rds"))
+dds <- readRDS(file=here(params$dds))
 
 #Load gene annotation (Ensembl -> Gene name)
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot <- read_tsv(here(params$gx_annot), show_col_types = F)
 ```
 
 Select only gene-level information
@@ -53,44 +55,88 @@ gx_annot <- gx_annot %>%
 Save separate df for sample metadata, including country
 
 ```{r}
-sd = as.data.frame(colData(dds))
+sd <- as.data.frame(colData(dds))
 ```
 
 Color palettes:
 
 ```{r}
-cp = readRDS(here("data/Rds/color_palettes.Rds"))
+cp <- readRDS(here(params$cp))
 ```
 
-# Collapse small batches
+Sample data, to fix irregularies in batch.
+
+```{r}
+sample_batch <- read_tsv(here(params$sampledata), show_col_types = F)
+
+sample_batch <- sample_batch %>%
+  select(patient_ID, fastq = sample_ID, batch = batch_Leuven, sample_type) %>%
+  filter(sample_type == "RNA") %>%
+  select(-sample_type) %>%
+  filter(!is.na(batch)) %>%
+  distinct()
+```
+
+## Process batches
+
+Fix any NAs or irregularies.
+
+```{r}
+fix_batches <- function(df, ref, verbose=T){
+  
+  # Remove samples we've discarded
+  ref <- semi_join(ref, df, by="patient_ID")
+  
+  #Detect any NAs
+  batch_na <- df %>% filter(is.na(batch))
+  
+  if(verbose){
+    print(paste("Found NA batch for:"))
+    print(batch_na$fastq)
+    }
+  
+  #Remove NA batches from main df
+  df <- df %>% filter(!is.na(batch))
+  
+  # retrieve batch in reference based on patient_ID
+  retrieved_batches <- ref %>%
+    filter(patient_ID %in% batch_na$patient_ID) %>%
+    select(patient_ID, batch)
+  
+  # Throw an error if more than one batch or if no batches retrieved
+  stopifnot(nrow(retrieved_batches) == nrow(batch_na))
+  
+  # Replace the NA batches with those retrieved
+  batch_na$batch <- retrieved_batches$batch
+  
+  if(verbose){
+    print(paste("Retrieving batches:"))
+    print(batch_na$batch)
+    }
+  
+  # Restore the entries to sample data
+  df <- df %>%
+    bind_rows(., batch_na) %>%
+    arrange(patient_ID)
+  
+  # Ensure the new batches match the reference
+  stopifnot(nrow(bind_cols(
+    distinct(select(df, patient_ID, batch)),
+    distinct(select(ref, ref_patient_ID=patient_ID, ref_batch = batch))
+  ) %>% filter(batch != ref_batch))==0)
+  
+  stopifnot(nrow(bind_cols(
+    distinct(select(df, patient_ID, batch)),
+    distinct(select(ref, ref_patient_ID=patient_ID, ref_batch = batch))
+  ) %>% filter(ref_patient_ID != patient_ID))==0)
+  
+  df
+}
+
+sd <- fix_batches(df = sd, ref = sample_batch)
+```
 
 Distribution of samples over batches.
-
-```{r}
-sd %>%
-  group_by(library_prep) %>%
-  summarise(n=n())
-```
-
-Very small batches are going to cause problems in differential expression later on if batch is used as part of the design formula.
-To handle this, we combine batches to ensure that they are at least 10 samples in size.
-
-```{r}
-sd = sd %>% mutate(batch = str_replace_all(
-  library_prep, "&", "en"
-))
-
-sd = sd %>%  mutate(batch = dplyr::case_when(
-  batch %in% c("2.0 en 5.0", "2.0") ~ "5.0",
-  batch == "1.0 en 5.0" ~ "5.0",
-  batch %in% c("7.0", "6.0 en 7.0") ~ "7.0",
-  TRUE ~ library_prep))
-
-sd$batch = as.factor(sd$batch)
-
-```
-
-New distribution of samples by batch:
 
 ```{r}
 sd %>%
@@ -98,13 +144,23 @@ sd %>%
   summarise(n=n())
 ```
 
+Set appropriate factor levels.
 
-# Normalize count data
+```{r}
+sd <- sd %>% 
+  mutate(batch = factor(batch, levels = paste("batch", 3:8)))
+
+sd %>%
+  group_by(batch) %>%
+  summarise(n=n())
+```
+
+## Normalize count data
 
 Using a variance stabilizing transformation that is fully blind to experimental design.
 
 ```{r}
-blind_vst = function(dds){
+blind_vst <- function(dds){
   design(dds) = formula(~ 1)
   vsd = vst(dds, blind=T)
   mat = assay(vsd)
@@ -117,7 +173,7 @@ normcounts <- blind_vst(dds)
 normcounts[1:4,1:4]
 ```
 
-# Calculate PCA
+## Calculate PCA
 
 Minimum expression filter: the sum of all counts must exceed the number of genes. This is true in all samples
 
@@ -126,18 +182,16 @@ table(colSums(normcounts) > nrow(normcounts))
 nc.pca <- prcomp(t(normcounts[,colSums(normcounts) > nrow(normcounts)]))
 ```
 
-## Scree plot
+### Scree plot
 
 ```{r}
-scree_plot = function(res_prcomp, n_pca=20, returnData = F){
-  
-  require(tidyverse)
+scree_plot <- function(res_prcomp, n_pca=20, returnData = F){
   
   percentVar <- res_prcomp$sdev^2/sum(res_prcomp$sdev^2) * 100
-  names(percentVar) = paste0("PC", seq(1, length(percentVar)))
-  percentVar = enframe(percentVar, "PC", "variance")
+  names(percentVar) <- paste0("PC", seq(1, length(percentVar)))
+  percentVar <- enframe(percentVar, "PC", "variance")
   
-  percentVar$PC=factor(percentVar$PC, levels=percentVar$PC)
+  percentVar$PC <- factor(percentVar$PC, levels=percentVar$PC)
   if(returnData){return(percentVar)}
   percentVar %>%
     slice(1:n_pca) %>%
@@ -151,7 +205,7 @@ scree_plot = function(res_prcomp, n_pca=20, returnData = F){
 ```
 
 ```{r}
-percVar = scree_plot(nc.pca, returnData = T)
+percVar <- scree_plot(nc.pca, returnData = T)
 head(percVar)
 ```
 
@@ -159,20 +213,13 @@ head(percVar)
 scree_plot(nc.pca)
 ```
 
-```{r, include=F}
-resdir = here("results", "PCA")
-dir.create(resdir, showWarnings = F)
-ggsave(filename = file.path(resdir, "05_scree.pdf"),
-       device="pdf", width = 8, height = 6)
-```
-
 And put first 10 components into a data frame with sample annotations.
 
 ```{r pca-data-frame}
 pca.df <- as.data.frame(nc.pca$x[, 1:100])
-pca.df$sample_name <- rownames(nc.pca$x)
-pca.df <- inner_join(pca.df, sd, by='sample_name')
-pca.df = pca.df %>% select(sample_name, batch, everything())
+pca.df$patient_ID <- rownames(nc.pca$x)
+pca.df <- inner_join(pca.df, sd, by='patient_ID')
+pca.df <- pca.df %>% select(patient_ID, batch, everything())
 head(pca.df)
 ```
 
@@ -185,9 +232,6 @@ stopifnot(nrow(pca.df) == nrow(t(normcounts)))
 ## PCA library prep and country
 
 Belgian samples are spread throughout all batches, but the rest belong mostly to one batch.
-Batch 4 = Italy
-Batch 6 = Germany
-Batches 7 and 8 = NL and Canada
 
 ```{r}
 table(sd$batch, sd$country)
@@ -197,7 +241,7 @@ Function to easily add % var to PCA plots:
 
 ```{r}
 get_var <- function(PC){
-  p = percVar[percVar$PC == PC, ]$variance
+  p <- percVar[percVar$PC == PC, ]$variance
   paste0(round(p, 1), "%")
 }
 
@@ -272,12 +316,12 @@ gg_pca(pca.df, "PC1", "PC2",
   scale_color_manual(values = cp$ppbc_colors)
 ```
 
-# Kruskal-Wallis genewise significance test by batch
+## Kruskal-Wallis genewise significance test by batch
 
 We use the Kruskal-Wallis Ranked Sum Test.
 
 ```{r kw-test}
-batch <- sd[match(colnames(normcounts), sd$sample_name),]$batch
+batch <- sd[match(colnames(normcounts), sd$patient_ID),]$batch
 
 res <- apply(normcounts, 1, function (x) {kruskal.test(x, batch)})
 ```
@@ -300,7 +344,7 @@ kw.tests = kw.tests %>% arrange(p)
 head(kw.tests)
 ```
 
-## Histogram significant genes by batch
+### Histogram significant genes by batch
 
 ```{r plot-kw-p}
 hist(kw.tests$fdr,
@@ -312,7 +356,6 @@ hist(kw.tests$fdr,
 print(paste("Sig genes: ", kw.tests %>% filter(fdr < 0.05) %>%
   nrow()))
 ```
-
 
 Extract the top most significant genes in the batch analysis.
 
@@ -350,11 +393,11 @@ Which genes are these?
 top.tests$gene_name[1:10]
 ```
 
-# PCs associated with batch
+## PCs associated with batch
 
 Testing the first 100 principal components for significance by library prep batch.
 
-```{r kw-test-pca, cache=T}
+```{r kw-test-pca}
 rp <- list()
 for (pc in paste0('PC', 1:100)) {
     rp[[pc]] <- kruskal.test(pca.df[[pc]], as.factor(pca.df$batch))
@@ -365,7 +408,7 @@ for (pc in paste0('PC', 1:100)) {
 Extract significant hits
 
 ```{r}
-PC_batch = lapply(rp, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
+PC_batch <- lapply(rp, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
   mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
   filter(fdr < 0.05) %>% arrange(fdr)
 
@@ -379,7 +422,7 @@ print(paste("Percent total variance represented:",
             round(sum(percVar[percVar$PC %in% PC_batch$PC, "variance"]), 2)))
 ```
 
-## Box plots significant PCs by batch
+### Box plots significant PCs by batch
 
 Keep it to the top 10
 
@@ -391,7 +434,7 @@ for (i in 1:10){
 }
 ```
 
-## PCA batch plot
+### PCA batch plot
 
 Plot the top PCs associated with batch
 
@@ -399,11 +442,6 @@ Plot the top PCs associated with batch
 gg_pca(pca.df, "PC5", "PC6",
        color.var = "batch",
        title = "PCs significantly associated with batch")
-```
-
-```{r, include=F}
-ggsave(filename=file.path(resdir, "05_sigPCA_batch.pdf"),
-       device="pdf", width=8, height=5)
 ```
 
 Compare with PCAs 1 and 2 for batch.
@@ -414,12 +452,7 @@ gg_pca(pca.df, "PC1", "PC2",
        title = "PCA by batch")
 ```
 
-```{r, include=F}
-ggsave(filename=file.path(resdir, "05_firstPCA_batch.pdf"),
-       device="pdf", width=8, height=5)
-```
-
-# PCs associated with PPBC
+## PCs associated with PPBC
 
 ```{r}
 sp <- list()
@@ -447,7 +480,7 @@ print(paste("Percent variance represented:",
             round(sum(percVar[percVar$PC %in% PC_ppbc$PC, "variance"]), 2)))
 ```
 
-## Box plots significant PCs by study group
+### Box plots significant PCs by study group
 
 ```{r, fig.height=8, fig.width=6}
 par(mfrow=c(2,1))
@@ -456,7 +489,7 @@ for (i in 1:nrow(PC_ppbc)){
 }
 ```
 
-## PCA study group plot
+### PCA study group plot
 
 Only two principle components significantly associated with study group.
 Although they are significant, no obvious pattern is visible
@@ -468,11 +501,6 @@ gg_pca(pca.df, "PC10", "PC13",
   scale_color_manual(values=cp$ppbc_colors)
 ```
 
-```{r, include=F}
-ggsave(filename=file.path(resdir, "05_sigPCA_PPBC.pdf"),
-       device="pdf", width=8, height=5)
-```
-
 Compare with PCAs 1 and 2 for PPBC.
 
 ```{r}
@@ -482,20 +510,14 @@ gg_pca(pca.df, "PC1", "PC2",
   scale_color_manual(values=cp$ppbc_colors)
 ```
 
-```{r, include=F}
-ggsave(filename=file.path(resdir, "05_firstPCA_PPBC.pdf"),
-       device="pdf", width=8, height=5)
-```
-
-
-## Without the lac group
+### Without the lac group
 
 Based on downtstream analysis, it appears that the lac group may be over-contributing. 
 Can we still find PCs associated with study group when lac is removed?
 
 ```{r, no lac PCA}
 #Remove lac samples from dds
-dds.nolac = dds[,colnames(dds)[colData(dds)$study_group != "ppbc_lac"]]
+dds.nolac = dds[,colnames(dds)[colData(dds)$study_group != "ppbcdl"]]
 dds.nolac$study_group = droplevels(dds.nolac$study_group)
 #table(dds.nolac$study_group)
 
@@ -505,13 +527,12 @@ normcounts.nolac <- blind_vst(dds.nolac)
 #Calculate PCs
 nc.pca.nolac <- prcomp(t(normcounts.nolac[,colSums(normcounts.nolac) > nrow(normcounts.nolac)]))
 pca.df.nl <- as.data.frame(nc.pca.nolac$x[, 1:100])
-pca.df.nl$sample_name <- rownames(nc.pca.nolac$x)
-pca.df.nl <- inner_join(pca.df.nl, sd, by='sample_name')
-pca.df.nl = pca.df.nl %>% select(sample_name, batch, everything())
+pca.df.nl$patient_ID <- rownames(nc.pca.nolac$x)
+pca.df.nl <- inner_join(pca.df.nl, sd, by='patient_ID')
+pca.df.nl = pca.df.nl %>% select(patient_ID, batch, everything())
 #head(pca.df.nl)
 ```
 
-If we do this, only PC13 remains significant.
 
 ```{r}
 nl <- list()
@@ -521,16 +542,25 @@ for (pc in paste0('PC', 1:100)) {
 } 
 
 
-PC_study_nolac = lapply(nl, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p") %>%
+PC_study_nolac = lapply(nl, function(x) x$p.value) %>%
+  unlist() %>% enframe("PC", "nom.p") %>%
   mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
   filter(fdr < 0.05) %>% arrange(fdr)
 
-print(paste("There are", nrow(PC_study_nolac), "principal components significantly associated with study group."))
+print(paste("There are", nrow(PC_study_nolac),
+            "principal components significantly associated with study group."))
 
 print(paste("These are:", paste(sort(PC_study_nolac$PC), collapse = ", ")))
 ```
 
-# KW PC by PAM50
+```{r}
+gg_pca(pca.df.nl, "PC4", "PC13",
+       color.var = "PPBC",
+       title = "PCA by PPBC") +
+  scale_color_manual(values=cp$ppbc_colors)
+```
+
+## KW PC by PAM50
 
 Should be very strong given the obvious patterns on PC1 and 2.
 
@@ -545,7 +575,8 @@ PC_pam = lapply(pm, function(x) x$p.value) %>% unlist() %>% enframe("PC", "nom.p
   mutate(bonferroni=p.adjust(nom.p, "bonferroni"), fdr = p.adjust(nom.p, "BH")) %>%
   filter(fdr < 0.05) %>% arrange(fdr)
 
-print(paste("There are", nrow(PC_pam), "principal components significantly associated with PAM50."))
+print(paste("There are", nrow(PC_pam),
+            "principal components significantly associated with PAM50."))
 
 print(paste("These are:", paste(sort(PC_pam$PC), collapse = ", ")))
 ```
@@ -554,7 +585,7 @@ print(paste("These are:", paste(sort(PC_pam$PC), collapse = ", ")))
 print(paste("Percent variance represented:", round(sum(percVar[percVar$PC %in% PC_pam$PC, "variance"]), 2)))
 ```
 
-## PCA PAM50 plot
+### PCA PAM50 plot
 
 The top 2 PCAs associated with PAM50 are PC1 and 2, so the "significant" plot is the same as the "first PCs" plot.
 
@@ -565,12 +596,7 @@ gg_pca(pca.df, "PC1", "PC2",
   scale_color_manual(values=cp$pam_colors)
 ```
 
-```{r, include=F}
-ggsave(filename=file.path(resdir, "05_sigPCA_Pam50.pdf"),
-       device="pdf", width=8, height=5)
-```
-
-# KW PC by tumor purity
+## KW PC by tumor purity
 
 The lack of significantly associated PCs validates our decision to exclude this element from the design formula.
 
@@ -591,7 +617,7 @@ print(paste("There are", nrow(filter(PC_tp, fdr < 0.05)),
 print(paste("These are:", paste(sort(filter(PC_tp, fdr < 0.05)$PC), collapse = ", ")))
 ```
 
-# Correlation between variables
+## Correlation between variables
 
 ```{r}
 corvars = t(combn(c("batch", "PAM50", "study_group"), 2))
@@ -620,9 +646,7 @@ for (i in 1:nrow(corvars)){
 }
 ```
 
-# Chi Square test for independence
-
-Arguably more appropriate than either of the correlation methods for categorical variables.
+## Chi Square test for independence
 
 Also look at [Cramer's V](https://en.wikipedia.org/wiki/Cram%C3%A9r%27s_V), a measure of association between two nominal variables, giving a value between 0 and +1 (inclusive). 
 (The smaller v, the lower the correlation) 
@@ -647,7 +671,7 @@ for (i in 1:nrow(corvars_cat)){
 }
 ```
 
-## Correlation plots
+### Correlation plots
 
 See also [this example](http://www.sthda.com/english/wiki/chi-square-test-of-independence-in-r) for making correlation plots from chisq results.
 
@@ -670,73 +694,63 @@ for (i in 1:nrow(corvars_cat)){
 }
 ```
 
-We can alternatively visualize this as a traditional heatmap:
+### Heatmap
 
 ```{r}
-library(pheatmap)
 as.matrix(table(sd$batch, sd$PPBC)) %>%
-  pheatmap(cluster_rows = F, cluster_cols = F, display_numbers = T,
+  pheatmap::pheatmap(cluster_rows = F, cluster_cols = F, display_numbers = T,
            number_format = "%i", fontsize_number = 12)
 ```
 
 ```{r}
 as.matrix(table(sd$PAM50, sd$PPBC)) %>%
-  pheatmap(cluster_rows = F, cluster_cols = F, display_numbers = T,
+  pheatmap::pheatmap(cluster_rows = F, cluster_cols = F, display_numbers = T,
            number_format = "%i", fontsize_number = 12)
 ```
 
-# Conclusion
+## Save data
 
-The overall amount of variance associated with the principal components is relatively low (~9% for PC1). 
-However, around 12K/60K genes are significant in a kruskal-wallis test of gene expression vs batch. 
-16 out of the first 100 principal components are significantly associated with batch. 
-This suggests that include batch in the design formula for differential expression analysis is prudent.
-
-More problematically, only 2 PCs are associated with study group. 
-A chisquare analysis indicates a strong association between batch and study group.
-This makes the inclusion of batch in the design formula less effective as a compensation mechanism.
-However, extensive experimentation with alternate design formulas shows that excluding batch from the design does not improve the outcome.
-See notebook 17 in 6 April 2020 commit: 524ee07dc463359ed4566817bef927694bd4daba.
-
-As predicted, PAM50 is strongly associated with most of the first 10 principal components.
-However, tumor purity is not associated with any of the first 100 PCs.
-This suggests that it will yield little additional benefit if included in the design formula, and may in fact over-complicate the design.
+Add corrected batch info to dds.
 
 ```{r}
-stopifnot(identical(sd$sample_name, dds$sample_name))
-dds$batch = sd$batch
+sd <- sd[match(sd$patient_ID, colnames(dds)),]
 
-design(dds) <- formula(~ batch + PAM50 + study_group)
+stopifnot(all(sd$patient_ID==colnames(dds)))
+stopifnot(all(sd$patient_ID==colData(dds)$patient_ID))
 
-dds$study_group = factor(dds$study_group,
-                         levels = c("non_prbc", "prbc",
-                                    "ppbc_lac", "ppbc_inv"))
-dds$PPBC = factor(dds$PPBC,
-                  levels=c("nulliparous", "pregnant",
-                           "lactating", "involuting"))
-
-dds$batch = factor(dds$batch,
-                   levels = c(
-                     "3.0", "4.0", "5.0",
-                     "6.0", "7.0", "8.0"  
-                   ))
-
-dds$PAM50 = factor(dds$PAM50,
-                   levels = c("Basal", "Her2",
-                              "LumB", "LumA",
-                              "Normal"))
+dds$batch <- sd$batch
 ```
 
-# Write data
+Update design formula.
+
+```{r}
+design(dds) <- formula(~ batch + PAM50 + study_group)
+```
+
+Elements in design formula:
+
+```{r}
+levels(dds$study_group)
+
+#Long form equivalent to study_group
+levels(dds$PPBC)
+
+levels(dds$batch)
+
+levels(dds$PAM50)
+```
 
 ```{r}
 write.csv(as.data.frame(colData(dds)),
-          file=here("data","metadata", "05_sample_annot_filtered.csv"), row.names = F)
+          file=here("data", "rnaseq","metadata", "05_sample_annot_filtered.csv"),
+          row.names = F)
 
-saveRDS(dds, file=here("data","Rds","05_dds_PAM50_batch.Rds"))
+saveRDS(dds, here("data","rnaseq", "interim", "05_dds_PAM50_batch.Rds"))
 ```
+
+
+## Session info
 
 ```{r}
-save.image(here("reports/05_batch_effects.RData"))
+sessionInfo()
 ```
-
