@@ -4,8 +4,6 @@ library(DESeq2)
 library(apeglm)
 library(tidyverse)
 
-rm(list = ls())
-
 #### Important ----
 
 #To speed up DESeq
@@ -20,14 +18,12 @@ rm(list = ls())
 overwrite <- T
 
 #Results directory
-resDir = here::here("data", "Rds")
+resDir = here::here("data", "rnaseq", "interim")
 dir.create(resDir, showWarnings = F)
 stopifnot(file.exists(resDir))
 
 shrinkRes <- function(dds, contrast, type="apeglm"){
-  require(DESeq2)
-  require(tidyverse)
-  
+
   cdf = enframe(colnames(coef(dds)), "coef", "name")
   contrast_name = paste(contrast[1], contrast[2], "vs",contrast[3], sep="_")
   
@@ -53,7 +49,7 @@ shrinkRes <- function(dds, contrast, type="apeglm"){
 #### Load data ----
 
 #dds with filtering and one vs rest groups pre-defined, see notebook 8
-dds <- readRDS(here("data/Rds/05b_dds_filtered.Rds"))
+dds <- readRDS(here("data/rnaseq/interim/05b_dds_filtered.Rds"))
 print(paste(nrow(dds), "genes in dataset"))
 
 design(dds) <- ~batch + PAM50 + study_group
@@ -88,7 +84,7 @@ combos <- t(combn(levels(dds$study_group), 2))
 for (i in 1:nrow(combos)){
   first <- combos[i,1]
   second <- combos[i,2]
-  if (first == "non_prbc" | second == "ppbc_inv"){
+  if (first == "npbc" | second == "ppbcpw"){
     combos[i,1] <- second
     combos[i, 2] <- first
   }

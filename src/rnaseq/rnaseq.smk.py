@@ -372,23 +372,24 @@ rule lrt_report:
     " --sp {input.sp}"
     " --tools {input.tools}"
 
-pairwise_refs = ["non_prbc", "ppbc_lac", "prbc"]
+pairwise_refs = ["npbc", "ppbcdl", "prbc"]
 
 pairwise_apeglm = [
-  "prbc_vs_non_prbc", "ppbc_lac_vs_non_prbc", "ppbc_inv_vs_non_prbc", 
-  "prbc_vs_ppbc_lac", "ppbc_inv_vs_prbc", "ppbc_inv_vs_ppbc_lac"
+  "prbc_vs_npbc", "ppbcdl_vs_npbc", "ppbcpw_vs_npbc", 
+  "prbc_vs_ppbcdl", "ppbcpw_vs_prbc", "ppbcpw_vs_ppbcdl"
 ]
     
 rule diffex_pairwise:
   input:
-    dds="data/Rds/05b_dds_filtered.Rds"
+    dds="data/rnaseq/interim/05b_dds_filtered.Rds",
+    script="src/rnaseq/07_diffex_pairwise.R"
   output:
-    pairwise_dds=expand("data/Rds/07_dds_pairwise_ref_{pw}.Rds", pw=pairwise_refs),
-    apeglm_results=expand("data/Rds/07_ape_{pw}.Rds", pw=pairwise_apeglm)
+    pairwise_dds=expand("data/rnaseq/interim/07_dds_pairwise_ref_{pw}.Rds", pw=pairwise_refs),
+    apeglm_results=expand("data/rnaseq/interim/07_ape_{pw}.Rds", pw=pairwise_apeglm)
   shell:
     """
     export OMP_NUM_THREADS=1 
-    Rscript src/07_diffex_pairwise.R
+    Rscript 
     """
     
 pairwise_prefixes = [
@@ -689,9 +690,9 @@ rule app_setup:
 
 subgroups=["Basal", "Her2", "LumA", "LumB"]
 sub_diffex=[
-  "ppbc_inv_vs_non_prbc",
-  "ppbc_inv_vs_prbc",
-  "ppbc_inv_vs_rest"
+  "ppbcpw_vs_npbc",
+  "ppbcpw_vs_prbc",
+  "ppbcpw_vs_rest"
 ]
 
 rds_dir="/DATA/share/postpartumbc/data/Rds"
@@ -723,9 +724,9 @@ rule report_subgroup_comp:
     reports=expand("/DATA/share/postpartumbc/reports/14_subgroup_diffex_{comp}.html",comp=sub_diffex)
   params:
     comp=[
-      "ppbc_inv_vs_non_prbc",
-      "ppbc_inv_vs_prbc",
-      "ppbc_inv_vs_rest"
+      "ppbcpw_vs_npbc",
+      "ppbcpw_vs_prbc",
+      "ppbcpw_vs_rest"
       ]
   shell:
     """
