@@ -695,19 +695,16 @@ sigmat
 
 
 ```{r}
-dir.create(here("results","diffex", "figs", "07_pairwise" ,"heatmaps"), showWarnings = F, recursive = T)
-
-nsig_hm = Heatmap(sigmat, name = "significant genes", cell_fun = function(j, i, x, y, width, height, fill) 
+nsig_hm = Heatmap(sigmat, name = "significant genes",
+                  cell_fun = function(j, i, x, y, width, height, fill) 
         {
           grid.text(sprintf("%.0f", sigmat[i, j]), x, y, gp = gpar(fontsize = 12))
         },
-        cluster_rows = F, cluster_columns = F, column_names_side = "bottom", column_names_rot = 0,
-        row_names_side = "left", col = colorRamp2(c(0, 200, 400), c("blue", "purple", "red")),
+        cluster_rows = F, cluster_columns = F,
+        column_names_side = "bottom", column_names_rot = 0,
+        row_names_side = "left",
+        col = colorRamp2(c(0, 200, 400), c("blue", "purple", "red")),
         column_title = "Number of significant genes in pairwise comparisons")
-
-pdf(here("results", "diffex", "figs", "07_pairwise", "heatmaps", "n_siggenes_pairwise_hm.pdf"), width = 10, height = 8)
-nsig_hm
-dev.off()
 
 nsig_hm
 ```
