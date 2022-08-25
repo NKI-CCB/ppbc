@@ -312,7 +312,10 @@ rule min_count_threshold:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
      " --dds {input.dds}"
 
-#Setting the number of threads prevents unwanted parallelization    
+# Likelihood ratio tests
+# Identify DEGs that are differentially expressed in at least one group
+
+# Setting the number of threads with OMP_NUM_THREADS prevents unwanted parallelization    
 rule lrt_diffex:
   input:
     dds="data/rnaseq/interim/05b_dds_filtered.Rds",
@@ -344,6 +347,7 @@ gene_sets = [
   "c2.cp.v7.0.symbols", "c2.cgp.v7.0.symbols"
 ]
 
+# Report the LRT results
 # This notebook has serious bloat but no time to refactor it now
 rule lrt_report:
   input:
@@ -374,6 +378,8 @@ rule lrt_report:
     " --tools {input.tools}"
     " --vsd {input.vsd}"
 
+
+# Pairwise comparisons between all groups
 pairwise_refs = ["npbc", "ppbcdl", "prbc"]
 
 pairwise_apeglm = [
@@ -399,6 +405,7 @@ pairwise_prefixes = [
   "lac_nonprbc", "lac_prbc", "prbc_nonprbc"
 ]
 
+# Report on pairwise Wald tests
 rule pairwise_report:
   input:
     pairwise_dds=expand("data/rnaseq/interim/07_dds_pairwise_ref_{pw}.Rds", pw=pairwise_refs),
@@ -426,6 +433,9 @@ rule pairwise_report:
      " --tools {input.tools}"
      " --vsd {input.vsd}"
 
+# One vs rest comparisons
+# a single study group is compared against all other samples pooled together
+
 ovr_comps = ["inv_vs_rest", "prbc_vs_rest", "lac_vs_rest", "nonprbc_vs_rest"]
      
 rule diffex_one_vs_rest:
@@ -440,6 +450,8 @@ rule diffex_one_vs_rest:
     export OMP_NUM_THREADS=1 
     Rscript {input.script}
     """
+
+# Report on Wald tests from one vs rest comparisons
     
 ovr_reports = ["inv_rest", "prbc_rest", "lac_rest", "nonprbc_rest"]
 
@@ -473,6 +485,7 @@ rule one_vs_rest_report:
      " --tools {input.tools}"
      " --vsd {input.vsd}"
 
+# Examine whether the IG gene signature is correlated with lactation
 rule ig_milk:
   input:
     dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
@@ -499,6 +512,100 @@ rule ig_milk:
     " --cp {input.cp}"
     " --ivr {input.ivr}"
 
+subgroups=["Basal", "Her2", "LumA", "LumB"]
+sub_diffex=[
+  "ppbcpw_vs_npbc",
+  "ppbcpw_vs_prbc",
+  "ppbcpw_vs_rest"
+]
+
+# Diffex between PAM50 subgroups
+# Examine whether (for example) basal samples are different
+# between study groups
+
+rds_dir="/DATA/share/postpartumbc/data/Rds"
+
+rule subgroup_diffex:
+  input:
+    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
+    script="src/14_subgroup_diffex.R"
+  output:
+    dds_res=expand("{dir}/subgroup_diffex/14_dds_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
+    ape_res=expand("{dir}/subgroup_diffex/14_ape_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir)
+  shell:
+    """
+    export OMP_NUM_THREADS=1 
+    Rscript {input.script}
+    """
+
+diffex_dir="/DATA/share/postpartumbc/results/diffex"
+    
+rule report_subgroup_comp:
+  input:
+    dds_res=expand("{dir}/subgroup_diffex/14_dds_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
+    ape_res=expand("{dir}/subgroup_diffex/14_ape_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
+    rmd="reports/14_subgroup_diffex_by_comparison.Rmd",
+    script="src/14_batch_subgroup_diffex_reports.R"
+  output:
+    allgenes=expand("{dir}/14_subgroup_diffex_{comp}_allgenes.xlsx", comp=sub_diffex, dir=diffex_dir),
+    siggenes=expand("{dir}/14_subgroup_diffex_{comp}_sig_genes.xlsx", comp=sub_diffex, dir=diffex_dir),
+    reports=expand("/DATA/share/postpartumbc/reports/14_subgroup_diffex_{comp}.html",comp=sub_diffex)
+  params:
+    comp=[
+      "ppbcpw_vs_npbc",
+      "ppbcpw_vs_prbc",
+      "ppbcpw_vs_rest"
+      ]
+  shell:
+    """
+    Rscript {input.script}
+    """
+
+# Examine DEGs responsive to involution duration in PPBCpw
+rule diffex_involution:
+  input:
+    script="src/utils/rmarkdown.R",
+    rmd="reports/rnaseq/09_diffex_time_involution.Rmd",
+    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
+    vsd="data/Rds/08_vsd_ovr.Rds",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
+    cp="data/Rds/color_palettes.Rds",
+    sp="data/Rds/survival_colors.Rds"
+  output:
+    html="reports/09_diffex_time_involution.html",
+    dds="data/Rds/09_dds_involution_duration.Rds",
+    ape="data/Rds/09_ape_involution_duration.Rds",
+    genes="results/diffex/09_diffex_involution_duration.xlsx",
+    heatmap="results/diffex/figs/09_involution_duration/09_hm_involution_duration.pdf",
+    volcano="results/diffex/figs/09_involution_duration/09_volcano_involution_duration.jpeg"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+# Examine DEGs responsive to breastfeeding duration in PPBCpw
+rule diffex_breastfeeding:
+  input:
+    script="src/utils/rmarkdown.R",
+    rmd="reports/09_diffex_breastfeeding_duration.Rmd",
+    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
+    vsd="data/Rds/08_vsd_ovr.Rds",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
+    cp="data/Rds/color_palettes.Rds",
+    sp="data/Rds/survival_colors.Rds"
+  output:
+    html="reports/09_diffex_time_breastfeeding.html",
+    dds="data/Rds/09_dds_breastfeeding_duration.Rds",
+    ape="data/Rds/09_ape_breastfeeding_duration.Rds",
+    genes="results/diffex/09_diffex_breastfeeding_duration.xlsx",
+    heatmap="results/diffex/figs/09_breastfeeding_duration/09_hm_breastfeeding_duration.pdf",
+    volcano="results/diffex/figs/09_breastfeeding_duration/09_volcano_breastfeeding_duration.jpeg"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"   
+
+
+#### Pathway analysis ####
+
 rule flexgsea:
   input:
     script = "src/deseq_flexgsea.R",
@@ -516,7 +623,7 @@ rule flexgsea:
     export OMP_NUM_THREADS=1 
     Rscript {input.script}
     """
-    
+
 rule flexgsea_report:
   input:
     # Takes a long time to rerun flexgsea with deseq and multiple comparisons
@@ -534,6 +641,8 @@ rule flexgsea_report:
   shell:
      "Rscript {input.script} {input.rmd} $PWD/{output.html}"
      " --fdr_thresh '{params.fdr_thresh}'"
+
+#### Cibersort Deconvolution ####
     
 rule cibersortX:
   input:
@@ -557,6 +666,8 @@ inv_comps = [
   "08_one_vs_rest_sig_genes"
 ]
 
+#### Clustering of PPBCpw DEGs ####
+
 rule inv_clustering:
   input:
     expand("results/diffex/{inv_comp}.xlsx", inv_comp=inv_comps),
@@ -579,6 +690,8 @@ rule inv_clustering:
     html="reports/11_clustering_involution.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
+
+#### Survival analyses based on gene expression ####
 
 genewise_cox =[
   "multi_genewise_os", "uni_genewise_os",
@@ -682,74 +795,6 @@ diffex_results = [
   "06_LRT_allgenes"
   ]
   
-rule app_setup:
-  input:
-    "data/rnaseq/metadata/01_gene_annot.tsv",
-    "data/external/ensembl_universal_ids_v94.txt",
-    "results/survival/12_cox_allgenes.xlsx",
-    "results/survival/13_multi_interaction_os.csv",
-    "results/survival/13_multi_interaction_drs.csv",
-    expand("results/diffex/{result}.xlsx", result=diffex_results),
-    "data/Rds/12_coxdata.Rds"
-  output:
-    "shinyApp/VisualizePPBCgene/data/app_gx_annot.Rds",
-    "shinyApp/VisualizePPBCgene/data/12_cox_allgenes.xlsx",
-    "shinyApp/VisualizePPBCgene/data/13_multi_interaction_os.csv",
-    "shinyApp/VisualizePPBCgene/data/13_multi_interaction_drs.csv",
-    "shinyApp/VisualizePPBCgene/data/app_diffex_res_list.Rds",
-    "shinyApp/VisualizePPBCgene/data/app_survival_sample_data.Rds",
-    "shinyApp/VisualizePPBCgene/data/app_ensembl_tmmnorm_genesxsample.Rds",
-    "shinyApp/VisualizePPBCgene/data/app_symbol_tmmnorm_genesxsample.Rds"
-  shell:
-    """
-    Rscript shinyApp/VisualizePPBCgene/data_setup.R
-    """
-
-subgroups=["Basal", "Her2", "LumA", "LumB"]
-sub_diffex=[
-  "ppbcpw_vs_npbc",
-  "ppbcpw_vs_prbc",
-  "ppbcpw_vs_rest"
-]
-
-rds_dir="/DATA/share/postpartumbc/data/Rds"
-
-rule subgroup_diffex:
-  input:
-    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-    script="src/14_subgroup_diffex.R"
-  output:
-    dds_res=expand("{dir}/subgroup_diffex/14_dds_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
-    ape_res=expand("{dir}/subgroup_diffex/14_ape_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir)
-  shell:
-    """
-    export OMP_NUM_THREADS=1 
-    Rscript {input.script}
-    """
-
-diffex_dir="/DATA/share/postpartumbc/results/diffex"
-    
-rule report_subgroup_comp:
-  input:
-    dds_res=expand("{dir}/subgroup_diffex/14_dds_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
-    ape_res=expand("{dir}/subgroup_diffex/14_ape_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
-    rmd="reports/14_subgroup_diffex_by_comparison.Rmd",
-    script="src/14_batch_subgroup_diffex_reports.R"
-  output:
-    allgenes=expand("{dir}/14_subgroup_diffex_{comp}_allgenes.xlsx", comp=sub_diffex, dir=diffex_dir),
-    siggenes=expand("{dir}/14_subgroup_diffex_{comp}_sig_genes.xlsx", comp=sub_diffex, dir=diffex_dir),
-    reports=expand("/DATA/share/postpartumbc/reports/14_subgroup_diffex_{comp}.html",comp=sub_diffex)
-  params:
-    comp=[
-      "ppbcpw_vs_npbc",
-      "ppbcpw_vs_prbc",
-      "ppbcpw_vs_rest"
-      ]
-  shell:
-    """
-    Rscript {input.script}
-    """
-
 rule cox_glm:
   input:
     coxdata="data/Rds/12_coxdata.Rds",
@@ -853,47 +898,9 @@ enet_features=[
 inv_bf = [
   "breastfeeding",
   "involution"
-]
+] 
 
-rule diffex_involution:
-  input:
-    script="src/utils/rmarkdown.R",
-    rmd="reports/09_diffex_time_involution.Rmd",
-    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-    vsd="data/Rds/08_vsd_ovr.Rds",
-    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds"
-  output:
-    html="reports/09_diffex_time_involution.html",
-    dds="data/Rds/09_dds_involution_duration.Rds",
-    ape="data/Rds/09_ape_involution_duration.Rds",
-    genes="results/diffex/09_diffex_involution_duration.xlsx",
-    heatmap="results/diffex/figs/09_involution_duration/09_hm_involution_duration.pdf",
-    volcano="results/diffex/figs/09_involution_duration/09_volcano_involution_duration.jpeg"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-    
-rule diffex_breastfeeding:
-  input:
-    script="src/utils/rmarkdown.R",
-    rmd="reports/09_diffex_breastfeeding_duration.Rmd",
-    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-    vsd="data/Rds/08_vsd_ovr.Rds",
-    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds"
-  output:
-    html="reports/09_diffex_time_breastfeeding.html",
-    dds="data/Rds/09_dds_breastfeeding_duration.Rds",
-    ape="data/Rds/09_ape_breastfeeding_duration.Rds",
-    genes="results/diffex/09_diffex_breastfeeding_duration.xlsx",
-    heatmap="results/diffex/figs/09_breastfeeding_duration/09_hm_breastfeeding_duration.pdf",
-    volcano="results/diffex/figs/09_breastfeeding_duration/09_volcano_breastfeeding_duration.jpeg"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"    
+#### Gene summary reports ####
 
 rule gene_unity_setup:
   input:
@@ -915,7 +922,6 @@ rule gene_unity_setup:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"   
 
-
 rule gene_reports:
   input:
     aggdata="data/Rds/16_gene_report_environment.RData",
@@ -925,6 +931,8 @@ rule gene_reports:
   #  directory("reports/gene_reports")
   shell:
     "Rscript {input.script}"
+
+#### BCR and antibody isotype analyses ####
     
 rule trust_setup:
   output:
@@ -983,3 +991,28 @@ rule antibody_isotypes:
     html="reports/18b_antibody_isotypes.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"  
+
+#### Shiny App for PPBC gene visualization ####
+    
+rule app_setup:
+  input:
+    "data/rnaseq/metadata/01_gene_annot.tsv",
+    "data/external/ensembl_universal_ids_v94.txt",
+    "results/survival/12_cox_allgenes.xlsx",
+    "results/survival/13_multi_interaction_os.csv",
+    "results/survival/13_multi_interaction_drs.csv",
+    expand("results/diffex/{result}.xlsx", result=diffex_results),
+    "data/Rds/12_coxdata.Rds"
+  output:
+    "shinyApp/VisualizePPBCgene/data/app_gx_annot.Rds",
+    "shinyApp/VisualizePPBCgene/data/12_cox_allgenes.xlsx",
+    "shinyApp/VisualizePPBCgene/data/13_multi_interaction_os.csv",
+    "shinyApp/VisualizePPBCgene/data/13_multi_interaction_drs.csv",
+    "shinyApp/VisualizePPBCgene/data/app_diffex_res_list.Rds",
+    "shinyApp/VisualizePPBCgene/data/app_survival_sample_data.Rds",
+    "shinyApp/VisualizePPBCgene/data/app_ensembl_tmmnorm_genesxsample.Rds",
+    "shinyApp/VisualizePPBCgene/data/app_symbol_tmmnorm_genesxsample.Rds"
+  shell:
+    """
+    Rscript shinyApp/VisualizePPBCgene/data_setup.R
+    """    
