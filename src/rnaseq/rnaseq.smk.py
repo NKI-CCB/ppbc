@@ -430,42 +430,48 @@ ovr_comps = ["inv_vs_rest", "prbc_vs_rest", "lac_vs_rest", "nonprbc_vs_rest"]
      
 rule diffex_one_vs_rest:
   input:
-    dds="data/Rds/05b_dds_filtered.Rds"
+    dds="data/rnaseq/interim/05b_dds_filtered.Rds",
+    script="src/rnaseq/diffex_onevsrest.R"
   output:
-    dds_ovr=expand("data/Rds/08_dds_ovr_{comp}.Rds", comp=ovr_comps),
-    ape_ovr=expand("data/Rds/08_ape_ovr_{comp}.Rds", comp=ovr_comps)
+    dds_ovr=expand("data/rnaseq/processed/08_dds_ovr_{comp}.Rds", comp=ovr_comps),
+    ape_ovr=expand("data/rnaseq/processed/08_ape_ovr_{comp}.Rds", comp=ovr_comps)
   shell:
     """
     export OMP_NUM_THREADS=1 
-    Rscript src/08_diffex_onevsrest.R
+    Rscript {input.script}
     """
+    
 ovr_reports = ["inv_rest", "prbc_rest", "lac_rest", "nonprbc_rest"]
 
 rule one_vs_rest_report:
   input:
-    ape_ovr=expand("data/Rds/08_ape_ovr_{comp}.Rds", comp=ovr_comps),
-    dds_ovr=expand("data/Rds/08_dds_ovr_{comp}.Rds", comp=ovr_comps),
+    ape_ovr=expand("data/rnaseq/processed/08_ape_ovr_{comp}.Rds", comp=ovr_comps),
+    dds_ovr=expand("data/rnaseq/processed/08_dds_ovr_{comp}.Rds", comp=ovr_comps),
     sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    immune_genes="data/external/gene-sets/InnateDB_genes.csv",
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds",
-    vsd="data/Rds/06_vsd.Rds",
-    tools="src/deseq_report_functions.R",
+    immune_genes="data/external/gene_ref/InnateDB_genes.csv",
+    cp="data/rnaseq/interim/color_palettes.Rds",
+    sp="data/rnaseq/interim/survival_colors.Rds",
+    vsd="data/rnaseq/interim/06_vsd.Rds",
+    tools="src/rnaseq/deseq_report_functions.R",
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    rmd="reports/08_diffex_onevsrest.Rmd",
+    rmd="reports/rnaseq/08_diffex_onevsrest.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    "results/diffex/figs/08_onevsrest/upset_onevsrest.pdf",
-    "results/diffex/figs/08_onevsrest/08_barplot_onevsrest.jpg",
-    "results/diffex/08_one_vs_rest_allgenes.xlsx",
-    "results/diffex/08_one_vs_rest_sig_genes.xlsx",
-    "results/diffex/08_one_vs_rest_pathways.xlsx",
-    expand("results/diffex/figs/08_onevsrest/heatmaps/hm_{ovr}.pdf", ovr=ovr_reports),
-    expand("results/diffex/figs/08_onevsrest/volcano_plots/volc_{ovr}.jpeg", ovr=ovr_reports),
-    expand("results/diffex/figs/08_onevsrest/volcano_plots/volc_{ovr}.outliers.jpeg", ovr=ovr_reports),
-    html="reports/08_diffex_onevsrest.html"
+    vsd_ovr="data/rnaseq/interim/08_vsd_ovr.Rds",
+    allgenes="results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx",
+    sig_genes="results/rnaseq/diffex/08_one_vs_rest_sig_genes.xlsx",
+    pathways="results/rnaseq/diffex/08_one_vs_rest_pathways.xlsx",
+    heatmaps=expand("results/rnaseq/diffex/hm_{ovr}.pdf", ovr=ovr_reports),
+    volcano=expand("results/rnaseq/diffex/volc_{ovr}.pdf", ovr=ovr_reports),
+    html="reports/rnaseq/08_diffex_onevsrest.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+     " --gx_annot {input.gx_annot}"
+     " --immune_genes {input.immune_genes}"
+     " --cp {input.cp}"
+     " --sp {input.sp}"
+     " --tools {input.tools}"
+     " --vsd {input.vsd}"
 
 diffex_results = [
   "08_one_vs_rest_allgenes",

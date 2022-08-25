@@ -61,6 +61,7 @@ rule all:
     # RNAseq rules
     expand("data/rnaseq/salmon/{sample}/quant.sf", sample=config['samples']),
     expand("results/rnaseq/fastqc/{sample}_fastqc.html", sample=config['samples']),
+    "reports/rnaseq/08_diffex_onevsrest.html",
     #"reports/16_gene_unity_setup.html",
     # Spatial rules
     "reports/spatial/05_report_cell_types.html",

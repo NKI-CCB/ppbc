@@ -4,13 +4,10 @@ library(DESeq2)
 library(apeglm)
 library(tidyverse)
 
-rm(list = ls())
-
 #### Important ----
 
 #To speed up DESeq
-#Open the bash terminal and log into harris/darwin
-#Run this command:
+#Run this command in the terminal:
 #export OMP_NUM_THREADS=1
 #Then run the script from the console
 
@@ -20,7 +17,7 @@ rm(list = ls())
 overwrite <- T
 
 #Results directory
-resDir = here::here("data", "Rds")
+resDir = here::here("data", "rnaseq", "processed")
 dir.create(resDir, showWarnings = F)
 stopifnot(file.exists(resDir))
 
@@ -53,27 +50,27 @@ shrinkRes <- function(dds, contrast, type="apeglm"){
 #### Load data ----
 
 #dds with filtering and one vs rest groups pre-defined, see notebook 8
-dds <- readRDS(here("data/Rds/05b_dds_filtered.Rds"))
+dds <- readRDS(here("data/rnaseq/interim/05b_dds_filtered.Rds"))
 print(paste(nrow(dds), "genes in dataset"))
 
 #### One vs rest comparisons ----
 
 dds$inv_vs_rest  = colData(dds) %>% as.data.frame() %>%
-  mutate(inv_vs_rest = if_else(study_group == "ppbc_inv", "ppbc_inv", "rest")) %>%
+  mutate(inv_vs_rest = if_else(study_group == "ppbcpw", "ppbcpw", "rest")) %>%
   pull(inv_vs_rest) %>%
-  factor(levels=c("rest", "ppbc_inv"))
+  factor(levels=c("rest", "ppbcpw"))
 
 dds$prbc_vs_rest  = colData(dds) %>% as.data.frame() %>%
   mutate(prbc_vs_rest = if_else(study_group == "prbc", "prbc", "rest")) %>%
   pull(prbc_vs_rest) %>% factor(levels=c("rest", "prbc"))
 
 dds$lac_vs_rest  = colData(dds) %>% as.data.frame() %>%
-  mutate(lac_vs_rest = if_else(study_group == "ppbc_lac", "ppbc_lac", "rest")) %>%
-  pull(lac_vs_rest) %>% factor(levels=c("rest", "ppbc_lac"))
+  mutate(lac_vs_rest = if_else(study_group == "ppbcdl", "ppbcdl", "rest")) %>%
+  pull(lac_vs_rest) %>% factor(levels=c("rest", "ppbcdl"))
 
 dds$nonprbc_vs_rest  = colData(dds) %>% as.data.frame() %>%
-  mutate(nonprbc_vs_rest = if_else(study_group == "non_prbc", "non_prbc", "rest")) %>%
-  pull(nonprbc_vs_rest) %>% factor(levels=c("rest", "non_prbc"))
+  mutate(nonprbc_vs_rest = if_else(study_group == "npbc", "npbc", "rest")) %>%
+  pull(nonprbc_vs_rest) %>% factor(levels=c("rest", "npbc"))
 
 table(dds$inv_vs_rest, dds$study_group)
 table(dds$prbc_vs_rest, dds$study_group)
