@@ -384,14 +384,14 @@ pairwise_apeglm = [
 rule diffex_pairwise:
   input:
     dds="data/rnaseq/interim/05b_dds_filtered.Rds",
-    script="src/rnaseq/07_diffex_pairwise.R"
+    script="src/rnaseq/diffex_pairwise.R"
   output:
     pairwise_dds=expand("data/rnaseq/interim/07_dds_pairwise_ref_{pw}.Rds", pw=pairwise_refs),
     apeglm_results=expand("data/rnaseq/interim/07_ape_{pw}.Rds", pw=pairwise_apeglm)
   shell:
     """
     export OMP_NUM_THREADS=1 
-    Rscript 
+    Rscript {input.script}
     """
     
 pairwise_prefixes = [
@@ -403,7 +403,7 @@ rule pairwise_report:
   input:
     pairwise_dds=expand("data/rnaseq/interim/07_dds_pairwise_ref_{pw}.Rds", pw=pairwise_refs),
     sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    immune_genes="data/external/gene-sets/InnateDB_genes.csv",
+    immune_genes="data/external/gene_ref/InnateDB_genes.csv",
     cp="data/rnaseq/interim/color_palettes.Rds",
     sp="data/rnaseq/interim/survival_colors.Rds",
     vsd="data/rnaseq/interim/06_vsd.Rds",
@@ -419,7 +419,6 @@ rule pairwise_report:
     html="reports/rnaseq/07_diffex_pairwise.html"
   shell:
      "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-     " --dds {input.dds}"
      " --gx_annot {input.gx_annot}"
      " --immune_genes {input.immune_genes}"
      " --cp {input.cp}"

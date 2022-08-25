@@ -1,22 +1,25 @@
 ---
-title: "Pairwise Wald tests, standard threshold"
-Author: Kat Moore
+title: "Pairwise Wald tests"
+Author: "Kat Moore"
 date: "`r Sys.Date()`"
 output: 
   html_document:
     toc: yes
     toc_float: yes
     df_print: paged
-    theme: darkly
-    highlight: breezedark
+    highlight: kate
     canon: true
+params:
+  dds: "data/rnaseq/interim/05b_dds_filtered.Rds"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+  immune_genes: "data/external/gene_ref/InnateDB_genes.csv"
+  tools: "src/rnaseq/deseq_report_functions.R"
+  cp: "data/rnaseq/interim/color_palettes.Rds"
+  sp: "data/rnaseq/interim/survival_colors.Rds"
+  vsd: "data/rnaseq/interim/06_vsd.Rds"
 ---
 
-```{r, include=F}
-rm(list = ls())
-```
-
-```{r, include=F}
+```{r, message=F}
 library(DESeq2)
 library(apeglm)
 library(here)
@@ -28,6 +31,8 @@ library(RColorBrewer)
 library(ComplexHeatmap)
 library(UpSetR)
 library(tidyverse)
+
+theme_set(theme_bw())
 ```
 
 # Load and pre-process data {.tabset}
@@ -35,7 +40,7 @@ library(tidyverse)
 ## Gene and sample data
 
 ```{r}
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot <- read_tsv(here(params$gx_annot), show_col_types = F)
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id,
                                gene_name, gene_type,
                                description = gene_description) %>%
@@ -64,44 +69,42 @@ Either immune/immuno/interleukin is part of the gene name and description OR the
 The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
 
 ```{r}
-immune_gene_list <- read_csv(here("data", "external","gene-sets","InnateDB_genes.csv"))
+immune_gene_list <- read_csv(here(params$immune_genes))
 head(immune_gene_list)
 ```
 
 ## Helper functions
 
 ```{r}
-source(here("src", "deseq_report_functions.R"))
+source(here(params$tools))
 ```
 
 ## Heatmap colors
 
-Created in notebook 6
-
 ```{r}
-cp = readRDS(here("data", "Rds", "color_palettes.Rds"))
+cp = readRDS(here(params$cp))
 study_colors = cp$study_colors
 pam_colors = cp$pam_colors
 gene_colors = cp$gene_colors
 
-sp = readRDS(here("data/Rds/survival_colors.Rds"))
+sp = readRDS(here(params$sp))
 ```
 
 ## Variance stabilizing transformation
 
-Previously performed in script 6.
+Previously performed during diffex LRT
 
 ```{r}
-vsd = readRDS(here("data","Rds","06_vsd.Rds"))
+vsd = readRDS(here(params$vsd))
 ```
 
-# Diffex: non-prbc as reference group
+# Diffex: npbc as reference group
 
-Filtering and differential expression was performed in script 7.
-Ensure that non-prbc is the reference level.
+Filtering and differential expression was performed in a separate script..
+Ensure that npbc is the reference level.
 
 ```{r}
-dds = readRDS(here("data/Rds/07_dds_pairwise_ref_non_prbc.Rds"))
+dds = readRDS(here("data/rnaseq/interim/07_dds_pairwise_ref_npbc.Rds"))
 design(dds)
 levels(dds$study_group)
 nrow(dds)
@@ -109,10 +112,10 @@ nrow(dds)
 
 # Involution vs non-prbc {.tabset}
 
-Apeglm shrinkage of log fold changes was performed in script 7.
+Apeglm shrinkage of log fold changes was performed separately.
 
 ```{r}
-ape_inv_nonprbc = readRDS(here("data", "Rds", "07_ape_ppbc_inv_vs_non_prbc.Rds"))
+ape_inv_nonprbc = readRDS(here("data/rnaseq/interim/07_ape_ppbcpw_vs_npbc.Rds"))
 
 ape_inv_nonprbc@elementMetadata$description
 ```
@@ -120,12 +123,9 @@ ape_inv_nonprbc@elementMetadata$description
 ## Summary report
 
 ```{r}
-dds$death <- dds$overall_survival
-vsd$death <- vsd$overall_survival
-
 rep_inv_nonprbc = deseq_report(ape_inv_nonprbc, dds=dds, absl2fc = 0.5, 
                                variance_stabilized_dds = vsd,
-                               groups = c("ppbc_inv", "non_prbc"),
+                               groups = c("ppbcpw", "npbc"),
                                top_vars = c("PPBC", "death"),
                                top_colors = list(PPBC = cp$ppbc_colors,
                                                  death = sp$overall_survival),
@@ -173,7 +173,6 @@ rep_inv_nonprbc$pathways %>% bind_rows() %>%
   arrange(fdr)
 ```
 
-
 ```{r, fig.height=6, fig.width=8}
 rep_inv_nonprbc$pathway_plots
 ```
@@ -207,7 +206,7 @@ rep_inv_nonprbc$outlier_bees
 # Pregnancy vs non-pregnancy {.tabset}
 
 ```{r}
-ape_prbc_nonprbc = readRDS(here("data", "Rds", "07_ape_prbc_vs_non_prbc.Rds"))
+ape_prbc_nonprbc = readRDS(here("data", "rnaseq","interim","07_ape_prbc_vs_npbc.Rds"))
 ape_prbc_nonprbc@elementMetadata$description
 ```
 
@@ -216,7 +215,7 @@ ape_prbc_nonprbc@elementMetadata$description
 ```{r}
 rep_prbc_nonprbc = deseq_report(ape_prbc_nonprbc, dds=dds, absl2fc = 0.5, 
                                variance_stabilized_dds = vsd,
-                               groups = c("prbc", "non_prbc"),
+                               groups = c("prbc", "npbc"),
                                top_vars = c("PPBC", "death"),
                                top_colors = list(PPBC = cp$ppbc_colors,
                                                  death = sp$overall_survival),
@@ -284,7 +283,7 @@ rep_prbc_nonprbc$outlier_bees
 # Lac vs non-prbc {.tabset}
 
 ```{r}
-ape_lac_nonprbc = readRDS(here("data", "Rds", "07_ape_ppbc_lac_vs_non_prbc.Rds"))
+ape_lac_nonprbc = readRDS(here("data", "rnaseq", "interim", "07_ape_ppbcdl_vs_npbc.Rds"))
 ape_lac_nonprbc@elementMetadata$description
 ```
 
@@ -293,7 +292,7 @@ ape_lac_nonprbc@elementMetadata$description
 ```{r}
 rep_lac_nonprbc = deseq_report(ape_lac_nonprbc, dds=dds, absl2fc = 0.5, 
                                variance_stabilized_dds = vsd,
-                               groups = c("ppbc_lac", "non_prbc"),
+                               groups = c("ppbcdl", "npbc"),
                                top_vars = c("PPBC", "death"),
                                top_colors = list(PPBC = cp$ppbc_colors,
                                                  death = sp$overall_survival),
@@ -359,7 +358,7 @@ rep_lac_nonprbc$outlier_bees
 # Diffex: prbc as reference level
 
 ```{r}
-dds = readRDS(here("data/Rds/07_dds_pairwise_ref_prbc.Rds"))
+dds = readRDS(here("data/rnaseq/interim/07_dds_pairwise_ref_prbc.Rds"))
 design(dds)
 levels(dds$study_group)
 nrow(dds)
@@ -368,19 +367,16 @@ nrow(dds)
 # Involution vs prbc {.tabset}
 
 ```{r}
-ape_inv_prbc = readRDS(here("data", "Rds", "07_ape_ppbc_inv_vs_prbc.Rds"))
+ape_inv_prbc = readRDS(here("data", "rnaseq", "interim", "07_ape_ppbcpw_vs_prbc.Rds"))
 ape_inv_nonprbc@elementMetadata$description
 ```
 
 ## Summary report
 
 ```{r}
-dds$death <- dds$overall_survival
-vsd$death <- vsd$overall_survival
-
 rep_inv_prbc = deseq_report(ape_inv_prbc, dds=dds, absl2fc = 0.5, 
                             variance_stabilized_dds = vsd,
-                            groups = c("ppbc_inv", "prbc"),
+                            groups = c("ppbcpw", "prbc"),
                             top_vars = c("PPBC", "death"),
                             top_colors = list(PPBC = cp$ppbc_colors,
                                               death = sp$overall_survival),
@@ -458,7 +454,7 @@ rep_inv_prbc$outlier_bees
 # Lac vs prbc {.tabset}
 
 ```{r}
-ape_lac_prbc = readRDS(here("data", "Rds", "07_ape_prbc_vs_ppbc_lac.Rds"))
+ape_lac_prbc = readRDS(here("data", "rnaseq", "interim", "07_ape_prbc_vs_ppbcdl.Rds"))
 ape_lac_prbc@elementMetadata$description
 ```
 ## Summary report
@@ -466,7 +462,7 @@ ape_lac_prbc@elementMetadata$description
 ```{r}
 rep_lac_prbc = deseq_report(ape_lac_prbc, dds=dds, absl2fc = 0.5, 
                             variance_stabilized_dds = vsd,
-                            groups = c("ppbc_lac", "prbc"),
+                            groups = c("ppbcdl", "prbc"),
                             top_vars = c("PPBC", "death"),
                             top_colors = list(PPBC = cp$ppbc_colors,
                                               death = sp$overall_survival),
@@ -534,7 +530,7 @@ rep_lac_prbc$outlier_bees
 # Diffex: Lac as reference level
 
 ```{r}
-dds = readRDS(here("data/Rds/07_dds_pairwise_ref_ppbc_lac.Rds"))
+dds = readRDS(here("data/rnaseq/interim/07_dds_pairwise_ref_ppbcdl.Rds"))
 design(dds)
 levels(dds$study_group)
 nrow(dds)
@@ -545,7 +541,7 @@ nrow(dds)
 ## Extract results
 
 ```{r}
-ape_inv_lac = readRDS(here("data", "Rds", "07_ape_ppbc_inv_vs_ppbc_lac.Rds"))
+ape_inv_lac = readRDS(here("data", "rnaseq", "interim", "07_ape_ppbcpw_vs_ppbcdl.Rds"))
 ape_inv_lac@elementMetadata$description
 ```
 
@@ -553,12 +549,9 @@ ape_inv_lac@elementMetadata$description
 ## Summary report
 
 ```{r}
-dds$death <- dds$overall_survival
-vsd$death <- vsd$overall_survival
-
 rep_inv_lac = deseq_report(ape_inv_lac, dds=dds, absl2fc = 0.5, 
                            variance_stabilized_dds = vsd,
-                           groups = c("ppbc_inv", "ppbc_lac"),
+                           groups = c("ppbcpw", "ppbcdl"),
                            top_vars = c("PPBC", "death"),
                            top_colors = list(PPBC = cp$ppbc_colors,
                                              death = sp$overall_survival),
@@ -927,22 +920,23 @@ dev.off()
 Save the individual results lists, without the figures.
 
 ```{r}
+dir.create(here("rseults/rnaseq/diffex"), showWarnings = F)
 
 #Save the results for all genes in an Excel file with multiple tabs
 #The tab names will be the list names
 resdf = lapply(reslist, function(x) x$annotated_results)
 names(resdf) = paste(names(resdf),"all", sep="_")
-openxlsx::write.xlsx(resdf, file = here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx"))
+openxlsx::write.xlsx(resdf, file = here("results", "rnaseq", "diffex", "07_pairwise_comparisons_allgenes.xlsx"))
 
 #Save the significant genes in a multi-tab excel file
 resdf = lapply(reslist, function(x) x$significant_genes)
 names(resdf) = paste("sig",names(resdf), sep="_")
 #Also keep the thresholds used for significance
 resdf[[length(resdf)+1]] = enframe(unlist(lapply(reslist, function(x) x$sig_threshold)), "name", "value") %>%
-                 separate(name, into = c("comparison", "threshold"), sep="\\.")
+  separate(name, into = c("comparison", "threshold"), sep="\\.")
 names(resdf)[length(resdf)] = "thresholds"
 library(openxlsx)
-openxlsx::write.xlsx(resdf, file = here("results", "diffex", "07_pairwise_comparisons_sig_genes.xlsx"))
+openxlsx::write.xlsx(resdf, file = here("results", "rnaseq", "diffex", "07_pairwise_comparisons_sig_genes.xlsx"))
 
 rm(resdf)
 ```
@@ -966,72 +960,9 @@ for (i in 2:length(resdf[[1]])){
 names(pathlist) = lapply(pathlist, function(x) unique(x$collection)) %>% unlist(use.names = F)
 pathlist = lapply(pathlist, function(x) x[order(x$fdr),])
 
-openxlsx::write.xlsx(pathlist, file = here("results", "diffex", "07_pairwise_comparisons_pathways.xlsx"))
+openxlsx::write.xlsx(pathlist, file = here("results", "rnaseq", "diffex", "07_pairwise_comparisons_pathways.xlsx"))
 
 rm(resdf)
-```
-
-
-## Heatmaps
-
-```{r}
-hmlist = lapply(reslist, function(x) x$heatmap)
-names(hmlist) = names(hmlist) %>% str_replace_all("rep", "hm")
-
-for (i in 1:length(hmlist)){
-  pdf(here("results", "diffex", "figs", "07_pairwise", "heatmaps", paste0(names(hmlist)[i],".pdf")), width = 10, height = 8)
-  print(hmlist[[i]])
-  dev.off()
-}
-```
-
-## Volcano plots sig hits
-
-```{r}
-volclist = lapply(reslist, function(x) x$volcano_plot)
-names(volclist) = names(volclist) %>% str_replace("rep", "volc")
-
-dir.create(here("results","diffex", "figs", "07_pairwise" ,"volcano_plots"), showWarnings = F)
-lapply(names(volclist), 
-       function(x) ggsave(filename=here("results","diffex", "figs", "07_pairwise","volcano_plots",
-                                        paste(x,".jpeg",sep="")), plot=volclist[[x]],
-                          height = 6, width = 8))
-```
-
-## Volcano plot outliers
-
-```{r}
-outvplist = lapply(reslist, function(x) x$volc_outliers)
-names(outvplist) = names(outvplist) %>% str_replace("rep", "volc")
-
-dir.create(here("results","diffex", "figs", "07_pairwise" ,"volcano_plots"), showWarnings = F)
-lapply(names(outvplist), 
-       function(x) ggsave(filename=here("results","diffex", "figs", "07_pairwise","volcano_plots",
-                                        paste(x,".outliers.jpeg",sep="")), plot=outvplist[[x]],
-                          height = 6, width = 8))
-```
-
-## Pathway dotplots 
-
-```{r}
-dir.create(here("results","diffex", "figs", "07_pairwise" ,"fisher_pathway"), showWarnings = F)
-pathwaylist = lapply(reslist, function(x) x$pathway_plots)
-for(i in 1:length(pathwaylist)){
-  thiscomp = pathwaylist[[i]]
-  compname = str_replace(str_remove(names(pathwaylist[i]), "rep_"),"_","_vs_")
-  for (j in 1:length(thiscomp)){
-    if (length(thiscomp) < 1){next}
-    thissig = thiscomp[[j]]
-    file=paste0(paste(compname, names(thiscomp[j]), sep="-"),".jpeg")
-    #print(file)
-    ggsave(filename=here("results","diffex", "figs",
-                         "07_pairwise","fisher_pathway",file),
-           plot=thissig, height = 6, width = 8)
-  }
-}
-
-
-rm(pathwaylist)
 ```
 
 ## Session Info
