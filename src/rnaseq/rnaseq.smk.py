@@ -473,27 +473,31 @@ rule one_vs_rest_report:
      " --tools {input.tools}"
      " --vsd {input.vsd}"
 
-diffex_results = [
-  "08_one_vs_rest_allgenes",
-  "07_pairwise_comparisons_allgenes",
-  "06_LRT_allgenes"
-  ]
-
-rule genewise_diffex_reports:
+rule ig_milk:
   input:
-    diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds",
-    tools="src/deseq_report_functions.R",
-    vsd="data/Rds/08_vsd_ovr.Rds",
+    dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
+    tools="src/rnaseq/deseq_report_functions.R",
+    lrt="results/rnaseq/diffex/06_LRT_allgenes.xlsx",
+    vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    rmd="reports/09_genewise_diffex_reports.Rmd",
+    cp="data/rnaseq/interim/color_palettes.Rds",
+    sp="data/rnaseq/interim/survival_colors.Rds",
+    ivr="results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx",
+    rmd="reports/rnaseq/ig_milk_genes.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    "results/diffex/figs/milk_vs_IG_genes.pdf",
-    html="reports/09_genewise_diffex_reports.html"
+    milk_heatmap="results/rnaseq/diffex/milk_vs_IG_genes.pdf",
+    html="reports/rnaseq/ig_milk_genes.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --dds {input.dds}"
+    " --tools {input.tools}"
+    " --lrt {input.lrt}"
+    " --vsd {input.vsd}"
+    " --gx_annot {input.gx_annot}"
+    " --sp {input.sp}"    
+    " --cp {input.cp}"
+    " --ivr {input.ivr}"
 
 rule flexgsea:
   input:
@@ -672,7 +676,12 @@ rule report_interaction_survival:
     """
     Rscript {input.script}
     """
-
+diffex_results = [
+  "08_one_vs_rest_allgenes",
+  "07_pairwise_comparisons_allgenes",
+  "06_LRT_allgenes"
+  ]
+  
 rule app_setup:
   input:
     "data/rnaseq/metadata/01_gene_annot.tsv",

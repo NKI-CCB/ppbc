@@ -1,0 +1,217 @@
+---
+title: "Genewise reports"
+Author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    df_print: paged
+    highlight: kate
+    canon: true
+params:
+  dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
+  tools: "src/rnaseq/deseq_report_functions.R"
+  lrt: "results/rnaseq/diffex/06_LRT_allgenes.xlsx"
+  vsd: "data/rnaseq/interim/08_vsd_ovr.Rds"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+  cp: "data/rnaseq/interim/color_palettes.Rds"
+  sp: "data/rnaseq/interim/survival_colors.Rds"
+  ivr: "results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx"
+---
+
+Check to see whether the IG gene signature is correlated with milk gene expression.
+
+```{r, message=F}
+library(DESeq2)
+library(ComplexHeatmap)
+library(tidyverse)
+library(here)
+```
+
+## Load data {.tabset}
+
+### DeseqDataSet
+
+```{r}
+dds = readRDS(here(params$dds))
+```
+
+### Sample annotation data
+
+Derived from dds.
+
+```{r}
+sd = as.data.frame(colData(dds)) %>%
+  select(sample_name, study_group, contains("rest"),
+         PAM50, everything())
+head(sd)
+```
+
+### Gene annotation
+
+```{r}
+gx_annot <- read_tsv(here(params$gx), show_col_types = F)
+```
+
+### Utility functions
+
+```{r}
+source(here(params$tools))
+```
+
+### Variance stabilizing transformation
+
+```{r}
+vsd = readRDS(here(params$vsd))
+```
+
+### Colors
+
+```{r}
+cp = readRDS(here(params$cp))
+study_colors = cp$study_colors
+pam_colors = cp$pam_colors
+gene_colors = cp$gene_colors
+ppbc_colors = cp$ppbc_colors
+
+sp = readRDS(here(params$sp))
+```
+
+### Diffex results
+
+```{r}
+ivr <- readxl::read_excel(here(params$ivr))
+head(ivr)
+```
+
+### LRT
+
+Likelihood ratio test results, for DEGs from at least one study group.
+
+```{r}
+lrt <- readxl::read_excel(here(params$lrt))
+head(lrt)
+```
+
+## Symbol conversion and de-deuplication
+
+```{r}
+geneEx = rownames_to_column(as.data.frame(assay(vsd)), "ensembl_gene_id")
+geneEx = right_join(distinct(select(gx_annot, gene_name, ensembl_gene_id=gene_id)),
+                    geneEx, by = "ensembl_gene_id") %>%
+    select(-ensembl_gene_id)
+geneEx = summarize_expression_duplicate_ids(geneEx, id_column = "gene_name", verbose = T)
+
+```
+
+## Milk proteins vs IG genes
+
+Manual selection of some milk-associated genes, based on volcano plots of diffex genes and Cook's outliers.
+
+```{r}
+milk_genes <- c("CSN1S1", "CSN1S2AP", "CSN3", "LALBA")
+```
+
+Select differentially expressed IGs from the involution vs rest comparison.
+
+```{r}
+IG_genes <- ivr %>% filter(Type == "immunoglobulin") %>%
+  filter(padj < 0.05 & abs(log2FoldChange) > 0.5) %>% pull(gene_name)
+```
+
+Subset the gene expression matrix to just milk and IG genes.
+
+```{r}
+milk_IG_mat <- geneEx[rownames(geneEx) %in% c(milk_genes, IG_genes),]
+milk_IG_mat[1:6,1:6]
+```
+
+## Heatmap
+
+Show the differentially expressed IG genes and the differentially expression milk genes in the involution vs rest comparison.
+
+```{r, fig.height = 7, fig.width=10}
+mat = scrime::rowScales(milk_IG_mat)
+hlp = list(title="rowscaled vst")
+
+#Ensure input is matrix
+mat = as.matrix(mat)
+  
+#Heatmap annotation
+ann_top = sd[,"PPBC", drop=F]
+  
+#Top column annotation
+colTop <- HeatmapAnnotation(df=ann_top, which="col",
+                            col = list(PPBC = ppbc_colors)
+)
+
+#Bottom column annotation
+ann_bottom = sd[,"PAM50", drop=F]
+colBottom <- HeatmapAnnotation(df=ann_bottom, which="col",
+                               col = list(PAM50 = pam_colors))
+
+anno_rows = data.frame(type = case_when(
+  rownames(milk_IG_mat) %in% milk_genes ~ "milk protein",
+  TRUE ~ "immunoglobulin"),
+  row.names = rownames(milk_IG_mat))
+
+#Essential that the order be the same!
+anno_rows = anno_rows[match(rownames(mat),rownames(anno_rows)), ,drop=F]
+  
+rowAnno = HeatmapAnnotation(df=anno_rows, which="row",
+                            col=list(type = c("milk protein" = "lightgray",
+                                              "immunoglobulin" = "#E7298A"))
+)
+  
+milk_hm = Heatmap(mat,
+                  top_annotation = colTop,
+                  bottom_annotation = colBottom,
+                  left_annotation = rowAnno,
+                  heatmap_legend_param = hlp,
+                  show_row_names = T,
+                  show_column_names = F,
+                  cluster_rows = T,
+                  row_names_gp = gpar(fontsize = 8),
+                  column_names_gp = gpar(fontsize = 10),
+                  column_title = "Milk genes vs IG genes")
+
+milk_hm
+```
+
+```{r}
+pdf(here("results", "rnaseq", "diffex", "milk_vs_IG_genes.pdf"),
+    width = 10, height = 7)
+
+milk_hm
+
+dev.off()
+```
+
+## Beehives
+
+```{r}
+ensembl_milk <- gx_annot %>%
+  filter(gene_name %in% milk_genes) %>%
+  select(ensembl_gene_id=gene_id, gene_name) %>%
+  distinct() %>%
+  pull(ensembl_gene_id)
+
+ensembl_milk <- ensembl_milk[ensembl_milk %in% lrt$ensembl_gene_id]
+
+for (m in ensembl_milk){
+  #print(res_list$LRT[res_list$LRT$ensembl_gene_id == m,])
+  plot_gene_beehive(dds, result_df = lrt[lrt$ensembl_gene_id == m,],
+                  title_string = "LRT", intgroup = "PPBC", color_vals = pam_colors) %>%
+    print()
+}
+
+```
+
+Potential todo? Check more milk proteins from [this paper](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3586783/)
+
+## Session info
+
+```{r}
+sessionInfo()
+```
