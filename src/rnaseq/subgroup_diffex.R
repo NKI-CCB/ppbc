@@ -4,8 +4,6 @@ library(DESeq2)
 library(apeglm)
 library(tidyverse)
 
-rm(list = ls())
-
 #### Important ----
 
 #To speed up DESeq
@@ -20,7 +18,7 @@ rm(list = ls())
 overwrite <- T
 
 #Results directory
-resDir = here::here("data", "Rds", "subgroup_diffex")
+resDir = here::here("data", "rnaseq", "processed", "subgroup_diffex")
 dir.create(resDir, showWarnings = F)
 stopifnot(file.exists(resDir))
 
@@ -51,7 +49,7 @@ shrinkRes <- function(dds, contrast, type="apeglm"){
 }
 
 #Gene expression
-dds = readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
+dds = readRDS(here("data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"))
 
 # Filtering
 #Minimum threshold is a nonzero count in at least a 3rd of all samples
@@ -69,7 +67,7 @@ dds <- dds[keep,]
 design(dds) <- ~ batch + study_group
 
 #### Subgroup comparisons ----
-print("Subgroups:")
+print("Study groups:")
 print(table(dds$PAM50, dds$study_group))
 print(table(dds$PAM50, dds$inv_vs_rest))
 #print(table(dds$ER, dds$inv_vs_rest))
@@ -77,12 +75,12 @@ print(table(dds$PAM50, dds$inv_vs_rest))
 #Too few samples in PAM50:normal to include
 #Too few to do pairwise comparisons with lac as well
 subgroups = levels(dds$PAM50)[-5]
-print("Subgroups:")
+print("Pam50 subgroups:")
 print(subgroups)
 
 comps = tibble(
-  group = rep("ppbc_inv", 3),
-  ref = c("non_prbc", "prbc", "rest"),
+  group = rep("ppbcpw", 3),
+  ref = c("npbc", "prbc", "rest"),
   type = c(rep("pairwise", 2), "inv_vs_rest")
 )
 print("Comparisons:")
@@ -106,7 +104,7 @@ for (subgroup in subgroups){
     
     #Generate filename based on subgroup comparison
     print(paste0("Diffex ", group, " vs ", ref, ", subgroup: ", subgroup))
-    dds_file=file.path(resDir, paste0("14_dds_", subgroup, "_", group, "_vs_", ref, ".Rds"))
+    dds_file=file.path(resDir, paste0("dds_", subgroup, "_", group, "_vs_", ref, ".Rds"))
     
     #Apply the correct formula based on the type of comparisons
     if(type == "pairwise"){
@@ -139,7 +137,7 @@ for (subgroup in subgroups){
     } 
     
     #Shrink fold changes with apeglm
-    ape_file <- file.path(resDir, paste0("14_ape_", subgroup, "_", group, "_vs_", ref, ".Rds"))
+    ape_file <- file.path(resDir, paste0("ape_", subgroup, "_", group, "_vs_", ref, ".Rds"))
     
     if (file.exists(ape_file) == F | overwrite == T){
       print("Continuing with results from file:")

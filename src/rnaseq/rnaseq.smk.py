@@ -496,11 +496,11 @@ rule ig_milk:
     cp="data/rnaseq/interim/color_palettes.Rds",
     sp="data/rnaseq/interim/survival_colors.Rds",
     ivr="results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx",
-    rmd="reports/rnaseq/ig_milk_genes.Rmd",
+    rmd="reports/rnaseq/08b_ig_milk_genes.Rmd",
     script="src/utils/rmarkdown.R"
   output:
     milk_heatmap="results/rnaseq/diffex/milk_vs_IG_genes.pdf",
-    html="reports/rnaseq/ig_milk_genes.html"
+    html="reports/rnaseq/08b_ig_milk_genes.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --dds {input.dds}"
@@ -520,46 +520,48 @@ sub_diffex=[
 ]
 
 # Diffex between PAM50 subgroups
-# Examine whether (for example) basal samples are different
-# between study groups
-
-rds_dir="/DATA/share/postpartumbc/data/Rds"
-
+# Examine whether (for example) basal samples are different between study groups
 rule subgroup_diffex:
   input:
-    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-    script="src/14_subgroup_diffex.R"
+    dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
+    script="src/rnaseq/subgroup_diffex.R"
   output:
-    dds_res=expand("{dir}/subgroup_diffex/14_dds_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
-    ape_res=expand("{dir}/subgroup_diffex/14_ape_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir)
+    dds_res=expand("{dir}/subgroup_diffex/dds_{subgroup}_{comp}.Rds",
+      subgroup=subgroups, comp=sub_diffex, dir="data/rnaseq/processed/subgroup_diffex"),
+    ape_res=expand("{dir}/subgroup_diffex/ape_{subgroup}_{comp}.Rds",
+      subgroup=subgroups, comp=sub_diffex, dir="data/rnaseq/processed/subgroup_diffex")
   shell:
     """
     export OMP_NUM_THREADS=1 
     Rscript {input.script}
     """
-
-diffex_dir="/DATA/share/postpartumbc/results/diffex"
     
 rule report_subgroup_comp:
   input:
-    dds_res=expand("{dir}/subgroup_diffex/14_dds_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
-    ape_res=expand("{dir}/subgroup_diffex/14_ape_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
-    rmd="reports/14_subgroup_diffex_by_comparison.Rmd",
-    script="src/14_batch_subgroup_diffex_reports.R"
+    dds_res=expand("data/rnaseq/processed/subgroup_diffex/dds_{subgroup}_{comp}.Rds",
+      subgroup=subgroups, comp=sub_diffex),
+    ape_res=expand("data/rnaseq/processed/subgroup_diffex/ape_{subgroup}_{comp}.Rds",
+      subgroup=subgroups, comp=sub_diffex),
+    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
+    immune_genes="data/external/gene_ref/InnateDB_genes.csv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    cp="data/rnaseq/interim/color_palettes.Rds",
+    sp="data/rnaseq/interim/survival_colors.Rds",
+    lib="src/rnaseq/enrichment-analysis-functions.R",
+    rmd="reports/rnaseq/14_subgroup_diffex_by_comparison.Rmd",
+    script="src/utils/rmarkdown.R"
   output:
-    allgenes=expand("{dir}/14_subgroup_diffex_{comp}_allgenes.xlsx", comp=sub_diffex, dir=diffex_dir),
-    siggenes=expand("{dir}/14_subgroup_diffex_{comp}_sig_genes.xlsx", comp=sub_diffex, dir=diffex_dir),
-    reports=expand("/DATA/share/postpartumbc/reports/14_subgroup_diffex_{comp}.html",comp=sub_diffex)
-  params:
-    comp=[
-      "ppbcpw_vs_npbc",
-      "ppbcpw_vs_prbc",
-      "ppbcpw_vs_rest"
-      ]
+    allgenes="results/rnaseq/diffex/14_subgroup_diffex_{comp}_allgenes.xlsx",
+    siggenes="results/rnaseq/diffex/14_subgroup_diffex_{comp}_sig_genes.xlsx",
+    html="reports/rnaseq/14_subgroup_diffex_{comp}.html"
   shell:
-    """
-    Rscript {input.script}
-    """
+     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+     " --comparison {wildcards.comp}"
+     " --gx_annot {input.gx_annot}"
+     " --immune_genes {input.immune_genes}"
+     " --cp {input.cp}"
+     " --sp {input.sp}"
+     " --lib {input.lib}"
 
 # Examine DEGs responsive to involution duration in PPBCpw
 rule diffex_involution:
@@ -912,7 +914,8 @@ rule gene_unity_setup:
     gw_surv="results/survival/12_cox_allgenes.xlsx",
     int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
     efeat=expand("results/survival/{feat}.xlsx", feat=enet_features),
-    subdiffex=expand("{dir}/14_subgroup_diffex_{comp}_allgenes.xlsx", comp=sub_diffex, dir=diffex_dir),
+    subdiffex=expand("results/rnaseq/diffex/14_subgroup_diffex_{comp}_allgenes.xlsx", 
+      comp=sub_diffex),
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     coxdata="data/Rds/12_coxdata.Rds",
     dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds"

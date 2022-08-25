@@ -7,29 +7,32 @@ output:
     toc: yes
     toc_float: yes
     toc_depth: 4
-    highlight: tango
+    highlight: kate
     df_print: paged
 params:
   comparison:  
-    value: "ppbc_inv_vs_rest"
+    value: "ppbcpw_vs_rest"
     input: select
     choices: [
-      "ppbc_inv_vs_rest",
-      "ppbc_inv_vs_non_prbc", 
-      "ppbc_inv_vs_prbc"
+      "ppbcpw_vs_rest",
+      "ppbcpw_vs_npbc", 
+      "ppbcpw_vs_prbc"
       ]
-
+  lib: "src/rnaseq/enrichment-analysis-functions.R"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+  immune_genes: "data/external/gene_ref/InnateDB_genes.csv"
+  cp: "data/rnaseq/interim/color_palettes.Rds"
+  sp: "data/rnaseq/interim/survival_colors.Rds"
 ---
 
 This paramaterized Rmarkdown template is designed to show differential expression results for PPBC subsetted by PAM50 subgroup.
 For each subgroup, the following comparisons were made:
 
-* "ppbc_inv_vs_rest" : Involuting samples vs all others (lactating + nulliparous + pregnant)
-* "ppbc_inv_vs_non_prbc" : Involuting samples vs nulliparous samples 
-* "ppbc_inv_vs_prbc" : Involuting samples vs pregnant samples
+* "ppbcpw_vs_rest" : Involuting samples vs all others (lactating + nulliparous + pregnant)
+* "ppbcpw_vs_npbc" : Involuting samples vs nulliparous samples 
+* "ppbcpw_vs_prbc" : Involuting samples vs pregnant samples
 
-
-```{r setup, include=FALSE}
+```{r setup, message=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(DESeq2)
 library(ggrepel)
@@ -64,8 +67,8 @@ Read in relevant dds files.
 
 ```{r read dds}
 psub <- c("Basal", "Her2", "LumA", "LumB")
-resDir <- here("data", "Rds", "subgroup_diffex")
-dds_files <- paste0("14_dds_", psub, "_", params$comparison, ".Rds")
+resDir <- here("data", "rnaseq", "processed", "subgroup_diffex")
+dds_files <- paste0("dds_", psub, "_", params$comparison, ".Rds")
 ddsl = lapply(file.path(resDir, dds_files), readRDS)
 names(ddsl) = psub
 dds_files
@@ -82,7 +85,7 @@ Print number of samples in each group.
 Also ensure that there are no empty levels in study group.
 
 ```{r}
-coi = if_else(params$comparison == "ppbc_inv_vs_rest", "inv_vs_rest", "study_group")
+coi = if_else(params$comparison == "ppbcpw_vs_rest", "inv_vs_rest", "study_group")
 group = str_split(params$comparison, "_vs_")[[1]][1]
 ref = str_split(params$comparison, "_vs_")[[1]][2]
 
@@ -98,7 +101,7 @@ lapply(ddsl, function(x) table(colData(x)[,coi]))
 Read in relevant apeglm shrunken results:
 
 ```{r}
-ape_files <- paste0("14_ape_", psub, "_", params$comparison, ".Rds")
+ape_files <- paste0("ape_", psub, "_", params$comparison, ".Rds")
 apel <- lapply(file.path(resDir, ape_files), readRDS)
 names(apel) = psub
 ape_files
@@ -113,13 +116,12 @@ lapply(apel, function(x) x@elementMetadata$description[2])
 stopifnot(length(unique(unlist(lapply(apel, function(x) x@elementMetadata$description[2])))) == 1)
 ```
 
-
 ## Gene sets
 
 Gene annotation:
 
 ```{r}
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot <- read_tsv(here(params$gx_annot), show_col_types = F)
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name,
                                gene_type, description = gene_description) %>% distinct()
 ```
@@ -135,7 +137,6 @@ gene_sets = list(
 )
 ```
 
-
 For downstream analyses, we'd like to know which of the differentially expressed genes are immunologically relevant.
 
 An immune gene is defined as follows:
@@ -145,21 +146,20 @@ Either immune/immuno/interleukin is part of the gene name and description OR the
 The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The principal investigator of the BISC project is Dr. Richard Scheuermann at University of Texas Southwestern Medical Center. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
 
 ```{r}
-immune_gene_list <- read_csv(here("data", "external","gene-sets","InnateDB_genes.csv"))
+immune_gene_list <- read_csv(here("data", "external","gene_ref","InnateDB_genes.csv"))
 head(immune_gene_list)
 ```
-
 
 ## Colors
 
 ```{r}
-cp = readRDS(here("data", "Rds", "color_palettes.Rds"))
+cp = readRDS(here(params$cp))
 study_colors = cp$study_colors
 pam_colors = cp$pam_colors
 gene_colors = cp$gene_colors
 ppbc_colors = cp$ppbc_colors
 
-sp = readRDS(here("data/Rds/survival_colors.Rds"))
+sp = readRDS(here(params$sp))
 
 #Minor tweak to death colors to avoid white on white background
 death_colors = sp$overall_survival
@@ -183,18 +183,6 @@ blind_vst = function(dds){
 tic()
 vsdl = lapply(ddsl, blind_vst)
 toc()
-```
-
-Add a death column to all vsds and dds for plotting:
-
-```{r}
-add_death <- function(x){
-  x$death <- factor(x$overall_survival, levels = c(0, 1))
-  return(x)
-}
-
-ddsl = lapply(ddsl, add_death)
-vsdl = lapply(vsdl, add_death)
 ```
 
 Convert to gene symbols and deduplicate for heatmaps.
@@ -440,7 +428,8 @@ volcano_plot <- function(x, title="", path_save_fig = NULL, pthresh = 0.05, absl
   if (dedup_ids == T){
     print("Summarizing -log10FDR and log2FoldChange by median for duplicate gene names in volcano plot")
     volcdf = volcdf %>% group_by(gene_name, Significant, Type, Color) %>%
-      summarise(log2FoldChange = median(l2fc), NegLog10FDR = median(NegLog10FDR)) %>%
+      summarise(log2FoldChange = median(l2fc), NegLog10FDR = median(NegLog10FDR),
+                .groups = "drop") %>%
       arrange(desc(NegLog10FDR))
   }
   
@@ -480,7 +469,7 @@ volcano_plots <- Map(volcano_plot, x = annotated_results, title = paste0(ts, ": 
 ## Pathways
 
 ```{r fisher pathways}
-source(here("src", "enrichment-analysis-functions.R"))
+source(here(params$lib))
 pathway_cutoff = 0.1
 
 tic("Fisher pathways")
@@ -1195,20 +1184,22 @@ if(nrow(pathways[[cur]])>0){
 Save the significant genes and results from each comparison.
 
 ```{r}
+resDir <- "results/rnaseq/diffex"
+
 #Save the results for all genes in an Excel file with multiple tabs
 f1 = paste0("14_subgroup_diffex_", params$comparison, "_allgenes.xlsx")
 resdf = annotated_results
 resdf$thresholds = tibble(metric = c("padj", "l2fc"),
                           cutoff = c(fdr, alfc))
 #The tab names will be the list names
-openxlsx::write.xlsx(resdf, file = here("results", "diffex", f1))
+openxlsx::write.xlsx(resdf, file = here(resDir, f1))
 
 #Separate file for sig genes only
 resdf = sig_results
 resdf$thresholds = tibble(metric = c("padj", "l2fc"),
                           cutoff = c(fdr, alfc))
 f2 = paste0("14_subgroup_diffex_", params$comparison, "_sig_genes.xlsx")
-write.xlsx(resdf, file = here("results", "diffex", f2))
+write.xlsx(resdf, file = here(resDir, f2))
 rm(resdf)
 ```
 
