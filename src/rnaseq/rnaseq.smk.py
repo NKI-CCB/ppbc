@@ -702,6 +702,8 @@ inv_comps = [
   "08_one_vs_rest_sig_genes"
 ]
 
+#Explore k-means clustering of differentially expressed genes and study group
+#This notebook is also in need of splitting into smaller sections
 rule inv_clustering:
   input:
     expand("results/rnaseq/diffex/{inv_comp}.xlsx", inv_comp=inv_comps),
@@ -715,16 +717,13 @@ rule inv_clustering:
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     coxdata="data/rnaseq/interim/04_survdata.Rds"
   output:
-    "results/clustering/11_hm_clust_DEG_inv_vs_rest.pdf",
-    "results/clustering/11_barplots_ig_clusters.pdf",
-    "results/clustering/11_inv_clusters.xlsx",
-    "data/Rds/11_ig_clusters.Rds",
-    "data/Rds/11_ig_survdata.Rds",
-    "results/survival/11_IG_clusters_by_study_group.pdf"
-    "results/clustering/11_hm_involution_only_heatmaps.pdf",
-    html="reports/11_clustering_involution.html"
+    cluster_heatmap="results/rnaseq/clustering/11_hm_clust_DEG_inv_vs_rest.pdf",
+    cluster_barplot="results/rnaseq/clustering/11_barplots_ig_clusters.pdf",
+    cluster_results="results/rnaseq/clustering/11_inv_clusters.xlsx",
+    cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",
+    html="reports/rnaseq/11_clustering_involution.html"
   shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --gx_annot {input.gx_annot}"
     " --cp {input.cp}"
     " --sp {input.sp}"

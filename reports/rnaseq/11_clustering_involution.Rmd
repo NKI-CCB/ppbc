@@ -7,24 +7,25 @@ output:
     toc: yes
     toc_float: yes
     df_print: paged
-    theme: darkly
-    highlight: breezedark
+    highlight: kate
     canon: true
+params:
+  dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
+  vsd: "data/rnaseq/interim/08_vsd_ovr.Rds"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+  coxdata: "data/rnaseq/interim/04_survdata.Rds"
+  tools: "src/rnaseq/deseq_report_functions.R"
+  cp: "data/rnaseq/interim/color_palettes.Rds"
+  sp: "data/rnaseq/interim/survival_colors.Rds"
 ---
 
-```{r}
-rm(list = ls())
-```
-
-
-```{r, include=F}
+```{r, message=F}
 library(DESeq2)
 library(apeglm)
 library(ggrepel)
 library(ComplexHeatmap)
 library(openxlsx)
 library(scrime)
-#library(sva)
 library(survival)
 library(survminer)
 library(RColorBrewer)
@@ -41,7 +42,7 @@ A k-means clustering strategy on DEG genes within the PPBC project.
 This data has been filtered on the basis of having a gene-wise non-zero count in at least a third of the samples. 
 
 ```{r}
-dds = readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
+dds = readRDS(here(params$dds))
 ```
 
 We will be changing study_group to match the groups plotted, so save the original in its own column.
@@ -52,13 +53,13 @@ dds$study_group_orig <- dds$study_group
 ```
 
 ```{r}
-source(here("src", "deseq_report_functions.R"))
+source(here(params$tools))
 ```
 
 Subset for just the involution samples.
 
 ```{r}
-inv.dds = dds[,colnames(dds)[dds$study_group == "ppbc_inv"]]
+inv.dds = dds[,colnames(dds)[dds$study_group == "ppbcpw"]]
 inv.dds$study_group = droplevels(inv.dds$study_group)
 table(inv.dds$study_group)
 ```
@@ -66,8 +67,10 @@ table(inv.dds$study_group)
 ## Gene metadata
 
 ```{r}
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
-gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>% distinct()
+gx_annot <- read_tsv(here(params$gx_annot))
+gx_annot = gx_annot %>%
+  select(ensembl_gene_id = gene_id, gene_name,
+         gene_type, description = gene_description) %>% distinct()
 ```
 
 ## Variance stabilizing transformation
@@ -77,7 +80,7 @@ Renders the data homoskedastic, useful for visualization purposes.
 Ensure that we can set "study group" to be one vs rest columns when desired.
 
 ```{r}
-vsd = readRDS(here("data","Rds","08_vsd_ovr.Rds"))
+vsd = readRDS(here(params$vsd))
 ```
 
 ## Sample annotation data
@@ -103,13 +106,13 @@ geneEx = summarize_expression_duplicate_ids(geneEx, id_column = "gene_name", ver
 ## Colors
 
 ```{r}
-cp = readRDS(here("data", "Rds", "color_palettes.Rds"))
+cp = readRDS(here(params$cp))
 study_colors = cp$study_colors
 pam_colors = cp$pam_colors
 gene_colors = cp$gene_colors
 ppbc_colors = cp$ppbc_colors
 
-sp = readRDS(here("data/Rds/survival_colors.Rds"))
+sp = readRDS(here(params$sp))
 ```
 
 ## Diffex results
@@ -117,20 +120,23 @@ sp = readRDS(here("data/Rds/survival_colors.Rds"))
 Read in significant results from comparison involution vs non-prbc, and inv vs rest
 
 ```{r}
-#openxlsx::getSheetNames(here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx"))
-res_invp = openxlsx::read.xlsx(here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx"), sheet="rep_inv_nonprbc_all")
+resDir <- file.path("results", "rnaseq", "diffex")
+#readxl::excel_sheets(here(resDir, "07_pairwise_comparisons_allgenes.xlsx"))
+res_invp = openxlsx::read.xlsx(here(resDir, "07_pairwise_comparisons_allgenes.xlsx"),
+                               sheet="rep_inv_nonprbc_all")
 #head(res_invp)
 
-#openxlsx::getSheetNames(here("results", "diffex", "07_pairwise_comparisons_sig_genes.xlsx"))
-sig.invp = openxlsx::read.xlsx(here("results", "diffex", "07_pairwise_comparisons_sig_genes.xlsx"), sheet="sig_rep_inv_nonprbc")
+sig.invp = openxlsx::read.xlsx(here(resDir, "07_pairwise_comparisons_sig_genes.xlsx"),
+                               sheet="sig_rep_inv_nonprbc")
 #head(sig.invp)
 
-#openxlsx::getSheetNames(here("results", "diffex", "08_one_vs_rest_allgenes.xlsx"))
-res_invr = openxlsx::read.xlsx(here("results", "diffex", "08_one_vs_rest_allgenes.xlsx"), sheet="rep_inv_rest_all")
+res_invr = openxlsx::read.xlsx(here(resDir, "08_one_vs_rest_allgenes.xlsx"),
+                               sheet="rep_inv_rest_all")
 #head(res_invr)
 
 #openxlsx::getSheetNames(here("results", "diffex", "08_one_vs_rest_sig_genes.xlsx"))
-sig.invr = openxlsx::read.xlsx(here("results", "diffex", "08_one_vs_rest_sig_genes.xlsx"), sheet="sig_rep_inv_rest")
+sig.invr = openxlsx::read.xlsx(here(resDir, "08_one_vs_rest_sig_genes.xlsx"),
+                               sheet="sig_rep_inv_rest")
 #head(sig.invp)
 ```
 
@@ -139,9 +145,11 @@ sig.invr = openxlsx::read.xlsx(here("results", "diffex", "08_one_vs_rest_sig_gen
 Thresholds applied:
 
 ```{r}
-rbind(openxlsx::read.xlsx(here("results", "diffex", "07_pairwise_comparisons_sig_genes.xlsx"), sheet="thresholds") %>%
+rbind(openxlsx::read.xlsx(here(resDir, "07_pairwise_comparisons_sig_genes.xlsx"),
+                          sheet="thresholds") %>%
         filter(comparison == "rep_inv_nonprbc"),
-      openxlsx::read.xlsx(here("results", "diffex", "08_one_vs_rest_sig_genes.xlsx"), sheet="thresholds") %>%
+      openxlsx::read.xlsx(here(resDir, "08_one_vs_rest_sig_genes.xlsx"),
+                          sheet="thresholds") %>%
         filter(comparison == "rep_inv_rest"))
 ```
 
@@ -162,78 +170,48 @@ vs rest
 sig.invp %>% head(30)
 ```
 
-# Two-way Heatmap
+# K-means Heatmaps
 
-Depicted are genes significant in the comparison involution vs non-prbc using counts normalized via the variance stabilizing transformation.
-
-## Dendrogram split
-
-Inv vs np
-
-```{r, include=F}
-sd$study_group_orig %>% unique()
-```
-
-```{r, include=F}
-geneEx[1:4,1:4]
-```
-
-
-```{r, fig.height=7, fig.width=10}
-source(here("src", "deseq_report_functions.R"))
-
-deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = study_group_orig),
-              sig_results = sig.invp, title = "Involution vs nonprbc, Cutree split",
-              groups_to_plot =c("ppbc_inv", "non_prbc"), maxn_rownames = Inf,
-              column_split=3, row_split = 3)
-
-```
-
-```{r, fig.height=7, fig.width=10}
-source(here("src", "deseq_report_functions.R"))
-
-deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = study_group_orig),
-              sig_results = sig.invr, title = "Involution vs rest, Cutree split",
-              #groups_to_plot =c("ppbc_inv", "non_prbc"), 
-              maxn_rownames = Inf,
-              column_split=3, row_split = 3)
-
-```
-
-## K-means
+## PPBCpw vs NPBC
 
 ```{r, fig.height=8, fig.width=10}
 set.seed(1)
 
 deseq_heatmap(mat = geneEx, sampledata = mutate(sd, study_group = study_group_orig),
-              sig_results = sig.invp, title = "Involution vs nonprbc, K-means",
-              groups_to_plot =c("ppbc_inv", "non_prbc"), maxn_rownames = Inf,
+              sig_results = sig.invp, title = "PPBCpw vs NPBC, K-means",
+              groups_to_plot =c("ppbcpw", "npbc"), maxn_rownames = Inf,
               column_km=3, row_km = 3)
 
 ```
 
+## PPBCpw vs rest
+
 ```{r, fig.height=8, fig.width=10}
 set.seed(1)
 
-inv.hm = deseq_heatmap(mat = geneEx, sampledata = sd,#mutate(sd, study_group = inv_vs_rest),
-              sig_results = sig.invr, title = "Significant DEGs from involution vs rest, K-means clustering",
+inv.hm = deseq_heatmap(mat = geneEx, sampledata = sd,
+              sig_results = sig.invr,
+              title = "Significant DEGs from PPBCpw vs rest, K-means clustering",
               maxn_rownames = Inf,
-              #groups_to_plot =c("ppbc_inv", "rest"),
+              #groups_to_plot =c("ppbcpw", "rest"),
               column_km=3, row_km = 3)
 
 inv.hm
 ```
 
 ```{r}
-resDir = file.path(here("results/clustering"))
-dir.create(resDir, showWarnings = F)
-pdf(file = file.path(resDir, "11_hm_clust_DEG_inv_vs_rest.pdf"))
+clusterDir = file.path(here("results/rnaseq/clustering"))
+dir.create(clusterDir, showWarnings = F)
+pdf(file = file.path(clusterDir, "11_hm_clust_DEG_inv_vs_rest.pdf"))
 inv.hm
 dev.off()
 ```
 
+# Retrieve clustering
 
-### Summary column clusters
+Extract the samples (columns) and genes (rows) found by k-means clustering.
+
+## Summary column clusters
 
 The column clusters can be split into a low (1), medium(2) and high(3) Ig-expressing groups
 
@@ -248,8 +226,6 @@ inv.hm = draw(inv.hm)
 #row_order(inv.hm)
 #column_order(inv.hm) #Shows that `3` is high, `2` is medium and `1` is low
 lapply(column_order(inv.hm), length)
-#colnames(geneEx)[82] #Index of first sample in "high" group
-#stopifnot(colnames(geneEx)[82] %in% as.hclust(coldend.hm$`3`)$labels) #Should be in the high group
 
 col_clust = 
 bind_rows(
@@ -266,27 +242,6 @@ nrow(col_clust)
 #col_clust %>% arrange(sample_name)
 ```
 
-...or by using the row/column_dend followed by as.hclust, after which the sample and gene names are accessible via the label operator.
-
-Note that for this to work, you MUST create the heatmap by explicitly calling draw. If this this not done, the code will complete without errors, but the sample labels will be wrong!
-
-```{r, eval=F}
-stopifnot(class(inv.hm) == "HeatmapList") #Will be "HeatmapList" instead of Heatmap if draw has been called
-
-
-test_clust =
-bind_rows(
-  tibble(sample_name = as.hclust(coldend.hm$`1`)$labels,IG_col_cluster = "low", col_cluster=1),
-  tibble(sample_name = as.hclust(coldend.hm$`2`)$labels,IG_col_cluster = "medium", col_cluster=2),
-  tibble(sample_name = as.hclust(coldend.hm$`3`)$labels,IG_col_cluster = "high", col_cluster=3)
-) %>% left_join(.,select(as.data.frame(colData(dds)), sample_name, study_group, PAM50), by="sample_name") %>%
-  mutate(IG_col_cluster = factor(IG_col_cluster, levels = c("low", "medium", "high")))
-
-addmargins(table(test_clust$study_group, test_clust$IG_col_cluster), 1)
-
-stopifnot(identical(arrange(col_clust, sample_name), arrange(test_clust, sample_name)))
-```
-
 Define colors for IG clusters
 
 ```{r}
@@ -295,10 +250,9 @@ names(IG_expression_colors) = c("low", "medium", "high")
 color_grid(IG_expression_colors)
 ```
 
-### Bar plot IG clusters
+## Bar plot IG clusters
 
 ```{r, fig.width=8}
-
 study_ig = col_clust %>% ggplot(aes(x = IG_col_cluster, fill=study_group)) + geom_bar(position = "fill") +
   scale_fill_manual(values=study_colors) +
   ggtitle("Study group by IG expression cluster")
@@ -319,16 +273,14 @@ clust_ig
 
 
 ```{r}
-
-pdf(file = file.path(resDir, "11_barplots_ig_clusters.pdf"),
+pdf(file = file.path(clusterDir, "11_barplots_ig_clusters.pdf"),
     width = 8, height = 6)
 study_ig
 clust_ig
 dev.off()
-
 ```
 
-### Summary row clusters
+## Summary row clusters
 
 Extract and store the row clusters:
 
@@ -352,17 +304,20 @@ row_clust[row_clust$row_cluster==3,] %>% head()
 ```
 
 ```{r}
-write.xlsx(list(row_clusters = row_clust, col_clusters = col_clust), file = file.path(resDir,"11_inv_clusters.xlsx"))
-saveRDS(list("row_clust" = row_clust,
-             "col_clust" = col_clust),
-        here("data", "Rds", "11_ig_clusters.Rds"))
+write.xlsx(list(row_clusters = row_clust, col_clusters = col_clust),
+           file = file.path(clusterDir,"11_inv_clusters.xlsx"))
 ```
 
-### Clusters as metagenes
-
-Collapse clusters into single metagene by averaging experession, then test assocation between metagene and survival/subgroups
+# Clusters as metagenes
 
 Remember that row cluster 3 is the IG genes.
+
+```{r}
+row_clust %>% filter(row_cluster == 3) %>%
+  pull(gene_name)
+```
+
+Collapse clusters into single metagene by averaging experession, then test assocation between metagene and survival/subgroups
 
 ```{r}
 metagene_mat = 
@@ -374,12 +329,9 @@ metagene_mat =
 rownames(metagene_mat) = c("metagene1", "metagene2","metageneIG")
 metagene_mat = scrime::rowScales(metagene_mat)
 
-
 #pheatmap::pheatmap(metagene_mat, show_colnames = F, cluster_rows = F,
 #                   annotation_col = data.frame(row.names = sd$sample_name,
 #                                               study_group = sd$inv_vs_rest))
-
-  
 
 #Top column annotation
 colTop <- HeatmapAnnotation(df=data.frame(row.names = sd$sample_name,
@@ -409,26 +361,40 @@ Heatmap(metagene_mat,column_km = 3,
         #column_title = title
 )
 ```
-MetageneIG only
-              
-```{r, fig.width = 8}
-set.seed(1)
 
-Heatmap(metagene_mat[rownames(metagene_mat) == "metageneIG", , drop =F],column_km = 3,
-        top_annotation = colTop,
-        bottom_annotation = colBottom,
-        #left_annotation = rowAnno,
-        heatmap_legend_param = list(title="rowscaled vst"),
-        show_row_names = T,
-        show_column_names = F,
+Swap rows and columns.
+
+```{r}
+
+rowAnno <- HeatmapAnnotation(
+  df=data.frame(row.names = sd$sample_name,
+                study_group = sd$PPBC,
+                PAM50 = sd$PAM50),
+  which="row",
+  col = list(study_group = ppbc_colors,
+             PAM50 = pam_colors),
+  annotation_legend_param = list(list(title = "PPBC"))
+)
+
+
+set.seed(1)
+Heatmap(t(metagene_mat),row_km = 3,
+        #top_annotation = colTop,
+        #bottom_annotation = colBottom,
+        left_annotation = rowAnno,
+        heatmap_legend_param = list(title="colscaled vst"),
+        show_row_names = F,
+        show_column_names = T,
         cluster_rows = F,
         #row_names_gp = gpar(fontsize = row_size),
         #column_names_gp = gpar(fontsize = col_size),
         #column_title = title
 )
 ```
-              
-#### KW
+
+# Kruskal wallis
+
+Association between cluster status and groups
 
 For inv vs rest
 
@@ -438,7 +404,6 @@ stopifnot(all(colnames(metagene_mat) == sd$sample_name))
 kruskal.test(x = metagene_mat[rownames(metagene_mat)== "metageneIG"], 
              g = sd$inv_vs_rest)
 ```
-
 
 ```{r}
 kruskal.test(x = metagene_mat[rownames(metagene_mat)== "metageneIG"], 
@@ -456,6 +421,30 @@ kruskal.test(x = sd$inv_vs_rest,
              g = sd$PAM50)
 ```
 
+# Chi-square tests
+
+For study group
+
+```{r}
+chisq.test(as.matrix(table(col_clust$study_group, col_clust$IG_col_cluster)),
+           simulate.p.value = T)
+```
+
+Recode as OVR
+
+```{r}
+col_clust %>%
+  mutate(inv_vs_rest = ifelse(study_group=="ppbcpw", "inv", "rest")) %>%
+  select(IG_col_cluster, inv_vs_rest) %>% table() %>%
+  as.matrix() %>% chisq.test(., simulate.p.value = T)
+```
+
+For PAM50
+
+```{r}
+chisq.test(as.matrix(table(col_clust$PAM50, col_clust$IG_col_cluster)),
+           simulate.p.value = T)
+```
 
 # Clustering involution samples
 
@@ -470,7 +459,6 @@ sd$IG_cluster = col_clust[match(sd$sample_name,col_clust$sample_name), "IG_col_c
 table(inv.dds$IG_cluster, inv.dds$study_group)
 ```
 
-
 ## Inv heatmaps
 
 Subset down to inv and define heat map annotations
@@ -483,7 +471,7 @@ geneEx.inv = geneEx[,colnames(geneEx) %in% sd.inv$sample_name]
 
 
 #Top column annotation
-ann_top = select(sd.inv, IG_cluster, death = overall_survival)
+ann_top = select(sd.inv, IG_cluster, death)
 #Ensure that the order matches
 ann_top = ann_top[match(colnames(geneEx.inv),rownames(ann_top)), ,drop=F]
 colTop <- HeatmapAnnotation(df=ann_top, which="col",
@@ -510,9 +498,7 @@ rowAnno = HeatmapAnnotation(df=anno_rows, which="row", col=list(Type = gene_colo
 
 ```
 
-
-
-### Significant genes in involution vs rest
+## Significant genes in involution vs rest
 
 ```{r, fig.height=7, fig.width=10}
 set.seed(1)
@@ -548,7 +534,7 @@ invclust.row
 
 ```
 
-### Involution: Top variant genes
+## Involution: Top variant genes
 
 Look for patterns within the involution group taking the top variant genes.
 
@@ -560,6 +546,8 @@ varEx.vst = geneEx.inv[select,]
 vargenes = rownames(varEx.vst)
 dim(varEx.vst)
 ```
+
+We just see PAM50.
 
 ```{r, fig.width=10}
 set.seed(1)
@@ -608,99 +596,21 @@ inv.var
 inv.var.row
 ```
 
-We just see PAM50...
-
-```{r}
-pdf(file.path(resDir, "11_hm_involution_only_heatmaps.pdf"),width = 10, height = 7)
-print(invclust)
-print(invclust.row)
-print(inv.var)
-print(inv.var.row)
-dev.off()
-```
-
-All samples
-
-```{r}
-rv = rowVars(as.matrix(geneEx))
-select = order(rv, decreasing = TRUE)[seq_len(min(500, 
-            length(rv)))]
-varEx.vst = geneEx[select,]
-vargenes = rownames(varEx.vst)
-dim(varEx.vst)
-```
-
-## Fibrinogen and IG clusters
-
-Do low B cell patients have a high fibrinogen signature (FGB/FGG/FGFBP1)? 
-Could the fibrinogen be suppressing B cell activity, resulting in increased mortality?
-
-```{r}
-as.data.frame(t(geneEx.inv[rownames(geneEx.inv) %in% c("FGB", "FGG", "FGFBP1"),])) %>%
-  rownames_to_column("sample_name") %>%
-  gather(key = "gene", value = "vst", -sample_name) %>%
-  left_join(., select(col_clust, sample_name, IG_col_cluster), by = "sample_name") %>%
-  left_join(., select(sd, sample_name, death = overall_survival),
-                                  by ="sample_name") %>%
-  ggplot(aes(x = IG_col_cluster, y = vst, color = as.factor(death))) +
-  geom_point() + 
-  facet_wrap(~ gene)
-```
-
-
-```{r, fig.width = 8}
-#nrow(col_clust)
-#fbg_mat <- geneEx[rownames(geneEx) %in% c("FGB", "FGG", "FGFBP1"),]
-fbg_mat <- geneEx.inv[rownames(geneEx.inv) %in% c("FGB", "FGG", "FGFBP1"),]
-ann_df <- col_clust %>% left_join(., select(sd, sample_name, death = overall_survival),
-                                  by ="sample_name") %>%
-  mutate(death = as.character(death)) %>%
-  column_to_rownames("sample_name") %>% select(IG_col_cluster, death)
-pheatmap::pheatmap(fbg_mat,
-                   show_colnames = F,
-                   annotation_col = ann_df,
-                   annotation_colors = list(#study_group = study_colors[names(study_colors) != "rest"],
-                                            death = sp$overall_survival,
-                                            IG_col_cluster = IG_expression_colors),
-                   scale = "row")
-#geneEx[rownames(geneEx) %in% c(ig_gene_clust$gene_name, "FGB", "FGG", "FGFBP1"),]
-
-#col_clust %>% arrange(sample_name)
-```
-
-```{r, fig.width=8}
-#The third row cluster is the IG genes
-ig_gene_clust = row_clust[row_clust$row_cluster==3,]
-#ig_gene_clust$Type %>% table()
-#fbg_mat <- geneEx[rownames(geneEx) %in% c(ig_gene_clust$gene_name,"FGB", "FGG", "FGFBP1"),]
-fbg_mat <- geneEx.inv[rownames(geneEx.inv) %in% c(ig_gene_clust$gene_name,"FGB", "FGG", "FGFBP1"),]
-ann_df <- col_clust %>% left_join(., select(sd, sample_name, death = overall_survival),
-                                  by ="sample_name") %>%
-  mutate(death = as.character(death)) %>%
-  column_to_rownames("sample_name") %>% select(IG_col_cluster, death)
-pheatmap::pheatmap(fbg_mat,
-                   show_colnames = F,
-                   annotation_col = ann_df,
-                   annotation_colors = list(death = sp$overall_survival,
-                     #study_group = study_colors[names(study_colors) != "rest"],
-                                            PAM50 = pam_colors,
-                                            IG_col_cluster = IG_expression_colors),
-                   scale = "row", cluster_rows = F)
-```
-
 # Survival analysis IG clusters
 
 ```{r}
-surv <- readRDS(here("data/Rds/04_survdata.Rds"))
-
-surv <- right_join(surv,
+surv <- readRDS(here(params$coxdata))
+print(paste(nrow(surv), "samples have complete survival data"))
+surv <- left_join(surv,
            select(col_clust, sample_name, IG = IG_col_cluster),
-           by = "sample_name") %>%
-  filter(!is.na(patient_ref))
+           by = "sample_name")
+
+stopifnot(nrow(filter(surv, is.na(sample_name)))==0)
+stopifnot(nrow(filter(surv, is.na(time_OS_months)))==0)
 
 surv <- as.data.frame(surv)
 
-saveRDS(surv, here("data/Rds/11_ig_survdata.Rds"))
+saveRDS(surv, here("data/rnaseq/interim/11_ig_survdata.Rds"))
 ```
 
 ## Overall survival
@@ -708,7 +618,7 @@ saveRDS(surv, here("data/Rds/11_ig_survdata.Rds"))
 Baseline: Study group
 
 ```{r}
-survdiff(survival::Surv(time =months_overall_survival, event = overall_survival) ~ study_group, data=surv)
+survdiff(survival::Surv(time =time_OS_months, event = death) ~ study_group, data=surv)
 ```
 
 ### KM IG clusters
@@ -717,7 +627,7 @@ survdiff(survival::Surv(time =months_overall_survival, event = overall_survival)
 ig_colors = cp$tertile_colors
 names(ig_colors) = paste0("IG=", names(ig_colors))
 ggsurvplot( 
-    fit = survfit(Surv(time = months_overall_survival, event=overall_survival) ~ IG, data = surv), 
+    fit = survfit(Surv(time = time_OS_months, event=death) ~ IG, data = surv), 
     xlab = "Years", 
     ylab = "Overall survival probability",
     title = "Overall survival by IG cluster",
@@ -735,24 +645,16 @@ table(sd$PAM50, sd$IG_cluster)
 ```
 
 ```{r}
-for (i in unique(surv$PAM50)){
-  j <- surv[surv$PAM50 == i, ]
-  f <- survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PAM50 + IG, data = j)
-  colors <- cp$tertile_colors
-  names(colors) <- names(f$strata)
-  
-  p <- ggsurvplot(
-    fit = f, 
+ggsurvplot(
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ PAM50 + IG, data = surv), 
     xlab = "Months", 
     ylab = "Overall survival probability",
-    title = paste("IG clusters faceted by PAM50:",i),
-    palette = colors,
+    title = "IG cluster by study group",
     pval = T,
-    ggtheme = theme_bw(), 
-    #facet.by = "PPBC" #No longer working
-    )
-  print(p)
-}
+    palette = cp$tertile_colors,
+    ggtheme = theme_bw(),
+    facet.by = "PAM50")
+
 
 ```
 
@@ -761,7 +663,7 @@ for (i in unique(surv$PAM50)){
 ```{r, fig.width=8}
 #No longer works
 sg_ig <-  ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PPBC + IG, data = surv), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ PPBC + IG, data = surv), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = "IG cluster by study group",
@@ -771,78 +673,31 @@ sg_ig <-  ggsurvplot(
     facet.by = "PPBC")
 
 sg_ig
-ggsave(file = here("results", "survival", "11_IG_clusters_by_study_group.pdf"), print(sg_ig), width = 8, height=6)
-```
-
-```{r, eval=F, include=F}
-#Workaround for when facet.by breaks down
-for (i in unique(surv$PPBC)){
-  j <- surv[surv$PPBC == i, ]
-  f <- survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PPBC + IG, data = j)
-  colors <- cp$tertile_colors
-  names(colors) <- names(f$strata)
-  
-  p <- ggsurvplot(
-    fit = f, 
-    xlab = "Months", 
-    ylab = "Overall survival probability",
-    title = paste("IG clusters faceted by PPBC:",i),
-    palette = colors,
-    pval = T,
-    ggtheme = theme_bw(), 
-    #facet.by = "PPBC" #No longer working
-    )
-  print(p)
-}
-
-
 ```
 
 ### KM study group, faceted by IG cluster
 
 ```{r, fig.width=8}
 ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PPBC + IG, data = surv), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ PPBC + IG, data = surv), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = "Study group by IG cluster",
     pval = T, 
     facet.by = "IG",
-    palette = ppbc_colors,
+    palette = ppbc_colors[names(ppbc_colors)!="rest"],
     ggtheme = theme_bw())
 
 
 ```
-
-```{r, fig.height = 5, fig.width=8, eval=F, include=F}
-#Workaround for when facet.by breaks down
-for (i in unique(surv$IG)){
-  j <- surv[surv$IG == i, ]
-  f <- survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PPBC + IG, data = j)
-  colors <- ppbc_colors
-  names(colors) <- names(f$strata)
-  
-  p <- ggsurvplot(
-    fit = f, 
-    xlab = "Months", 
-    ylab = "Overall survival probability",
-    title = paste("Study group by IG cluster:",i),
-    palette = colors,
-    pval = T,
-    ggtheme = theme_bw()
-    )
-  print(p)
-}
-```
-
 
 ### Multivariate Cox
 
 ```{r}
 ig_cox = 
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + IG + study_group,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + IG + study_group,
   data = surv)
 
 summary(ig_cox)
@@ -855,8 +710,8 @@ Since ER status is the main factor here, use strata for HT.
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + IG + study_group,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + IG + study_group,
   data = surv) %>%
 
 ggadjustedcurves(., variable = "IG", palette = cp$tertile_colors,
@@ -872,8 +727,8 @@ Applying stratification to IG cluster shows a curve balanced for everything BUT 
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + strata(IG) + study_group,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + year_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + strata(IG) + study_group,
   data = surv) %>%
   ggadjustedcurves(., variable = "IG", data = as.data.frame(surv), method="conditional",
                    palette = cp$tertile_colors,
@@ -887,9 +742,7 @@ coxph(
 ### Univariate
 
 ```{r}
-
-survdiff(survival::Surv(time =months_to_drs, event = distant_recurrence) ~ IG, data=surv)
-
+survdiff(survival::Surv(time = time_DRS_months, event = distant_recurrence) ~ IG, data=surv)
 ```
 
 ### KM DRS: IG clusters
@@ -899,7 +752,7 @@ ig_colors = cp$tertile_colors
 names(ig_colors) = paste0("IG=", names(ig_colors))
 
 ggsurvplot(
-    fit = survfit(Surv(time=months_to_drs, event=distant_recurrence) ~ IG, data = surv), 
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ IG, data = surv), 
     xlab = "Months", 
     ylab = "DRS",
     title= "IG clusters: DRS (univariate)",
@@ -912,7 +765,7 @@ ggsurvplot(
 
 ```{r, fig.width=10}
 ggsurvplot(
-    fit = survfit(Surv(months_to_drs, event=distant_recurrence) ~ PPBC + IG, data = surv), 
+    fit = survfit(Surv(time_DRS_months, event=distant_recurrence) ~ PPBC + IG, data = surv), 
     xlab = "Months", 
     ylab = "DRS probability",
     title = "DRS - IG clusters by PPBC",
@@ -921,31 +774,29 @@ ggsurvplot(
     palette = cp$tertile_colors,
     ggtheme = theme_bw()
 )
-
 ```
-
 
 ### KM DRS study group, faceted by IG cluster
 
 ```{r, fig.width=10}
 ggsurvplot(
-    fit = survfit(Surv(time=months_to_drs, event=distant_recurrence) ~ PPBC + IG, data = surv), 
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ PPBC + IG, data = surv), 
     xlab = "Months", 
     ylab = "DRS probability",
     title = "DRS - PPBC by IG cluster",
     pval = T, facet.by = "IG",
     palette = ppbc_colors,
     ggtheme = theme_bw())
-
-
 ```
 
 ### Multivariate Cox DRS
 
 ```{r}
 ig_drs = coxph(
-  Surv(time=months_to_drs,
-       event=distant_recurrence) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + IG + PPBC,
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ age_at_diagnosis + year_diagnosis + grade +
+    stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy +
+    herceptin + strata(PAM50) + IG + PPBC,
   data = surv)
 
 summary(ig_drs)
@@ -958,8 +809,10 @@ We stratify HT as it best encodes ER status.
 
 ```{r}
 coxph(
-  Surv(time=months_to_drs,
-       event=distant_recurrence) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + IG + PPBC,
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ age_at_diagnosis + year_diagnosis + grade +
+    stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy +
+    herceptin + PAM50 + IG + PPBC,
   data = surv) %>%
 ggadjustedcurves(., variable = "IG", data = as.data.frame(surv), method="conditional",     
                  palette = cp$tertile_colors,
@@ -972,8 +825,10 @@ ggadjustedcurves(., variable = "IG", data = as.data.frame(surv), method="conditi
 
 ```{r}
 coxph(
-  Surv(time=months_to_drs,
-       event=distant_recurrence) ~ age_at_diagnosis + year_of_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + strata(IG) + PPBC,
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ age_at_diagnosis + year_diagnosis + grade +
+    stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy +
+    herceptin + PAM50 + strata(IG) + PPBC,
   data = surv) %>%
   ggadjustedcurves(., variable = "IG", data = as.data.frame(surv), method="conditional", 
                    palette = cp$tertile_colors,
@@ -987,8 +842,3 @@ coxph(
 ```{r}
 sessionInfo()
 ```
-
-```{r}
-save.image(here("reports", "11_clustering_involution.RData"))
-```
-
