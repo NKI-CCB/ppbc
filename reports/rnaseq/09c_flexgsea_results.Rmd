@@ -10,11 +10,13 @@ output:
     canon: true
 params:
   fdr_thresh: 0.25
+  countMatrix: "results/rnaseq/flexgsea/deseq/input/geneSymbol_countmatrix.Rds"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
 ---
 
 A series of reports generated to visualize FlexGSEA results from script.
 
-```{r, include=F}
+```{r, message=F}
 library(flexgsea)
 library(here)
 library(pheatmap)
@@ -31,8 +33,7 @@ theme_set(theme_bw())
 ### Count matrix used as input:
 
 ```{r}
-cm <- readRDS(here("results", "flexgsea", "deseq",
-                   "input", "geneSymbol_countmatrix.Rds"))
+cm <- readRDS(here(params$countMatrix))
 
 cm[1:10,1:10]
 ```
@@ -40,7 +41,7 @@ cm[1:10,1:10]
 ### Annotation
 
 ```{r}
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot <- read_tsv(here(params$gx_annot))
 gx_annot <- gx_annot %>%
   select(ensembl_gene_id = gene_id, gene_name,
          gene_type, description = gene_description) %>% distinct()
@@ -71,13 +72,13 @@ signature_files
 Most of the important comparisons were made in a single batch. A few additional pairwise (group A vs group B) were made later.
 
 ```{r}
-result_files <- here("results", "flexgsea", "deseq", "results",
-                    list.files(here("results", "flexgsea", "deseq", "results"),
+result_files <- here("results", "rnaseq", "flexgsea", "deseq", "results",
+                    list.files(here("results", "rnaseq", "flexgsea", "deseq", "results"),
                                pattern = ".Rds"))
 
 result_files <- c(result_files, 
-                 here("results", "flexgsea", "deseq", "results_more_pairwise",
-                    list.files(here("results", "flexgsea", "deseq", "results_more_pairwise"),
+                 here("results", "rnaseq", "flexgsea", "deseq", "results_more_pairwise",
+                    list.files(here("results", "rnaseq", "flexgsea", "deseq", "results_more_pairwise"),
                                pattern = ".Rds")))
 
 stopifnot(all(file.exists(result_files)))
@@ -101,7 +102,7 @@ Results file is structure as a nested list with parameters and flexgsea results 
 
 ```{r, include=F}
 #test <- readRDS(result_files[1])
-test <- readRDS("/DATA/share/postpartumbc/results/flexgsea/deseq/results/study_group_canonpath_c2_results_flexdeseq.Rds") 
+test <- readRDS(here("results/rnaseq/flexgsea/deseq/results/study_group_canonpath_c2_results_flexdeseq.Rds") )
 #str(test)
 
 names(test)
@@ -173,7 +174,8 @@ gseares %>% select(key, comparison) %>% distinct()
 ### Write aggregate table
 
 ```{r}
-openxlsx::write.xlsx(gseares, file = here("results", "flexgsea", "deseq", "flexgsea_aggregate_results.xlsx"))
+openxlsx::write.xlsx(gseares, file = here("results", "rnaseq", "flexgsea",
+                                          "deseq", "flexgsea_aggregate_results.xlsx"))
 ```
 
 ## Total number of significant gene signatures
@@ -329,4 +331,3 @@ lapply(unique(invflex$comparison), function(x){
 ```{r}
 sessionInfo()
 ```
-

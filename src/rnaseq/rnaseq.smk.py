@@ -581,9 +581,9 @@ rule diffex_involution:
     html="reports/rnaseq/09_diffex_time_involution.html",
     dds="data/rnaseq/processed/09_dds_involution_duration.Rds",
     ape="data/rnaseq/processed/09_ape_involution_duration.Rds",
-    genes="results/diffex/09_diffex_involution_duration.xlsx",
-    heatmap="results/diffex/09_hm_involution_duration.pdf",
-    volcano="results/diffex/09_volcano_involution_duration.pdf"
+    genes="results/rnaseq/diffex/09_diffex_involution_duration.xlsx",
+    heatmap="results/rnaseq/diffex/09_hm_involution_duration.pdf",
+    volcano="results/rnaseq/diffex/09_volcano_involution_duration.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --gx_annot {input.gx_annot}"
@@ -628,16 +628,16 @@ rule diffex_breastfeeding:
 
 rule flexgsea:
   input:
-    script = "src/deseq_flexgsea.R",
-    lib = "src/deseq_report_functions.R",
-    dds = "data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-    tx_annot = "data/rnaseq/metadata/01_gene_annot.tsv",
+    script = "src/rnaseq/deseq_flexgsea.R",
+    lib = "src/rnaseq/deseq_report_functions.R",
+    dds = "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
+    gx_annot = "data/rnaseq/metadata/01_gene_annot.tsv",
     gene_sets = expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets)
   output:
-    # 30+ results files in this dir
-    dir("results/flexgsea/deseq"),
+    dir("results/rnaseq/flexgsea/deseq"),
     # Example results file
-    "results/flexgsea/deseq/results/inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"
+    "results/rnaseq/flexgsea/deseq/results/inv_vs_rest_canonpath_c2_results_flexdeseq.Rds",
+    "results/rnaseq/flexgsea/deseq/input/geneSymbol_countmatrix.Rds"
   shell:
     """
     export OMP_NUM_THREADS=1 
@@ -647,20 +647,22 @@ rule flexgsea:
 rule flexgsea_report:
   input:
     # Takes a long time to rerun flexgsea with deseq and multiple comparisons
-    ancient(dir("results/flexgsea/deseq")),
-    ancient("results/flexgsea/deseq/results/inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"),
+    ancient(dir("results/rnaseq/flexgsea/deseq")),
+    ancient("results/rnaseq/flexgsea/deseq/results/inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"),
+    countMatrix = ancient("results/rnaseq/flexgsea/deseq/input/geneSymbol_countmatrix.Rds"),
     script = "src/utils/rmarkdown.R",
-    rmd = "reports/09b_flexgsea_results.Rmd",
-    tx_annot = "data/rnaseq/metadata/01_gene_annot.tsv",
-    colors = "data/Rds/color_palettes.Rds"
+    rmd = "reports/rnaseq/09c_flexgsea_results.Rmd",
+    gx_annot = "data/rnaseq/metadata/01_gene_annot.tsv"
   params:
     fdr_thresh = 0.25
   output:
-    html = "reports/09b_flexgsea_results.html",
-    overview = "results/flexgsea/deseq/flexgsea_aggregate_results.xlsx"
+    html = "reports/rnaseq/09c_flexgsea_results.html",
+    overview = "results/rnaseq/flexgsea/deseq/flexgsea_aggregate_results.xlsx"
   shell:
      "Rscript {input.script} {input.rmd} $PWD/{output.html}"
      " --fdr_thresh '{params.fdr_thresh}'"
+     " --gx_annot '{input.gx_annot}'"
+     " --countMatrix '{input.countMatrix}'"
 
 #### Cibersort Deconvolution ####
     
