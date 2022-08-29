@@ -668,17 +668,21 @@ rule flexgsea_report:
     
 rule cibersortX:
   input:
+    hugo="data/rnaseq/interim/hugo_fpkm.txt",
     #Results obtained by uploading hugo_fpkm.txt to the cibersort website with the enumerated parameters
-    ciber_res="results/cibersortX/CIBERSORTx_Job3_Results.csv",
-    geneEx="data/RNA-seq/hugo_fpkm.txt",
-    surv="data/Rds/04_survdata.Rds",
-    metadata="data/metadata/05_sample_annot_filtered.csv",
-    rmd="reports/10_CibersortX.Rmd",
+    ciber_res="results/rnaseq/cibersortX/CIBERSORTx_Job3_Results.csv",
+    coxdata="data/rnaseq/interim/04_survdata.Rds",
+    metadata="data/rnaseq/metadata/05_sample_annot_filtered.csv",
+    cp="data/rnaseq/interim/color_palettes.Rds",
+    sp="data/rnaseq/interim/survival_colors.Rds",
+    rmd="reports/rnaseq/10_CibersortX.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    pdf="reports/10_CibersortX.pdf"
+    pdf="reports/rnaseq/10_CibersortX.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
+
+#### Clustering of PPBCpw DEGs ####
 
 #Only those results which include an inv vs something comparison
 inv_comps = [
@@ -687,8 +691,6 @@ inv_comps = [
   "08_one_vs_rest_allgenes",
   "08_one_vs_rest_sig_genes"
 ]
-
-#### Clustering of PPBCpw DEGs ####
 
 rule inv_clustering:
   input:

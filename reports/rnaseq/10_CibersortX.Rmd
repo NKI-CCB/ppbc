@@ -1,5 +1,5 @@
 ---
-title: "10_CibersortX"
+title: "CibersortX"
 Author: Kat Moore
 date: "`r Sys.Date()`"
 output: 
@@ -9,17 +9,19 @@ output:
     fig_width: 7
     fig_height: 6
     df_print: tibble
+params:
+  ciber_input: "results/rnaseq/cibersortX/CIBERSORTx_Job3_Results.csv"
+  abs_ciber_input: "results/rnaseq/cibersortX/CIBERSORTx_Job4_Results.csv"
+  hugo: "data/rnaseq/interim/hugo_fpkm.txt"
+  metadata: "data/rnaseq/metadata/05_sample_annot_filtered.csv"
+  cp: "data/rnaseq/interim/color_palettes.Rds"
+  sp: "data/rnaseq/interim/survival_colors.Rds"
+  coxdata: "data/rnaseq/interim/04_survdata.Rds"
 ---
 
 Visualizations and statistical test on CibersortX deconvolution of immune cells between PPBC study groups.
 
-Note: At this time (30/4/20), some of the elements in box plots are overlapping.
-
-```{r, include=F}
-rm(list = ls())
-```
-
-```{r, include =F}
+```{r, message=F}
 library(here)
 library(ggbeeswarm)
 library(RColorBrewer)
@@ -32,32 +34,27 @@ library(ggpubr)
 library(survival)
 library(survminer)
 library(tidyverse)
-
-```
-
-```{r, include=F}
 theme_set(theme_bw())
 ```
-
 
 # Input and parameters 
 
 Sample metadata:
 
 ```{r}
-meta = read_csv(here("data","metadata", "05_sample_annot_filtered.csv"))
+meta = read_csv(here(params$meta))
 ```
 
 ## Colors
 
 ```{r}
-cp = readRDS(here("data", "Rds", "color_palettes.Rds"))
+cp = readRDS(here(params$cp))
 study_colors = cp$study_colors
 pam_colors = cp$pam_colors
 gene_colors = cp$gene_colors
 ppbc_colors = cp$ppbc_colors
 
-sp = readRDS(here("data/Rds/survival_colors.Rds"))
+sp = readRDS(here(params$sp))
 ```
 
 
@@ -66,13 +63,13 @@ CibersortX can be found at https://cibersortx.stanford.edu/
 As input, it takes a mixture file with samples as column names and genes as row names within the first column. The values should be normalized by library size or (better) lib size and transcript length (tpm/fpkm). CibersortX can add unique identifiers to duplicate gene names, but ideally the duplicates are already handled by the user. We have already produced such a matrix in notebook 4 (04_tumor_purity.Rmd) for running ESTIMATE, using fpkm.
 
 ```{r}
-hugo_mat = read_tsv(here("data", "RNA-seq", "hugo_fpkm.txt"))
+hugo_mat = read_tsv(here(params$hugo))
 hugo_mat[1:4, 1:4]
 ```
 
 ## Load Cibersort results
 
-Job Parameters used for this run:
+`r params$ciber_input`
 
     Date: 2020-04-28 07:35:19
     Job type: Impute Cell Fractions
@@ -84,14 +81,19 @@ Job Parameters used for this run:
     Run mode (relative or absolute): relative
     Permutations: 100
 
+`r params$abs_ciber_input`
+
+    Same as above, except
+    Run mode (relative or absolute): absolute
+    
 CibersortX takes a signature matrix as well as a mixture matrix to perform deconvolution. It is possible to generate a unique signature matrix, but this requires single cell RNAseq data, which the PPBC project lacks. As such, we use the default version on the website: the LM22 matrix, which contains 22 functionally defined human immune subsets. 
 
 LM22 was generated based on microarray data. The documentation recommends applying batch correction when the signature matrix and mixture matrix are profiled on different platforms. Batch correction was run in B-mode ("bulk", as opposed to "s" mode for single cell) using the optional GEP file provided for LM22 on the website. Disabling quantile normalization is recommended for RNA-Seq data. As we are working with RNA-Seq data in this tutorial, we leave this box checked. 
 
 
 ```{r}
-ciber_input = read_csv(here("results", "cibersortX", "CIBERSORTx_Job3_Results.csv"))
-abs_ciber_input = read_csv(here("results", "cibersortX", "CIBERSORTx_Job4_Results.csv"))
+ciber_input = read_csv(here(params$ciber_input))
+abs_ciber_input = read_csv(here(params$abs_ciber_input))
 head(ciber_input)
 ```
 
@@ -111,15 +113,15 @@ ciberdf = ciber_input %>%
   gather(key = "type", value = "ciberval", -Mixture) %>%
   select(sample_name = Mixture, everything()) %>%
   left_join(., select(meta, sample_name, study_group, PPBC,
-                      PAM50, molecular_subtype,tumor_purity, batch,
-                      stage=stage_short_integer, grade,
+                      PAM50, clin_subtype,tumor_purity, batch,
+                      stage, grade,
                       involution_duration, breastfeeding_duration), by = "sample_name")
 abs_ciberdf = abs_ciber_input %>%
   gather(key = "type", value = "ciberval", -Mixture) %>%
   select(sample_name = Mixture, everything()) %>%
   left_join(., select(meta, sample_name, study_group, PPBC,
-                      PAM50, molecular_subtype,tumor_purity, batch,
-                      stage=stage_short_integer, grade,
+                      PAM50, clin_subtype,tumor_purity, batch,
+                      stage, grade,
                       involution_duration, breastfeeding_duration), by = "sample_name")
 head(ciberdf)  
 ```
@@ -1837,7 +1839,7 @@ cibermean %>% filter(type %in% (wil_res %>% filter(fdr < 0.05) %>% pull(cell) %>
 Read in survival data
 
 ```{r}
-surv <- readRDS(here("data/Rds/04_survdata.Rds"))
+surv <- readRDS(here(params$coxdata))
 head(surv)
 ```
 
@@ -1856,7 +1858,7 @@ surv_type = surv_type %>% select(plasmaB =`Plasma cells`, everything())
 surv_type = surv_type %>%
   mutate(involution_duration = as.character(involution_duration),
          PPBC = as.character(PPBC),
-         overall_survival = as.character(overall_survival)) %>%
+         death = as.character(death)) %>%
   mutate(PPBC.old = PPBC,
          PPBC = case_when(
            PPBC.old == "involuting" & is.na(involution_duration) ~ "inv unknown",
@@ -1866,7 +1868,7 @@ surv_type = surv_type %>%
          )) %>% filter(PPBC != "inv unknown") %>%
   mutate(PPBC = factor(PPBC, levels = c(
     "nulliparous", "pregnant", "lactating", "inv <= 6 months", "inv > 6 months"
-  ))) %>% mutate(overall_survival = as.integer(overall_survival))
+  ))) %>% mutate(death = as.integer(death))
 
 
 ```
@@ -1879,8 +1881,10 @@ Separate inv group
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + plasmaB,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery +
+    radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + 
+    strata(PAM50) + PPBC + plasmaB,
   data = surv_type) %>%
 
 summary()
@@ -1903,8 +1907,8 @@ select(surv_type, plasmaB, plasmaB_tertile) %>% table()
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + plasmaB,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + plasmaB,
   data = surv_type) %>%
 
 summary()
@@ -1922,8 +1926,8 @@ st2 = surv_type %>% dplyr::rename(PPBC2 = PPBC) %>%
   )))
 
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + plasmaB,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + plasmaB,
   data = st2) %>%
 
 summary()
@@ -1937,7 +1941,7 @@ bcolors = cp$tertile_colors
 names(bcolors) = paste0("plasmaB=", names(cp$tertile_colors))
 
   ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ plasmaB, data = surv_type), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ plasmaB, data = surv_type), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = "Plasma B tertiles",
@@ -1953,7 +1957,7 @@ bcolors = cp$tertile_colors
 names(bcolors) = paste0("plasmaB=", names(cp$tertile_colors))
 
   ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ plasmaB, data = st2), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ plasmaB, data = st2), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = "Plasma B tertiles",
@@ -1971,7 +1975,7 @@ bcolors = cp$tertile_colors
 names(bcolors) = paste0("plasmaB=", names(cp$tertile_colors))
 
 p =  ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ PPBC + plasmaB, data = as.data.frame(surv_type)), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ PPBC + plasmaB, data = as.data.frame(surv_type)), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = "Plasma B tertiles",
@@ -1983,7 +1987,7 @@ p$plot +
     facet_wrap(~PPBC)
   
     ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ plasmaB, data = as.data.frame(surv_type)), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ plasmaB, data = as.data.frame(surv_type)), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = "Plasma B tertiles",
@@ -2004,7 +2008,7 @@ plist = list()
 
 for(sg in unique(surv_type$PPBC)){
   p = ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ plasmaB, data = surv_type[surv_type$PPBC == sg, , drop=F]), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ plasmaB, data = surv_type[surv_type$PPBC == sg, , drop=F]), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = paste0("PPBC:", sg),
@@ -2026,7 +2030,7 @@ plist = list()
 
 for(sg in unique(st2$PPBC)){
   p = ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ plasmaB, data = st2[st2$PPBC == sg, , drop=F]), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ plasmaB, data = st2[st2$PPBC == sg, , drop=F]), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = paste0("PPBC:", sg),
@@ -2045,8 +2049,8 @@ Can't stratify PAM50 here or there's too few points.
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC + plasmaB,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC + plasmaB,
   data = surv_type) %>%
   
   ggadjustedcurves(., variable = "plasmaB", data = as.data.frame(surv_type), method="conditional",     
@@ -2060,8 +2064,8 @@ And again with a single inv group upon request
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC + plasmaB,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC + plasmaB,
   data = st2) %>%
   
   ggadjustedcurves(., variable = "plasmaB", data = as.data.frame(st2), method="conditional",     
@@ -2085,8 +2089,8 @@ head(surv_type[,1:4])
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + CD8_exp,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + CD8_exp,
   data = surv_type) %>%
 
 summary()
@@ -2107,8 +2111,8 @@ select(surv_type, CD8, CD8_tertile) %>% table()
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + CD8,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + CD8,
   data = surv_type) %>%
 
 summary()
@@ -2122,7 +2126,7 @@ tcolors = cp$tertile_colors
 names(tcolors) = paste0("CD8=", names(cp$tertile_colors))
 
   ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ CD8, data = surv_type), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ CD8, data = surv_type), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = "CD8 T cell tertiles",
@@ -2142,7 +2146,7 @@ tlist = list()
 
 for(sg in unique(surv_type$PPBC)){
   p = ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ CD8, data = surv_type[surv_type$PPBC == sg, , drop=F]), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ CD8, data = surv_type[surv_type$PPBC == sg, , drop=F]), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = paste0("PPBC:", sg),
@@ -2161,8 +2165,8 @@ Can't stratify PAM50 here or there's too few points.
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC + CD8,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC + CD8,
   data = surv_type) %>%
   
   ggadjustedcurves(., variable = "CD8", data = as.data.frame(surv_type), method="conditional",     
@@ -2185,8 +2189,8 @@ head(surv_type[,1:4])
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + M2_exp,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + M2_exp,
   data = surv_type) %>%
 
 summary()
@@ -2207,8 +2211,8 @@ select(surv_type, M2, M2_tertile) %>% table()
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + M2,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC + M2,
   data = surv_type) %>%
 
 summary()
@@ -2221,7 +2225,7 @@ tcolors = cp$tertile_colors
 names(tcolors) = paste0("M2=", names(cp$tertile_colors))
 
   ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ M2, data = surv_type), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ M2, data = surv_type), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = "M2 macrophage tertiles",
@@ -2241,7 +2245,7 @@ tlist = list()
 
 for(sg in unique(surv_type$PPBC)){
   p = ggsurvplot(
-    fit = survfit(Surv(time=months_overall_survival, event=overall_survival) ~ M2, data = surv_type[surv_type$PPBC == sg, , drop=F]), 
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ M2, data = surv_type[surv_type$PPBC == sg, , drop=F]), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = paste0("PPBC:", sg),
@@ -2260,8 +2264,8 @@ Can't stratify PAM50 here or there's too few points.
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC + M2,
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + PPBC + M2,
   data = surv_type) %>%
   
   ggadjustedcurves(., variable = "M2", data = as.data.frame(surv_type), method="conditional",     
@@ -2277,9 +2281,4 @@ coxph(
 sessionInfo()
 ```
 
-
-
-```{r}
-save.image(here("reports", "10_CibersortX.RData"))
-```
 
