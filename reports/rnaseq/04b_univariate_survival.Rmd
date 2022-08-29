@@ -116,7 +116,10 @@ sd %>% head()
 How many samples lack complete info?
 
 ```{r}
-samples_missing_info <- sd[rowSums(is.na(sd))> 0,]
+samples_missing_info <- sd %>%
+  #This is always NA for non PPBCpw samples
+  select(-months_involution, -months_breastfeeding)
+samples_missing_info <- samples_missing_info[rowSums(is.na(samples_missing_info))> 0,]
 
 samples_missing_info
 ```
@@ -137,7 +140,7 @@ follow_up > 20 | death == 1
 print(paste("Started with", nrow(sd), "samples"))
 
 print(paste("Samples with missing values in survival data:",
-            length(samples_missing_info)))
+            nrow(samples_missing_info)))
 excluded <- sd %>% filter(sample_name %in% samples_missing_info$sample_name) %>%
   mutate(reason = "missing survival data")
 
@@ -162,7 +165,8 @@ metadata <- sd %>% filter(!sample_name %in% samples_missing_info$sample_name) %>
 
 print(paste(nrow(metadata), "samples remaining post filtering"))
 
-stopifnot(all(rowSums(is.na(metadata)) == 0))
+stopifnot(all(rowSums(is.na(
+  select(metadata, -months_involution, -months_breastfeeding))) == 0))
 ```
 
 Overview excluded samples:

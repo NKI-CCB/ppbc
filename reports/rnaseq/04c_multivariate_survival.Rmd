@@ -365,11 +365,8 @@ coxph(
 ## Adjused models for time in involution and breastfeeding
 
 ```{r}
-inv_cox <- as.data.frame(colData(dds)) %>%
+inv_cox <- coxdata %>%
   filter(study_group == "ppbcpw") %>%
-  select(sample_name, months_involution, months_breastfeeding) %>%
-  na.omit() %>%
-  left_join(., coxdata, by = "sample_name") %>%
   na.omit()
 
 print(paste(nrow(inv_cox), "of", nrow(filter(coxdata, study_group == "ppbcpw")),
