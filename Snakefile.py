@@ -62,6 +62,9 @@ rule all:
     expand("data/rnaseq/salmon/{sample}/quant.sf", sample=config['samples']),
     expand("results/rnaseq/fastqc/{sample}_fastqc.html", sample=config['samples']),
     "reports/rnaseq/08_diffex_onevsrest.html",
+    "reports/rnaseq/09_diffex_time_involution.html",
+    expand("reports/rnaseq/14_subgroup_diffex_{comp}.html",
+      comp=["ppbcpw_vs_npbc","ppbcpw_vs_prbc","ppbcpw_vs_rest"]),
     #"reports/16_gene_unity_setup.html",
     # Spatial rules
     "reports/spatial/05_report_cell_types.html",

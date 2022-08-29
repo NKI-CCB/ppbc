@@ -7,9 +7,17 @@ output:
     toc: yes
     toc_float: yes
     df_print: paged
-    theme: darkly
-    highlight: breezedark
+    highlight: kate
     canon: true
+params:
+  dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
+  vsd: "data/rnaseq/interim/08_vsd_ovr.Rds"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+  immune_genes: "data/external/gene_ref/InnateDB_genes.csv"
+  cp: "data/rnaseq/interim/color_palettes.Rds"
+  sp: "data/rnaseq/interim/survival_colors.Rds"
+  lib: "src/rnaseq/enrichment-analysis-functions.R"
+  overwrite: TRUE
 ---
 
 
@@ -17,15 +25,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, include=F}
-rm(list = ls())
-```
-
-```{r, include=F}
-#library(devtools)
-#install_github("jokergoo/ComplexHeatmap")
-#install_github("mikelove/DESeq2") 
-#install_github("azhu513/apeglm")
+```{r, message=F}
 library(flexgsea) #For read_gmt()
 library(ggrepel)
 library(ComplexHeatmap)
@@ -38,6 +38,8 @@ library(DESeq2)
 library(UpSetR)
 library(apeglm)
 library(tidyverse)
+
+theme_set(theme_bw())
 ```
 
 # Load data {.tabset}
@@ -45,15 +47,14 @@ library(tidyverse)
 Count data, in DESeq dataset and variance-stabilized transformed format.
 
 ```{r}
-dds <- readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
-#list.files(here("data/Rds"),pattern="vsd")
-vsd <- readRDS(here("data/Rds/08_vsd_ovr.Rds"))
+dds <- readRDS(here(params$dds))
+vsd <- readRDS(here(params$vsd))
 ```
 
 ## Gene data
 
 ```{r}
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot <- read_tsv(here(params$gx_annot), show_col_types = F)
 #head(gx_annot)
 gx_annot = gx_annot %>%
   select(ensembl_gene_id = gene_id, gene_name, hgnc_symbol,
@@ -83,19 +84,19 @@ Either immune/immuno/interleukin is part of the gene name and description OR the
 The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The principal investigator of the BISC project is Dr. Richard Scheuermann at University of Texas Southwestern Medical Center. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
 
 ```{r}
-immune_gene_list <- read_csv(here("data", "external","gene-sets","InnateDB_genes.csv"))
+immune_gene_list <- read_csv(here(params$immune_genes), show_col_types = F)
 head(immune_gene_list)
 ```
 
 ## Colors
 
 ```{r}
-cp = readRDS(here("data", "Rds", "color_palettes.Rds"))
+cp = readRDS(here(params$cp))
 study_colors = cp$study_colors
 pam_colors = cp$pam_colors
 gene_colors = cp$gene_colors
 
-sp = readRDS(here("data/Rds/survival_colors.Rds"))
+sp = readRDS(here(params$sp))
 ```
 
 # Set up contrast
@@ -119,9 +120,7 @@ dds$involution_duration =
 dds$involution_duration = 
   relevel(dds$involution_duration,
         ref="more than 6 months")
-
 ```
-
 
 Remaining samples:
 
@@ -145,8 +144,8 @@ design(dds) <- ~batch + PAM50 + involution_duration
 # Differential expression
 
 ```{r DESeq}
-ddsfile = here("data/Rds/09_dds_involution_duration.Rds")
-overwrite <- T
+ddsfile = here("data/rnaseq/processed/09_dds_involution_duration.Rds")
+overwrite <- as.logical(params$overwrite)
 
 if(file.exists(ddsfile) == F | overwrite == T){
   tic()
@@ -176,7 +175,7 @@ rdds
 
 
 ```{r}
-apefile = here("data/Rds/09_ape_involution_duration.Rds")
+apefile = here("data/rnaseq/processed/09_ape_involution_duration.Rds")
 
 if(file.exists(apefile) == F | overwrite == T){
   tic()
@@ -201,7 +200,6 @@ Title for plots
 ```{r}
 ts = "Involution duration: <=6mo vs >6mo"
 ```
-
 
 # Annotate results
 
@@ -295,6 +293,7 @@ nrow(sig_results)
 ```{r}
 sig_results
 ```
+
 MS4A1/CD20 is here.
 Surprising to see ERBB2/HER2 here, given that the HER2 subtype is evenly split between the groups.
 MUC2 is strongly enriched.
@@ -320,7 +319,8 @@ volcano_plot <- function(x, title="", path_save_fig = NULL, pthresh = 0.05, absl
   if (dedup_ids == T){
     print("Summarizing -log10FDR and log2FoldChange by median for duplicate gene names in volcano plot")
     volcdf = volcdf %>% group_by(gene_name, Significant, Type, Color) %>%
-      summarise(log2FoldChange = median(l2fc), NegLog10FDR = median(NegLog10FDR)) %>%
+      summarise(log2FoldChange = median(l2fc), NegLog10FDR = median(NegLog10FDR),
+                .group = "drop") %>%
       arrange(desc(NegLog10FDR))
   }
   
@@ -356,6 +356,7 @@ volcano_plot <- function(x, title="", path_save_fig = NULL, pthresh = 0.05, absl
 #volcano_plots <- Map(volcano_plot, x = annotated_results, title = paste0(ts, ": ", names(annotated_results)))
 vp <- volcano_plot(x = annotated_results, title = ts)
 ```
+
 ```{r}
 vp
 ```
@@ -363,7 +364,7 @@ vp
 # Pathways
 
 ```{r fisher pathways}
-source(here("src", "enrichment-analysis-functions.R"))
+source(here(params$lib))
 pathway_cutoff = 0.1
 
 tic("Fisher pathways")
@@ -378,8 +379,6 @@ pathways = fisher_pathways(
 
 toc()
 ```
-
-We may want to further investigate CDH1
 
 ```{r}
 pathways
@@ -484,7 +483,6 @@ geneEx[1:4,1:4]
 Add death column, adjust color names:
 
 ```{r}
-dds$death <- factor(dds$overall_survival, levels = c(0, 1))
 death_colors = sp$overall_survival
 death_colors[names(death_colors) == 0] <- "lightgray"
 
@@ -667,54 +665,35 @@ plot_gene_simple(dds, ensembl_gene_id = en,
 Save the significant genes and results from each comparison.
 
 ```{r}
+resDir = here("results", "rnaseq", "diffex")
+dir.create(resDir, showWarnings = F)
+
 #The tab names will be the list names
 resdf = list(sig_results, annotated_results, pathways)
 names(resdf) = c("sig", "all", "sig_pathways")
 
-write.xlsx(resdf, file = here("results", "diffex", "09_diffex_involution_duration.xlsx"))
+write.xlsx(resdf, file = here(resDir, "09_diffex_involution_duration.xlsx"))
 rm(resdf)
 ```
 
 Heatmap
 
 ```{r}
-resDir = here("results", "diffex", "figs", "09_involution_duration")
-dir.create(resDir, showWarnings = F)
-
 pdf(file.path(resDir, "09_hm_involution_duration.pdf"), width = 10, height = 8)
 print(draw(hm, heatmap_legend_side = "right", annotation_legend_side = "bottom"))
 dev.off()
-
 ```
 
 Volcano plots
 
 ```{r}
-ggsave(filename=file.path(resDir,"09_volcano_involution_duration.jpeg"),
-       plot=vp, height = 6, width = 8)
+pdf(file.path(resDir, "09_volcano_involution_duration.pdf"), width = 8, height = 6)
+vp
+dev.off()
 ```
 
+## Session info
 
 ```{r}
 sessionInfo()
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
