@@ -101,8 +101,9 @@ sd <- sd %>%
          grade, stage,
          FU_time_months, year_diagnosis, year_birth,
          death, time_OS_months,
-         distant_recurrence, time_DRS_months, surgery,
-         radiotherapy = RT, hormonetherapy = HT,
+         distant_recurrence, time_DRS_months,
+         months_involution, months_breastfeeding,
+         surgery, radiotherapy = RT, hormonetherapy = HT,
          chemotherapy = CT, herceptin,
          year_diagnosis, year_birth
          ) %>%
@@ -184,6 +185,7 @@ The metadata as prepared can be used as input for survival analyses.
 
 ```{r}
 coxdata <- metadata
+colnames(coxdata)
 ```
 
 ## Univariate survival curves
@@ -230,11 +232,8 @@ Add months_involution (the number of months since the onset of weaning) and mont
 Omit missing values.
 
 ```{r}
-inv_cox <- as.data.frame(colData(dds)) %>%
+inv_cox <- coxdata %>%
   filter(study_group == "ppbcpw") %>%
-  select(sample_name, months_involution, months_breastfeeding) %>%
-  na.omit() %>%
-  left_join(., coxdata, by = "sample_name") %>%
   na.omit()
 
 print(paste(nrow(inv_cox), "of", nrow(filter(coxdata, study_group == "ppbcpw")),
@@ -671,6 +670,7 @@ survdiff(Surv(time=time_DRS_months, event=distant_recurrence) ~ breastfeeding, d
 ## Save data
 
 ```{r}
+colnames(coxdata)
 saveRDS(coxdata, here("data/rnaseq/interim/04_survdata.Rds"))
 ```
 
