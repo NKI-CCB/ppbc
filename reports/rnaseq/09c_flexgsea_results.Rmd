@@ -15,6 +15,11 @@ params:
 ---
 
 A series of reports generated to visualize FlexGSEA results from script.
+Note: this report currently uses the old study group nomenclature.
+
+* ppbc_inv = ppbcpw
+* ppbc_lac = ppbcdl
+* non_prbc = npbc
 
 ```{r, message=F}
 library(flexgsea)
