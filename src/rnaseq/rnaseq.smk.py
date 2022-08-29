@@ -734,26 +734,55 @@ rule inv_clustering:
 
 #### Survival analyses based on gene expression ####
 
+# Add gene expression as columns to clinical covariates  
+rule prepare_coxdata:
+  input:
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    coxdata="data/rnaseq/interim/04_survdata.Rds",
+    dds = "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
+    script = "src/rnaseq/prepare_coxdata.R"
+  output:
+    coxdata="data/rnaseq/processed/12_coxdata.Rds", #includes gene expression
+    invcoxdata="data/rnaseq/processed/12_invdata.Rds"
+  shell:
+    """
+    Rscript {input.script}
+    """
+
+# Run the univariate and multivariate cox regressions
+rule genewise_survival:
+  input:
+    coxdata="data/rnaseq/processed/12_coxdata.Rds",
+    script = "src/rnaseq/genewise_survival.R"
+  output:
+    expand("data/rnaseq/processed/12_{res}.Rds",
+      res=["multi_genewise_os", "uni_genewise_os", "multi_genewise_drs", "uni_genewise_drs"])
+  shell:
+    """
+    Rscript {input.script}
+    """
+
+# As above, but with inv samples only
+# Could be combined with genewise_survival with wildcards for brevity
+rule inv_genewise_survival:
+  input:
+    coxdata="data/rnaseq/processed/12_invdata.Rds",
+    lib = "src/rnaseq/genewise_survival.R",
+    script = "src/rnaseq/inv_genewise_survival.R"
+  output:
+    expand("data/rnaseq/processed/12_{res}.Rds",
+      res=["inv_multi_genewise_os", "inv_uni_genewise_os", "inv_multi_genewise_drs", "inv_uni_genewise_drs"])
+  shell:
+    """
+    Rscript {input.script}
+    """
+
 genewise_cox =[
   "multi_genewise_os", "uni_genewise_os",
   "multi_genewise_drs", "uni_genewise_drs",
   "inv_multi_genewise_os", "inv_uni_genewise_os",
   "inv_multi_genewise_drs", "inv_uni_genewise_drs"
   ]
-
-rule genewise_survival:
-  input:
-    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    survdata="data/Rds/04_survdata.Rds",
-    dds = "data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-  output:
-    expand("data/Rds/12_{res}.Rds", res=genewise_cox),
-    coxdata="data/Rds/12_coxdata.Rds",
-    invcoxdata="data/Rds/12_invdata.Rds"
-  shell:
-    """
-    Rscript src/12_genewise_survival.R
-    """
 
 rule report_genewise_survival:
   input:
