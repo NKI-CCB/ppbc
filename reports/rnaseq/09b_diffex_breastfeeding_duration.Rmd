@@ -7,8 +7,17 @@ output:
     toc: yes
     toc_float: yes
     toc_depth: 4
-    highlight: tango
+    highlight: kate
     df_print: paged
+params:
+  dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
+  vsd: "data/rnaseq/interim/08_vsd_ovr.Rds"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+  immune_genes: "data/external/gene_ref/InnateDB_genes.csv"
+  cp: "data/rnaseq/interim/color_palettes.Rds"
+  sp: "data/rnaseq/interim/survival_colors.Rds"
+  lib: "src/rnaseq/enrichment-analysis-functions.R"
+  overwrite: TRUE  
 ---
 
 
@@ -16,15 +25,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, include=F}
-rm(list = ls())
-```
-
-```{r, include=F}
-#library(devtools)
-#install_github("jokergoo/ComplexHeatmap")
-#install_github("mikelove/DESeq2") 
-#install_github("azhu513/apeglm")
+```{r, message=F}
 library(flexgsea) #For read_gmt()
 library(ggrepel)
 library(ComplexHeatmap)
@@ -44,15 +45,14 @@ library(tidyverse)
 Count data, in DESeq dataset and variance-stabilized transformed format.
 
 ```{r}
-dds <- readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
-#list.files(here("data/Rds"),pattern="vsd")
-vsd <- readRDS(here("data/Rds/08_vsd_ovr.Rds"))
+dds <- readRDS(here(params$dds))
+vsd <- readRDS(here(params$vsd))
 ```
 
 ## Gene data
 
 ```{r}
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot <- read_tsv(here(params$gx_annot), show_col_types = F)
 #head(gx_annot)
 gx_annot = gx_annot %>%
   select(ensembl_gene_id = gene_id, gene_name, hgnc_symbol,
@@ -82,19 +82,19 @@ Either immune/immuno/interleukin is part of the gene name and description OR the
 The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The principal investigator of the BISC project is Dr. Richard Scheuermann at University of Texas Southwestern Medical Center. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
 
 ```{r}
-immune_gene_list <- read_csv(here("data", "external","gene-sets","InnateDB_genes.csv"))
+immune_gene_list <- read_csv(here(params$immune_genes), show_col_types = F)
 head(immune_gene_list)
 ```
 
 ## Colors
 
 ```{r}
-cp = readRDS(here("data", "Rds", "color_palettes.Rds"))
+cp = readRDS(here(params$cp))
 study_colors = cp$study_colors
 pam_colors = cp$pam_colors
 gene_colors = cp$gene_colors
 
-sp = readRDS(here("data/Rds/survival_colors.Rds"))
+sp = readRDS(here(params$sp))
 ```
 
 # Set up contrast
@@ -121,7 +121,6 @@ dds$breastfeeding_duration =
 
 ```
 
-
 Remaining samples:
 
 ```{r}
@@ -135,8 +134,6 @@ table(dds$batch, dds$breastfeeding_duration)
 table(dds$PAM50, dds$breastfeeding_duration)
 ```
 
-Discuss: Combine small groups?
-
 ```{r}
 design(dds) <- ~batch + PAM50 + breastfeeding_duration
 ```
@@ -144,8 +141,8 @@ design(dds) <- ~batch + PAM50 + breastfeeding_duration
 # Differential expression
 
 ```{r DESeq}
-ddsfile = here("data/Rds/09_dds_breastfeeding_duration.Rds")
-overwrite = F
+ddsfile = here("data/rnaseq/processed/09b_dds_breastfeeding_duration.Rds")
+overwrite = params$overwrite
 
 if(file.exists(ddsfile) == F | overwrite == T){
   tic()
@@ -175,7 +172,7 @@ rdds
 
 
 ```{r}
-apefile = here("data/Rds/09_ape_breastfeeding_duration.Rds")
+apefile = here("data/rnaseq/processed/09b_ape_breastfeeding_duration.Rds")
 
 if(file.exists(apefile) == F | overwrite == T){
   tic()
@@ -200,7 +197,6 @@ Title for plots
 ```{r}
 ts = "Breastfeeding duration: <=1mo vs >1mo"
 ```
-
 
 # Annotate results
 
@@ -371,7 +367,7 @@ vp
 # Pathways
 
 ```{r fisher pathways}
-source(here("src", "enrichment-analysis-functions.R"))
+source(here(params$lib))
 pathway_cutoff = 0.1
 
 tic("Fisher pathways")
@@ -495,7 +491,6 @@ geneEx[1:4,1:4]
 Add death column, adjust color names:
 
 ```{r}
-dds$death <- factor(dds$overall_survival, levels = c(0, 1))
 death_colors = sp$overall_survival
 death_colors[names(death_colors) == 0] <- "lightgray"
 
@@ -657,54 +652,36 @@ lapply(seq(1:4), function(i){
 Save the significant genes and results from each comparison.
 
 ```{r}
+resDir = here("results", "rnaseq", "diffex")
+dir.create(resDir, showWarnings = F)
+
 #The tab names will be the list names
 resdf = list(sig_results, annotated_results, pathways)
 names(resdf) = c("sig", "all", "sig_pathways")
 
-write.xlsx(resdf, file = here("results", "diffex", "09_diffex_breastfeeding_duration.xlsx"))
+write.xlsx(resdf, file = here(resDir, "09b_diffex_breastfeeding_duration.xlsx"))
 rm(resdf)
 ```
 
 Heatmap
 
 ```{r}
-resDir = here("results", "diffex", "figs", "09_breastfeeding_duration")
-dir.create(resDir, showWarnings = F)
-
-pdf(file.path(resDir, "09_hm_breastfeeding_duration.pdf"), width = 10, height = 8)
+pdf(file.path(resDir, "09b_hm_breastfeeding_duration.pdf"), width = 10, height = 8)
 print(draw(hm, heatmap_legend_side = "right", annotation_legend_side = "bottom"))
 dev.off()
-
 ```
 
 Volcano plots
 
 ```{r}
-ggsave(filename=file.path(resDir,"09_volcano_breastfeeding_duration.jpeg"),
-       plot=vp, height = 6, width = 8)
+pdf(file.path(resDir,"09b_volcano_breastfeeding_duration.pdf"),
+    height = 6, width = 8)
+vp
+dev.off()
 ```
 
+## Session info
 
 ```{r}
 sessionInfo()
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -63,6 +63,7 @@ rule all:
     expand("results/rnaseq/fastqc/{sample}_fastqc.html", sample=config['samples']),
     "reports/rnaseq/08_diffex_onevsrest.html",
     "reports/rnaseq/09_diffex_time_involution.html",
+    "reports/rnaseq/09b_diffex_time_breastfeeding.html",
     expand("reports/rnaseq/14_subgroup_diffex_{comp}.html",
       comp=["ppbcpw_vs_npbc","ppbcpw_vs_prbc","ppbcpw_vs_rest"]),
     #"reports/16_gene_unity_setup.html",

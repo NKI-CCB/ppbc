@@ -598,23 +598,31 @@ rule diffex_involution:
 rule diffex_breastfeeding:
   input:
     script="src/utils/rmarkdown.R",
-    rmd="reports/rnaseq/09_diffex_breastfeeding_duration.Rmd",
-    dds="data/rnaseq/interim/08_dds_ovr_inv_vs_rest.Rds",
-    vsd="data/Rds/08_vsd_ovr.Rds",
-    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    rmd="reports/rnaseq/09b_diffex_breastfeeding_duration.Rmd",
+    dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
+    vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
     sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds"
+    immune_genes="data/external/gene_ref/InnateDB_genes.csv",
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    cp="data/rnaseq/interim/color_palettes.Rds",
+    sp="data/rnaseq/interim/survival_colors.Rds",
+    lib="src/rnaseq/enrichment-analysis-functions.R"
   output:
-    html="reports/09_diffex_time_breastfeeding.html",
-    dds="data/Rds/09_dds_breastfeeding_duration.Rds",
-    ape="data/Rds/09_ape_breastfeeding_duration.Rds",
-    genes="results/diffex/09_diffex_breastfeeding_duration.xlsx",
-    heatmap="results/diffex/figs/09_breastfeeding_duration/09_hm_breastfeeding_duration.pdf",
-    volcano="results/diffex/figs/09_breastfeeding_duration/09_volcano_breastfeeding_duration.jpeg"
+    html="reports/rnaseq/09b_diffex_time_breastfeeding.html",
+    dds="data/rnaseq/processed/09b_dds_breastfeeding_duration.Rds",
+    ape="data/rnaseq/processed/09b_ape_breastfeeding_duration.Rds",
+    genes="results/rnaseq/diffex/09b_diffex_breastfeeding_duration.xlsx",
+    heatmap="results/rnaseq/diffex/09b_hm_breastfeeding_duration.pdf",
+    volcano="results/rnaseq/diffex/09b_volcano_breastfeeding_duration.pdf"
   shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"   
-
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --gx_annot {input.gx_annot}"
+    " --immune_genes {input.immune_genes}"
+    " --cp {input.cp}"
+    " --sp {input.sp}"
+    " --dds {input.dds}"
+    " --vsd {input.vsd}"
+    " --lib {input.lib}"
 
 #### Pathway analysis ####
 
