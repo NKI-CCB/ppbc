@@ -10,8 +10,8 @@ output:
     fig_height: 6
     df_print: tibble
 params:
-  ciber_input: "results/rnaseq/cibersortX/CIBERSORTx_Job3_Results.csv"
-  abs_ciber_input: "results/rnaseq/cibersortX/CIBERSORTx_Job4_Results.csv"
+  ciber_input: "results/rnaseq/cibersortX/CIBERSORTx_Job6_Results.csv"
+  abs_ciber_input: "results/rnaseq/cibersortX/CIBERSORTx_Job7_Results.csv"
   hugo: "data/rnaseq/interim/hugo_fpkm.txt"
   metadata: "data/rnaseq/metadata/05_sample_annot_filtered.csv"
   cp: "data/rnaseq/interim/color_palettes.Rds"
@@ -71,10 +71,10 @@ hugo_mat[1:4, 1:4]
 
 `r params$ciber_input`
 
-    Date: 2020-04-28 07:35:19
+    Date: 2022-08-29 11:20:33
     Job type: Impute Cell Fractions
     Signature matrix file: LM22.update-gene-symbols.txt
-    Mixture file: hugo_fpkm_1.txt
+    Mixture file: hugo_fpkm_2022.txt
     Batch correction: enabled
     Batch correction mode: B-mode
     Disable quantile normalization: true
@@ -83,8 +83,15 @@ hugo_mat[1:4, 1:4]
 
 `r params$abs_ciber_input`
 
-    Same as above, except
+    Date: 2022-08-29 11:52:22
+    Job type: Impute Cell Fractions
+    Signature matrix file: LM22.update-gene-symbols.txt
+    Mixture file: hugo_fpkm_2022.txt
+    Batch correction: enabled
+    Batch correction mode: B-mode
+    Disable quantile normalization: true
     Run mode (relative or absolute): absolute
+    Permutations: 100
     
 CibersortX takes a signature matrix as well as a mixture matrix to perform deconvolution. It is possible to generate a unique signature matrix, but this requires single cell RNAseq data, which the PPBC project lacks. As such, we use the default version on the website: the LM22 matrix, which contains 22 functionally defined human immune subsets. 
 

@@ -66,6 +66,7 @@ rule all:
     "reports/rnaseq/09b_diffex_time_breastfeeding.html",
     expand("reports/rnaseq/14_subgroup_diffex_{comp}.html",
       comp=["ppbcpw_vs_npbc","ppbcpw_vs_prbc","ppbcpw_vs_rest"]),
+    "reports/rnaseq/10_CibersortX.pdf"
     #"reports/16_gene_unity_setup.html",
     # Spatial rules
     "reports/spatial/05_report_cell_types.html",

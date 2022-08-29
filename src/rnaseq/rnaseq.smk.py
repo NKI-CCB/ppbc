@@ -665,12 +665,15 @@ rule flexgsea_report:
      " --countMatrix '{input.countMatrix}'"
 
 #### Cibersort Deconvolution ####
-    
+
+# Read in Cibersort results for plotting and survival analyses
+# Large notebook: consider splitting
 rule cibersortX:
   input:
     hugo="data/rnaseq/interim/hugo_fpkm.txt",
     #Results obtained by uploading hugo_fpkm.txt to the cibersort website with the enumerated parameters
-    ciber_res="results/rnaseq/cibersortX/CIBERSORTx_Job3_Results.csv",
+    ciber_input="results/rnaseq/cibersortX/CIBERSORTx_Job6_Results.csv",
+    abs_ciber_input="results/rnaseq/cibersortX/CIBERSORTx_Job7_Results.csv",
     coxdata="data/rnaseq/interim/04_survdata.Rds",
     metadata="data/rnaseq/metadata/05_sample_annot_filtered.csv",
     cp="data/rnaseq/interim/color_palettes.Rds",
@@ -681,6 +684,13 @@ rule cibersortX:
     pdf="reports/rnaseq/10_CibersortX.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
+    " --ciber_input '{input.ciber_input}'"
+    " --abs_ciber_input '{input.abs_ciber_input}'"
+    " --hugo '{input.hugo}'"
+    " --coxdata '{input.coxdata}'"
+    " --metadata '{input.metadata}'"
+    " --cp '{input.cp}'"
+    " --sp '{input.sp}'"
 
 #### Clustering of PPBCpw DEGs ####
 
@@ -694,15 +704,16 @@ inv_comps = [
 
 rule inv_clustering:
   input:
-    expand("results/diffex/{inv_comp}.xlsx", inv_comp=inv_comps),
-    rmd="reports/11_clustering_involution.Rmd",
+    expand("results/rnaseq/diffex/{inv_comp}.xlsx", inv_comp=inv_comps),
+    rmd="reports/rnaseq/11_clustering_involution.Rmd",
     script="src/utils/rmarkdown.R",
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds",
-    tools="src/deseq_report_functions.R",
-    vsd="data/Rds/08_vsd_ovr.Rds",
+    cp="data/rnaseq/interim/color_palettes.Rds",
+    sp="data/rnaseq/interim/survival_colors.Rds",
+    tools="src/rnaseq/deseq_report_functions.R",
+    dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
+    vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    surv="data/Rds/04_survdata.Rds"
+    coxdata="data/rnaseq/interim/04_survdata.Rds"
   output:
     "results/clustering/11_hm_clust_DEG_inv_vs_rest.pdf",
     "results/clustering/11_barplots_ig_clusters.pdf",
@@ -714,6 +725,13 @@ rule inv_clustering:
     html="reports/11_clustering_involution.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
+    " --gx_annot {input.gx_annot}"
+    " --cp {input.cp}"
+    " --sp {input.sp}"
+    " --dds {input.dds}"
+    " --vsd {input.vsd}"
+    " --tools {input.tools}"
+    " --coxdata '{input.coxdata}'"
 
 #### Survival analyses based on gene expression ####
 
