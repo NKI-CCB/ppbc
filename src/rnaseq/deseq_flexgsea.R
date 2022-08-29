@@ -16,7 +16,7 @@ library(here)
 #Whether to overwrite existing results file
 overwrite=F
 
-dir.create(here("results", "flexgsea", "logs"), showWarnings = F, recursive = T)
+dir.create(here("results", "rnaseq", "flexgsea", "logs"), showWarnings = F, recursive = T)
 
 #Disable when testing
 #logfile <- file(here("results", "flexgsea", "logs", "flexgsea_deseq_noperm.txt"),)
@@ -29,7 +29,7 @@ print(paste("Number of permutations:", nperm))
 #Set output dirs
 
 # Input before running function
-DIR = here("results","flexgsea", "deseq")
+DIR = here("results", "rnaseq","flexgsea", "deseq")
 input_DIR = file.path(DIR,"input")
 dir.create(input_DIR, showWarnings = F, recursive = T)
 
@@ -42,16 +42,16 @@ dir.create(results_DIR, showWarnings = F, recursive = T)
 doMC::registerDoMC(32)
 
 #Only for this function: summarize_expression_duplicate_ids()
-source(here("src", "deseq_report_functions.R"))
+source(here("src", "rnaseq", "deseq_report_functions.R"))
 
 
 ####Load data----
 
 #Pre-filtered, with all necessary column groups
-dds = readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
+dds = readRDS(here("data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"))
 #For testing use a smaller dds
 dds = head(dds,1000)
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot <- read_tsv(here("data/rnaseq/metadata/01_gene_annot.tsv"))
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name, gene_type,
                                description = gene_description) %>% distinct()
 
@@ -94,12 +94,12 @@ print(signature_abs)
 #### Comparison overview ----
 
 #Nulliparous is the default study group, here we want to look at the others
-dds$study_group <- factor(dds$study_group, levels = c("non_prbc", "prbc", "ppbc_lac", "ppbc_inv"))
+dds$study_group <- factor(dds$study_group, levels = c("npbc", "prbc", "ppbcdl", "ppbcpw"))
 
-dds$refprbc <- factor(dds$study_group, levels = c("prbc", "non_prbc", "ppbc_lac", "ppbc_inv"))
+dds$refprbc <- factor(dds$study_group, levels = c("prbc", "npbc", "ppbcdl", "ppbcpw"))
 
 
-dds$reflac <- factor(dds$study_group, levels = c("ppbc_lac","prbc", "non_prbc", "ppbc_inv"))
+dds$reflac <- factor(dds$study_group, levels = c("ppbcdl","prbc", "npbc", "ppbcpw"))
 
 print("Pairwise comparisons:")
 print(levels(dds$study_group))
