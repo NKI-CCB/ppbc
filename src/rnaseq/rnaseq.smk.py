@@ -784,7 +784,7 @@ genewise_cox =[
   "inv_multi_genewise_drs", "inv_uni_genewise_drs"
   ]
 
-interaction_models = [
+interaction_cox = [
   "uni_interaction_os",
   "uni_interaction_drs",
   "multi_interaction_os",
@@ -801,7 +801,7 @@ rule surv_inv_int:
     coxdata="data/rnaseq/processed/12_coxdata.Rds",
     script="src/rnaseq/survival_involution_interaction.R"
   output:
-    expand("data/rnaseq/processed/12_{m}.Rds", m=interaction_models)
+    expand("data/rnaseq/processed/12_{m}.Rds", m=interaction_cox)
   shell:
     """
     Rscript {input.script}
@@ -840,16 +840,17 @@ rule report_genewise_survival:
 # Combine all survival results and compare
 rule aggregate_genewise_survival:
   input:
-    csv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
+    csv=expand("results/rnaseq/survival/12_{rep}.csv", rep=genewise_cox+interaction_cox),
     script="src/utils/rmarkdown.R",
-    rmd="reports/12b_aggregate_genewise_survival.Rmd"
+    rmd="reports/rnaseq/13_aggregate_genewise_survival.Rmd"
+  params:
+    resdir="results/rnaseq/survival"
   output:
-    html="reports/12b_aggregate_genewise_survival.html",
-    coxres="results/survival/12_cox_allgenes.xlsx"
+    html="reports/rnaseq/13_aggregate_genewise_survival.html",
+    coxres="results/rnaseq/survival/12_cox_allgenes.xlsx"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-    
+    " --resdir {params.resdir}"
     
 diffex_results = [
   "08_one_vs_rest_allgenes",
@@ -907,7 +908,7 @@ rule report_cox_glm:
     "data/Rds/15_glm_drs_5000.Rds",
     diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
     gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
-    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
+    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_cox),
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     rmd="reports/15_cox_elastic_net.Rmd",
     script="src/utils/rmarkdown.R"
@@ -925,7 +926,7 @@ rule report_inv_cox_glm:
     "data/Rds/15b_inv_glm_drs_5000.Rds",
     diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
     gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
-    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
+    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_cox),
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     rmd="reports/15b_inv_cox_elastic_net.Rmd",
     script="src/utils/rmarkdown.R"
@@ -941,7 +942,7 @@ rule report_all_inv_cox_glm:
     "data/Rds/15c_inv_glm_drs_all.Rds",
     diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
     gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
-    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
+    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_cox),
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     rmd="reports/15c_inv_cox_elastic_net.Rmd",
     script="src/utils/rmarkdown.R"
@@ -972,7 +973,7 @@ rule gene_unity_setup:
     invbf_diffex=expand("results/diffex/09_diffex_{result}_duration.xlsx", result=inv_bf),
     #gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
     gw_surv="results/survival/12_cox_allgenes.xlsx",
-    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
+    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_cox),
     efeat=expand("results/survival/{feat}.xlsx", feat=enet_features),
     subdiffex=expand("results/rnaseq/diffex/14_subgroup_diffex_{comp}_allgenes.xlsx", 
       comp=sub_diffex),

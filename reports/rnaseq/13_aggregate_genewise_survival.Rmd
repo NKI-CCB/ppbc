@@ -7,18 +7,19 @@ output:
     toc: yes
     toc_float: yes
     df_print: paged
-    theme: darkly
-    highlight: breezedark
+    highlight: kate
     canon: true
+params:
+   resdir: "results/rnaseq/survival"
 ---
 
-Create an overlap file of miscellaneous genewise survival analyses.
+Create an overlap file of miscellaneous survival analyses.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, include=F}
+```{r, message=F}
 library(UpSetR)
 library(RColorBrewer)
 library(openxlsx)
@@ -31,18 +32,19 @@ theme_set(theme_bw())
 
 # Aggregate results
 
+Files within results directory.
+
+```{r}
+filelist <- list.files(here(params$resdir), pattern=".csv", full.names = T)
+filelist
+```
+
 Load all data frames related to genewise survival
 
 ```{r}
-#res_list <- purrr::map(list.files(here("data", "Rds"),
-#                                  pattern="genewise", full.names = T), readRDS)
+res_list <- purrr::map(filelist, read_csv, show_col_types = F)
 
-res_list <- purrr::map(list.files(here("results", "survival"),
-                                  pattern="genewise", full.names = T), read_csv)
-
-#names(res_list) = str_remove(str_remove(list.files(here("data", "Rds"), pattern="genewise"), "12_"), ".Rds")
-
-names(res_list) = str_remove(str_remove(list.files(here("results", "survival"), pattern="genewise"), "12_"), ".csv")
+names(res_list) <- str_remove(str_remove_all(basename(filelist), ".csv"),"12_")
 ```
 
 Example input
@@ -51,7 +53,7 @@ Example input
 head(res_list$multi_genewise_os)
 ```
 
-The number of rows should be the same everywhere.
+The number of genes/rows should be the same everywhere.
 
 ```{r}
 stopifnot(all(unlist(lapply(res_list, function(x) nrow(x)==nrow(res_list$multi_genewise_os)))))
@@ -60,29 +62,28 @@ stopifnot(all(unlist(lapply(res_list, function(x) nrow(x)==nrow(res_list$multi_g
 Aggregate Excel sheet.
 
 ```{r}
-openxlsx::write.xlsx(list(univ_cox_surv = res_list$uni_genewise_os,
-                          univ_cox_dr = res_list$uni_genewise_drs,
-                          multi_cox_surv = res_list$multi_genewise_os,
-                          multi_cox_dr = res_list$multi_genewise_drs,
-                          inv_only_univ_surv = res_list$inv_uni_genewise_os,
-                          inv_only_univ_dr = res_list$inv_uni_genewise_drs,
-                          inv_only_multi_surv = res_list$inv_multi_genewise_os,
-                          inv_only_multi_dr = res_list$multi_genewise_drs
-                          ),
-                     file = here("results", "survival", "12_cox_allgenes.xlsx"))
+outFile <- here("results", "rnaseq", "survival", "12_cox_allgenes.xlsx")
+openxlsx::write.xlsx(res_list, outFile)
+```
+
+The Excel sheet contains one tab with the same name and content as each element in `res_list`.
+
+```{r}
+stopifnot(all(readxl::excel_sheets(outFile) == names(res_list)))
 ```
 
 Unified df:
 
 ```{r}
-res = bind_rows(res_list,) %>%
+res = bind_rows(res_list) %>%
   arrange(fdr, p.value) %>%
-  select(gene_name, analysis, everything())
+  select(gene_name, fdr, p.value, baseMean, beta, `HR (95% CI for HR)`,
+         analysis, everything())
 
 head(res)
 ```
 
-Sanity check: Number of genes in each comparison (should be the same as the minimum count filter set in notebook 5b).
+Sanity check: Number of genes in each comparison.
 
 ```{r}
 unique(sapply(res_list, nrow))
@@ -114,9 +115,12 @@ Overview analysis type
 
 ```{r}
 ann_df = data.frame(row.names = colnames(pt),
-                    input = if_else(str_detect(colnames(pt), "inv"), "involution samples", "all samples"),
-                    formula = if_else(str_detect(colnames(pt), "multi"), "multivariate", "univariate"),
-                    event = if_else(str_detect(colnames(pt), "os"), "overall survival", "distant recurrence")
+                    input = if_else(str_detect(colnames(pt), "inv"),
+                                    "involution samples", "all samples"),
+                    formula = if_else(str_detect(colnames(pt), "multi"),
+                                      "multivariate", "univariate"),
+                    event = if_else(str_detect(colnames(pt), "os"),
+                                    "overall survival", "distant recurrence")
 )
 
 ann_df
@@ -143,11 +147,6 @@ pheatmap(pt, annotation_col = ann_df,
 
 Show overlap between hits at fdr cutoffs 0.05, 0.1, 0.15 and 0.2.
 
-```{r}
-pt
-```
-
-
 ```{r, fig.width=8}
 for(i in seq(0.05, 0.2, by = 0.05)){
  sig_genes = lapply(res_list, function(x) x[x$fdr <= i,]$ensembl_gene_id)
@@ -155,7 +154,6 @@ for(i in seq(0.05, 0.2, by = 0.05)){
  #In a few cases, genes for which p value or fdr was NA will return NA
  #Remove these
  sig_genes <- lapply(sig_genes, function(x) x[!is.na(x)])
- names(sig_genes) = str_remove(names(sig_genes), "genewise_")
 
  #Remove items for which nothing is significant at the current threshold
  sig_genes <- sig_genes[unlist(lapply(sig_genes, function(x) length(x) > 0))]
@@ -163,7 +161,7 @@ for(i in seq(0.05, 0.2, by = 0.05)){
  #We need at least 2 left in order to make an upset plot.
  if(length(sig_genes) < 2){next}
  
- print(upset(fromList(sig_genes), order.by = "freq", 
+ print(upset(fromList(sig_genes), order.by = "freq", nsets = length(sig_genes),
        #empty.intersections = "on",
        #nsets = length(sig_genes), 
        set_size.show = TRUE,
@@ -181,6 +179,7 @@ for(i in seq(0.05, 0.2, by = 0.05)){
 lapply(res_list, function(x) head(dplyr::select(x, gene_name:type), 20))
 ```
 
+# Session info
 
 ```{r}
 sessionInfo()
