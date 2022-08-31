@@ -807,6 +807,7 @@ rule surv_inv_int:
     Rscript {input.script}
     """
 
+# Separately report the results of each genewise and interaction Cox models
 rule report_genewise_survival:
   input:
     survival_results="data/rnaseq/processed/12_{cox}.Rds",
@@ -836,39 +837,7 @@ rule report_genewise_survival:
     " --pw {input.pw}"
     " --ovr {input.ovr}"
 
-
-
-# Report on interaction model results
-rule report_interaction_survival:
-  input:
-    survival_results=expand("data/rnaseq/processed/13_{c}.Rds", c=interaction_models),
-    dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
-    cp="data/rnaseq/interim/color_palettes.Rds",
-    sp="data/rnaseq/interim/survival_colors.Rds",
-    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    script="src/utils/rmarkdown.R",
-    rmd="reports/rnaseq/13_interaction_genewise_survival.Rmd",
-    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    #either coxdata or invdata is loaded conditionally
-    coxdata="data/rnaseq/processed/12_coxdata.Rds",
-    invcoxdata="data/rnaseq/processed/12_invdata.Rds",
-    tools="src/rnaseq/enrichment-analysis-functions.R",
-    duplicates="src/rnaseq/summarize_duplicate_ids.R",
-    pw="results/rnaseq/diffex/07_pairwise_comparisons_allgenes.xlsx",
-    ovr="results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx"
-  output:
-    html=expand("reports/rnaseq/13_{rep}.html", rep=interaction_models),
-    csv=expand("results/rnaseq/survival/13_{rep}.csv", rep=interaction_models)
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-    " --survival_results {input.survival_results}"
-    " --dds {input.dds}"
-    " --gx_annot {input.gx_annot}"
-    " --tools {input.tools}"
-    " --duplicates {input.duplicates}"
-    " --pw {input.pw}"
-    " --ovr {input.ovr}"
-
+# Combine all survival results and compare
 rule aggregate_genewise_survival:
   input:
     csv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
