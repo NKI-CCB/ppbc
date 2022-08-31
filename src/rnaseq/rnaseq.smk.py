@@ -813,31 +813,20 @@ rule report_genewise_survival:
     " --pw {input.pw}"
     " --ovr {input.ovr}"
 
-rule aggregate_genewise_survival:
-  input:
-    csv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
-    script="src/utils/rmarkdown.R",
-    rmd="reports/12b_aggregate_genewise_survival.Rmd"
-  output:
-    html="reports/12b_aggregate_genewise_survival.html",
-    coxres="results/survival/12_cox_allgenes.xlsx"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
 interaction_models = [
   "uni_interaction_os",
   "uni_interaction_drs",
   "multi_interaction_os",
   "multi_interaction_drs"
-]    
+] 
     
 rule surv_inv_int:
   input:
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    coxdata="data/Rds/12_coxdata.Rds",
-    script="src/13_survival_involution_interaction.R"
+    coxdata="data/rnaseq/processed/12_coxdata.Rds",
+    script="src/rnaseq/survival_involution_interaction.R"
   output:
-    expand("data/Rds/13_{m}.Rds", m=interaction_models)
+    expand("data/rnaseq/processed/13_{m}.Rds", m=interaction_models)
   shell:
     """
     Rscript {input.script}
@@ -854,7 +843,7 @@ rule report_interaction_survival:
     script="src/13_batch_involution_interaction_reports.R",
     rmd="reports/13_involutionxgene_interaction_models.Rmd",
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    coxdata="data/Rds/12_coxdata.Rds",
+    coxdata="data/rnaseq/processed/12_coxdata.Rds",
     tools="src/enrichment-analysis-functions.R",
     pw="results/diffex/07_pairwise_comparisons_allgenes.xlsx",
     ovr="results/diffex/08_one_vs_rest_allgenes.xlsx"
@@ -865,6 +854,20 @@ rule report_interaction_survival:
     """
     Rscript {input.script}
     """
+
+rule aggregate_genewise_survival:
+  input:
+    csv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
+    script="src/utils/rmarkdown.R",
+    rmd="reports/12b_aggregate_genewise_survival.Rmd"
+  output:
+    html="reports/12b_aggregate_genewise_survival.html",
+    coxres="results/survival/12_cox_allgenes.xlsx"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+
+    
+    
 diffex_results = [
   "08_one_vs_rest_allgenes",
   "07_pairwise_comparisons_allgenes",
@@ -873,7 +876,7 @@ diffex_results = [
   
 rule cox_glm:
   input:
-    coxdata="data/Rds/12_coxdata.Rds",
+    coxdata="data/rnaseq/processed/12_coxdata.Rds",
     script="src/15_cox_elastic_net.R"
   output:
     "data/Rds/15_glm_os_1000.Rds",
@@ -991,7 +994,7 @@ rule gene_unity_setup:
     subdiffex=expand("results/rnaseq/diffex/14_subgroup_diffex_{comp}_allgenes.xlsx", 
       comp=sub_diffex),
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    coxdata="data/Rds/12_coxdata.Rds",
+    coxdata="data/rnaseq/processed/12_coxdata.Rds",
     dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds"
   output:
     html="reports/16_gene_unity_setup.html",

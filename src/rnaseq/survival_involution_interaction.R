@@ -1,6 +1,3 @@
-
-rm(list = ls())
-
 library(DESeq2)
 library(survival)
 library(survminer)
@@ -14,28 +11,7 @@ library(ggpubr)
 library(tidyverse)
 
 # Whether to overwrite pre-existing results
-overwrite <- F
-
-#### Load data ----
-
-#Gene annotation
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
-gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id,
-                               gene_name, gene_type,
-                               description = gene_description) %>% distinct()
-
-#Clinical covariates and TMM-normalized/log transformed gene expression
-#In samples x features format
-coxdata <- readRDS(here("data", "Rds", "12_coxdata.Rds"))
-colnames(coxdata)[1:30]
-
-## Involuting vs rest encouding
-levels(coxdata$study_group)
-coxdata = coxdata %>%
-  mutate(involution = as.numeric(study_group == "ppbc_inv")) %>%
-  select(sample_name:study_group, involution, everything())
-
-table(coxdata$study_group, coxdata$involution)
+overwrite <- T
 
 #### Cox functions ----
 
@@ -112,10 +88,10 @@ genewise_cox_interactions <- function(gene_list, data = coxdata, survival_type,
   start <- Sys.time()
   
   if(survival_type == "os"){
-    time = "months_overall_survival"
-    event = "overall_survival"
+    time = "time_OS_months"
+    event = "death"
   } else {
-    time = "months_to_drs"
+    time = "time_DRS_months"
     event = "distant_recurrence"
   }
   
@@ -156,95 +132,120 @@ genewise_cox_interactions <- function(gene_list, data = coxdata, survival_type,
   return(res)
 }
 
+# Allow the file to be sourced for the functions above,
+# without running the code below
+if(sys.nframe() == 0){
 
-#### Test dataset --- 
-
-gene_col = which(colnames(coxdata)=="ENSG00000000003")
-print(paste("Gene columns from", gene_col, "to", ncol(coxdata), "of coxdata"))
-
-#head(coxdata[,(gene_col-2):(gene_col+2)])
-
-#First test multivariate models
-test = genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
-                                 survival_type = "os", formula_type = "multivariate",
-                                 return_models=T)
-#test[[1]]
-test2 = extract_interaction_cox_results(test)
-#test2$call[1]
-
-#When return_models is false, extract_interaction_cox_results() is called as part of genewise_cox_interactions()
-test3 = genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
-                                 survival_type = "os", formula_type = "multivariate",
-                                 return_models=F)
-#test3$call[1]
-
-#Then univariate
-test4 = genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
-                                  survival_type = "os", formula_type = "univariate",
-                                  return_models=T)
-#test4[[1]]
-
-test5 = extract_interaction_cox_results(test4)
-test5$call[[1]]
-
-#When return_models is false, extract_interaction_cox_results() is called as part of genewise_cox_interactions()
-test6=genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
-                                survival_type = "os", formula_type = "univariate",
-                                return_models=F)
-test6
-
-rm(list=c("test","test2","test3","test4","test5","test6"))
-#### Cox regression ----
-
-#Results directory
-resDir = here("data", "Rds")
-dir.create(resDir, showWarnings = F)
-stopifnot(file.exists(resDir))
-
-#### OS ####
-
-#Univariate
-resPath = file.path(resDir, "13_uni_interaction_os.Rds")
-
-if(file.exists(resPath) == F| overwrite == T){
-  print("Univariate interaction involution*gene for overall survival")
-  res <-  genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:ncol(coxdata)], 
-                                    survival_type = "os",
-                                    formula_type = "univariate")
-  saveRDS(res, resPath)
-}
-
-#Multivariate
-resPath = file.path(resDir, "13_multi_interaction_os.Rds")
-
-if(file.exists(resPath) == F| overwrite == T){
-  print("Multivariate interaction involution*gene for overall survival")
-  res <-  genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:ncol(coxdata)], 
-                                    survival_type = "os",
-                                    formula_type = "multivariate")
-  saveRDS(res, resPath)
-}
-
-#### DRS ####
-
-#Univariate
-resPath = file.path(resDir, "13_uni_interaction_drs.Rds")
-
-if(file.exists(resPath) == F| overwrite == T){
-  print("Univariate interaction involution*gene for DRS")
-  res <-  genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:ncol(coxdata)], 
-                                    survival_type = "drs",
-                                    formula_type = "univariate")
-  saveRDS(res, resPath)
-}
-
-#Multivariate
-resPath = file.path(resDir, "13_multi_interaction_drs.Rds")
-
-if(file.exists(resPath) == F| overwrite == T){
-  print("Multivariate interaction involution:gene for DRS")
-  res <-  genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:ncol(coxdata)], 
-                                    survival_type = "drs",
-                                    formula_type = "multivariate")
-  saveRDS(res, resPath)
+  #### Load data ----
+  
+  #Gene annotation
+  gx_annot <- read_tsv(here("data/rnaseq/metadata/01_gene_annot.tsv"))
+  gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id,
+                                 gene_name, gene_type,
+                                 description = gene_description) %>% distinct()
+  
+  #Clinical covariates and TMM-normalized/log transformed gene expression
+  #In samples x features format
+  coxdata <- readRDS(here("data/rnaseq/processed/12_coxdata.Rds"))
+  colnames(coxdata)[1:30]
+  
+  ## Involuting vs rest encouding
+  levels(coxdata$study_group)
+  coxdata = coxdata %>%
+    mutate(involution = as.numeric(study_group == "ppbcpw", .after = study_group))
+  
+  table(coxdata$study_group, coxdata$involution)
+  
+  gene_col = which(colnames(coxdata)=="ENSG00000000003")
+  print(paste("Gene columns from", gene_col, "to", ncol(coxdata), "of coxdata"))
+  print(head(coxdata[,(gene_col-3):(gene_col+1)]))
+  
+  #### Test dataset ----
+  
+  # #First test multivariate models
+  # test = genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
+  #                                  survival_type = "os", formula_type = "multivariate",
+  #                                  return_models=T)
+  # test[[1]]
+  # test2 = extract_interaction_cox_results(test)
+  # test2$call[1]
+  # 
+  # #When return_models is false, extract_interaction_cox_results() is called as part of genewise_cox_interactions()
+  # test3 = genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
+  #                                   survival_type = "os", formula_type = "multivariate",
+  #                                   return_models=F)
+  # test3
+  # 
+  # #Then univariate
+  # test4 = genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
+  #                                   survival_type = "os", formula_type = "univariate",
+  #                                   return_models=T)
+  # test4[[1]]
+  # 
+  # test5 = extract_interaction_cox_results(test4)
+  # test5
+  # 
+  # #When return_models is false, extract_interaction_cox_results() is called as part of genewise_cox_interactions()
+  # test6=genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
+  #                                 survival_type = "os", formula_type = "univariate",
+  #                                 return_models=F)
+  # test6
+  # 
+  # rm(list=c("test","test2","test3","test4","test5","test6"))
+  # 
+  
+  #### Cox regression ----
+  
+  #Results directory
+  resDir = here("data", "rnaseq", "processed")
+  dir.create(resDir, showWarnings = F)
+  stopifnot(file.exists(resDir))
+  
+  #### OS ####
+  
+  #Univariate
+  resPath = file.path(resDir, "13_uni_interaction_os.Rds")
+  
+  if(file.exists(resPath) == F| overwrite == T){
+    print("Univariate interaction involution*gene for overall survival")
+    res <-  genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:ncol(coxdata)], 
+                                      survival_type = "os",
+                                      formula_type = "univariate")
+    saveRDS(res, resPath)
+  }
+  
+  #Multivariate
+  resPath = file.path(resDir, "13_multi_interaction_os.Rds")
+  
+  if(file.exists(resPath) == F| overwrite == T){
+    print("Multivariate interaction involution*gene for overall survival")
+    res <-  genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:ncol(coxdata)], 
+                                      survival_type = "os",
+                                      formula_type = "multivariate")
+    saveRDS(res, resPath)
+  }
+  
+  #### DRS ####
+  
+  #Univariate
+  resPath = file.path(resDir, "13_uni_interaction_drs.Rds")
+  
+  if(file.exists(resPath) == F| overwrite == T){
+    print("Univariate interaction involution*gene for DRS")
+    res <-  genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:ncol(coxdata)], 
+                                      survival_type = "drs",
+                                      formula_type = "univariate")
+    saveRDS(res, resPath)
+  }
+  
+  #Multivariate
+  resPath = file.path(resDir, "13_multi_interaction_drs.Rds")
+  
+  if(file.exists(resPath) == F| overwrite == T){
+    print("Multivariate interaction involution:gene for DRS")
+    res <-  genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:ncol(coxdata)], 
+                                      survival_type = "drs",
+                                      formula_type = "multivariate")
+    saveRDS(res, resPath)
+  }
 }
