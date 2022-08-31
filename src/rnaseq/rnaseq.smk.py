@@ -851,7 +851,9 @@ rule aggregate_genewise_survival:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --resdir {params.resdir}"
-    
+
+#### Gene summary reports ####
+
 diffex_results = [
   "08_one_vs_rest_allgenes",
   "07_pairwise_comparisons_allgenes",
@@ -863,28 +865,27 @@ inv_bf = [
   "involution"
 ] 
 
-#### Gene summary reports ####
-
 rule gene_unity_setup:
   input:
     script="src/utils/rmarkdown.R",
-    rmd="reports/16_gene_unity_setup.Rmd",
-    diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
-    invbf_diffex=expand("results/diffex/09_diffex_{result}_duration.xlsx", result=inv_bf),
-    #gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
-    gw_surv="results/survival/12_cox_allgenes.xlsx",
-    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_cox),
-    efeat=expand("results/survival/{feat}.xlsx", feat=enet_features),
+    rmd="reports/rnaseq/16_gene_unity_setup.Rmd",
+    diffex_results=expand("results/rnaseq/diffex/{result}.xlsx", result=diffex_results),
+    invbf_diffex=expand("results/rnaseq/diffex/09_diffex_{result}_duration.xlsx", result=inv_bf),
     subdiffex=expand("results/rnaseq/diffex/14_subgroup_diffex_{comp}_allgenes.xlsx", 
       comp=sub_diffex),
+    coxres="results/rnaseq/survival/12_cox_allgenes.xlsx",
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     coxdata="data/rnaseq/processed/12_coxdata.Rds",
-    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds"
+    dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
   output:
-    html="reports/16_gene_unity_setup.html",
-    aggdata="data/Rds/16_gene_report_environment.RData"
+    html="reports/rnaseq/16_gene_unity_setup.html",
+    aggdata="data/rnaseq/processed/16_gene_report_environment.RData"
   shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"   
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --dds {input.dds}"
+    " --coxdata {input.coxdata}"
+    " --gx_annot {input.gx_annot}"
+    " --coxres {input.coxres}"
 
 rule gene_reports:
   input:
@@ -956,22 +957,21 @@ rule antibody_isotypes:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"  
 
-#### Shiny App for PPBC gene visualization ####
-    
+ #### Shiny App for PPBC gene visualization ####
+
+# Set up the data to be loaded within the shiny app
 rule app_setup:
   input:
-    "data/rnaseq/metadata/01_gene_annot.tsv",
-    "data/external/ensembl_universal_ids_v94.txt",
-    "results/survival/12_cox_allgenes.xlsx",
-    "results/survival/13_multi_interaction_os.csv",
-    "results/survival/13_multi_interaction_drs.csv",
-    expand("results/diffex/{result}.xlsx", result=diffex_results),
-    "data/Rds/12_coxdata.Rds"
+    diffex=expand("results/rnaseq/diffex/{res}.xlsx", 
+      res=["08_one_vs_rest_allgenes", "07_pairwise_comparisons_allgenes", "06_LRT_allgenes"]),
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    universal_ids="data/external/gene_ref/ensembl_universal_ids_v94.txt",
+    coxres="results/rnaseq/survival/12_cox_allgenes.xlsx",
+    duplicates="src/rnaseq/summarize_duplicate_ids.R",
+    coxdata="data/rnaseq/processed/12_coxdata.Rds"
   output:
     "shinyApp/VisualizePPBCgene/data/app_gx_annot.Rds",
     "shinyApp/VisualizePPBCgene/data/12_cox_allgenes.xlsx",
-    "shinyApp/VisualizePPBCgene/data/13_multi_interaction_os.csv",
-    "shinyApp/VisualizePPBCgene/data/13_multi_interaction_drs.csv",
     "shinyApp/VisualizePPBCgene/data/app_diffex_res_list.Rds",
     "shinyApp/VisualizePPBCgene/data/app_survival_sample_data.Rds",
     "shinyApp/VisualizePPBCgene/data/app_ensembl_tmmnorm_genesxsample.Rds",
@@ -979,4 +979,5 @@ rule app_setup:
   shell:
     """
     Rscript shinyApp/VisualizePPBCgene/data_setup.R
-    """    
+    """ 
+  
