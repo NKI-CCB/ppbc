@@ -98,14 +98,14 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
   
   #Toggle for survival type
   if(survival_type == "os"){
-    ti <- "months_overall_survival"
-    ev <- "overall_survival"
+    ti <- "time_OS_months"
+    ev <- "death"
     ylab <- "Overall survival probability"
     type <- "Overall survival"
   }
   
   if(survival_type == "drs"){
-    ti <- "months_to_drs"
+    ti <- "time_DRS_months"
     ev <- "distant_recurrence"
     ylab <- "Distant recurrence probability"
     type <- "Distant recurrence"
@@ -126,7 +126,7 @@ km_ntiles <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, geneEx 
   
   #Facet plot: Show unadjusted curves for gene by study group
   facet_plot <- survminer::ggsurvplot(
-    #fit = survfit(Surv(months_overall_survival, overall_survival)~ labels, data = as.data.frame(sd)), 
+    #fit = survfit(Surv(time_OS_months, death)~ labels, data = as.data.frame(sd)), 
     #If you want to use a formula object, use surv_fit instead of survfit
     fit = survminer::surv_fit(facet_formula, data = as.data.frame(sd)), 
     xlab = "Months", 
@@ -213,14 +213,14 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
   
   #Toggle for survival type
   if(survival_type == "os"){
-    ti <- "months_overall_survival"
-    ev <- "overall_survival"
+    ti <- "time_OS_months"
+    ev <- "death"
     ylab <- "Overall survival probability"
     type <- "Overall survival"
   }
   
   if(survival_type == "drs"){
-    ti <- "months_to_drs"
+    ti <- "time_DRS_months"
     ev <- "distant_recurrence"
     ylab <- "Distant recurrence probability"
     type <- "Distant recurrence"
@@ -433,7 +433,8 @@ km_ntiles_ovr <- function(gene_id, id_type = "symbol", gene_dict = gx_annot, gen
 #' @export
 #'
 #' @examples
-gene_survival <- function(id, id_type = "symbol", s = os, d = drs, ios = inv_int_os, idrs = inv_int_drs,
+gene_survival <- function(id, id_type = "symbol", s = os, d = drs, 
+                          ios = inv_int_os, idrs = inv_int_drs,
                           gene_dict = gx_annot){
   
   if(id_type == "ensembl"){
@@ -464,12 +465,14 @@ gene_survival <- function(id, id_type = "symbol", s = os, d = drs, ios = inv_int
   g_int_os <- ios[ios$ensembl_gene_id == ens_id, , drop=F]
   g_int_os <- g_int_os %>% mutate(type = "interaction os") %>%
     select(type, gene_name, fdr, beta, `HR (95% CI for HR)`, p.value, ensembl_gene_id, gene_type, description)
-  
+
   g_int_drs <- idrs[idrs$ensembl_gene_id == ens_id, , drop=F]
   g_int_drs <- g_int_drs %>% mutate(type = "interaction drs") %>%
     select(type, gene_name, fdr, beta, `HR (95% CI for HR)`, p.value, ensembl_gene_id, gene_type, description)
   
-  g <- bind_rows(g_os, g_drs, g_int_os, g_int_drs)
+  g <- bind_rows(g_os, g_drs,
+                 g_int_os, g_int_drs
+                 )
   
   return(g)
 }
@@ -558,12 +561,12 @@ tmm_plots <- function(id, id_type = "symbol", ensembl_mat = ens_mat, symbol_mat 
   
   #Define classes for overall survival plotting
   sampledata <- sampledata %>% mutate(survival = case_when(
-    overall_survival == 1 & months_overall_survival < 50 ~ "death at 50 months",
-    overall_survival == 1 & months_overall_survival < 100 ~ "death at 100 months",  
-    overall_survival == 1 & months_overall_survival < 150 ~ "death at 150 months",
-    overall_survival == 1 & months_overall_survival < 200 ~ "death at 200 months",
-    overall_survival == 1 & months_overall_survival < 250 ~ "death at 250 months",
-    overall_survival == 0 ~ "survived",
+    death == 1 & time_OS_months < 50 ~ "death at 50 months",
+    death == 1 & time_OS_months < 100 ~ "death at 100 months",  
+    death == 1 & time_OS_months < 150 ~ "death at 150 months",
+    death == 1 & time_OS_months < 200 ~ "death at 200 months",
+    death == 1 & time_OS_months < 250 ~ "death at 250 months",
+    death == 0 ~ "survived",
     TRUE ~ "no_data"
   )) %>%
     mutate(survival = factor(survival,
@@ -577,11 +580,11 @@ tmm_plots <- function(id, id_type = "symbol", ensembl_mat = ens_mat, symbol_mat 
   #Define classes for distant recurrence plotting
   #Define classes for overall survival plotting
   sampledata <- sampledata %>% mutate(drs = case_when(
-    distant_recurrence == 1 & months_to_drs < 50 ~ "metastasis at 50 months",
-   distant_recurrence == 1 & months_to_drs < 100 ~ "metastasis at 100 months",  
-   distant_recurrence == 1 & months_to_drs < 150 ~ "metastasis at 150 months",
-   distant_recurrence == 1 & months_to_drs < 200 ~ "metastasis at 200 months",
-   distant_recurrence == 1 & months_to_drs < 250 ~ "metastasis at 250 months",
+    distant_recurrence == 1 & time_DRS_months < 50 ~ "metastasis at 50 months",
+   distant_recurrence == 1 & time_DRS_months < 100 ~ "metastasis at 100 months",  
+   distant_recurrence == 1 & time_DRS_months < 150 ~ "metastasis at 150 months",
+   distant_recurrence == 1 & time_DRS_months < 200 ~ "metastasis at 200 months",
+   distant_recurrence == 1 & time_DRS_months < 250 ~ "metastasis at 250 months",
    distant_recurrence == 0 ~ "no recurrence",
     TRUE ~ "no_data"
   )) %>%
@@ -639,11 +642,11 @@ cox_dotplot <- function(gene_id,  cox_results, id_type = "gene_name", cox_events
   stopifnot(cox_events %in% c("os", "drs")) 
   
   if(cox_events == "os"){
-    event_data = coxdata %>% select(sample_name, study_group, months_overall_survival, overall_survival)
+    event_data = coxdata %>% select(sample_name, study_group, time_OS_months, death)
     title_string = "OS for interaction "
     legend_label = "Death"
   } else {
-    event_data = coxdata %>% select(sample_name, study_group, months_to_drs, distant_recurrence)
+    event_data = coxdata %>% select(sample_name, study_group, time_DRS_months, distant_recurrence)
     title_string = "DRS for interaction "
     legend_label = "Metastasis"
   }
@@ -679,9 +682,9 @@ cox_dotplot <- function(gene_id,  cox_results, id_type = "gene_name", cox_events
   gene_data %>%
     mutate(event = as.factor(event),
            study_group = recode(study_group,
-                                non_prbc = "Nulliparous",
-                                ppbc_inv = "Involution",
-                                ppbc_lac = "Lactation",
+                                npbc = "Nulliparous",
+                                ppbcpw = "Involution",
+                                ppbcdl = "Lactation",
                                 prbc = "Pregnancy",
                                 .default = levels(study_group))) %>%
     ggplot(aes(x =time_months, y = TMM_lognorm_expression, color = event)) +
