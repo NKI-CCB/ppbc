@@ -854,6 +854,17 @@ rule aggregate_genewise_survival:
 
 #### Gene summary reports ####
 
+# Add more identifier types for reporting
+rule universal_ids:
+  input:
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    universal_ids="data/external/gene_ref/ensembl_universal_ids_v94.txt",
+    script="src/rnaseq/universal_gene_ids.R"
+  output:
+    bx_annot="data/rnaseq/processed/bx_annot.Rds"
+  shell:
+    "Rscript {input.script}"
+
 diffex_results = [
   "08_one_vs_rest_allgenes",
   "07_pairwise_comparisons_allgenes",
@@ -874,7 +885,7 @@ rule gene_unity_setup:
     subdiffex=expand("results/rnaseq/diffex/14_subgroup_diffex_{comp}_allgenes.xlsx", 
       comp=sub_diffex),
     coxres="results/rnaseq/survival/12_cox_allgenes.xlsx",
-    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    bx_annot="data/rnaseq/processed/bx_annot.Rds",
     coxdata="data/rnaseq/processed/12_coxdata.Rds",
     dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
   output:
@@ -884,7 +895,7 @@ rule gene_unity_setup:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --dds {input.dds}"
     " --coxdata {input.coxdata}"
-    " --gx_annot {input.gx_annot}"
+    " --bx_annot {input.bx_annot}"
     " --coxres {input.coxres}"
 
 rule gene_reports:
@@ -964,8 +975,7 @@ rule app_setup:
   input:
     diffex=expand("results/rnaseq/diffex/{res}.xlsx", 
       res=["08_one_vs_rest_allgenes", "07_pairwise_comparisons_allgenes", "06_LRT_allgenes"]),
-    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    universal_ids="data/external/gene_ref/ensembl_universal_ids_v94.txt",
+    bx_annot="data/rnaseq/processed/bx_annot.Rds",
     coxres="results/rnaseq/survival/12_cox_allgenes.xlsx",
     duplicates="src/rnaseq/summarize_duplicate_ids.R",
     coxdata="data/rnaseq/processed/12_coxdata.Rds"
