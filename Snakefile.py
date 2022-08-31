@@ -62,6 +62,13 @@ genewise_cox =[
   "inv_multi_genewise_os", "inv_uni_genewise_os",
   "inv_multi_genewise_drs", "inv_uni_genewise_drs"
   ]
+  
+interaction_cox = [
+  "uni_interaction_os",
+  "uni_interaction_drs",
+  "multi_interaction_os",
+  "multi_interaction_drs"
+]   
 
 rule all:
   input:
@@ -75,7 +82,7 @@ rule all:
       comp=["ppbcpw_vs_npbc","ppbcpw_vs_prbc","ppbcpw_vs_rest"]),
     "reports/rnaseq/10_CibersortX.pdf",
     "reports/rnaseq/11_clustering_involution.html",
-    expand("reports/rnaseq/12_{cox}.html", cox=genewise_cox),
+    expand("reports/rnaseq/12_{cox}.html", cox=genewise_cox+interaction_cox),
     #"reports/16_gene_unity_setup.html",
     # Spatial rules
     "reports/spatial/05_report_cell_types.html",

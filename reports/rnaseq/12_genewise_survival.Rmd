@@ -9,7 +9,8 @@ output:
     highlight: kate
     canon: true
 params:
-  survival_results: "data/rnaseq/processed/12_uni_genewise_drs.Rds"
+  survival_results: "data/rnaseq/processed/12_uni_interaction_drs.Rds"
+  dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
   gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
   tools: "src/rnaseq/enrichment-analysis-functions.R"
   duplicates: "src/rnaseq/summarize_duplicate_ids.R"
@@ -58,24 +59,29 @@ res <- readRDS(here(params$survival_results))
 Detect basefile and analysis type:
 
 ```{r}
-call = if_else(str_detect(params$survival_results, "_multi_"),
-               "Multivariate", "Univariate")
-event = if_else(str_detect(params$survival_results, "os.Rds"),
-               "overall survival", "distant recurrence")
+call = if_else(str_detect(params$survival_results, "multi"),
+               "multivariate", "univariate")
+
+event = if_else(str_detect(params$survival_results, "_drs."),
+               "distant recurrence","overall survival")
+
 input = if_else(str_detect(params$survival_results, "_inv_"),
                 "involution only", "all samples")
-analysis_type = paste(call, event, paste0("(", input ,")"))
-print(paste(basename(params$survival_results), ":", analysis_type))
+
+coef = if_else(str_detect(params$survival_results, "interaction"),
+                  "Interaction", "Genewise")
+analysis_type = paste( coef, call, event, paste0("(",input,")"))
+print(paste0(basename(params$survival_results), ": ", analysis_type))
 ```
 
 ---
-title: '`r paste("Genewise survival report:", analysis_type)`'
+title: '`r paste("Survival report:", analysis_type)`'
 ---
  
 Gene annotation:
 
 ```{r}
-gx_annot <- read_tsv(here(params$gx_annot))
+gx_annot <- read_tsv(here(params$gx_annot), show_col_types = F)
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name,
                                gene_type, description = gene_description) %>%
   distinct()
@@ -157,6 +163,15 @@ rownames(geneEx) = NULL
 geneEx = column_to_rownames(geneEx, "GeneSymbol")
 geneEx = as.matrix(geneEx)
 geneEx[1:4,1:4]
+```
+
+## Sample data
+
+Extracted from dds.
+
+```{r}
+dds <- readRDS(here(params$dds))
+sampledata <- as.data.frame(colData(dds))
 ```
 
 ## Diffex results
@@ -245,10 +260,10 @@ for(i in 1:nrow(df_thresh)){
 ```
 
 Threshold selection.
-Pick the minimum threshold that has at least 50 hits for exploration.
+Pick the minimum threshold that has at least 20 hits for exploration.
 
 ```{r}
-pthresh = df_thresh %>% filter(hits >= 50) %>% dplyr::slice(1) %>% pull(cutoff)
+pthresh = df_thresh %>% filter(hits >= 20) %>% dplyr::slice(1) %>% pull(cutoff)
 if (length(pthresh) == 0){
   pthresh <- 0.3
 }
@@ -270,7 +285,183 @@ Protein coding genes below the threshold:
 ```{r}
 res %>% filter(type == "protein coding" & fdr <= !!pthresh) %>%
   mutate(description = str_remove(description, "\\[.*\\]")) %>%
-  mutate(hit = paste(gene_name, description, sep=": ")) %>% pull(hit)
+  mutate(hit = paste(gene_name, description, "FDR",
+                     signif(fdr, 2), "nom.p", signif(p.value, 2),
+                     sep=": ")) %>%
+  pull(hit)
+```
+
+# Boxplot top 4
+
+Show the boxplots of gene expression for the top 5 hits.
+Should show if significance is driven by an outlier.
+
+```{r}
+gene_boxplot <- function(df, n = 4, sanno = sampledata,
+                         mat=geneEx, p = pthresh,
+                         colorby=event){
+  
+  # Select genes that meet the threshold and subset to top n
+  df <- df %>%
+    filter(fdr < pthresh) %>%
+    arrange(fdr) %>%
+    head(n) %>%
+    select(gene_name, fdr, beta)
+  #return(df)
+  
+  if(nrow(df)==0){
+    return(paste("No significant genes at fdr", pthresh))
+  }
+  
+  if(colorby == "overall survival"){
+    colorby <- "death"
+  } else if (colorby == "distant recurrence"){
+    colorby <- "distant_recurrence"
+  } else {stop("Event is not not overall survival or distant recurrence")}
+  
+  mat <- mat[rownames(mat) %in% df$gene_name, ]
+  
+  sanno <- select(sanno, sample_name, study_group,
+                  death, time_OS_months,
+                  distant_recurrence, time_DRS_months) %>%
+    mutate(death = as.factor(death), distant_recurrence = as.factor(distant_recurrence)) %>%
+    mutate(involution = factor(ifelse(study_group == "ppbcpw", "ppbcpw", "rest"),
+                               levels = c("rest", "ppbcpw")))
+  
+  df <- mat %>%
+    as.data.frame() %>%
+    rownames_to_column("gene_name") %>%
+    pivot_longer(cols = -gene_name, names_to = "sample_name",
+                 values_to = "expression") %>%
+    left_join(., df, by = "gene_name") %>%
+    right_join(sanno,.,by="sample_name") 
+  #return(df)
+  
+  df %>%
+    ggplot(aes(x = study_group, y = expression)) +
+    geom_jitter(height = 0, width = 0.2,
+                aes(color = get(colorby))) +
+    labs(color = colorby) +
+    facet_wrap(~gene_name)  +
+    ggtitle(paste("Top", n, "genes below FDR", pthresh, "\n", analysis_type))
+  
+}
+
+gene_boxplot(res) +
+  ggthemes::scale_color_colorblind()
+```
+
+# Kaplan-Meier top 4
+
+```{r}
+top_n_km <- function(df, n = 4, sanno = sampledata,
+                         mat=geneEx, p = pthresh, outcome=event){
+  df <- df %>%
+    filter(fdr < pthresh) %>%
+    arrange(fdr) %>%
+    head(n) %>%
+    select(gene_name, fdr, beta)
+  #return(df)
+  
+  if(nrow(df)==0){
+    return(paste("No significant genes at fdr", pthresh))
+  }
+  
+  mat <- mat[rownames(mat) %in% df$gene_name, ]
+  
+  sanno <- select(sanno, sample_name, study_group,
+                  death, time_OS_months,
+                  distant_recurrence, time_DRS_months) %>%
+    mutate(involution = factor(ifelse(study_group == "ppbcpw", "ppbcpw", "rest"),
+                               levels = c("rest", "ppbcpw")))
+  
+  df <- mat %>%
+    as.data.frame() %>%
+    rownames_to_column("gene_name") %>%
+    pivot_longer(cols = -gene_name, names_to = "sample_name",
+                 values_to = "expression") %>%
+    group_by(gene_name) %>%
+    mutate(gene_median = median(expression), .after = expression) %>%
+    mutate(gene_expression = factor(ifelse(expression > gene_median,
+                                           "high", "low"),
+                                    levels=c("low", "high"))) %>%
+    left_join(., df, by = "gene_name") %>%
+    right_join(sanno,.,by="sample_name") %>% as.data.frame()
+  
+  if(input == "involution only"){
+    df <- df %>% filter(study_group == "ppbcpw")
+  }
+  
+  pal <- cp$tertile_colors[names(cp$tertile_colors) %in% c("low", "high")]
+  
+  #return(df)
+  for(i in 1:length(unique(df$gene_name))){
+    
+    gene <- unique(df$gene_name)[i]
+   
+    thisgene <- df %>% filter(gene_name == gene) %>% as.data.frame()
+  
+    fdr <- signif(unique(thisgene$fdr),2)
+    
+    if(event == "overall survival" & coef == "Interaction"){
+      surv <- survfit(Surv(time=time_OS_months, event=death) ~ gene_expression,
+                      data = thisgene)
+      names(surv$strata) <- str_remove(names(surv$strata), "gene_expression=")
+      print(ggsurvplot(surv, pval=T,
+                       data = thisgene,
+                       facet.by = "involution",
+                       title = paste(gene, "FDR", fdr, analysis_type),
+                       ggtheme = theme_bw(),
+                       palette = pal,
+                       xlab = "Months",
+                       ylab = stringr::str_to_sentence(event)
+      ))
+    } else if(event == "distant recurrence" & coef == "Interaction"){
+      surv <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ gene_expression,
+                      data = thisgene)
+      names(surv$strata) <- str_remove(names(surv$strata), "gene_expression=")
+      print(ggsurvplot(surv, pval=T,
+                       data = thisgene,
+                       facet.by = "involution",
+                       title = paste(gene, "FDR", fdr, analysis_type),
+                       ggtheme = theme_bw(),
+                       palette = pal,
+                       xlab = "Months",
+                       ylab = stringr::str_to_sentence(event)
+      ))
+      
+    } else if(event == "overall survival" & coef == "Genewise"){
+      surv <- survfit(Surv(time=time_OS_months, event=death) ~ gene_expression,
+                      data = thisgene)
+      names(surv$strata) <- str_remove(names(surv$strata), "gene_expression=")
+      print(ggsurvplot(surv, pval=T,
+                       data = thisgene,
+                       title = paste(gene, "FDR", fdr, analysis_type),
+                       palette = pal,
+                       ggtheme = theme_bw(),
+                       xlab = "Months",
+                       ylab = stringr::str_to_sentence(event)
+      ))
+    } else if(event == "distant recurrence" & coef == "Genewise"){
+      surv <- survfit(Surv(time=time_OS_months, event=death) ~ gene_expression,
+                      data = thisgene)
+      names(surv$strata) <- str_remove(names(surv$strata), "gene_expression=")
+      print(ggsurvplot(surv, pval=T,
+                       data = thisgene,
+                       title = paste(gene, "FDR", fdr, analysis_type),
+                       ggtheme = theme_bw(),
+                       palette = pal,
+                       xlab = "Months",
+                       ylab = stringr::str_to_sentence(event)
+      ))
+      
+    } else {stop("Event must be overall survival or distant recurrence and
+                 coef must be Interaction or Genewise")}
+    
+    }
+}
+
+top_n_km(res)
 ```
 
 # Deleterious genes

@@ -784,14 +784,37 @@ genewise_cox =[
   "inv_multi_genewise_drs", "inv_uni_genewise_drs"
   ]
 
+interaction_models = [
+  "uni_interaction_os",
+  "uni_interaction_drs",
+  "multi_interaction_os",
+  "multi_interaction_drs"
+]
+
+# Interaction survival models, using the general formula
+# outcome ~ gene*involution (univariate)
+# outcome ~ clinical_covariates + gene*involution (multivariate)
+# could be combined with the previous rules?
+rule surv_inv_int:
+  input:
+    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    coxdata="data/rnaseq/processed/12_coxdata.Rds",
+    script="src/rnaseq/survival_involution_interaction.R"
+  output:
+    expand("data/rnaseq/processed/12_{m}.Rds", m=interaction_models)
+  shell:
+    """
+    Rscript {input.script}
+    """
+
 rule report_genewise_survival:
   input:
     survival_results="data/rnaseq/processed/12_{cox}.Rds",
+    dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
     cp="data/rnaseq/interim/color_palettes.Rds",
     sp="data/rnaseq/interim/survival_colors.Rds",
     sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
     script="src/utils/rmarkdown.R",
-    #script="src/12_batch_survival_reports.R",
     rmd="reports/rnaseq/12_genewise_survival.Rmd",
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
     #either coxdata or invdata is loaded conditionally
@@ -813,47 +836,38 @@ rule report_genewise_survival:
     " --pw {input.pw}"
     " --ovr {input.ovr}"
 
-interaction_models = [
-  "uni_interaction_os",
-  "uni_interaction_drs",
-  "multi_interaction_os",
-  "multi_interaction_drs"
-] 
-    
-rule surv_inv_int:
-  input:
-    gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    coxdata="data/rnaseq/processed/12_coxdata.Rds",
-    script="src/rnaseq/survival_involution_interaction.R"
-  output:
-    expand("data/rnaseq/processed/13_{m}.Rds", m=interaction_models)
-  shell:
-    """
-    Rscript {input.script}
-    """
 
+
+# Report on interaction model results
 rule report_interaction_survival:
   input:
-    "src/general_R_tools.R",
-    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-    rds=expand("data/Rds/13_{c}.Rds", c=interaction_models),
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds",
+    survival_results=expand("data/rnaseq/processed/13_{c}.Rds", c=interaction_models),
+    dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
+    cp="data/rnaseq/interim/color_palettes.Rds",
+    sp="data/rnaseq/interim/survival_colors.Rds",
     sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    script="src/13_batch_involution_interaction_reports.R",
-    rmd="reports/13_involutionxgene_interaction_models.Rmd",
+    script="src/utils/rmarkdown.R",
+    rmd="reports/rnaseq/13_interaction_genewise_survival.Rmd",
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
+    #either coxdata or invdata is loaded conditionally
     coxdata="data/rnaseq/processed/12_coxdata.Rds",
-    tools="src/enrichment-analysis-functions.R",
-    pw="results/diffex/07_pairwise_comparisons_allgenes.xlsx",
-    ovr="results/diffex/08_one_vs_rest_allgenes.xlsx"
+    invcoxdata="data/rnaseq/processed/12_invdata.Rds",
+    tools="src/rnaseq/enrichment-analysis-functions.R",
+    duplicates="src/rnaseq/summarize_duplicate_ids.R",
+    pw="results/rnaseq/diffex/07_pairwise_comparisons_allgenes.xlsx",
+    ovr="results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx"
   output:
-    html=expand("reports/13_{rep}.html", rep=interaction_models),
-    csv=expand("results/survival/13_{rep}.csv", rep=interaction_models)
+    html=expand("reports/rnaseq/13_{rep}.html", rep=interaction_models),
+    csv=expand("results/rnaseq/survival/13_{rep}.csv", rep=interaction_models)
   shell:
-    """
-    Rscript {input.script}
-    """
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --survival_results {input.survival_results}"
+    " --dds {input.dds}"
+    " --gx_annot {input.gx_annot}"
+    " --tools {input.tools}"
+    " --duplicates {input.duplicates}"
+    " --pw {input.pw}"
+    " --ovr {input.ovr}"
 
 rule aggregate_genewise_survival:
   input:
