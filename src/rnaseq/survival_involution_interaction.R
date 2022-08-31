@@ -11,70 +11,32 @@ library(ggpubr)
 library(tidyverse)
 
 # Whether to overwrite pre-existing results
-overwrite <- T
+overwrite <- F
 
 #### Cox functions ----
 
-extract_interaction_cox_results <- function(cox_models, anno_df = gx_annot){
+tidy_cox <- function(cox_models, anno_df = gx_annot){
   
-  gene_results <- lapply(cox_models,
-                         function(x){
-                           
-                           #Save formula
-                           f <- paste0(as.character(x$formula)[2],as.character(x$formula)[1], as.character(x$formula)[3])
-                           
-                           x <- summary(x)
-                           
-                           #Overall model significance
-                           logrank_p <- x$logtest[[3]] #p value logrank test
-                           #wald_p <- x$waldtest[[3]] #p value wald test
-                           #lrt_p <- x$sctest[[3]] #p value likelihood ratio test
-                           
-                           #Coefficients
-                           coefs <- as.data.frame(x$coefficients)
+  #Extract results
+  res_df <- map_df(cox_models, broom::tidy, conf.int = T, .id = "ensembl_gene_id") %>%
+    filter(str_detect(term, "involution:ENSG")) %>%
+    mutate(beta = signif(estimate, 2),
+           HR = paste0(signif(exp(estimate), 2),
+                       " (", signif(conf.low, 2), "-",
+                       signif(conf.high,2), ")")) %>%
+    select(ensembl_gene_id, p.value, beta, HR, interaction = term)
   
-                           #Save gene from coefficient
-                           coefs <- rownames_to_column(coefs, "feature")
-                           gene <- coefs$feature[str_detect(coefs$feature, "^ENSG")]
-                           
-                           #Extract results for interaction coefficient
-                           
-                           int <- coefs[coefs$feature==coefs$feature[str_detect(coefs$feature, ":")], , drop=F]
-                           colnames(int) <- c("feature", "beta", "HR", "se(beta)", "z", "p.value")
-                           int <- int %>% mutate(p.value = signif(p.value, 2),
-                                                 beta = signif(beta, 2),
-                                                 HR = signif(HR, 2),
-                                                 ensembl_gene_id = gene,
-                                                 interaction = feature,
-                                                 logrank_p = signif(logrank_p, 2),
-                                                 #wald_p = signif(logrank_p, 2),
-                                                 #lrt_p = signif(logrank_p, 2),
-                                                 call = f
-                           )
-                           
-                           #Do the same for conf intervals
-                           conf = rownames_to_column(as.data.frame(x$conf.int), "feature")
-                           conf = conf[conf$feature == coefs$feature[str_detect(coefs$feature, ":")], , drop=F]
-                           HR.confint.lower <- signif(conf[,"lower .95"], 2)
-                           HR.confint.upper <- signif(conf[,"upper .95"],2)
-                           int$HR <- paste0(int$HR, " (", 
-                                            HR.confint.lower, "-", HR.confint.upper, ")")
-                           res <- int %>% select(ensembl_gene_id, beta, HR, p.value, everything())
-                           res <- res %>% dplyr::rename(`HR (95% CI for HR)` = HR)
-                           res <- res %>% select(-feature, -`se(beta)`, -z) #redundant
-                           res <- as.vector(res[1,,drop=T])
-                           
-                           return(res)
-                         })
-  #res_df <- t(as.data.frame(gene_results, check.names = FALSE))
-  #return(gene_results)
-  res_df <- bind_rows(gene_results)
-  #return(res_df)
+  calls <- sapply(cox_models, function(x){
+    f <- paste(as.character(x$formula)[2],as.character(x$formula)[1], as.character(x$formula)[3])
+  }) %>% enframe("ensembl_gene_id", "call")
+  
+  res_df <- left_join(res_df, calls, by = "ensembl_gene_id")
   
   df = res_df %>%
     left_join(., anno_df, by="ensembl_gene_id") %>%
     mutate(fdr = p.adjust(p.value, method = "fdr")) %>%
-    select(gene_name, fdr, beta,`HR (95% CI for HR)`, p.value, gene_type, description, everything())
+    select(gene_name, fdr, beta,`HR (95% CI for HR)`=HR, p.value,
+           gene_type, description, everything())
   
   return(df)
 }
@@ -118,12 +80,12 @@ genewise_cox_interactions <- function(gene_list, data = coxdata, survival_type,
     return(gene_models)  
   }
   
-  res <- extract_interaction_cox_results(gene_models)
+  res <- tidy_cox(gene_models)
   
   #We added this already
   #res$formula <- gsub("[[:space:]]", "", unlist(format(gene_formulas)))
   
-  res <- res %>%arrange(fdr, p.value)
+  res <- res %>% arrange(fdr, p.value)
   
   end <- Sys.time()
   
@@ -156,44 +118,43 @@ if(sys.nframe() == 0){
   
   table(coxdata$study_group, coxdata$involution)
   
+  #Detect start of count data
   gene_col = which(colnames(coxdata)=="ENSG00000000003")
   print(paste("Gene columns from", gene_col, "to", ncol(coxdata), "of coxdata"))
   print(head(coxdata[,(gene_col-3):(gene_col+1)]))
   
   #### Test dataset ----
   
-  # #First test multivariate models
+  #First test multivariate models
   # test = genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
   #                                  survival_type = "os", formula_type = "multivariate",
   #                                  return_models=T)
-  # test[[1]]
-  # test2 = extract_interaction_cox_results(test)
-  # test2$call[1]
+  # test
+  # tidy_cox(test) %>% arrange(fdr, p.value)
   # 
-  # #When return_models is false, extract_interaction_cox_results() is called as part of genewise_cox_interactions()
-  # test3 = genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
+  # 
+  # #When return_models is false, tidy_cox() is called as part of genewise_cox_interactions()
+  # test2 = genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
   #                                   survival_type = "os", formula_type = "multivariate",
   #                                   return_models=F)
-  # test3
+  # 
+  # test2
   # 
   # #Then univariate
-  # test4 = genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
+  # test3 = genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
   #                                   survival_type = "os", formula_type = "univariate",
   #                                   return_models=T)
-  # test4[[1]]
+  # test3
   # 
-  # test5 = extract_interaction_cox_results(test4)
-  # test5
+  # tidy_cox(test3) %>% arrange(fdr, p.value)
   # 
-  # #When return_models is false, extract_interaction_cox_results() is called as part of genewise_cox_interactions()
-  # test6=genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
+  # test4=genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:(gene_col + 6)],
   #                                 survival_type = "os", formula_type = "univariate",
   #                                 return_models=F)
-  # test6
+  # test4
   # 
-  # rm(list=c("test","test2","test3","test4","test5","test6"))
-  # 
-  
+  # rm(list=c("test","test2","test3","test4"))
+
   #### Cox regression ----
   
   #Results directory
@@ -204,18 +165,18 @@ if(sys.nframe() == 0){
   #### OS ####
   
   #Univariate
-  resPath = file.path(resDir, "13_uni_interaction_os.Rds")
+  resPath = file.path(resDir, "12_uni_interaction_os.Rds")
   
-  if(file.exists(resPath) == F| overwrite == T){
+  if(file.exists(resPath) == F | overwrite == T){
     print("Univariate interaction involution*gene for overall survival")
-    res <-  genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:ncol(coxdata)], 
+    res <-  genewise_cox_interactions(gene_list = colnames(coxdata)[gene_col:ncol(coxdata)],
                                       survival_type = "os",
                                       formula_type = "univariate")
     saveRDS(res, resPath)
   }
   
   #Multivariate
-  resPath = file.path(resDir, "13_multi_interaction_os.Rds")
+  resPath = file.path(resDir, "12_multi_interaction_os.Rds")
   
   if(file.exists(resPath) == F| overwrite == T){
     print("Multivariate interaction involution*gene for overall survival")
@@ -228,7 +189,7 @@ if(sys.nframe() == 0){
   #### DRS ####
   
   #Univariate
-  resPath = file.path(resDir, "13_uni_interaction_drs.Rds")
+  resPath = file.path(resDir, "12_uni_interaction_drs.Rds")
   
   if(file.exists(resPath) == F| overwrite == T){
     print("Univariate interaction involution*gene for DRS")
@@ -239,7 +200,7 @@ if(sys.nframe() == 0){
   }
   
   #Multivariate
-  resPath = file.path(resDir, "13_multi_interaction_drs.Rds")
+  resPath = file.path(resDir, "12_multi_interaction_drs.Rds")
   
   if(file.exists(resPath) == F| overwrite == T){
     print("Multivariate interaction involution:gene for DRS")
@@ -249,3 +210,4 @@ if(sys.nframe() == 0){
     saveRDS(res, resPath)
   }
 }
+
