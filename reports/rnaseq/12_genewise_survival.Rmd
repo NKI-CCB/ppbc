@@ -1,5 +1,4 @@
 ---
-title: "Genewise survival report"
 author: "Kat Moore"
 date: "`r Sys.Date()`"
 output: 
@@ -7,17 +6,28 @@ output:
     toc: yes
     toc_float: yes
     df_print: paged
-    theme: darkly
-    highlight: breezedark
+    highlight: kate
     canon: true
 params:
-  survival_results:  
-    value: "/DATA/share/postpartumbc/data/Rds/12_inv_multi_genewise_drs.Rds"
-
+  survival_results: "data/rnaseq/processed/12_uni_genewise_drs.Rds"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+  tools: "src/rnaseq/enrichment-analysis-functions.R"
+  duplicates: "src/rnaseq/summarize_duplicate_ids.R"
+  cp: "data/rnaseq/interim/color_palettes.Rds"
+  sp: "data/rnaseq/interim/survival_colors.Rds"
+  coxdata: "data/rnaseq/processed/12_coxdata.Rds"
+  invcoxdata: "data/rnaseq/processed/12_invdata.Rds"
+  pw: "results/rnaseq/diffex/07_pairwise_comparisons_allgenes.xlsx"
+  ovr: "results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx"
 ---
 
+Report on genewise Cox models.
 
-```{r, include=F}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
 library(DESeq2)
 library(survival)
 library(survminer)
@@ -31,10 +41,6 @@ library(tidyverse)
 theme_set(theme_bw())
 ```
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 # Load data {.tabset}
 
 Auto detection of analysis type:
@@ -46,18 +52,10 @@ params$survival_results
 Results from copxh analysis:  
 
 ```{r survres}
-res <- readRDS(params$survival_results)
+res <- readRDS(here(params$survival_results))
 ```
   
-Detect basefile:
-
-```{r resstring}
-s = params$survival_results
-s = str_remove_all(s, "/DATA/share/postpartumbc/data/Rds/")
-print(s)
-```
-
-Analysis type:
+Detect basefile and analysis type:
 
 ```{r}
 call = if_else(str_detect(params$survival_results, "_multi_"),
@@ -67,21 +65,26 @@ event = if_else(str_detect(params$survival_results, "os.Rds"),
 input = if_else(str_detect(params$survival_results, "_inv_"),
                 "involution only", "all samples")
 analysis_type = paste(call, event, paste0("(", input ,")"))
-print(paste(s, ":", analysis_type))
+print(paste(basename(params$survival_results), ":", analysis_type))
 ```
 
+---
+title: '`r paste("Genewise survival report:", analysis_type)`'
+---
+ 
 Gene annotation:
 
 ```{r}
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
+gx_annot <- read_tsv(here(params$gx_annot))
 gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name,
-                               gene_type, description = gene_description) %>% distinct()
+                               gene_type, description = gene_description) %>%
+  distinct()
 ```
 
 For pathway analysis:
 
 ```{r}
-source(here("src/enrichment-analysis-functions.R"))
+source(here(params$tools))
 ```
 
 ## Gene sets
@@ -100,13 +103,13 @@ gene_sets = list(
 ## Colors
 
 ```{r}
-cp = readRDS(here("data", "Rds", "color_palettes.Rds"))
+cp = readRDS(here(params$cp))
 study_colors = cp$study_colors
 pam_colors = cp$pam_colors
 gene_colors = cp$gene_colors
 ppbc_colors = cp$ppbc_colors
 
-sp = readRDS(here("data/Rds/survival_colors.Rds"))
+sp = readRDS(here(params$sp))
 ```
 
 ## Coxdata
@@ -118,13 +121,12 @@ input
 ```
 
 ```{r}
-coxfile = if_else(input == "all samples",
-          here("data/Rds/12_coxdata.Rds"),
-          here("data/Rds/12_invdata.Rds"))
+coxfile = ifelse(input == "all samples",
+                 here(params$coxdata),
+                 here(params$invcoxdata))
 
+print(paste("Loading", basename(coxfile)))
 coxdata = readRDS(coxfile)
-
-colnames(coxdata)[1:22]
 ```
 
 ## Gene expression matrix
@@ -140,7 +142,7 @@ geneEx[1:4,1:4]
 Convert IDs to symbols and average duplicates.
 
 ```{r}
-source(here("src", "general_R_tools.R"))
+source(here(params$duplicates))
 geneEx = rownames_to_column(as.data.frame(geneEx), "ensembl_gene_id")
 geneEx = right_join(select(gx_annot, gene_name, ensembl_gene_id),
                     geneEx, by = "ensembl_gene_id") %>%
@@ -157,28 +159,19 @@ geneEx = as.matrix(geneEx)
 geneEx[1:4,1:4]
 ```
 
-
 ## Diffex results
 
 ```{r}
-#Omit for now
-#lrt <- here("results", "diffex", "06_LRT_allgenes.xlsx") %>% 
-#  readxl::excel_sheets() %>% 
-#  set_names() %>% 
-#  map(readxl::read_excel, path = here("results", "diffex", "06_LRT_allgenes.xlsx"))
-#names(lrt)
-
-pw <- 
-here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx") %>% 
+pw <- here(params$pw) %>% 
   readxl::excel_sheets() %>% 
   purrr::set_names() %>% 
-  purrr::map(readxl::read_excel, path = here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx"))
+  purrr::map(readxl::read_excel, path = here(params$pw))
 #names(pw)
 
-ovr = here("results", "diffex", "08_one_vs_rest_allgenes.xlsx") %>% 
+ovr = here(params$ovr) %>% 
   readxl::excel_sheets() %>% 
   purrr::set_names() %>% 
-  purrr::map(readxl::read_excel, path = here("results", "diffex", "08_one_vs_rest_allgenes.xlsx"))
+  purrr::map(readxl::read_excel, path = here(params$ovr))
 #names(ovr)
 
 diffex_list = append(pw, ovr)
@@ -205,10 +198,8 @@ head(res)
 Add average expression, condensed biotypes...
 
 ```{r}
-res = 
-res %>% left_join(., basemeans, by="ensembl_gene_id") %>%
+res = res %>% left_join(., basemeans, by="ensembl_gene_id") %>%
   select(gene_name:p.value, baseMean, type, everything())
-
 ```
 
 ...and selection involution padj and l2fcs to results:
@@ -251,11 +242,10 @@ for(i in 1:nrow(df_thresh)){
     "Genes with fdr <= ", df_thresh$cutoff[i], ": ", df_thresh$hits[i]
   ))
 }
-  
 ```
 
 Threshold selection.
-Pick the minimum threshold that has at least 50 hits.
+Pick the minimum threshold that has at least 50 hits for exploration.
 
 ```{r}
 pthresh = df_thresh %>% filter(hits >= 50) %>% dplyr::slice(1) %>% pull(cutoff)
@@ -321,16 +311,18 @@ res %>% filter(beta < 0 & fdr <= !!pthresh) %>%
 # Pathway overview: Fisher's exact {.tabset}
 
 ```{r}
-source(here("src/enrichment-analysis-functions.R"))
+source(here(params$tools))
+paththresh <- 0.1
 paths = fisher_pathways(
   sig_genes = pull(filter(res, fdr < !!pthresh),gene_name),
       background_genes = res$gene_name,
       list_signatures = gene_sets,
-      fdr_cutoff = 0.1,
+      fdr_cutoff = paththresh,
       verbose = F,
       collapse_rows=F)
 
-print("Sig pathways for all genes associated with survival, fdr < 0.1: ")
+print(paste0("Sig pathways for all genes associated with survival, fdr < ",
+             paththresh,": "))
 
 lapply(paths, nrow)
 ```
@@ -345,7 +337,6 @@ bind_rows(paths, .id = "gene_set") %>%
          members_in_sample,
          path_in_sample, path_in_pop, everything()) %>%
   head(20)
-
 ```
 
 ## Pathways for deleterious genes
@@ -355,11 +346,11 @@ delpaths = fisher_pathways(
   sig_genes = pull(filter(res, fdr < !!pthresh & beta > 0), gene_name),
       background_genes = res$gene_name,
       list_signatures = gene_sets,
-      fdr_cutoff = 0.1,
+      fdr_cutoff = paththresh,
       verbose = F,
       collapse_rows=F)
 
-print("Sig pathways fdr < 0.1: ")
+print(paste0("Sig pathways fdr < ", paththresh, ": "))
 
 lapply(delpaths, nrow)
 ```
@@ -384,11 +375,11 @@ goodpaths = fisher_pathways(
   sig_genes = pull(filter(res, fdr < !!pthresh & beta < 0), gene_name),
       background_genes = res$gene_name,
       list_signatures = gene_sets,
-      fdr_cutoff = 0.1,
+      fdr_cutoff = paththresh,
       verbose = F,
       collapse_rows=F)
 
-print("Sig pathways fdr < 0.1: ")
+print(paste0("Sig pathways fdr < ", paththresh, ": "))
 
 lapply(goodpaths, nrow)
 ```
@@ -412,10 +403,7 @@ Using a quantile-based color scale to prevent outliers from bleaching the heatma
 
 ```{r, fig.height=8, fig.width=7}
 #Define column annotation
-ann_df = coxdata[, c("sample_name","PPBC", "overall_survival")]
-colnames(ann_df)[3] = "death"
-ann_df = mutate(ann_df, death = as.factor(death))
-ann_df = column_to_rownames(ann_df, "sample_name")
+ann_df = coxdata[, c("PPBC", "death")]
 
 #Sort by survival
 ann_df = ann_df[order(ann_df$death),]
@@ -447,33 +435,32 @@ mat_breaks <- quantile_breaks(mat, n = 11)
 
 
 
-pheatmap::pheatmap(mat, show_colnames = F,
+pheatmap::pheatmap(mat, show_colnames = F,fontsize_row = 7,
                    scale="row", annotation_col = ann_df,
-         cluster_cols = T, drop_levels = T,
-         breaks =  mat_breaks,
-         color = colorRampPalette(rev(brewer.pal(n = 11,
-                                      name = "RdYlBu")))(length(mat_breaks) - 1),
-         annotation_colors = list(PPBC = ppbc_colors[-5],
-                                  death = death_cols), #sp$overall_survival white is too light
-         main = ttext
-         ) 
+                   cluster_cols = T, drop_levels = T,
+                   breaks =  mat_breaks,
+                   color = colorRampPalette(rev(brewer.pal(n = 11,
+                                                           name = "RdYlBu")))(length(mat_breaks) - 1),
+                   annotation_colors = list(PPBC = ppbc_colors[-5],
+                                            death = death_cols), #sp$overall_survival white is too light
+                   main = ttext
+) 
 ```
 
 Alternative visualization without column clustering
 
 ```{r, fig.height=8, fig.width=7}
-pheatmap::pheatmap(mat, show_colnames = F,
+pheatmap::pheatmap(mat, show_colnames = F, fontsize_row = 7,
                    scale="row", annotation_col = ann_df,
-         cluster_cols = F, drop_levels = T,
-         breaks =  mat_breaks,
-         color = colorRampPalette(rev(brewer.pal(n = 11,
-                                      name = "RdYlBu")))(length(mat_breaks) - 1),
-         annotation_colors = list(PPBC = ppbc_colors[-5],
-                                  death = death_cols), #sp$overall_survival white is too light
-         main = ttext
-         ) 
+                   cluster_cols = F, drop_levels = T,
+                   breaks =  mat_breaks,
+                   color = colorRampPalette(rev(brewer.pal(n = 11,
+                                                           name = "RdYlBu")))(length(mat_breaks) - 1),
+                   annotation_colors = list(PPBC = ppbc_colors[-5],
+                                            death = death_cols), #sp$overall_survival white is too light
+                   main = ttext
+) 
 ```
-
 
 # Overlap with diffex
 
@@ -516,25 +503,20 @@ res %>%
 
 ```
 
-# Session info
-
-Also save data
+# Save data
 
 ```{r}
 res = res %>%
   mutate(analysis = analysis_type)
 
-write_csv(res,
-          path = file.path("/DATA/share/postpartumbc/results/survival",
-                           str_replace(
-                             str_remove_all(params$survival_results, ".*\\/"),
-                             "Rds", "csv")
-                           )
-          )
+resdir <- here("results/rnaseq/survival")
+dir.create(resdir, showWarnings = F)
+
+write_csv(res, here(resdir, str_replace(basename(params$survival_results),"Rds", "csv")))
 ```
 
-```{r, echo=F}
+# Session info
+
+```{r}
 sessionInfo()
 ```
-
-

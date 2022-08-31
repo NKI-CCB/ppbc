@@ -75,7 +75,7 @@ rule all:
       comp=["ppbcpw_vs_npbc","ppbcpw_vs_prbc","ppbcpw_vs_rest"]),
     "reports/rnaseq/10_CibersortX.pdf",
     "reports/rnaseq/11_clustering_involution.html",
-    expand("data/rnaseq/processed/12_{res}.Rds", res=genewise_cox),
+    expand("reports/rnaseq/12_{cox}.html", cox=genewise_cox),
     #"reports/16_gene_unity_setup.html",
     # Spatial rules
     "reports/spatial/05_report_cell_types.html",
