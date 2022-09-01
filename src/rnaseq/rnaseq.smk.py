@@ -910,33 +910,27 @@ rule gene_reports:
     "Rscript {input.script}"
 
 #### BCR and antibody isotype analyses ####
-    
-rule trust_setup:
-  output:
-    bcrtcrfa="bin/TRUST4/hg38_bcrtcr.fa",
-    imgt="bin/TRUST4/human_IMGT+C.fa",
-    trust="bin/TRUST4/run-trust4"
-  shell:
-    """
-    git clone https://github.com/liulab-dfci/TRUST4.git
-    mkdir -p bin
-    mv -v TRUST4 ./bin
-    """
+
+# Download TRUST to projdir/bin
+# Can be accessed via git clone https://github.com/liulab-dfci/TRUST4.git
+# TRUST sometimes fails when invoked directly with Snakemake
+# In this case, try src/rnaseq/trust4.sh
 
 rule trust:
   input:
-    fq=expand("data/RAW/{sample}.fastq.gz", sample=config["samples"]),
+    fq="data/rnaseq/fastq/{sample}.fastq.gz",
     bcrtcrfa=ancient("bin/TRUST4/hg38_bcrtcr.fa"),
     imgt=ancient("bin/TRUST4/human_IMGT+C.fa"),
     trust=ancient("bin/TRUST4/run-trust4")
+  output:
+    report="data/rnaseq/TRUST/{sample}.fastq.gz_report.tsv"
   params:
     threads=16,
-    outdir="data/TRUST/"
+    outdir="data/rnaseq/TRUST/"
   shell:
     """
     mkdir -p {params.outdir} &&
-     #for f in `ls $PROJDIR/data/RAW/*.R1.fastq.gz`
-    for f in `ls data/RAW/*.R1.fastq.gz`; do basefile="$(basename -- $f)"; {input.trust} -u $f -t {params.threads} -f {input.bcrtcrfa} --ref {input.imgt} -o {params.outdir}$basefile; done
+    {input.trust} -u {input.fq} -t {params.threads} -f {input.bcrtcrfa} --ref {input.imgt} -o {params.outdir}{input.fq}
     """
 
 rule trust_report:
@@ -969,7 +963,7 @@ rule antibody_isotypes:
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"  
 
- #### Shiny App for PPBC gene visualization ####
+#### Shiny App for PPBC gene visualization ####
 
 # Set up the data to be loaded within the shiny app
 rule app_setup:

@@ -1,5 +1,5 @@
-#for f in `ls /DATA/share/postpartumbc/data/RAW/fastq`; do echo ${f}; done
-#for f in `ls $PROJDIR/data/RAW/*.R1.fastq.gz`; do basefile="$(basename -- $f)"; prefix="${basefile%%.*}"; echo "Starting ${prefix}"; done
+#for f in `ls $PWD/data/rnaseq/fastq`; do echo ${f}; done
+#for f in `ls $PROJDIR/data/rnaseq/fastq/*.R1.fastq.gz`; do basefile="$(basename -- $f)"; prefix="${basefile%%.*}"; echo "Starting ${prefix}"; done
 
 #Usage: ./run-trust4 [OPTIONS]
 #	Required:
@@ -25,15 +25,15 @@
 #./run-trust4 -b example/example.bam -f hg38_bcrtcr.fa --ref human_IMGT+C.fa
 
 #Test output
-#f=/DATA/share/postpartumbc/data/RAW/rHLE-FA-100.180816.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz
+#f=$PWD/data/rnaseq/fastq/rHLE-FA-100.180816.HiSeq4000.FCB.lane5.gcap_17_11.R1.fastq.gz
 
-PROJDIR=/DATA/share/postpartumbc
+PROJDIR=$PWD
 OUTDIR=$PROJDIR/data/TRUST
 TRUSTDIR=$PROJDIR/bin/TRUST4
 
 mkdir -p $OUTDIR
 
-for f in `ls $PROJDIR/data/RAW/*.R1.fastq.gz`
+for f in `ls $PROJDIR/data/rnaseq/fastq/*.R1.fastq.gz`
 do
     basefile="$(basename -- $f)"
     prefix="${basefile%%.*}"
