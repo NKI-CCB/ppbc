@@ -865,23 +865,16 @@ rule universal_ids:
   shell:
     "Rscript {input.script}"
 
-diffex_results = [
-  "08_one_vs_rest_allgenes",
-  "07_pairwise_comparisons_allgenes",
-  "06_LRT_allgenes"
-  ]
-
-inv_bf = [
-  "breastfeeding",
-  "involution"
-] 
-
+# Create an environment for generating gene reports
 rule gene_unity_setup:
   input:
     script="src/utils/rmarkdown.R",
     rmd="reports/rnaseq/16_gene_unity_setup.Rmd",
-    diffex_results=expand("results/rnaseq/diffex/{result}.xlsx", result=diffex_results),
-    invbf_diffex=expand("results/rnaseq/diffex/09_diffex_{result}_duration.xlsx", result=inv_bf),
+    diffex_lrt="results/rnaseq/diffex/06_LRT_allgenes.xlsx",
+    diffex_pw="results/rnaseq/diffex/07_pairwise_comparisons_allgenes.xlsx",
+    diffex_ovr="results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx",
+    inv_diffex="results/rnaseq/diffex/09_diffex_involution_duration.xlsx",
+    bf_diffex="results/rnaseq/diffex/09b_diffex_breastfeeding_duration.xlsx",
     subdiffex=expand("results/rnaseq/diffex/14_subgroup_diffex_{comp}_allgenes.xlsx", 
       comp=sub_diffex),
     coxres="results/rnaseq/survival/12_cox_allgenes.xlsx",
@@ -895,16 +888,21 @@ rule gene_unity_setup:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --dds {input.dds}"
     " --coxdata {input.coxdata}"
-    " --bx_annot {input.bx_annot}"
+    " --gx_annot {input.bx_annot}"
     " --coxres {input.coxres}"
+    " --diffex_lrt {input.diffex_lrt}"
+    " --diffex_pw {input.diffex_pw}"
+    " --diffex_ovr {input.diffex_ovr}"
+    " --inv_diffex {input.inv_diffex}"
+    " --bf_diffex {input.bf_diffex}"
 
 rule gene_reports:
   input:
-    aggdata="data/Rds/16_gene_report_environment.RData",
-    script="src/17_batch_gene_reports.R",
+    aggdata="data/rnaseq/processed/16_gene_report_environment.RData",
+    script="src/rnaseq/batch_gene_reports.R",
     genes=ancient("reports/genes_to_report.txt")
   #output:
-  #  directory("reports/gene_reports")
+  #  directory("reports/rnaseq/gene_reports")
   shell:
     "Rscript {input.script}"
 

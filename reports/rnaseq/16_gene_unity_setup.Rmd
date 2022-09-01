@@ -7,15 +7,23 @@ output:
     toc: yes
     toc_float: yes
     df_print: paged
-    theme: darkly
-    highlight: breezedark
+    highlight: kate
     canon: true
+params:
+    coxres: "results/rnaseq/survival/12_cox_allgenes.xlsx"
+    gx_annot: "data/rnaseq/processed/bx_annot.Rds"
+    coxdata: "data/rnaseq/processed/12_coxdata.Rds"
+    dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
+    diffex_lrt: "results/rnaseq/diffex/06_LRT_allgenes.xlsx"
+    diffex_pw: "results/rnaseq/diffex/07_pairwise_comparisons_allgenes.xlsx"
+    diffex_ovr: "results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx"
+    inv_diffex: "results/rnaseq/diffex/09_diffex_involution_duration.xlsx"
+    bf_diffex: "results/rnaseq/diffex/09b_diffex_breastfeeding_duration.xlsx"
 ---
 
 This notebook will unify the various differential expression and survival analyses to identify a list of interesting genes for discussion in the manuscript.
 
-
-```{r, include=F}
+```{r, message=F}
 library(DESeq2)
 library(survival)
 library(ggthemes)
@@ -23,8 +31,8 @@ library(survminer)
 library(pheatmap)
 library(RColorBrewer)
 library(edgeR)
-library(glmnet)
 library(openxlsx)
+library(magrittr)
 library(here)
 library(ggpubr)
 library(tidyverse)
@@ -45,27 +53,15 @@ Click on the tabs if you want to inspect the data.
 Raw counts:
 
 ```{r}
-dds = readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
+dds = readRDS(here(params$dds))
 ```
 
 ## Annotation
 
-Gene annotation:
-
-```{r}
-gx_annot <- read_tsv(here("data/metadata/01_tx_annot.tsv"))
-gx_annot = gx_annot %>%
-  select(ensembl_gene_id = gene_id, gene_name, gene_type, description = gene_description) %>%
-  distinct() %>%
-  mutate(description = str_remove_all(description, " \\[.*\\]"))
-
-head(gx_annot)
-```
-
 A larger gene annotation data frame that includes uniprot and entrez ids, for webscraping:
 
 ```{r}
-bx_annot <- readRDS(here("shinyApp","VisualizePPBCgene","data","app_gx_annot.Rds"))
+bx_annot <- readRDS(here(params$gx_annot))
 head(bx_annot)
 ```
 
@@ -74,14 +70,14 @@ head(bx_annot)
 Also created in notebook 12. Gene expression columns are TMM-log2 normalized.
 
 ```{r}
-coxdata = readRDS(here("data", "Rds", "12_coxdata.Rds"))
+coxdata = readRDS(here(params$coxdata))
 colnames(coxdata)[1:30]
 ```
 
 ## Involution vs rest encoding
 
 ```{r}
-coxdata$involution = as.numeric(coxdata$study_group == "ppbc_inv")
+coxdata$involution = as.numeric(coxdata$study_group == "ppbcpw")
 
 coxdata = coxdata %>% select(sample_name:study_group, involution, everything())
 
@@ -107,8 +103,8 @@ For plotting
 geneEx = rownames_to_column(as.data.frame(coxdata[,genecol:ncol(coxdata)]),"sample_name")
 
 head(geneEx[,1:10])
-
 ```
+
 In gene x sample format:
 
 ```{r}
@@ -128,19 +124,20 @@ Divided into three sections:
 ## Main diffex:
 
 ```{r, collapse=T}
-lrt <- list(readxl::read_excel(here("results", "diffex", "06_LRT_allgenes.xlsx"),
+lrt <- list(readxl::read_excel(here(params$diffex_lrt),
                           sheet = "repLRT_all"))
 names(lrt) <- "LRT"
-pw <- here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx") %>% 
+
+pw <- here(params$diffex_pw) %>% 
   readxl::excel_sheets() %>% 
   purrr::set_names() %>% 
-  map(readxl::read_excel, path = here("results", "diffex", "07_pairwise_comparisons_allgenes.xlsx"))
+  map(readxl::read_excel, path = here(params$diffex_pw))
 #names(pw)
 
-ovr = here("results", "diffex", "08_one_vs_rest_allgenes.xlsx") %>% 
+ovr = here(params$diffex_ovr) %>% 
   readxl::excel_sheets() %>% 
   purrr::set_names() %>% 
-  map(readxl::read_excel, path = here("results", "diffex", "08_one_vs_rest_allgenes.xlsx"))
+  map(readxl::read_excel, path = here(params$diffex_ovr))
 #names(ovr)
 
 #Combine all results into single list.
@@ -149,7 +146,6 @@ res_list = append(res_list, ovr)
 names(res_list) = str_remove_all(str_remove_all(names(res_list), "rep_"), "_all")
 names(res_list) = str_replace(names(res_list), "_", "_vs_")
 names(res_list)
-
 ```
 
 Number of hits per group:
@@ -159,7 +155,6 @@ sapply(res_list, function(x){
   x %>%
     filter(padj <= 0.05 & abs(log2FoldChange) > 0.5) %>%
     nrow()
-  #nrow(x[(x$padj <= 0.05 & abs(x$log2FoldChange) > 0.5 & !is.na(x$padj) & !is.na(x$log2FoldChange)),])
 }) %>% enframe("comparison", "significant genes")
 ```
 
@@ -230,11 +225,11 @@ read_excel_tabs = function(path){
   return(ldf)
 }
 
-sub_reslist <- list.files(here("results/diffex"),
+sub_reslist <- list.files(here("results/rnaseq/diffex/"),
            pattern = "14_subgroup.*allgenes.xlsx") %>%
   set_names(str_remove(str_remove(., "14_"),
             "_allgenes.xlsx")) %>%
-  map(~read_excel_tabs(here("results/diffex",.)))
+  map(~read_excel_tabs(here("results/rnaseq/diffex",.)))
 
 names(sub_reslist)
 #Manual fix
@@ -260,11 +255,8 @@ sapply(sub_reslist, function(y){
          function(x) {
            sub = y[y$subgroup == x,]
            sub %>% dplyr::filter(padj <= 0.05 & abs(log2FoldChange) > 0.5) %>% nrow()
-           #Will not discard NAs:
-           #nrow(sub[sub$padj <= 0.05 & abs(sub$log2FoldChange) > 0.5,])
          })
 })
-
 ```
 
 ## Involution and breastfeeding duration:
@@ -279,20 +271,18 @@ read_excel_tabs = function(path){
   return(ldf)
 }
 
-invbf_reslist <- list.files(here("results/diffex"),
-           pattern = "09_diffex.*duration.xlsx") %>%
-  set_names(str_remove(str_remove(., "09_diffex_"),
-            "_duration.xlsx")) %>%
-  map(~read_excel_tabs(here("results/diffex",.))) %>%
-  bind_rows(.id="diffex_duration") %>%
-  mutate(ref = if_else(diffex_duration == "involution",
-                       "more than 6 months", "more than 1 month"),
-         group = if_else(diffex_duration == "involution",
-                         "6 months or less", "1 month or less")
-         ) %>%
-  #Rename to keep groups consistent:
-  rename(log2FoldChange = l2fc)
+#readxl::excel_sheets(here(params$bf_diffex))
+bf <- readxl::read_excel(here(params$bf_diffex), sheet = "all") %>%
+  mutate(diffex_duration = "breastfeeding", .before=everything()) %>%
+  mutate(ref = "more than 1 month", group = "1 month or less")
 
+inv <- readxl::read_excel(here(params$inv_diffex), sheet = "all") %>%
+  mutate(diffex_duration = "involution", .before=everything()) %>%
+  mutate(ref = "more than 6 months", group = "6 months or less")
+
+invbf_reslist <- bind_rows(bf, inv) %>%
+  rename(log2FoldChange = l2fc) %>%
+  mutate(sig = ifelse(is.na(sig), F, sig))
 
 invbf_reslist %>%
   select(diffex_duration, ref, group) %>% distinct()
@@ -311,13 +301,11 @@ stopifnot(
   ) 
 ```
 
-
 Hits in each group (NAs are due to DESeq outlier handling:)
 
 ```{r}
 invbf_reslist %>% group_by(diffex_duration, sig) %>%
   count()
-  
 ```
 
 Few results in breastfeeding only.
@@ -343,24 +331,25 @@ invbf_reslist %>%
 
 # Genewise survival
 
-Excluding models run on involution samples only, as there were no hits.
-
 ```{r}
-gs_sheets = readxl::excel_sheets(here("results", "survival", "12_cox_allgenes.xlsx"))
-gs_sheets = gs_sheets[!str_detect(gs_sheets,"inv_only")]
+gs_sheets = readxl::excel_sheets(here(params$coxres))
+
+#Excluding models run on involution samples only, as there were few hits.
+#gs_sheets = gs_sheets[!str_detect(gs_sheets,"inv_only")]
 
 gw_surv <- lapply(gs_sheets, function(x) readxl::read_excel(
-  here("results", "survival", "12_cox_allgenes.xlsx"), sheet = x))
+  here(params$coxres), sheet = x))
 names(gw_surv) = gs_sheets
 
 gw_surv <- bind_rows(gw_surv, .id = "model")
 gw_surv <- gw_surv %>%
   mutate(
+    input = ifelse(str_detect(model, "inv_"), "ppbcpw samples", "all samples"),
     formula = if_else(
-      str_detect(model, "univ"), "univariate", "multivariate"),
+      str_detect(model, "uni"), "univariate", "multivariate"),
     outcome = if_else(
-      str_detect(model, "surv"), "overall survival", "distant recurrence"),
-    family = "genewise"
+      str_detect(model, "os"), "overall survival", "distant recurrence"),
+    family = ifelse(str_detect(model, "genewise"), "genewise", "interaction")
     ) %>%
   mutate(fdr = signif(fdr, 2),
          p.value = signif(p.value, 2),
@@ -372,13 +361,17 @@ gw_surv <- gw_surv %>%
 gw_surv = gw_surv %>%
   select(model:fdr,p.value, everything())
 
-gw_surv = gw_surv %>%
-  mutate(model = recode(model,
-    "univ_cox_dr" = "univDRS",
-    "univ_cox_surv" = "univOS",
-    "multi_cox_dr" = "multiDRS",
-    "multi_cox_surv" = "multiOS"
-  ))
+# gw_surv = gw_surv %>%
+#   mutate(model = recode(model,
+#     "univ_cox_dr" = "univDRS",
+#     "univ_cox_surv" = "univOS",
+#     "multi_cox_dr" = "multiDRS",
+#     "multi_cox_surv" = "multiOS"
+#   ))
+
+gw_surv %>%
+  select(model, input, formula, outcome, family) %>% distinct() %>%
+  as.matrix()
 
 ```
 
@@ -387,7 +380,6 @@ Count threshold sanity check:
 ```{r}
 stopifnot(min.counts == length(unique(gw_surv$ensembl_gene_id)))
 ```
-
 
 Top 50 hits on each model:
 
@@ -410,7 +402,7 @@ sapply(thresh, function(y){
     z = gw_surv[gw_surv$model == x,]
     nrow(z[z$fdr <= y,])
   })
-}) %>% set_colnames(
+}) %>% magrittr::set_colnames(
   as.character(thresh)
 )
 
@@ -419,317 +411,12 @@ rm(model)
 
 ```
 
-# Interaction model
+# Save image
+
+For loading in genewise reports.
 
 ```{r}
-int_surv <- bind_rows(
-  read_csv(here("results/survival", "13_uni_interaction_os.csv")) %>%
-    mutate(formula = "univariate",
-    outcome = "overall survival",
-    family = "interaction"),
-  read_csv(here("results/survival", "13_multi_interaction_os.csv")) %>%
-    mutate(formula = "multivariate",
-    outcome = "overall survival",
-    family = "interaction"),
-  read_csv(here("results/survival", "13_uni_interaction_drs.csv")) %>%
-    mutate(formula = "univariate",
-    outcome = "distant recurrence",
-    family = "interaction"),
-  read_csv(here("results/survival", "13_multi_interaction_drs.csv")) %>%
-    mutate(formula = "multivariate",
-    outcome = "distant recurrence",
-    family = "interaction")  
-)
-
-int_surv = int_surv %>% mutate(
-  model = paste0(
-    if_else(formula == "multivariate",
-            "multi", "uni"),
-    if_else(outcome == "overall survival",
-            "OS", "DRS"),
-    "_Inv:Gene"
-  )
-) %>%
-  select(model, gene_name:fdr, p.value, everything()) %>%
-  mutate(fdr = signif(fdr, 2),
-         p.value = signif(p.value, 2),
-         padj.inv_vs_rest = signif(padj.inv_vs_rest, 2),
-         padj.inv_vs_nonprbc = signif(padj.inv_vs_nonprbc, 2),
-         l2fc.inv_vs_rest = signif(l2fc.inv_vs_rest, 2),
-         l2fc.inv_vs_nonprbc = signif(l2fc.inv_vs_nonprbc, 2))
-
-
-head(int_surv)
-```
-
-Types of results in this family:
-
-```{r}
-int_surv %>%
-  select(model, analysis, formula, outcome, family) %>%
-  distinct()
-```
-
-Significant hits at various thresholds:
-
-```{r}
-sapply(unique(int_surv$analysis), function(x){
-  sapply(seq(0.05, 0.3, by = 0.05), function(y){
-    z = int_surv[int_surv$analysis == x,]
-    nrow(z[z$fdr <= y,])
-  })
-}) %>% t() %>%
-  set_colnames(seq(0.05, 0.3, by = 0.05))
-```
-
-We have a few hits below fdr 0.05:
-
-```{r}
-int_surv %>%
-  filter(fdr <= 0.05) %>%
-  arrange(fdr)
-```
-
-Quite a lot more for multiDRS below 0.1:
-
-```{r}
-int_surv %>%
-  filter(model == "multiDRS_Inv:Gene" & fdr <= 0.1) %>%
-  arrange(fdr)
-```
-
-# Elastic net Cox
-
-We have several versions of this analysis, predicting outcome in:
-
-a) All study groups, using the top 1000 and top 5000 most variable genes as input
-b) Involution samples only, using the top 1000 and top 5000 most variable genes as input
-c) Involution samples only, using all genes as input
-
-These are the Spearman correlations between the relative risk predicted by the model and the outcome.
-The p value was created from the t stat relating Spearman's rho and the sampe size (see notebook 15).
-
-(Remember that n is smaller for drs than for os, since samples with metastasis at diagnosis must be excluded from drs analyses.)
-
-Results sorted by correlation and p value:
-
-```{r}
-enet.pvals = 
-  lapply(list.files(here("results/survival"),
-                  pattern = "15.*.csv", full.names = T),
-       read_csv) %>%
-  set_names(list.files(here("results/survival"),
-                  pattern = "15.*.csv")) %>%
-  bind_rows(.id = "samples") %>%
-  mutate(samples = if_else(
-    str_detect(samples, "15[bc]"),
-    "involution only", "all samples"
-  )) %>% arrange(desc(cor), pval) %>%
-  select(samples, outcome, input, everything()) %>%
-  mutate(tstat = signif(tstat, 2))
-
-#enet.pvals
-```
-
-Results for overall survival:
-
-```{r}
-enet.pvals %>% filter(outcome == "overall survival")
-```
-Results for distant recurrence:
-
-```{r}
-enet.pvals %>% filter(outcome == "distant recurrence")
-```
-
-Models predicting *distant recurrence* generally perform better than those predicting overall survival.
-
-We can see that the model performs substantially better when predicting *distant recurrence* on *involution samples only* than it does on all samples. Performance is roughly equivalent when using the top 1000 or the top 5000 genes.
-
-For *overall survival*, correlation is similar when using all samples as input vs involution only, but the p value when looking at involution samples only is not significant. By contrast, the p value is significant for DRS in involution samples, regardless of how many genes are use as input. Top 1000 is slightly better than top 5000, but not by much.
-
-It is perhaps strange that we can predict overall survival better in all samples that we can in involution samples specifically, whereas we can predict distant recurrence better in involution samples than we can in all samples...
-
-So which set of results should we focus on?
-The main problem with using the top1000 is that there are a lot of genes with large coefficients, i.e. large effect sizes, that simply aren't among the top most variant genes. These genes are highly predictive in spite of having a smaller variance and are more consistently selected in all of the folds, as we will see in the visualizations in the next section of this notebook.
-
-Since none of the overall survival models perform very well on involution samples, and the performance of distant recurrence models is roughly equivalent between top1000 and top5000, I suggest we *focus primarily upon the top5000 DRS*.
-
-
-```{r}
-read_excel_tabs = function(path){
-  tab_names = readxl::excel_sheets(path)
-  ldf = lapply(tab_names, function(x) readxl::read_excel(path, sheet = x))
-  names(ldf) = tab_names
-  return(ldf)
-}
-
-glm_features =
-append(read_excel_tabs(here("results/survival", "15b_inv_elastic_cox_features.xlsx")),
-       read_excel_tabs(here("results/survival", "15c_all_inv_elastic_cox_features.xlsx")))
-```
-
-Overall survival features, selected in at least 30/50 models:
-
-```{r}
-glm_df = glm_features %>%
-  bind_rows(.id = "input") %>%
-  mutate(outcome = if_else(str_detect(input, "os"),
-                            "overall survival",
-                            "distant recurrence")) %>%
-  mutate(gene_input = case_when(
-    str_detect(input, "1000") ~ "1000",
-    str_detect(input, "5000") ~ "5000",
-    str_detect(input, "all") ~ "all",
-  ))
-
-glm_df %>% filter(n > 30 & str_detect(input, "os")) %>%
-  arrange(desc(n), desc(abs(mean_beta)))
-```
-Distant recurrence features, selected in at least 30/50 models:
-
-```{r}
-glm_df %>% filter(n > 30 & str_detect(input, "drs")) %>%
-  arrange(desc(n), desc(abs(mean_beta)))
-```
-
-Clearly feature selection is much more stable in distant recurrence models.
-
-Which genes are good features but aren't in the top 5000 most variable genes?
-
-```{r}
-var5000 <- glm_df %>% filter(n > 30 & !str_detect(input, "all")) %>%
-  arrange(desc(n), desc(abs(mean_beta))) %>% pull(ensembl_gene_id)
-
-glm_df %>% filter(n > 30 & str_detect(input, "all")) %>%
-  filter(!ensembl_gene_id %in% var5000) %>%
-  arrange(desc(n), desc(abs(mean_beta)))
-```
-
-
-## Feature selection visualization
-
-```{r, fig.height = 8}
-glm_df %>%
-  ggplot(aes(x = mean_beta, y = n, color = gene_input, label = feature)) +
-  geom_point() +
-  ggrepel::geom_label_repel(show.legend = F,
-    data = glm_df %>%
-      filter(n > 30 & feature_type == "protein_coding")
-    ) +
-  facet_wrap(~outcome, ncol=1, nrow = 2)
-```
-
-### Overall survival
-
-Performs worse overall, feature selection less consistent
-
-```{r, fig.height = 8}
-oc = "overall survival"
-
-glm_df %>%
-  filter(outcome == !!oc) %>%
-  ggplot(aes(x = mean_beta, y = n, color=feature_type, label = feature)) +
-  geom_point() +
-  ggrepel::geom_label_repel(show.legend = F, aes(label=feature),
-    data = filter(glm_df, outcome == !!oc & n > 30)
-    ) +
-  facet_wrap(~gene_input, ncol=1, nrow = 3) +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray")
-```
-
-### Distant recurrence
-
-```{r, fig.height = 8}
-oc = "distant recurrence"
-
-glm_df %>%
-  filter(outcome == !!oc) %>%
-  ggplot(aes(x = mean_beta, y = n, color=feature_type, label = feature)) +
-  geom_point() +
-  ggrepel::geom_label_repel(show.legend = F, aes(label=feature),
-    data = filter(glm_df, outcome == !!oc & n > 30)
-    ) +
-  facet_wrap(~gene_input, ncol=1, nrow = 3) +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray")
-```
-
-### Top 1000
-
-```{r, fig.height = 8}
-nput = 1000
-
-glm_df %>%
-  filter(gene_input == !!nput) %>%
-  ggplot(aes(x = mean_beta, y = n, color=feature_type, label = feature)) +
-  geom_point() +
-  ggrepel::geom_label_repel(show.legend = F,
-    data = filter(glm_df, gene_input == !!nput) %>%
-      filter(n > 30)
-    ) +
-  facet_wrap(~outcome, ncol=1, nrow = 2) +
-  #xlim(c(-0.2, 0.2))+
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray")
-```
-
-OS:
-
-```{r}
-glm_df %>%
-  filter(input == "os1000")
-```
-
-
-### Top 5000
-
-```{r, fig.height = 8}
-nput = 5000
-
-glm_df %>%
-  filter(gene_input == !!nput) %>%
-  ggplot(aes(x = mean_beta, y = n, color=feature_type, label = feature)) +
-  geom_point() +
-  ggrepel::geom_label_repel(show.legend = F,
-    data = filter(glm_df, gene_input == !!nput) %>%
-      filter(n > 30)
-    ) +
-  facet_wrap(~outcome, ncol=1, nrow = 2)+
-  #xlim(c(-0.2, 0.2))+
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray")
-```
-
-### All genes as input
-
-```{r, fig.height = 8}
-nput = "all"
-
-glm_df %>%
-  filter(gene_input == !!nput) %>%
-  ggplot(aes(x = mean_beta, y = n, color=feature_type, label = feature)) +
-  geom_point() +
-  ggrepel::geom_label_repel(show.legend = F,
-    data = filter(glm_df, gene_input == !!nput) %>%
-      filter(n > 30)
-    ) +
-  facet_wrap(~outcome, ncol=1, nrow = 2) +
-  #xlim(c(-0.2, 0.25))+
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray")
-```
-
-## Haplotype specificity
-
-Depending on the haplotype, MARVELD2 can be either protective or negative for DRS.
-This may be true for other genes as well.
-
-Bear in mind that the protective variant of MARVELD2 (ENSG00000274671) is not among the top 1000 most variant genes, although it is highly predictive of outcome in other models.
-
-```{r}
-glm_df %>%
-  #filter(outcome == "distant recurrence") %>%
-  filter(feature == "MARVELD2") %>%
-  arrange(desc(n))
-```
-
-```{r}
-save.image(here("data/Rds/16_gene_report_environment.RData"))
+#First remove params, or they'll cause problems
+rm(params)
+save.image(here("data/rnaseq/processed/16_gene_report_environment.RData"))
 ```
