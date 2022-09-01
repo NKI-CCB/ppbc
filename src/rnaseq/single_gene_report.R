@@ -2,18 +2,18 @@ library(here)
 library(rmarkdown)
 library(tidyverse)
 
-rm(list = ls())
-
 gene = "UBD"
+print(paste("Generating gene report for", gene))
 
-projDir <- "/DATA/share/postpartumbc"
-Rmd <- file.path(projDir, "reports/17_gene_report_template.Rmd")
+projDir <- here()
+Rmd <- file.path(projDir, "reports/rnaseq/17_gene_report_template.Rmd")
 stopifnot(file.exists(Rmd))
 overwrite = T
 
-outdir=here("reports/gene_reports")
+outdir=here("reports/rnaseq/gene_reports")
 dir.create(outdir, showWarnings = F)
 outfile=file.path(outdir, paste0(gene, "_report.html"))
+print(paste("Outfile is:", outfile))
 
 if (!file.exists(outfile) | overwrite == T){
   rmarkdown::render(input =  Rmd,
@@ -22,4 +22,3 @@ if (!file.exists(outfile) | overwrite == T){
                                   show_functions = F,
                                   show_code = T))
 }
-

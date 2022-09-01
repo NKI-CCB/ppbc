@@ -35,7 +35,7 @@ renv/library
 reports/archive/
 reports/multiqc_data/
 reports/*.tar.xy
-reports/gene_reports/
+reports/rnaseq/gene_reports/
 *scratch*
 spatial_example_code/
 *hugo_fpkm.txt

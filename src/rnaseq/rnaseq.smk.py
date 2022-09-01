@@ -899,8 +899,11 @@ rule gene_unity_setup:
 rule gene_reports:
   input:
     aggdata="data/rnaseq/processed/16_gene_report_environment.RData",
+    bx_annot="data/rnaseq/processed/bx_annot.Rds",
+    dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
+    rmd="reports/rnaseq/17_gene_report_template.Rmd",
     script="src/rnaseq/batch_gene_reports.R",
-    genes=ancient("reports/genes_to_report.txt")
+    genes=ancient("reports/rnaseq/genes_to_report.txt")
   #output:
   #  directory("reports/rnaseq/gene_reports")
   shell:

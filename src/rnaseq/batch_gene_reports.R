@@ -2,16 +2,14 @@ library(here)
 library(rmarkdown)
 library(tidyverse)
 
-rm(list = ls())
-
 #List of genes from which to generate reports
 genes_to_report = read_csv(
-  here("reports", "genes_to_report.txt")
+  here("reports", "rnaseq", "genes_to_report.txt")
 )
 
 #Allows naming report with both gene symbol and ensembl_id
-bx_annot <- readRDS(here("shinyApp","VisualizePPBCgene","data","app_gx_annot.Rds"))
-dds = readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
+bx_annot <- readRDS(here("data/rnaseq/processed/bx_annot.Rds"))
+dds = readRDS(here("data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"))
 genes_passing_filter = rownames(dds)
 
 gene_lookup <- function(gene, dict=bx_annot){
@@ -36,16 +34,18 @@ gene_lookup <- function(gene, dict=bx_annot){
 }
 
 #Project directory and parameters
-projDir <- "/DATA/share/postpartumbc"
-Rmd <- file.path(projDir, "reports/17_gene_report_template.Rmd")
+projDir <- here()
+Rmd <- file.path(projDir, "reports/rnaseq/17_gene_report_template.Rmd")
 stopifnot(file.exists(Rmd))
 overwrite = F
 
-outdir=here("reports/gene_reports")
+outdir=here("reports/rnaseq/gene_reports")
 dir.create(outdir, showWarnings = F)
 
 #Loop over every gene and create report
 for(gene in genes_to_report$Gene){
+  
+  print(paste("Generating report for", gene))
   
   #If provided input is ensembl ID, lookup the name of the gene
   #Title will be gene name or gene name and ens ID, if ens ID is provided
@@ -62,6 +62,7 @@ for(gene in genes_to_report$Gene){
   print(title)
   
   outfile=file.path(outdir, paste0(title, "_report.html"))
+  print(paste("Writing report to", outfile))
   
   if (!file.exists(outfile) | overwrite == T){
     rmarkdown::render(input =  Rmd,

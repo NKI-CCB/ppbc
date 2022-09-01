@@ -11,6 +11,7 @@ output:
     df_print: paged
     canon: true
 params:
+  env: "data/rnaseq/processed/16_gene_report_environment.RData"
   gene:
     value: "MS4A1"
     label: "Gene ID (ensembl or symbol): "
@@ -26,7 +27,7 @@ params:
 title: "`r paste0('PPBC report for ', params$gene)`"
 ---
 
-```{r setup, include=FALSE}
+```{r setup, message=FALSE}
 knitr::opts_chunk$set(echo = params$show_code)
 library(DESeq2)
 library(survival)
@@ -47,12 +48,11 @@ This report will summarize the differential expression and survival analysis res
 The data from the analysis pipeline was aggregated in notebook 16.
 
 ```{r load env}
-load(here("data/Rds/16_gene_report_environment.RData"))
+load(here(params$env))
 ```
 
 The function documentation section explains how the results were calculated.
 To jump straight to results, skip to Gene Biology.
-
 
 # Function documentation
 
@@ -141,18 +141,10 @@ genewise_survival_results <- function(id, df = gw_surv,
 #genewise_survival_results("MARVELD2", df = int_surv, return_first = F)
 ```
 
-Because the genewise models run on involution samples only yielded no fdr-signifcant results, only those run on all samples are included.
-
 Available genewise models:
 
 ```{r}
-paste(gw_surv$formula, gw_surv$outcome) %>% unique()
-```
-
-Available interaction models:
-
-```{r}
-paste(int_surv$formula, int_surv$outcome) %>% unique()
+paste(gw_surv$input, gw_surv$formula, gw_surv$outcome, gw_surv$family) %>% unique()
 ```
 
 ## Diffex report
@@ -203,8 +195,9 @@ diffex_report = function(id, lr = res_list, return_all = T,
   
   comp  
 }
-#diffex_report("MS4A1", subgroup = F)
-diffex_report("NOTCH4", return_all = T)
+
+#diffex_report("MS4A1")
+#diffex_report("NOTCH4", return_all = T)
 ```
 
 Available diffex comparisons:
@@ -252,7 +245,7 @@ sub_diffex_report = function(id, return_all = T, lr = sub_reslist,
   
   comp  
 }
-sub_diffex_report("NOTCH4", return_all = T)
+#sub_diffex_report("NOTCH4", return_all = T)
 #di
 ```
 
@@ -351,8 +344,7 @@ box_plots <- function(id, gEx = geneEx, d=dds, s = sample_data){
   
   df = df %>%
   select(sample_name, id, ensembl_id, geneEx, PPBC, PAM50,
-         death = overall_survival,
-         metastasis = distant_recurrence) %>%
+         death, metastasis = distant_recurrence) %>%
   gather(key = "outcome", value = "value", death, metastasis) %>%
     mutate(value = as.factor(value))
   
@@ -368,7 +360,7 @@ box_plots <- function(id, gEx = geneEx, d=dds, s = sample_data){
   #size factor
   df <- plotCounts(d, gene = ensembl_id,
                    intgroup=c("PPBC", "PAM50",
-                              "overall_survival",
+                              "death",
                               "distant_recurrence"),
                    returnData = T, normalized = T)
   
@@ -378,8 +370,7 @@ box_plots <- function(id, gEx = geneEx, d=dds, s = sample_data){
 
   df = df %>%
   select(sample_name, id, ensembl_id, geneEx, PPBC, PAM50,
-         death = overall_survival,
-         metastasis = distant_recurrence) 
+         death, metastasis = distant_recurrence) 
   df = df %>%
   gather(key = "outcome", value = "value", death, metastasis) %>%
     mutate(value = as.factor(value)) %>%
@@ -519,14 +510,14 @@ km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
   
   #Toggle for survival type
   if(survival_type == "os"){
-    ti <- "months_overall_survival"
-    ev <- "overall_survival"
+    ti <- "time_OS_months"
+    ev <- "death"
     ylab <- "Overall survival probability"
     type <- "Overall survival"
   }
   
   if(survival_type == "drs"){
-    ti <- "months_to_drs"
+    ti <- "time_DRS_months"
     ev <- "distant_recurrence"
     ylab <- "Distant recurrence probability"
     type <- "Distant recurrence"
@@ -769,12 +760,11 @@ get_entrez_summary <- function(gene_id, dict=bx_annot,
 #get_entrez_summary(params$gene)
 ```
 
-
 Alternative for uniprot: Use proteinatlas.org.
 Also shows known prognostics.
 
 ```{r, include=params$show_functions}
-#TODO Make html_text work better somehow, or maybe use proteinatlas.org instead
+#TODO Fix html_text, or maybe use proteinatlas.org instead
 
 get_uniprot_summary <- function(id, dict=bx_annot){
   
@@ -805,62 +795,6 @@ get_uniprot_summary <- function(id, dict=bx_annot){
 #get_uniprot_summary(params$gene)
 ```
 
-## Elastic net Cox features
-
-Show whether a gene was included as a potential feature by virtue of being in the top 1000 or top 5000 most variable genes.
-If a gene as multiple ensembl IDs, multiple columns will be returned.
-
-```{r, include=params$show_functions}
-gene_enet_candidate <- function(id){
-  
-  gn = gene_lookup(id)$gene_name
-  en = gene_lookup(id)$ensembl_gene_id
-  
-  top5000var = names(head(sort(apply(ens_mat, 1, var), decreasing = T), 5000))
-  top1000var = names(head(sort(apply(ens_mat, 1, var), decreasing = T), 1000))
-  
-  cand = rbind(
-    sym = gn,
-    intop1000 = en %in% top1000var,
-    intop5000 = en %in% top5000var
-    )
-  colnames(cand) = en
-  cand = as.data.frame(cand)
-  return(cand)
-  
-}
-#gene_enet_candidate("MS4A1")
-#gene_enet_candidate("MARVELD2")
-```
-
-If a gene has been selected as a feature, show the stability and effect size.
-
-```{r, include=params$show_functions}
-gene_enet_feature <- function(id){
-  
-  en <- gene_lookup(id)$ensembl_gene_id
-  gn <- gene_lookup(id)$gene_name
-  
-  res <- glm_df %>%
-    filter(feature == !! gn)
-  
-  if(nrow(res) == 0){
-    return(paste(gn, "not selected as predictive feature"))
-  }
-  
-  res %>%
-    arrange(desc(n), desc(abs(mean_beta))) %>%
-    mutate(mean_beta = signif(mean_beta, 2),
-           sd_beta = signif(sd_beta, 2)) %>%
-    select(-description:-gene_input)
-}
-
-#gene_enet_feature("MS4A1")
-#gene_enet_feature("MARVELD2")
-```
-
-
-
 # Gene biology
 
 Show ensembl gene haplotypes for provided input `r Gene`, and other id mappings.
@@ -874,12 +808,9 @@ gene_dict <- bx_annot %>%
 gene_dict
 ```
 
-
 Entrez gene summary:
-Text wrapping is WIP.
 
 ```{r}
-#TODO fix text wrapping.
 get_entrez_summary(Gene)
 ```
 
@@ -888,7 +819,6 @@ Uniprot gene summary (html cleanup is WIP):
 ```{r}
 get_uniprot_summary(Gene)
 ```
-
 
 # Survival summary
 
@@ -901,22 +831,15 @@ For univariate models, the formula is: Surv(time, event)~gene.
 For multivariate models, the formula is:
 Surv(time, event)~age + stage + grade + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + gene
 
+For interaction models:
+
+Surv(time, event)~ (clinical covariates) + involution + gene + involution * gene
+
+Where involution is a binary variable indicating whether a sample is PPBCpw or not.
+
 ```{r}
 genewise_survival_results(Gene, df = gw_surv, return_first = F)
 ```
-
-## Interaction models
-
-Currently, all interaction models are multivariate.
-The formula is:
-
-Surv(time, event)~ age + stage + grade + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + involution + gene + involution * gene
-
-```{r}
-genewise_survival_results(Gene, df = int_surv, return_first = F)
-```
-
-
 
 # Differential expression
 
@@ -947,14 +870,11 @@ invbf_diffex_report(Gene, return_all = T) %>%
   filter(diffex_duration == "breastfeeding")
 ```
 
-
 ## Subgroup diffex
 
 ```{r}
 sub_diffex_report(Gene, return_all = T)
 ```
-
-
 
 # Counts by study group
 
@@ -983,8 +903,6 @@ if(Gene %in% bx_annot$ensembl_gene_id){
 }
 ```
 
-
-
 # Kaplan-Meiers
 
 Involution vs rest survival depictions
@@ -999,7 +917,6 @@ if(Gene %in% bx_annot$ensembl_gene_id){
   print(km_ntiles_ovr(id, ovr_column = "involution", survival_type = "os"))
 }
 }
-
 ```
 
 ## Distant recurrence
@@ -1014,25 +931,8 @@ if(Gene %in% bx_annot$ensembl_gene_id){
 }
 ```
 
-
-# Elastic net predictive power
-
-Elastic net Cox models predict outcome (death or metastasis) based on:
-
-* top 1000 most variable genes
-* top 5000 most variable genes
-* all genes that pass the minimum diffex count threshold (~30K)
-
-Show whether this gene was among the top 1000 or 5000 most variable.
+# Session info
 
 ```{r}
-gene_enet_candidate(Gene)
+sessionInfo()
 ```
-
-If this gene was selected as a feature, show the feature stability (n, sd beta) and effect size (mean beta).
-
-```{r}
-gene_enet_feature(Gene)
-```
-
-
