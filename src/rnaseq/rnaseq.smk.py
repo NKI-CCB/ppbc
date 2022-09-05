@@ -965,13 +965,15 @@ rule trust_report:
 rule antibody_isotypes:
   input:
     script="src/utils/rmarkdown.R",
-    rmd="reports/18b_antibody_isotypes.Rmd",
-    bx_annot=ancient("shinyApp/VisualizePPBCgene/data/app_gx_annot.Rds"),
-    dds=ancient("data/Rds/08_dds_ovr_inv_vs_rest.Rds")
+    rmd="reports/rnaseq/15b_antibody_isotypes.Rmd",
+    bx_annot=ancient("data/rnaseq/processed/bx_annot.Rds"),
+    dds=ancient("data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds")
   output:
-    html="reports/18b_antibody_isotypes.html"
+    html="reports/rnaseq/15b_antibody_isotypes.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"  
+    " --dds {input.dds}"
+    " --bx_annot {input.bx_annot}"
 
 #### Shiny App for PPBC gene visualization ####
 

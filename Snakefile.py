@@ -84,6 +84,7 @@ rule all:
     "reports/rnaseq/11_clustering_involution.html",
     expand("reports/rnaseq/12_{cox}.html", cox=genewise_cox+interaction_cox),
     "results/rnaseq/TRUST/TRUST_results.xlsx",
+    "reports/rnaseq/15b_antibody_isotypes.html",
     "reports/rnaseq/16_gene_unity_setup.html",
     # Spatial rules
     "reports/spatial/05_report_cell_types.html",
