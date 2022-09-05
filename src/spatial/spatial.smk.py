@@ -404,7 +404,7 @@ rule cox_density:
 rule cd20_clusters:
   input:
     density_outcome = "data/vectra/processed/density_ppbc.Rds",
-    inv_clusters = "results/clustering/11_inv_clusters.xlsx",
+    inv_clusters = "results/rnaseq/clustering/11_inv_clusters.xlsx",
     rmd="reports/spatial/10_ig_clusters_cd20.Rmd",
     script="src/utils/rmarkdown.R"
   output:

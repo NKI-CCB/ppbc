@@ -91,7 +91,7 @@ rule all:
     "reports/spatial/07_kruskal_density.html",
     "reports/spatial/08_inv_time_density.html",
     expand("reports/spatial/09_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
-    # "reports/spatial/10_ig_clusters_cd20.html", #Needs RNA input
+    "reports/spatial/10_ig_clusters_cd20.html",
     "reports/spatial/12_spatstat_overview.html"
 
 # Utility for converting Excel metadata to text

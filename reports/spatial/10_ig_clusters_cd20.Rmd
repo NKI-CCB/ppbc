@@ -9,13 +9,16 @@ output:
     toc_depth: 4
     df_print: paged
     highlight: kate
+params:
+  density_outcome: "data/vectra/processed/density_ppbc.Rds"
+  inv_clusters: "results/rnaseq/clustering/11_inv_clusters.xlsx"
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r libraries, echo = F}
+```{r libraries, message = F}
 library(here)
 library(tidyverse)
 library(ggpubr)
@@ -30,7 +33,7 @@ Check to see whether the low, medium and high IG clusters from differential expr
 Contains marker density info and sample names:
 
 ```{r}
-dens <- readRDS(here("data/vectra/processed/density_ppbc.Rds"))
+dens <- readRDS(here(params$density_outcome))
 ```
 
 We have regional density for stroma and tumor. Also calculate total density.
@@ -53,7 +56,7 @@ head(cd20)
 Contains IG cluster identities and sample names:
 
 ```{r}
-igclust <- readxl::read_excel(here("results/clustering/11_inv_clusters.xlsx"),
+igclust <- readxl::read_excel(here(params$inv_clusters),
                               sheet="col_clusters") %>%
   mutate(IG_col_cluster = factor(IG_col_cluster,
                                  levels = c("low", "medium", "high")))
@@ -187,5 +190,3 @@ lapply(unique(cd20$study_group), function(y){
 ```{r}
 sessionInfo()
 ```
-
-
