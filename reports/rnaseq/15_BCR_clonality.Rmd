@@ -9,7 +9,15 @@ output:
     fig_width: 7
     fig_height: 6
     df_print: paged
-
+params:
+    trustdir: "data/rnaseq/TRUST"
+    fqdata: "data/rnaseq/metadata/01_rnaMeta.Rds"
+    sampledata: "data/rnaseq/metadata/05_sample_annot_filtered.csv"
+    survdata: "data/rnaseq/interim/04_survdata.Rds"
+    preexcluded_samples: "data/external/pre_excluded_samples.csv"
+    discarded: "data/rnaseq/metadata/02_discarded_samples.csv"
+    ihc_outliers: "data/rnaseq/metadata/03_removed_pam50_outliers.csv"
+    dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
 ---
 
 In this notebook, we process the output of the TRUST algorithm for analyzing BCR clonarity in PBBC.
@@ -54,7 +62,7 @@ theme_set(theme_bw())
 Sample metadata pre replicate merging:
 
 ```{r}
-fqdata = read_tsv(here("data/metadata/01_sample_annot.tsv"))
+fqdata = readRDS(here(params$fqdata))
 
 head(fqdata)
 ```
@@ -63,7 +71,7 @@ head(fqdata)
 Sample metadata post replicate merging:
 
 ```{r}
-sampledata = read.csv(here("data/metadata/05_sample_annot_filtered.csv"))
+sampledata = read.csv(here(params$sampledata))
 sampledata$PPBC <- factor(sampledata$PPBC,
                           levels=c("nulliparous", "pregnant", "lactating", "involuting"))
 head(sampledata)
@@ -72,32 +80,31 @@ head(sampledata)
 Pre-filtered clinical covariates for survival analyses:
 
 ```{r}
-survdata <- readRDS(here("data/Rds/04_survdata.Rds"))
+survdata <- readRDS(here(params$survdata))
 
 head(survdata)
 ```
-
 
 ## Excluded samples
 
 Pre-excluded samples (sequencing errors, too old, had neo-CT):
 
 ```{r}
-preexcluded_samples <- read.csv(here("data/metadata/01_pre_excluded_samples.csv"))
+preexcluded_samples <- read.csv(here(params$preexcluded_samples))
 head(preexcluded_samples)
 ```
 
 Samples which were discarded for QC reasons.
 
 ```{r}
-discarded_samples <- read.csv(here("data/metadata/02_discarded_samples.csv"))
+discarded_samples <- read.csv(here(params$discarded))
 head(discarded_samples)
 ```
 
 Samples dicarded because IHC drastically mismatched with PAM50
 
 ```{r}
-removed_outliers <- read.csv(here("data/metadata/03_removed_pam50_outliers.csv"))
+removed_outliers <- read.csv(here(params$ihc_outliers))
 removed_outliers
 ```
 
@@ -165,7 +172,7 @@ BCR and TCR frequency are normalized separately.
 TRUST report files:
 
 ```{r}
-trustdir <- here("data/TRUST")
+trustdir <- here(params$trustdir)
 trustfiles = list.files(trustdir, pattern="report.tsv") 
 trustfiles %>% head(20)
 ```
@@ -176,16 +183,36 @@ Ensure there are no duplicates
 stopifnot(length(unique(trustfiles)) == length(trustfiles))
 ```
 
+Check columns. The count column may be double or character.
+
+```{r}
+spec_tsv(file.path(trustdir, trustfiles[1]))
+```
+
 Read in the files into a single df:
 
 ```{r}
-alltrust <- file.path(trustdir, trustfiles) %>%
-  set_names(str_remove(trustfiles, ".fastq.gz_report.tsv")) %>%
-  map_df(~read.delim(., header=T, stringsAsFactors = F), .id="trustfile")
+trust_aggregate <- "data/rnaseq/processed/15_alltrust.Rds"
 
-saveRDS(alltrust, here("data/Rds/18_alltrust.Rds"))
+if(!file.exists(trust_aggregate)){
+  alltrust <- file.path(trustdir, trustfiles) %>%
+    set_names(str_remove(trustfiles, ".fastq.gz_report.tsv")) %>%
+    map_df(~read_tsv(., show_col_types = F,
+                     col_types = list(
+                       `#count` = col_character(),
+                       frequency = col_double(),
+                       CDR3nt = col_character(),
+                       CDR3aa = col_character(),
+                       V = col_character(),
+                       D = col_character(),
+                       J = col_character(),
+                       C = col_character()
+                     )), .id="trustfile")
+  saveRDS(alltrust, here(trust_aggregate))
+} else {
+  alltrust <- readRDS(trust_aggregate)
+}
 ```
-
 
 ```{r}
 head(alltrust)
@@ -213,23 +240,23 @@ removed_trust <- removed_trust %>%
 Set aside QC-discarded samples:
 
 ```{r}
-length(unique(alltrust$trustfile)[unique(alltrust$trustfile) %in% discarded_samples$sample_id])
+length(unique(alltrust$trustfile)[unique(alltrust$trustfile) %in% str_remove(discarded_samples$fastq, ".fastq.gz")])
 
 removed_trust <- bind_rows(removed_trust,
-                       mutate(filter(alltrust, trustfile %in% discarded_samples$sample_id),
+                       mutate(filter(alltrust, trustfile %in% str_remove(discarded_samples$fastq, ".fastq.gz")),
                               reason="failed QC")) 
 ```
 
 Number of IHC-outliers to filter out:
 
 ```{r}
-#Need the sample id first
-removed_outliers = left_join(removed_outliers, select(fqdata, sample_name, sample_id), by="sample_name")
+#Need the fastq first
+removed_outliers = left_join(removed_outliers, select(fqdata, sample_name, patient_ID, fastq), by="sample_name")
 
-length(unique(alltrust$trustfile)[unique(alltrust$trustfile) %in% removed_outliers$sample_id])
+length(unique(alltrust$trustfile)[unique(alltrust$trustfile) %in% str_remove(removed_outliers$fastq, ".fastq.gz")])
 
 removed_trust <- bind_rows(removed_trust,
-                       mutate(filter(alltrust, trustfile %in% removed_outliers$sample_id),
+                       mutate(filter(alltrust, trustfile %in% str_remove(removed_outliers$fastq, ".fastq.gz")),
                               reason="IHC outlier")) 
 
 ```
@@ -239,14 +266,13 @@ Total samples to remove:
 ```{r}
 length(unique(removed_trust$trustfile))
 ```
-
 Filter them out:
 
 ```{r}
 trustdf <- alltrust %>%
   filter(!trustfile %in% removed_trust$trustfile)
 
-stopifnot(all(trustdf$trustfile %in% fqdata$sample_id))
+stopifnot(all(trustdf$trustfile %in% str_remove(fqdata$fastq, ".fastq.gz")))
 ```
 
 ## Merge duplicates
@@ -257,8 +283,8 @@ From there, we can use the patient_ref to retrieve the ids of merged fastq files
 
 ```{r}
 fq_dups <- fqdata %>%
-  filter(patient_ref %in% filter(sampledata, duplicate == T)$patient_ref) %>%
-  arrange(patient_ref)
+  filter(patient_ID %in% filter(sampledata, duplicate == T)$patient_ID) %>%
+  arrange(patient_ID)
 
 fq_dups
 ```
@@ -267,66 +293,73 @@ Set those samples with duplicates aside:
 
 ```{r}
 trustdf_dup <- trustdf %>%
-  filter(trustfile %in% fq_dups$sample_id)
+  filter(paste0(trustfile, ".fastq.gz") %in% fq_dups$fastq)
 
-trustdf <- trustdf %>%
-  filter(!trustfile %in% fq_dups$sample_id)
+trustdf_nodups <- trustdf %>%
+  filter(!paste0(trustfile, ".fastq.gz") %in% fq_dups$fastq)
 ```
 
 Add the patient refs for aggregation of duplicates, then group by the relevant variables to sum up the count and frequency.
 
 ```{r}
-trust <- trustdf_dup %>%
-  left_join(., select(fq_dups, sample_id, patient_ref),
-            by=c("trustfile"="sample_id")) %>%
+trustdf_dup <- trustdf_dup %>%
+  mutate(fastq = paste0(trustfile, ".fastq.gz"), .before = everything()) %>%
+  left_join(., select(fq_dups, fastq, patient_ID),
+            by="fastq") %>%
   group_by(
-    patient_ref, CDR3nt, CDR3aa,V,D,J,C
+    patient_ID, CDR3nt, CDR3aa,V,D,J,C
            ) %>%
-  summarise(X.count=sum(X.count), frequency=sum(frequency))
+  rename(count = `#count`) %>%
+  mutate(count = as.numeric(count)) %>%
+  summarise(count=sum(count), frequency=sum(frequency), .groups = "drop")
 
-trust %>% head()
+trustdf_dup %>% head()
+
+stopifnot(nrow(filter(trustdf_dup, is.na(patient_ID)))==0)
 ```
 
 Add patient refs to the non-duplicates
 
 ```{r}
-trustdf <- left_join(trustdf, select(fqdata, sample_id, patient_ref),
-                    by=c("trustfile"="sample_id")) %>%
-  select(-trustfile)
+trustdf_nodups <- trustdf_nodups %>%
+  mutate(fastq = paste0(trustfile, ".fastq.gz"), .before = everything()) %>% 
+left_join(., select(sampledata, fastq, patient_ID),
+                    by="fastq") %>%
+  select(-trustfile, -fastq)
 
-
+stopifnot(nrow(filter(trustdf_nodups, is.na(patient_ID)))==0)
 ```
 
 Combine into single df 
 
 ```{r}
-trust = bind_rows(trust, trustdf) %>%
-  select(patient_ref, count = X.count, frequency, everything())
-head(trust)
+trust <- bind_rows(
+  trustdf_dup,
+  mutate(rename(trustdf_nodups, count = `#count`), count = as.numeric(count))
+) %>%
+  select(patient_ID, count, frequency, everything())
 
+head(trust)
 ```
 
 Sanity checks, merge remaining metadata.
 
 ```{r}
-stopifnot(all(trust$patient_ref %in% sampledata$patient_ref))
-stopifnot(length(unique(trust$patient_ref)) == length(unique(sampledata$patient_ref)))
+stopifnot(all(trust$patient_ID %in% sampledata$patient_ID))
+stopifnot(length(unique(trust$patient_ID)) == length(unique(sampledata$patient_ID)))
+#There should be no NAs
+stopifnot(nrow(filter(trust, filter(across(everything(), ~ is.na(.)))))==0)
 
-trustdata = left_join(trust,
-                      select(sampledata, patient_ref, sample_name, PPBC, PAM50,
-                             grade = grade_integer, stage = stage_short_integer,
-                             months_of_followup, age_at_diagnosis = age_diagnosis,
-                             metastasis_at_diagnosis,
-                             overall_survival, months_overall_survival,
-                             distant_recurrence, months_to_drs, surgery,
-                             radiotherapy = RT, hormonetherapy = HT,
-                             chemotherapy = CT, herceptin = HERC,
-                             immune_score:batch),
-                      by="patient_ref") %>%
-  select(sample_name, everything())
-
-#Moved below
-#saveRDS(trustdata, here("data/Rds/18_trustdata.Rds"))
+trustdata <- sampledata %>%
+  mutate(age_at_diagnosis=year_diagnosis - year_birth) %>%
+  select(patient_ID, sample_name, study_group, PPBC, batch, PAM50, clin_subtype,
+         grade, stage, FU_time_months, age_at_diagnosis,
+         death, time_OS_months,
+         distant_recurrence, time_DRS_months, 
+         months_involution, months_breastfeeding, surgery,
+         RT, HT, CT, herceptin, immune_score:batch) %>%
+  left_join(trust, ., by="patient_ID") %>%
+  select(patient_ID, everything())
 ```
 
 ```{r}
@@ -337,11 +370,10 @@ head(trustdata)
 colnames(trustdata)
 ```
 
-
 # Size factor normalization
 
 Frequency here appears to be defined as the number of reads belonging to that contig divided by the total number of CD3R reads.
-BCR and TCR frequency are normalized separately.
+BCR and TC R frequency are normalized separately.
 
 However, no correction is apparently made for the overall library size. Update: Confirmed by author on github.
 We therefore do not know whether a lower frequency is directly related to proportion/abundancy of CD3R reads in a sample, or to the total number of reads in the sample.
@@ -350,7 +382,7 @@ This is not a problem when comparing relative percentages, but will be a problem
 We can use the DESeq2 size factors to correct for this.
 
 ```{r}
-dds = readRDS(here("data/Rds/08_dds_ovr_inv_vs_rest.Rds"))
+dds <- readRDS(here(params$dds))
 ```
 
 As genewise normalization factors preempt samplewise size factors, we call this on the matrix:
@@ -358,22 +390,60 @@ As genewise normalization factors preempt samplewise size factors, we call this 
 ```{r}
 sf <- enframe(estimateSizeFactorsForMatrix(counts(dds)),
               "sample_name", "size_factor")
+
 head(sf)
 ```
 
-Merge with trustdata, and multiply frequency by size factor:
+Merge with trustdata, and divide count by size factor:
 
 ```{r}
 trustdata <- left_join(trustdata, sf, by = "sample_name")
 
-trustdata$norm_count <- trustdata$size_factor * trustdata$count
+trustdata$norm_count <- trustdata$count/trustdata$size_factor
 
 trustdata <- trustdata %>%
   select(sample_name:frequency,size_factor, norm_count,
          everything())
+```
 
+Sanity checks:
+
+```{r}
+trustdata %>%
+  select(size_factor, lib.size, study_group) %>%
+  distinct() %>%
+  ggplot(aes(x = lib.size, y = size_factor, color = study_group)) +
+  geom_point() +
+  ggtitle("Lib size by size factor")
+
+trustdata %>%
+  select(patient_ID, count, lib.size, study_group) %>%
+  group_by(patient_ID, lib.size, study_group) %>%
+  summarise(mean_counts = mean(count), .groups = "drop") %>%
+  distinct() %>%
+  ggplot(aes(x = lib.size, y = mean_counts)) +
+  geom_point(aes(color = study_group)) +
+  geom_smooth() +
+  scale_y_log10() +
+  ggtitle("Log10 average counts by size factor")
+
+trustdata %>%
+  select(patient_ID, norm_count, lib.size, study_group) %>%
+  group_by(patient_ID, lib.size, study_group) %>%
+  summarise(mean_normcounts = mean(norm_count), .groups = "drop") %>%
+  distinct() %>%
+  ggplot(aes(x = lib.size, y = mean_normcounts)) +
+  geom_point(aes(color = study_group)) +
+  geom_smooth()+
+  scale_y_log10() +
+  ggtitle("Log10 average normalized counts by size factor")
+```
+
+Change normalization methods?
+
+```{r}
 head(trustdata)
-saveRDS(trustdata, here("data/Rds/18_trustdata.Rds"))
+saveRDS(trustdata, here("data/rnaseq/processed/15_trustdata.Rds"))
 ```
 
 
@@ -410,12 +480,13 @@ ctrust_sample <- c_trust %>%
   group_by(sample_name, C, PPBC) %>%
   summarise(sum_count = sum(count),
             sum_normcount = sum(norm_count),
-            sum_frequency = sum(frequency))
+            sum_frequency = sum(frequency),
+            .groups = "drop")
 
 #ctrust_sample %>% head(10)
 
 ctrust_sample = ctrust_sample %>% group_by(sample_name) %>%
-       mutate(per=sum_normcount/sum(sum_normcount)*100) %>%
+       mutate(per=sum_count/sum(sum_count)*100) %>%
   ungroup()
 
 #Sanity check: Do percentages add up to 100?
@@ -432,10 +503,11 @@ ctrust_group <- c_trust %>%
   group_by(C, PPBC) %>%
   summarise(sum_count = sum(count),
             sum_normcount = round(sum(norm_count),2),
-            mean_frequency = mean(frequency))
+            mean_frequency = mean(frequency),
+            .groups = "drop")
 
 ctrust_group = ctrust_group %>% group_by(PPBC) %>%
-       mutate(per=sum_normcount/sum(sum_normcount)*100) %>%
+       mutate(per=sum_count/sum(sum_count)*100) %>%
   ungroup()
 
 #Sanity check: Do percentages add up to 100?
@@ -467,7 +539,6 @@ ctrust_group %>%
 
 Normalized counts by antibody isotype:
 
-
 ```{r}
 ggbarplot(ctrust_group, x = "PPBC", y = "sum_normcount",
   fill = "C", color = "C", palette = "Paired",
@@ -484,11 +555,21 @@ ggbarplot(ctrust_group, x = "PPBC", y = "per",
 
 ## Box plots
 
-By normalized count
+By (normalized) count
 
 ```{r, fig.height=12, fig.width=10}
 comp = list(c("involuting", "nulliparous"),
             c("involuting", "pregnant"))
+
+ctrust_sample %>%
+  ggboxplot(x="PPBC", y = "sum_count", color = "C", add="jitter") +
+  scale_y_log10() +
+  stat_compare_means(comparison = comp) +
+  #stat_compare_means(label.y = 4) +
+  facet_wrap(~C, strip.position = "top") +
+  theme(legend.position = "none") +
+  theme_bw() +
+  ggtitle("Isotypes by count")
 
 ctrust_sample %>%
   ggboxplot(x="PPBC", y = "sum_normcount", color = "C", add="jitter") +
@@ -500,13 +581,7 @@ ctrust_sample %>%
   theme_bw() +
   ggtitle("Isotypes by normalized count")
 
-#ctrust_sample %>%
- # ggplot(aes(x = PPBC, y = sum_normcount, color = C)) +
-  #geom_jitter(height=0, width = 0.1) +
-  #geom_boxplot(alpha=0) +
-  #facet_wrap(~C, scales = "free_y") +
-  #scale_y_log10() +
-  #ggtitle("By normalized count via TRUST")
+
 
 ```
 
@@ -525,7 +600,6 @@ ctrust_sample %>%
   theme(legend.position = "none") +
   theme_bw() +
   ggtitle("Isotypes by percent")
-
 ```
 
 By frequency
@@ -640,10 +714,10 @@ comp = list(
 
 cpk_df %>%
   left_join(., sampledata, by = "sample_name") %>%
-  mutate(overall_survival = as.factor(overall_survival)) %>%
+  mutate(death = as.factor(death)) %>%
   ggboxplot(x="PPBC", y = "cpk", palette = "jco",
             color = "black", add="jitter",
-            add.params=list(color = "overall_survival")) +
+            add.params=list(color = "death")) +
   #scale_y_log10() +
   stat_compare_means(comparison = comp) +
   #stat_compare_means(label.y = 4) +
@@ -671,7 +745,8 @@ cpk_df %>%
 ## Tertiles and survival setup
 
 ```{r}
-survdata <- right_join(cpk_df, survdata, by = "sample_name")
+survdata <- right_join(cpk_df, survdata, by = "sample_name") %>%
+  rename(RT = radiotherapy, HT = hormonetherapy, CT = chemotherapy)
 survdata
 ```
 
@@ -699,7 +774,7 @@ survdata %>%
 Overall survival
 
 ```{r}
-survfit(Surv(time=months_overall_survival, event=overall_survival) ~ cpk_tertile, data = survdata) %>% 
+survfit(Surv(time=time_OS_months, event=death) ~ cpk_tertile, data = survdata) %>% 
 ggsurvplot(fit = ., 
     xlab = "Months", 
     ylab = "Overall survival probability",
@@ -718,7 +793,7 @@ ggsurvplot(fit = .,
 Distant recurrence
 
 ```{r}
-survfit(Surv(time=months_to_drs, event=distant_recurrence) ~ cpk_tertile, data = survdata) %>% 
+survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ cpk_tertile, data = survdata) %>% 
 ggsurvplot(fit = ., 
     xlab = "Months", 
     ylab = "DRS probability",
@@ -737,7 +812,7 @@ ggsurvplot(fit = .,
 PPBC faceted plots:
 
 ```{r}
-survfit(Surv(time=months_overall_survival, event=overall_survival) ~ cpk_tertile, data = survdata) %>% 
+survfit(Surv(time=time_OS_months, event=death) ~ cpk_tertile, data = survdata) %>% 
 ggsurvplot(fit = ., facet.by = "PPBC", 
     xlab = "Months", 
     ylab = "Overall survival probability",
@@ -752,7 +827,7 @@ ggsurvplot(fit = ., facet.by = "PPBC",
     cumevents = F, cumcensor = F,
     test.for.trend = F)
 
-survfit(Surv(time=months_to_drs, event=distant_recurrence) ~ cpk_tertile, data = survdata) %>% 
+survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ cpk_tertile, data = survdata) %>% 
 ggsurvplot(fit = ., facet.by = "PPBC", 
     xlab = "Months", 
     ylab = "DRS probability",
@@ -774,14 +849,14 @@ Clonal diversity (multivariate OS)
 
 ```{r}
 coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis +
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis +
     grade +
     stage +
     surgery +
-    radiotherapy +
-    strata(hormonetherapy) +
-    chemotherapy +
+    RT +
+    strata(HT) +
+    CT +
     herceptin +
     strata(PAM50) +
     PPBC +
@@ -796,14 +871,14 @@ Clonal diversity (multivariate DrS)
 
 ```{r}
 coxph(
-  Surv(time=months_to_drs,
+  Surv(time=time_DRS_months,
        event=distant_recurrence) ~ age_at_diagnosis +
     grade +
     stage +
     surgery +
-    radiotherapy +
-    strata(hormonetherapy) +
-    chemotherapy +
+    RT +
+    strata(HT) +
+    CT +
     herceptin +
     strata(PAM50) +
     PPBC +
@@ -812,116 +887,20 @@ coxph(
   summary()
 ```
 
-## Multivariate Kaplan Meiers
-
-Overall survival
-
-```{r}
-fit1 = coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    hormonetherapy +
-    chemotherapy +
-    herceptin +
-    strata(PAM50) +
-    #PAM50 +
-    PPBC +
-    cpk_tertile,
-  data = survdata)
-
-fit0 = coxph(
-  Surv(time=months_overall_survival,
-       event=overall_survival) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    hormonetherapy +
-    chemotherapy +
-    herceptin +
-    strata(PAM50)+
-    PPBC,
-  data = survdata)
-
-km_os_adj = ggadjustedcurves(fit1, variable = "cpk_tertile",
-                                  data = survdata, method="conditional",
-                                  #palette = color_palettes$ppbc_colors,
-                                  ggtheme = theme_bw()) +
-  ggtitle("Clonal diversity OS, adjusted for clinical covariates") +
-  annotate(geom = "text",
-           label = paste("p =", signif(anova(fit1, fit0)[4][2,], 2)),
-           x= 25, y =0.1)
-
-km_os_adj
-```
-
-Distant recurrence
-
-```{r}
-fit1 = coxph(
-  Surv(time=months_to_drs,
-       event=distant_recurrence) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    hormonetherapy +
-    chemotherapy +
-    herceptin +
-    strata(PAM50) +
-    #PAM50 +
-    PPBC +
-    cpk_tertile,
-  data = survdata)
-
-fit0 = coxph(
-  Surv(time=months_to_drs,
-       event=distant_recurrence) ~ age_at_diagnosis +
-    grade +
-    stage +
-    surgery +
-    radiotherapy +
-    hormonetherapy +
-    chemotherapy +
-    herceptin +
-    strata(PAM50)+
-    PPBC,
-  data = survdata)
-
-km_drs_adj = ggadjustedcurves(fit1, variable = "cpk_tertile",
-                                  data = survdata, method="conditional",
-                                  #palette = color_palettes$ppbc_colors,
-                                  ggtheme = theme_bw()) +
-  ggtitle("Clonal diversity DRS, adjusted for clinical covariates") +
-  annotate(geom = "text",
-           label = paste("p =", signif(anova(fit1, fit0)[4][2,], 2)),
-           x= 25, y =0.1)
-
-km_drs_adj
-```
-
 # Save data
 
-```{r}
-resdir = here("results","TRUST")
+```{r write_results}
+resdir = here("results","rnaseq","TRUST")
 dir.create(resdir, showWarnings = F)
 
 openxlsx::write.xlsx(x = list(
   "raw_trust" = trustdata,
   "constat_regions" = c_trust,
   "clonotype_per_kb" = cpk_df
-), file = file.path(resdir, "18_TRUST_results.xlsx")
+), file = file.path(resdir, "TRUST_results.xlsx")
 )
 ```
-
 
 ```{r}
 sessionInfo()
 ```
-
-
-
