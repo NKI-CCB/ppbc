@@ -11,6 +11,8 @@ output:
     highlight: kate
 ---
 
+Deprecated: tissue segmentation is no longer used.
+
 ```{r preliminaries, include=F}
 library(conflicted)
 
