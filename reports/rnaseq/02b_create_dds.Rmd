@@ -1,0 +1,161 @@
+---
+title: "Create dds"
+date: "`r Sys.Date()`"
+author: "Kat Moore"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: kate
+    df_print: paged
+params:
+  tx: "data/rnaseq/interim/02_tx_clean.Rds"
+  meta: "data/rnaseq/interim/02_sample_annot_filtered.Rds"
+---
+
+```{r libraries, message = F}
+library(here)
+library(tidyverse)
+library(tximport)
+library(DESeq2)
+
+theme_set(theme_bw())
+```
+
+Create a dds from tximport
+
+## Load data
+
+```{r}
+tx <- readRDS(here(params$tx))
+```
+
+```{r}
+meta <- readRDS(here(params$meta))
+```
+
+## Sample name as column names
+
+The column name within our tx object is derived from the fast file name. Replace it with the sample name.
+
+```{r}
+stopifnot(all(colnames(tx$abundance) == colnames(tx$counts)))
+stopifnot(all(colnames(tx$abundance) == colnames(tx$length)))
+stopifnot(all(colnames(tx$abundance) %in% meta$fastq))
+
+new_names <- tibble(fastq = colnames(tx$abundance)) %>%
+  left_join(., select(meta, fastq, sample_name), by ="fastq")
+
+stopifnot(all(new_names$fastq == colnames(tx)))
+```
+
+```{r}
+tx_clean <- tx
+colnames(tx_clean$abundance) <- new_names$fastq
+colnames(tx_clean$counts) <- new_names$fastq
+colnames(tx_clean$length) <- new_names$fastq
+```
+
+```{r}
+stopifnot(all(colnames(tx_clean$abundance) == colnames(tx_clean$counts)))
+stopifnot(all(colnames(tx_clean$abundance) == colnames(tx_clean$length)))
+stopifnot(all(colnames(tx_clean$abundance) == meta$fastq))
+```
+
+## Create dds
+
+Create dds and collapse technical replicates
+
+```{r}
+dds <- DESeqDataSetFromTximport(tx_clean, meta, ~ clin_subtype + study_group)
+dds <- collapseReplicates(dds, dds$sample_name)
+```
+
+```{r}
+dim(dds)
+```
+
+```{r}
+stopifnot(length(unique(colnames(dds))) == length(colnames(dds)))
+```
+
+```{r}
+colnames(dds)
+```
+
+
+## Add duration categories
+
+```{r}
+cd <- as.data.frame(colData(dds))
+cd <- cd %>%
+  mutate(involution = case_when(
+    months_involution <= 6 ~ "<= 6 months",
+    months_involution > 6 ~ "> 6 months"
+    )) %>% 
+  mutate(involution = factor(involution,
+                             levels = c("<= 6 months", "> 6 months"))) %>%
+  mutate(breastfeeding = case_when(
+    months_breastfeeding <= 1 & study_group == "ppbcpw" ~ "<= 1 month",
+    months_breastfeeding > 1 & study_group == "ppbcpw" ~ "> 1 month"
+  )) %>%
+  select(sample_name, months_involution, involution,
+         months_breastfeeding, breastfeeding, everything()) %>%
+  mutate(breastfeeding = factor(breastfeeding,
+                                levels = c("<= 1 month", "> 1 month")))
+stopifnot(identical(cd$sample_name, colData(dds)$sample_name))
+
+dds$involution_duration = cd$involution
+dds$breastfeeding_duration = cd$breastfeeding
+
+table(dds$involution_duration)
+table(dds$breastfeeding_duration)
+```
+
+## Write dds
+
+```{r}
+saveRDS(dds, file = here("data/rnaseq/interim/02_QC_dds.Rds"))
+```
+
+## Molecular subtype PCA
+
+```{r}
+get_PCA <- function(dds, labelled_samples = NULL, color.group, shape.group){
+  
+  vsd = vst(dds, blind=FALSE)
+  
+  sampleDists <- dist(t(assay(vsd)))
+  
+  pcaData <- plotPCA(vsd, intgroup=c(color.group, shape.group), returnData=TRUE) 
+  percentVar <- round(100 * attr(pcaData, "percentVar"))
+  
+  if (is.null(labelled_samples)==T){
+    ggplot(pcaData, aes(PC1, PC2, color=get(color.group), shape=get(shape.group))) +
+      geom_point(size=3) +
+      xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+      coord_fixed() + labs(color = color.group, shape = shape.group)
+  } else {
+    pcaData = pcaData %>% mutate(labels = if_else(name %in% labelled_samples, name, NULL))
+    ggplot(pcaData, aes(PC1, PC2, color=get(color.group), shape=get(shape.group), label=labels)) +
+      geom_point(size=3) +
+      xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+      ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+      coord_fixed() + ggrepel::geom_label_repel(size=4, show.legend = F) +
+      labs(color = color.group, shape = shape.group)
+  }
+
+}
+```
+
+```{r}
+get_PCA(dds, color.group = "clin_subtype", shape.group = "study_group")
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```

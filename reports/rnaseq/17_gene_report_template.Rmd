@@ -1,0 +1,938 @@
+---
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    fig_width: 7
+    fig_height: 6
+    df_print: paged
+    canon: true
+params:
+  env: "data/rnaseq/processed/16_gene_report_environment.RData"
+  gene:
+    value: "MS4A1"
+    label: "Gene ID (ensembl or symbol): "
+    input: "text"
+  show_functions:
+    value: FALSE
+    input: checkbox
+    label: "Show function definitions:"
+  show_code:
+    value: TRUE
+    label: "Show code:"
+    input: checkbox  
+title: "`r paste0('PPBC report for ', params$gene)`"
+---
+
+```{r setup, message=FALSE}
+knitr::opts_chunk$set(echo = params$show_code)
+library(DESeq2)
+library(survival)
+library(ggthemes)
+library(survminer)
+library(RColorBrewer)
+library(rentrez)
+library(openxlsx)
+library(here)
+library(ggpubr)
+library(tidyverse)
+theme_set(theme_bw())
+#options(width = 80) #Only when pdf, and does not always work
+Gene = params$gene
+```
+
+This report will summarize the differential expression and survival analysis results for `r Gene`.
+The data from the analysis pipeline was aggregated in notebook 16.
+
+```{r load env}
+load(here(params$env))
+```
+
+The function documentation section explains how the results were calculated.
+To jump straight to results, skip to Gene Biology.
+
+# Function documentation
+
+Display function definition is `r params$show_function`.
+Enable to show function code.
+
+## Gene lookup
+
+Will retrieve the various ID forms when provided with an ensembl gene ID or gene name (symbol).
+
+```{r fun gene lookup, include=params$show_functions}
+gene_lookup <- function(gene, dict=bx_annot){
+  
+  if(gene %in% dict$gene_name){
+    gene_name = gene
+    ensembl_gene_id = unique(dict[dict$gene_name == gene_name,]$ensembl_gene_id)
+  } else if(gene %in% dict$ensembl_gene_id) {
+    ensembl_gene_id = gene
+    gene_name = unique(dict[dict$ensembl_gene_id == ensembl_gene_id,]$gene_name)
+  } else {
+    stop("Provided gene is not a valid ensembl id or gene name")
+  }
+  
+  uni=unique(dict[dict$ensembl_gene_id == ensembl_gene_id[1],]$uniprot_id)
+  ent=unique(dict[dict$ensembl_gene_id == ensembl_gene_id[1],]$entrez_id)
+  
+  list(gene_name=gene_name,
+       ensembl_gene_id = ensembl_gene_id,
+       uniprot_id=uni,
+       entrez_id=ent)
+}
+
+#gene_lookup("ENSG00000156738")
+#gene_lookup("MARVELD2")
+#gene_lookup("NOTCH4")
+#gene_lookup("Steve")
+```
+
+## Genewise survival results
+
+Shows a summary of results for genewise survival models of that gene when provided with a gene name or ensembl id.
+Can also show interaction results if specified in the argument.
+If more than one ensembl id is found and return_first is F, will combine all ensembl ids into a single data frame.
+Otherwise, only the results from the first ensembl id is shown.
+
+```{r fun , include=params$show_functions}
+genewise_survival_results <- function(id, df = gw_surv,
+                                      genes_passing_filter=rownames(dds),
+                                      return_first = F){
+  
+  i = gene_lookup(id)$ensembl_gene_id
+  
+  df = df %>%
+    select(-type) %>%
+    select(type = gene_type, everything()) %>%
+    select(ensembl_gene_id, model:baseMean, type)
+  
+  if(length(i) == 1){
+    return(arrange(filter(df, ensembl_gene_id == i), fdr))
+  }
+  
+  if (length(i > 1) & return_first == T){
+    i = i[i %in% genes_passing_filter][1]
+    i = i[1]
+    warning(paste0("Multiple ensembl IDs found for ",
+                   id, "returning first in series: ", i))
+    return(arrange(filter(df, ensembl_gene_id == i), fdr))
+  } 
+  
+  if (length(i > 1 & return_first == F)){
+    lapply(i, function(x){
+      df[df$ensembl_gene_id == x, ]
+    }) %>% bind_rows() %>%
+      select(ensembl_gene_id, everything()) %>%
+      arrange(fdr)
+  }
+  
+}
+
+#genewise_survival_results("NOTCH4", return_first = T)
+#genewise_survival_results("NOTCH4", return_first = F)
+#genewise_survival_results("MS4A1", return_first = F)
+#genewise_survival_results("Steve", return_first = F)
+
+#Can also be use to extract interaction results:
+#genewise_survival_results("MARVELD2", df = int_surv, return_first = F)
+```
+
+Available genewise models:
+
+```{r}
+paste(gw_surv$input, gw_surv$formula, gw_surv$outcome, gw_surv$family) %>% unique()
+```
+
+## Diffex report
+
+Creates a data frame displaying differential expression results for a given gene.
+If return_all = T, all ensembl ids mapping to a gene name will be returned.
+If false, the first ensembl gene id that passes the low count threshold will be returned with a warning.
+
+### Main PPBC diffex
+
+```{r, include=params$show_functions}
+diffex_report = function(id, lr = res_list, return_all = T,
+                         pthresh = 0.05, abslogfcthresh = 0.5,
+                         genes_passing_filter=rownames(dds)){
+  
+  #print(paste("Adjusted p value threshold:", pthresh, ", abs(log2FoldChange) threshold:", abslogfcthresh))
+  
+  ensembl_id = gene_lookup(id)$ensembl_gene_id
+  
+  if(length(ensembl_id) > 1 & return_all == F){
+    ensembl_id = ensembl_id[ensembl_id %in% genes_passing_filter][1]
+    ensembl_id = ensembl_id[1]
+    warning(paste0("Multiple ensembl IDs found for ",
+                   id, ". Returning first in series: ", ensembl_id))
+  }
+  
+  
+  comp = lapply(lr,
+                function(x) x[x$ensembl_gene_id %in% ensembl_id,]) %>%
+    bind_rows(.id = "comparison")
+  
+  comp = comp %>% mutate(
+    padj = signif(padj, 2),
+    #pval = signif(pvalue, 2),
+    log2FoldChange = round(log2FoldChange, 3),
+    baseMean = round(baseMean, 1),
+    sig = (padj <= !!pthresh & abs(log2FoldChange) > !!abslogfcthresh)
+  ) %>% arrange(padj)
+  
+  comp = comp %>% select(comparison, sig,
+                         padj, #pval, 
+                         log2FoldChange, baseMean,
+                         gene_name, ensembl_gene_id, gene_type)  
+  
+  #L2fc threshold not meaningful for LRT
+  comp[comp$comparison == "LRT", "sig"] <- comp$padj[comp$comparison == "LRT"] <= 0.05
+  
+  
+  comp  
+}
+
+#diffex_report("MS4A1")
+#diffex_report("NOTCH4", return_all = T)
+```
+
+Available diffex comparisons:
+
+```{r}
+names(res_list)
+```
+
+### PAM50 subgroup diffex
+
+Separate function to produce a diffex report from the subgroup analysis, as the column names differ vs the primary analysis.
+`return_all` functions as before.
+
+```{r, include=params$show_functions}
+sub_diffex_report = function(id, return_all = T, lr = sub_reslist, 
+                         pthresh = 0.05, abslogfcthresh = 0.5,
+                         genes_passing_filter=rownames(dds)){
+  
+  #print(paste("Adjusted p value threshold:", pthresh, ", abs(log2FoldChange) threshold:", abslogfcthresh))
+  
+  ensembl_id = gene_lookup(id)$ensembl_gene_id
+  
+  if(length(ensembl_id) > 1 & return_all == F){
+    ensembl_id = ensembl_id[ensembl_id %in% genes_passing_filter][1]
+    ensembl_id = ensembl_id[1]
+    warning(paste0("Multiple ensembl IDs found for ",
+                   id, ". Returning first in series: ", ensembl_id))
+  }
+  
+  comp = lapply(lr,
+                function(x) x[x$ensembl_gene_id %in% ensembl_id,]) %>%
+    bind_rows(.id = "comparison")
+  
+  comp = comp %>% mutate(
+    padj = signif(padj, 2),
+    log2FoldChange = signif(log2FoldChange, 2),
+    baseMean = round(baseMean, 1),
+    sig = (padj <= !!pthresh & abs(log2FoldChange) > !!abslogfcthresh)
+  ) %>% arrange(padj)
+
+  
+  comp = comp %>% select(comparison, subgroup, sig,
+                         padj, log2FoldChange, baseMean,
+                         gene_name, ensembl_gene_id, gene_type) 
+  
+  comp  
+}
+#sub_diffex_report("NOTCH4", return_all = T)
+#di
+```
+
+Available subgroup comparisons:
+
+```{r}
+sapply(names(sub_reslist),
+       function(x) paste(x, unique(sub_reslist[[1]]$subgroup))
+)
+```
+
+### Involution and breastfeeding duration diffex
+
+Separate function for duration diffex analyses for the same reason.
+All arguments function as above.
+
+```{r, include=params$show_functions}
+invbf_diffex_report = function(id, lr = invbf_reslist, return_all = T,
+                               pthresh = 0.05, abslogfcthresh = 0.5,
+                               genes_passing_filter=rownames(dds)){
+  
+  #print(paste("Adjusted p value threshold:", pthresh, ", abs(log2FoldChange) threshold:", abslogfcthresh))
+  
+  ensembl_id = gene_lookup(id)$ensembl_gene_id
+  
+  if(length(ensembl_id) > 1 & return_all == F){
+    ensembl_id = ensembl_id[ensembl_id %in% genes_passing_filter][1]
+    ensembl_id = ensembl_id[1]
+    warning(paste0("Multiple ensembl IDs found for ",
+                   id, ". Returning first in series: ", ensembl_id))
+  }
+  
+  lr = lr %>% filter(ensembl_gene_id %in% !!ensembl_id)
+  
+  comp = lr %>% mutate(
+    padj = signif(padj, 2),
+    #pval = signif(pvalue, 2),
+    log2FoldChange = round(log2FoldChange, 3),
+    baseMean = round(baseMean, 1),
+    sig = (padj <= !!pthresh & abs(log2FoldChange) > !!abslogfcthresh)
+  ) %>% arrange(padj)
+  
+  comp = comp %>% select(diffex_duration, sig,
+                         padj, #pval, 
+                         log2FoldChange, baseMean,
+                         gene_name, ensembl_gene_id,
+                         group, ref, gene_type,
+                         )  
+  
+  
+  comp  
+}
+
+#invbf_diffex_report("NOTCH4", return_all = T)
+
+```
+
+Available duration comparisons:
+
+```{r}
+select(invbf_reslist, diffex_duration, ref, group) %>%
+  distinct()
+```
+
+## Boxplot expression
+
+Creates two boxplots for a given gene: TMM-normalized/log2 tranformed, and size factor-normalized.
+The boxplots are faceted by outcome (death or metastasis).
+
+```{r, include=params$show_functions}
+box_plots <- function(id, gEx = geneEx, d=dds, s = sample_data){
+  
+  #stopifnot(norm_type %in% c("size factor", "log2 TMM"))
+  
+  ensembl_id <- gene_lookup(id)$ensembl_gene_id
+  gn <- gene_lookup(id)$gene_name
+  
+  if(length(ensembl_id) > 1){
+    #ensembl_id = ensembl_id[1] #May cause a crash if first ID is below filter
+    
+    #Ensure that the ensembl ID returned has not been removed by the low count filter
+    ensembl_id = ensembl_id[ensembl_id %in% rownames(d)][1]
+    
+    warning(paste0("Multiple ensembl IDs found for ",
+                   id, ", returning first in series: ", ensembl_id))
+  }
+  
+  #TMM
+  df <- gEx[,c("sample_name",  ensembl_id)]
+    colnames(df)[2] <- "geneEx"
+  
+  df <- left_join(df, s, by = "sample_name") %>%
+    mutate(id = id, ensembl_id = ensembl_id)
+  
+  #return(df)
+  
+  df = df %>%
+  select(sample_name, id, ensembl_id, geneEx, PPBC, PAM50,
+         death, metastasis = distant_recurrence) %>%
+  gather(key = "outcome", value = "value", death, metastasis) %>%
+    mutate(value = as.factor(value))
+  
+  tmm = df %>%
+    ggplot(aes(x = PPBC, y = geneEx)) +
+    geom_boxplot(alpha=0, notch=F) +
+    geom_jitter(width = 0.1, aes(color = value)) +
+    facet_wrap(~outcome) +
+    scale_color_colorblind() +
+    ylab(paste0("TMM-log2 normalized expression")) +
+    ggtitle(paste(gn, ensembl_id, sep=":"))
+  
+  #size factor
+  df <- plotCounts(d, gene = ensembl_id,
+                   intgroup=c("PPBC", "PAM50",
+                              "death",
+                              "distant_recurrence"),
+                   returnData = T, normalized = T)
+  
+  colnames(df)[colnames(df)=="count"] <- "geneEx"
+  df <- rownames_to_column(df, "sample_name") %>%
+    mutate(id = id, ensembl_id = ensembl_id)
+
+  df = df %>%
+  select(sample_name, id, ensembl_id, geneEx, PPBC, PAM50,
+         death, metastasis = distant_recurrence) 
+  df = df %>%
+  gather(key = "outcome", value = "value", death, metastasis) %>%
+    mutate(value = as.factor(value)) %>%
+    na.omit()
+  #return(df)
+  sf = df %>%
+    ggplot(aes(x = PPBC, y = geneEx)) +
+    geom_boxplot(alpha=0, notch=F) +
+    geom_jitter(width = 0.1, aes(color = value)) +
+    facet_wrap(~outcome) +
+    scale_color_colorblind() +
+    ylab(paste0("Size-factor normalized counts")) +
+    ggtitle(paste(gn, ensembl_id, sep=":"))
+
+  list(tmm = tmm, sf = sf)
+}
+
+#box_plots("MARVELD2")
+#box_plots(params$gene)
+```
+
+## Gene quantile
+
+Assigns each sample a quantile based on a given gene's expression in the dataset.
+
+```{r, include=params$show_functions}
+gene_ntile <- function(gene_id, gEx = geneEx, gene_dict = gx_annot,
+                       n = 3){
+  
+  stopifnot(n %in% c(2,3,4))
+  
+  id <- gene_lookup(gene_id)$ensembl_gene_id
+  if(length(id) > 1){
+    id = id[id %in% colnames(gEx)][1]
+    warning(paste0("Multiple ensembl IDs found for ",
+                   gene_id, ", returning first in series: ",
+                   id))    
+  }
+  
+  name <- gene_lookup(gene_id)$gene_name
+  
+
+  labels = switch(as.character(n),
+                  "2" = c("low", "high"),
+                  "3" = c("low", "medium", "high"),
+                  "4" = c("Q1", "Q2", "Q3", "Q4")
+  )
+  samples <- geneEx[,"sample_name"]
+  g <- gEx[, colnames(gEx) %in% id , drop = F]
+  g <- as.matrix(g)
+  rownames(g) <- samples
+  #return(g)
+  if(ncol(g) == 0){
+    stop("Gene not found in provided count matrix")
+  }
+  
+  if(ncol(g) > 1){
+    warning("Multiple ensembl ids mapped to single gene symbol. Averaging expression.")
+    gene <- as.matrix(rowMeans(g))
+    #return(gene)
+  }
+  
+  #rownames(gene) <- name #Not strictly necessary, useful for debugging
+  
+  if(length(id) > 1){
+    id = paste(id, collapse = ";")
+  }
+  
+  gene_df <- tibble::tibble(sample_name = rownames(g),
+                            gene_symbol = name,
+                            ensembl_gene_id = id,
+                            tmm = g[,1],
+                            ntile = dplyr::ntile(g[,1], n),
+                            labels = factor(dplyr::ntile(g[,1], n), labels = labels)
+  )
+  
+  #gene_df <- dplyr::mutate(gene_df, labels = as.character(labels)) #Or survminer will complain
+  
+  return(gene_df)
+  
+
+}
+
+#gene_ntile("NOTCH4")%>%head()
+#gene_ntile("MS4A1")%>%head()
+```
+
+## Involution vs rest Kaplan Meiers
+
+Creates 4 separate kaplan meiers based on quantiles of a given gene, based on `survival_type`.
+(Either overall survival or distant recurrence is allowed.)
+The KMs will be shown for involution samples or for all non-involuting samples separately.
+Adjusted curves are shown alongside unadjusted curves, using the *marginal* method of `survminer::surv_adjustedcurves`.
+Adjusted curves are corrected for the following covariates:
+
+```{r}
+covariates <- c("age_at_diagnosis", "grade",
+                "stage", "surgery", "radiotherapy",
+                "strata(hormonetherapy)",
+                "chemotherapy", "herceptin", "PAM50")
+```
+
+Ideally, both PAM50 and hormonetherapy would be stratified.
+Because stratifying both PAM50 and HT yields too many NAs, only HT is stratifed to compensate for the PH violation of TN-tumors.
+For unadjusted curves, the logrank p value is shown.
+For adjusted curves, the p value is from an anova between a model that includes the gene quantile and a model without the gene quantile.
+
+```{r, include=params$show_functions, fig.height=7, fig.width=10}
+km_ntiles_ovr <- function(gene_id, gene_dict = gx_annot, gEX = geneEx,
+                          n = 3, ovr_column = "involution", adj_met = "marginal",
+                          line_colors = viridis::scale_color_viridis(discrete = T),
+                          sampledata = sample_data, survival_type = "os",
+                          legend_positions = c("none","none", "bottom","bottom"),
+                          p_method = "anova", return_list = F){
+  
+  stopifnot(survival_type %in% c("os", "drs"))
+  stopifnot(n %in% c(2,3,4))
+  stopifnot(p_method %in% c("anova", "coef"))
+  stopifnot(ovr_column %in% colnames(sampledata))
+  
+  id <- gene_lookup(gene_id)$ensembl_gene_id
+  
+  if(length(id) > 1){
+    id = id[id %in% colnames(gEX)][1]
+    warning(paste0("Multiple ensembl IDs found for ",
+                   gene_id, ", returning first in series: ",
+                   id))    
+  }
+  
+  gn <- gene_lookup(gene_id)$gene_name
+  
+  ntiles <- gene_ntile(gene_id = id, gene_dict = gene_dict,
+                       gEx = gEX, n = n)
+  
+  sd <- dplyr::left_join(ntiles, sampledata, by = "sample_name")
+  #  return(sd)
+  
+  #Toggle for survival type
+  if(survival_type == "os"){
+    ti <- "time_OS_months"
+    ev <- "death"
+    ylab <- "Overall survival probability"
+    type <- "Overall survival"
+  }
+  
+  if(survival_type == "drs"){
+    ti <- "time_DRS_months"
+    ev <- "distant_recurrence"
+    ylab <- "Distant recurrence probability"
+    type <- "Distant recurrence"
+  }
+  
+  covariates <- c("age_at_diagnosis", "grade",
+                  "stage", "surgery", "radiotherapy",
+                  "strata(hormonetherapy)",
+                  "chemotherapy", "herceptin", "PAM50")
+  
+  cov_legend <- c("age", "year of diagnosis", "grade",
+                  "stage", "treatment", "PAM50")
+  
+  cov <- paste(covariates, collapse = "+")
+  svf = paste0('Surv(time=',ti,', event=',ev,')~')
+  facet_formula <- as.formula(paste0(svf, "labels"))
+  #ntile_formula <- as.formula(paste0(svf, "ntile"))
+  reduced =  as.formula(paste0(svf, cov))
+  formula = as.formula(paste0(svf, paste0(cov, "+ntile")))
+  
+  reslist <- list()
+  #gn <- unique(sd$gene_symbol)
+  
+  #Split sample data into those samples belonging to the group of interest (or not)
+  sd1 = sd[sd[[ovr_column]] == 1,]
+  sd0 = sd[sd[[ovr_column]] == 0,]
+  sd1 = droplevels(sd1)
+  sd0 = droplevels(sd0)
+  
+  curv1 <- survminer::ggsurvplot(
+    fit = survminer::surv_fit(facet_formula, data = as.data.frame(sd1)), 
+    xlab = "Months", 
+    ylab = ylab,
+    legend = legend_positions[1],
+    #title = paste(type, "(unadjusted), with", gn, "\nexpression in", ovr_column, "samples"),
+    title = paste("Unadjusted curve for", ovr_column, "samples"),
+    pval = T, #Logrank method
+    )
+  
+  curv1 = curv1$plot #Otherwise we get a ggsurvplot object, which cannot be used with ggarrange
+  
+  curv1 <- curv1 +
+    theme(plot.title = element_text(size = 12),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank()
+    ) +
+    line_colors
+  
+  reslist$curv1 <- curv1
+  
+  #Unadajusted kaplan meier plot in other samples
+  curv0 <- survminer::ggsurvplot(
+    fit = survminer::surv_fit(facet_formula, data = as.data.frame(sd0)), 
+    xlab = "Months", 
+    ylab = ylab,
+    legend = legend_positions[2],
+    #title = paste(type, "(unadjusted), with", gn, "\nexpression in other samples"),
+    title = paste("Unadjusted curve for other samples"),
+    pval = T, #Logrank method
+    ) 
+  
+  curv0 <- curv0$plot #Otherwise we get a ggsurvplot object, which cannot be used with ggarrange
+  
+  curv0 <- curv0 +
+    theme(plot.title = element_text(size = 12),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank()
+    ) +
+    line_colors
+  
+  reslist$curv0 <- curv0
+  
+  #return(reslist)
+  
+  #Cox models for involution group, adjusted for all covariates and ntile gene expression
+  c <- suppressWarnings(survival::coxph(formula, data = sd1))
+  #return(c)
+  
+  #Store p value associated with the coefficient of the ntile
+  fit_ntile <- as.data.frame(summary(c)$coefficients)
+  p_ntile <- signif(fit_ntile[rownames(fit_ntile) == "ntile", ]$`Pr(>|z|)`, 2)
+  if (p_ntile < 0.001){
+    p_ntile <- "< 0.001"
+  }
+  
+  #print(p_ntile)
+  #Anova p value vs reduced model
+  d <- suppressWarnings(survival::coxph(reduced, data = as.data.frame(sd1)))
+  aod <- anova(d,c) #Conventional to list models from smallest to largest but order does not matter
+  aod_p <- signif(aod[4][2,], 2)
+  if (aod_p < 0.001){
+    aod_p <- "< 0.001"
+  }
+  
+  if (p_method == "anova"){
+    p <- aod_p
+  } else {
+    p <- p_ntile
+  }
+  
+  #Adjusted survival curve for samples belonging to group of interest
+  #Use surv_adjustedcurves to get data and the then manually plot for more control over appearance
+  
+  adj_curv1 <- survminer::surv_adjustedcurves(
+    fit = c, variable = "ntile", data = as.data.frame(sd1), method = adj_met
+  ) %>%
+    left_join(select(mutate(sd1, ntile = as.factor(ntile)), ntile, labels), by = c("variable" = "ntile")) %>%
+    ggplot(., aes(x = time, y = surv, color = labels)) + 
+    geom_step(size = 1) +
+    theme_survminer() +
+    line_colors + 
+    scale_y_continuous(limits = c(0,1)) +
+    #scale_x_continuous(limits = c(0,250)) +
+    ylab(label =  ylab) +
+    labs(color = paste(gn, "expression")) +
+    #ggtitle(paste(type, "for gene", gn, "in", ovr_column, "\nsamples, adjusted for clinical covariates")) +
+    ggtitle(paste("Adjusted curve for", ovr_column,"samples")) +
+    #annotate(geom = "text", label = paste0("Coef pval for ntile: ", p_ntile), x= 25, y =0.1) +
+    #annotate(geom = "text", label = paste0("Anova pval vs reduced: ", aod_p), x= 25, y =0.2) +
+    annotate(geom = "text", label = paste("p =", p), x= 25, y =0.1) +
+    theme(plot.title = element_text(size = 12),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank(),
+          legend.position = legend_positions[3]
+    )
+  
+  reslist$adj_curv1 <- adj_curv1
+  
+  #Cox models for rest group, adjusted for all covariates and ntile gene expression
+  c <- suppressWarnings(survival::coxph(formula, data = sd0))
+  #print(c)
+  
+  #Store p value associated with the coefficient of the ntile
+  fit_ntile <- as.data.frame(summary(c)$coefficients)
+  p_ntile <- signif(fit_ntile[rownames(fit_ntile) == "ntile", ]$`Pr(>|z|)`, 2)
+  if (p_ntile < 0.001){
+    p_ntile <- "< 0.001"
+  }
+  
+  #Anova p value vs reduced model
+  d <- suppressWarnings(survival::coxph(reduced, data = as.data.frame(sd0)))
+  aod <- anova(d,c) #Conventional to list models from smallest to largest but order does not matter
+  aod_p <- signif(aod[4][2,], 2)
+  if (aod_p < 0.001){
+    aod_p <- "< 0.001"
+  }
+  
+  if (p_method == "anova"){
+    p <- aod_p
+  } else {
+    p <- p_ntile
+  }
+  
+  
+  #Adjusted survival curve for samples belonging to group of interest
+  #Use surv_adjustedcurves to get data and the then manually plot for more control over appearance
+  adj_curv0 <- survminer::surv_adjustedcurves(
+    fit = c, variable = "ntile", data = as.data.frame(sd0), method = "marginal"
+    ) %>%
+    left_join(select(mutate(sd0, ntile = as.factor(ntile)), ntile, labels), by = c("variable" = "ntile")) %>%
+    ggplot(., aes(x = time, y = surv, color = labels)) + 
+    geom_step(size = 1) + 
+    theme_survminer() + 
+    line_colors +
+    scale_y_continuous(limits = c(0,1)) + 
+    #scale_x_continuous(limits = c(0,250)) +
+    ylab(label =  ylab) +
+    labs(color = paste(gn, "expression")) +
+    #ggtitle(paste(type, "for gene", gn, "\nin other samples, adjusted for clinical covariates")) +
+    ggtitle(paste("Adjusted curve for other samples")) +
+    #annotate(geom = "text", label = paste0("Coef pval for ntile: ", p_ntile), x= 25, y =0.1) +
+    #annotate(geom = "text", label = paste0("Anova pval vs reduced: ", aod_p), x= 25, y =0.2) +
+    annotate(geom = "text", label = paste("p =", p), x= 25, y =0.1) +
+    theme(plot.title = element_text(size = 12),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank(),
+          legend.position = legend_positions[4]
+          )
+ 
+  reslist$adj_curv0 <- adj_curv0
+  
+  if(return_list == T){
+    return(reslist)  
+  }
+  
+  # Arrange them all together
+  arplot <- ggpubr::ggarrange(plotlist = reslist, nrow = 2, ncol = 2)
+  
+  arplot <- annotate_figure(arplot,
+                  top = text_grob(paste(type, "for", paste(gn, id, sep=":")), face = "bold", size = 14),
+                  #bottom = text_grob("Time (Months)", size = 12),
+                  bottom = text_grob(paste0("Time (Months)\n\nClinical covariates: ",
+                                            paste(cov_legend, collapse=", ")),
+                                     size = 12),
+                  left = text_grob(ylab, rot = 90)
+  )
+  
+  return(arplot)
+  
+}
+
+#km_ntiles_ovr("NOTCH4")
+```
+
+## Retrieve gene summaries
+
+Webscrape the entrez and uniprot summaries for a gene.
+
+```{r, include=params$show_functions}
+get_entrez_summary <- function(gene_id, dict=bx_annot,
+                               ids_passing_filter=rownames(dds)){
+  
+  gn <- gene_lookup(gene_id)$gene_name
+  
+  ent <- unique(dict[dict$gene_name == gn, ]$entrez_id)
+  
+  if(length(ent) == 0){
+    print("No ID found")
+    return(NA)
+  }
+  
+  gene_summary <- tryCatch(rentrez::entrez_summary(db = "gene", id = ent),
+                            error = function(e){NA})
+  
+  res <- list()
+  
+  res$name <- tryCatch(rentrez::extract_from_esummary(gene_summary, "name"),
+                       error = function(e){NA})
+  res$description <- tryCatch(rentrez::extract_from_esummary(gene_summary, "description"),
+                               error = function(e){NA})
+  res$otheraliases <- tryCatch(rentrez::extract_from_esummary(gene_summary, "otheraliases"),
+                                error = function(e){NA})
+  #res$otherdesignations <- rentrez::extract_from_esummary(gene_summary, "otherdesignations")
+  res$entrez_summary <- tryCatch(rentrez::extract_from_esummary(gene_summary, "summary"),
+                                  error = function(e){NA})
+  return(res)
+}
+
+#get_entrez_summary("MARVELD2")
+#get_entrez_summary(params$gene)
+```
+
+Alternative for uniprot: Use proteinatlas.org.
+Also shows known prognostics.
+
+```{r, include=params$show_functions}
+#TODO Fix html_text, or maybe use proteinatlas.org instead
+
+get_uniprot_summary <- function(id, dict=bx_annot){
+  
+  gn <- gene_lookup(id)$gene_name
+  uni <- unique(dict[dict$gene_name == gn, ]$uniprot_id)
+  
+  if(length(uni) == 0){
+    print("No ID found")
+    return(NA)
+  }
+  
+  base_url = "https://www.uniprot.org/uniprot/"
+  url = paste0(base_url, uni)
+  
+  uniprot_summary <- tryCatch(
+  xml2::read_html(url) %>%
+    rvest::html_node(xpath='/html/body/main/div/div[3]/div[3]/div[1]') %>%
+    rvest::html_text(),
+    error = function(e){NA} 
+  )
+  
+  uniprot_summary <- uniprot_summary %>% str_split("[:digit:] Publications")
+  uniprot_summary <- uniprot_summary[[1]][[1]]
+  return(uniprot_summary)
+}
+
+#get_uniprot_summary("MS4A1")
+#get_uniprot_summary(params$gene)
+```
+
+# Gene biology
+
+Show ensembl gene haplotypes for provided input `r Gene`, and other id mappings.
+Only those haplotypes that pass the minimum count threshold are shown.
+
+```{r}
+gene_dict <- bx_annot %>%
+  filter(gene_name == gene_lookup(Gene)$gene_name) %>%
+  filter(ensembl_gene_id %in% rownames(dds))
+
+gene_dict
+```
+
+Entrez gene summary:
+
+```{r}
+get_entrez_summary(Gene)
+```
+
+Uniprot gene summary (html cleanup is WIP):
+
+```{r}
+get_uniprot_summary(Gene)
+```
+
+# Survival summary
+
+Depicting data frame results for genewise and interaction models.
+
+## Genewise models
+
+For univariate models, the formula is: Surv(time, event)~gene.
+
+For multivariate models, the formula is:
+Surv(time, event)~age + stage + grade + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + gene
+
+For interaction models:
+
+Surv(time, event)~ (clinical covariates) + involution + gene + involution * gene
+
+Where involution is a binary variable indicating whether a sample is PPBCpw or not.
+
+```{r}
+genewise_survival_results(Gene, df = gw_surv, return_first = F)
+```
+
+# Differential expression
+
+Divided into three sections:
+
+* PPBC primary diffex (Likelihood ratio test, pairwise comparisons, and one vs rest comparisons)
+* Involution duration (<6mo vs >6mo) 
+* Breastfeeding duration (<1 mo vs >1 mo)
+* Subgroup (Involution vs rest, involution vs nulliparous and involution vs pregnant for Basal, Her2, and LumA/B samples)
+
+## PPBC diffex
+
+```{r}
+diffex_report(Gene, return_all = T)
+```
+
+## Involution duration diffex
+
+```{r}
+invbf_diffex_report(Gene, return_all = T) %>%
+  filter(diffex_duration == "involution")
+```
+
+## Breastfeeding duration diffex
+
+```{r}
+invbf_diffex_report(Gene, return_all = T) %>%
+  filter(diffex_duration == "breastfeeding")
+```
+
+## Subgroup diffex
+
+```{r}
+sub_diffex_report(Gene, return_all = T)
+```
+
+# Counts by study group
+
+Log2-TMM normalized
+
+```{r, fig.width=8}
+if(Gene %in% bx_annot$ensembl_gene_id){
+  print(box_plots(Gene)$tmm)
+} else {
+  for(id in gene_dict$ensembl_gene_id){
+  print(box_plots(id)$tmm)
+}
+}
+```
+
+Size-factor normalized:
+
+```{r, fig.width=8}
+if(Gene %in% bx_annot$ensembl_gene_id){
+  print(box_plots(Gene)$sf)
+} else {
+  for(id in gene_dict$ensembl_gene_id){
+  print(box_plots(id)$sf)
+}
+
+}
+```
+
+# Kaplan-Meiers
+
+Involution vs rest survival depictions
+
+## Overall survival
+
+```{r, warning=F, fig.height=7, fig.width=10}
+if(Gene %in% bx_annot$ensembl_gene_id){
+  print(km_ntiles_ovr(Gene, ovr_column = "involution", survival_type = "os"))
+} else {
+  for(id in gene_dict$ensembl_gene_id){
+  print(km_ntiles_ovr(id, ovr_column = "involution", survival_type = "os"))
+}
+}
+```
+
+## Distant recurrence
+
+```{r, warning=F, fig.height=7, fig.width=10}
+if(Gene %in% bx_annot$ensembl_gene_id){
+  print(km_ntiles_ovr(Gene, ovr_column = "involution", survival_type = "drs"))
+} else {
+ for(id in gene_dict$ensembl_gene_id){
+  print(km_ntiles_ovr(id, ovr_column = "involution", survival_type = "drs"))
+} 
+}
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```

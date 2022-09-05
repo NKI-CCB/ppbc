@@ -1,0 +1,192 @@
+---
+title: "IG clusters and CD20"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+    highlight: kate
+params:
+  density_outcome: "data/vectra/processed/density_ppbc.Rds"
+  inv_clusters: "results/rnaseq/clustering/11_inv_clusters.xlsx"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, message = F}
+library(here)
+library(tidyverse)
+library(ggpubr)
+library(broom)
+theme_set(theme_bw())
+```
+
+Check to see whether the low, medium and high IG clusters from differential expression correspond to CD20 marker density.
+
+## Load data
+
+Contains marker density info and sample names:
+
+```{r}
+dens <- readRDS(here(params$density_outcome))
+```
+
+We have regional density for stroma and tumor. Also calculate total density.
+
+```{r}
+cd20 <- dens %>%
+  filter(cell_type == "CD20+") %>%
+  rename(region=classifier_label) %>%
+  mutate(region = factor(region, levels = c("Stroma", "Tumor", "Total"))) %>%
+  arrange(t_number, region) #%>%
+  #select(-distant_recurrence, time_DRS_months) %>%
+  #left_join(., distinct(select(dens, sample_name, death, distant_recurrence)),
+            #by = "sample_name")
+
+#DRS is NA in a few samples
+head(cd20)
+```
+
+
+Contains IG cluster identities and sample names:
+
+```{r}
+igclust <- readxl::read_excel(here(params$inv_clusters),
+                              sheet="col_clusters") %>%
+  mutate(IG_col_cluster = factor(IG_col_cluster,
+                                 levels = c("low", "medium", "high")))
+```
+
+Combine
+
+```{r}
+cd20 <- inner_join(cd20,select(igclust, -study_group), by = "sample_name")
+```
+
+Response variables should be factors for plotting.
+
+```{r}
+cd20 <- cd20 %>%
+  mutate(death = factor(death, levels = c(0, 1)),
+         distant_recurrence = factor(distant_recurrence, levels = c(0, 1)))
+```
+
+
+```{r}
+head(cd20)
+```
+
+## Tumor and stroma size
+
+Average area tumor vs stroma:
+
+```{r}
+dens %>%
+  filter(classifier_label != "Total") %>%
+  group_by(t_number, panel, classifier_label) %>%
+  summarise(av_area = mean(area), .groups="drop") %>%
+  ggplot(aes(x = classifier_label, y = av_area)) +
+  geom_jitter(aes(color = panel), height = 0 ) +
+  geom_boxplot(alpha = 0) +
+  ggtitle("Average area of tumor and stroma by panel") +
+  ggpubr::stat_compare_means(
+    label = "p.signif",
+    comparisons = list(
+      c("Stroma", "Tumor")
+    )) +
+  scale_y_sqrt()
+```
+
+## Box plot
+
+In all study groups:
+
+```{r}
+box_cd20 <- function(df, colorby = "panel"){
+  ggplot(df, aes(x = IG_col_cluster, y = density)) +
+  geom_jitter(height = 0, aes(color = get(colorby))) +
+  geom_boxplot(alpha = 0.1, outlier.shape = NA) +
+  facet_wrap(~region) +
+  scale_y_sqrt() +
+  xlab("Immunoglobulin expression cluster derived from RNAseq") +
+  ylab("CD20 Vectra density") +
+  ggpubr::stat_compare_means(
+    label = "p.signif",
+    comparisons = list(
+      c("low", "medium"), c("medium", "high"), c("low", "high")
+    )) +
+    labs(color = colorby)
+}
+
+box_cd20(cd20) +
+  ggtitle("Relationship between IG cluster status and CD20 density by sample and panel")
+```
+
+Study groups separately for OS:
+
+```{r}
+lapply(unique(cd20$study_group), function(x){
+  box_cd20(filter(cd20, study_group == x), colorby = "death") +
+    ggtitle(paste("Relationship between IG cluster status and CD20 density in", x)) +
+    scale_color_viridis_d()
+})
+```
+
+Study groups separately for DRS:
+
+```{r}
+lapply(unique(cd20$study_group), function(x){
+  box_cd20(filter(cd20, study_group == x), colorby = "distant_recurrence") +
+    ggtitle(paste("Relationship between IG cluster status and CD20 density in", x)) +
+    scale_color_viridis_d()
+})
+```
+
+## Linear regression
+
+How well do the regression coefficients line up in the whole dataset?
+
+```{r}
+lapply(unique(cd20$region), function(x){
+  sub <- filter(cd20, region == x)
+  #return(unique(sub$IG_col_cluster))
+  fitcd20 <- glm(col_cluster ~ density, family = "poisson", data = sub)
+  #summary(fitcd20)
+  broom::tidy(fitcd20)
+}) %>% set_names(unique(cd20$region)) %>%
+  bind_rows(.id = "region") %>%
+  filter(term != "(Intercept)") %>%
+  #This is the only density we're looking at
+  mutate(term = "CD20 density") %>%
+  mutate(sig = ifelse(p.value < 0.05, "yes", "no"), .after = region)
+  
+```
+
+And if we facet by study group?
+
+```{r}
+lapply(unique(cd20$study_group), function(y){
+  df <- filter(cd20, study_group == y)
+  lapply(unique(df$region), function(x){
+    sub <- filter(df, region == x)
+    fitcd20 <- glm(col_cluster ~ density, family = "poisson", data = sub)
+    broom::tidy(fitcd20)
+  }) %>% set_names(unique(df$region)) %>%
+    bind_rows(.id = "region") %>%
+    filter(term != "(Intercept)") %>%
+    #This is the only density we're looking at
+    mutate(term = "CD20 density") %>%
+    mutate(sig = ifelse(p.value < 0.05, "yes", "no"), .after = region)
+}) %>% set_names(unique(cd20$study_group)) %>%
+  bind_rows(.id = "study_group") %>%
+  relocate(p.value, .after=sig)
+```
+
+```{r}
+sessionInfo()
+```

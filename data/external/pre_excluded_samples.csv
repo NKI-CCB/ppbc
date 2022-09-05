@@ -1,0 +1,16 @@
+fastq_file,sample_ref,reason
+rHLE_FA_117_and_rHLE_FA_151_index14.180924.HiSeq4000.FCB.lane3.gcap_18_06.R1,HL-FA-117-and-rHLE-FA-151-index14,lib prep error
+rHLE_FA_138.180913.HiSeq4000.FCB.lane5.gcap_17_11.R1,HL-FA-138,had ct
+rHLE_FA_138.180924.HiSeq4000.FCB.lane6.gcap_18_06.R1,HL-FA-138,had ct
+rHLE_FA_145.180924.HiSeq4000.FCB.lane2.gcap_18_06.R1,HL-FA-145,had ct
+rHLE_FA_149.180924.HiSeq4000.FCB.lane2.gcap_18_06.R1,HL-FA-149,had ct
+rHLE_FA_158.180924.HiSeq4000.FCB.lane2.gcap_18_06.R1,HL-FA-158,had ct
+rHLE_UZ-HL-4.170515.HiSeq4000.FCB.lane2.gcap_17_03.R1,rHLE-UZ-HL-4,had ct
+rHLE-FA-24.180706.HiSeq4000.FCB.lane8.gcap_17_11.R1,HL-FA-24,had ct
+rHLE-FA-51.180816.HiSeq4000.FCB.lane5.gcap_17_11.R1,HL-FA-51,had ct
+rHLE_LP-HL-21.170619.HiSeq4000.FCB.lane7.gcap_17_03.R1,rHLE-LP-HL-21,too old
+rHLE_LP-HL-21.170703.HiSeq4000.FCB.lane7.gcap_dev.R1,rHLE-LP-HL-21,too old
+rHLE_LP-HL-26.170619.HiSeq4000.FCB.lane7.gcap_17_03.R1,rHLE-LP-HL-26,too old
+rHLE_LP-HL-26.170703.HiSeq4000.FCB.lane7.gcap_dev.R1,rHLE-LP-HL-26,too old
+rHLE_LP-HL-29.170619.HiSeq4000.FCB.lane7.gcap_17_03.R1,rHLE-LP-HL-29,too old
+rHLE_LP-HL-29.170703.HiSeq4000.FCB.lane7.gcap_dev.R1,rHLE-LP-HL-29,too old

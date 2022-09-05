@@ -1,0 +1,48 @@
+variable_NAME	variable_LABEL
+patient_ID	New HL-FA-ID that is unique for each patient
+sample_ID	T-number for vectra MPIF26 and MPIF27 and old reference for RNA data
+sample_type	RNA for RNAseq data and slide for vectra data
+experimental_platform	RNAseq or MPIF26/MPIF27
+batch_Leuven	for the Vectra samples, batch they were matched for and send to NL for Vectra/HALO -- for RNA sequencing samples, batch they were matched for and library prepped for sequencing
+batch_HALO	batch they were stained and analysed in HALO (differs from batch_Leuven as first 2 batches send to NL failed)
+NA	NA
+NA	NA
+sample_name	name of the study group in addition with unqiue patient identifiable number
+study_group	study group
+country	country of diagnosis
+database	database patient was registered in (MBC database UZ Leuven or international INCIP database)
+year_birth	year of birth
+year_diagnosis	year of diagnosis
+FU_year	year of last follow up
+time_FU_months	time from diagnosis to last follow-up in months
+death	1, patient died; 0, patient alive
+time_OS_months	overall survival time from diagnosis to last-follow up or death in months
+distant_recurrence	1, patient had distant recurrence; 0, patient had no distant recurrence
+time_DRS_months	distant recurrence-free survival time from diagnosis to last-follow up or metastases in months
+clin_subtype	clinical subtype of breast cancer
+stage	breast cancer stage
+grade	breast cancer grade
+surgery	1, surgery; 0, no surgery
+BE	lumpectomy
+ME	mastectomy
+SN	sentinel node procedure
+OE	axillary lymphadenectomy
+RT	1, radiotherapy; 0, no radiatherapy
+HT	1, hormone therapy; 0, no hormone therapy
+HT_type	adjuvant, neoadjuvant or combination of adjuvant and neoadjuvant hormone therapy
+CT	1, chemotherapy; 0, no chemotherapy
+CT_type	adjuvant, neoadjuvant or combination of adjuvant and neoadjuvant chemotherapy
+CT_schedule	CT schedule type
+herceptin	1, herceptin; 0, no herceptin
+herceptin_type	adjuvant, neoadjuvant or combination of adjuvant and neoadjuvant herceptin
+months_involution_breastfeeding	months that a postpartum patient has been in involution since cessation of breastfeeding (or since diagnosis in case of no breastfeeding), NA for all other patients
+months_breastfeeding	months of breastfeeding for cancer-related pregnancy for postpartum patients, NA for all other patients
+TIL_short	Based on median
+SI_CD38	percentage of stromal areas occupied by cells labelled for CD38 is above or equal to the median (=10) (high) or below (low)
+SI_CD38_v2	percentage of stromal areas occupied by cells labelled for CD38 is above or equal to the median (=1) (high) or below (low)
+TI_CD38	percentage of intratumoral areas occupied by cells labelled for CD38 is above or equal to the median (=10) (high) or below (low)
+TI_CD38_v2	percentage of intratumoral areas occupied by cells labelled for CD38 is above or equal to the median (=1) (high) or below (low)
+Plasma_ID	based on tertiles
+Plasma_cat	based on median
+_ID files	Based on median: low is below median, high is equal or above median (105 values below and 106 above)
+_cat files	based on tertiles: low (n=70)  versus medium (n=70) +high (n=71)

@@ -1,0 +1,649 @@
+---
+title: "Exhaustion"
+author: "Hanne Lefrere"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+---
+
+```{r, include=F}
+rm(list = ls())
+```
+
+```{r, include=F}
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(pheatmap)
+library(ComplexHeatmap)
+library(circlize)
+library(RColorBrewer)
+#install.packages("dendsort")
+library(dendsort)
+library(tibble)
+library(EnhancedVolcano)
+library(survminer)
+library(survival)
+library(tidyverse)
+library(Biobase)
+library(scrime)
+library(TCGAbiolinks)
+library(ImmuneSubtypeClassifier)
+library(writexl)
+library(tximport)
+library(readxl)
+library(here)
+library(corrplot)
+library(RColorBrewer)
+library(Hmisc)
+#install.packages("ggalluvial")
+library(ggalluvial)
+library(ggsankey)
+```
+
+
+
+# Load the data 
+
+read in meta-file 
+```{r}
+meta <- read_excel("PPBC_metadata_20220807.xlsx", sheet = "patient_data")
+```
+
+```{r}
+npbc <- meta[meta$study_group == c('npbc'),]
+ppbcdl <- meta[meta$study_group == c('ppbcdl'),]
+ppbcpw <- meta[meta$study_group == c('ppbcpw'),]
+prbc <- meta[meta$study_group == c('prbc'),]
+```
+
+
+
+remove ppbcdl
+```{r}
+meta <- subset(meta, study_group %in% c("ppbcpw", "prbc", "npbc"), )
+```
+
+```{r}
+table(meta$study_group)
+```
+
+
+chnage order
+
+```{r}
+meta$study_group_new <- NA
+meta$study_group_new[meta$study_group=="ppbcpw"] <- 1
+meta$study_group_new[meta$study_group=="prbc"] <- 2
+meta$study_group_new[meta$study_group=="npbc"] <- 3
+
+
+table(meta$study_group)
+table(meta$study_group_new)
+
+
+meta$study_group_new <- factor(meta$study_group_new,
+                                           levels = c(1,2,3),
+                                           labels = c("ppbcpw", "prbc", "npbc"))
+
+table(meta$study_group_new)
+```
+
+
+load count matrix file 
+
+```{r}
+hugo_mat <- read_tsv(here("hugo_fpkm.txt"))
+```
+
+```{r}
+hugo_mat[1:4, 1:4] 
+```
+
+
+
+```{r}
+npbc_merged <- hugo_mat[colnames(hugo_mat) %in% c(npbc$sample_name, 'X')]
+write.csv(npbc_merged, file = 'Mixture_npbc.txt')
+
+#ppbcdl_merged <- hugo_mat[colnames(hugo_mat) %in% c(ppbcdl$sample_name, 'X')]
+#write.csv(ppbcdl_merged, file = 'Mixture_ppbcdl.txt')
+
+ppbcpw_merged <- hugo_mat[colnames(hugo_mat) %in% c(ppbcpw$sample_name, 'X')]
+write.csv(ppbcpw_merged, file = 'Mixture_ppbcpw.txt')
+
+prbc_merged <- hugo_mat[colnames(hugo_mat) %in% c(prbc$sample_name, 'X')]
+write.csv(prbc_merged, file = 'Mixture_prbc.txt')
+```
+
+# analyze output 
+
+```{r}
+hugo_mat <- column_to_rownames(hugo_mat, var = 'GeneSymbol')
+```
+
+
+```{r}
+hugo_mat <- t(hugo_mat)
+```
+
+```{r}
+hugo_mat <- as.data.frame(hugo_mat)
+```
+
+## add a new row cluster to output matrix
+
+```{r}
+hugo_mat$cluster <- NA
+```
+
+
+```{r}
+hugo_mat$cluster[rownames(hugo_mat) %in% npbc$sample_name] <- 'npbc'
+#hugo_mat$cluster[rownames(hugo_mat) %in% ppbcdl$sample_name] <- 'ppbcdl'
+hugo_mat$cluster[rownames(hugo_mat) %in% ppbcpw$sample_name] <- 'ppbcpw'
+hugo_mat$cluster[rownames(hugo_mat) %in% prbc$sample_name] <- 'prbc'
+```
+
+```{r}
+hugo_mat <- as_tibble(rownames_to_column(hugo_mat, var = 'GeneSymbol'))
+```
+
+
+
+
+
+```{r}
+hugo_mat <- hugo_mat %>% dplyr::select(-ENTPD1,-TOX2,-B3GAT1,-TOX, -CD28)
+hugo_mat <- na.omit(hugo_mat)
+mycomps <- list(c('ppbcpw', 'npbc'),
+                  c('ppbcpw', 'prbc'),
+                  c('prbc', 'npbc'))
+
+hugo_mat[hugo_mat$cluster == 'ppbcpw',]
+hugo_mat[hugo_mat$cluster == 'npbc',]
+```
+
+
+```{r}
+hugo_mat[1:4, 1:4] 
+```
+
+
+# Exhaustion
+
+```{r, fig.width=10, fig.height=7}
+PDCD1 <- ggplot(hugo_mat, aes(x = cluster, y = PDCD1, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+CTLA4 <- ggplot(hugo_mat, aes(x = cluster, y = CTLA4, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+BATF <- ggplot(hugo_mat, aes(x = cluster, y = BATF, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+LAG3 <- ggplot(hugo_mat, aes(x = cluster, y = LAG3, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+HAVCR2 <- ggplot(hugo_mat, aes(x = cluster, y = HAVCR2, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#46cdcf", "#aa96da")) + geom_jitter(trim = F) + stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+BTLA <- ggplot(hugo_mat, aes(x = cluster, y = BTLA, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+TIGIT <- ggplot(hugo_mat, aes(x = cluster, y = TIGIT, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+CD244 <- ggplot(hugo_mat, aes(x = cluster, y = CD244, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+CD160 <- ggplot(hugo_mat, aes(x = cluster, y = CD160, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+SLAMF6 <- ggplot(hugo_mat, aes(x = cluster, y = SLAMF6, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+IL2 <- ggplot(hugo_mat, aes(x = cluster, y = IL2, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+ICOS <- ggplot(hugo_mat, aes(x = cluster, y = ICOS, fill = cluster)) + geom_boxplot(trim = F, fill = c("#521262", "#46cdcf", "#aa96da")) + geom_jitter(trim = F)  +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+
+plot_exhaustion_genes <- ggarrange(PDCD1, LAG3, BTLA, TIGIT, CD244, SLAMF6,IL2, 
+          common.legend = T, ncol = 4, nrow = 2)
+plot_exhaustion_genes
+```
+
+
+
+
+## TCR signalling 
+
+```{r, fig.width=10, fig.height=7}
+LAT <- ggplot(hugo_mat, aes(x = cluster, y = LAT, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+ZAP70 <- ggplot(hugo_mat, aes(x = cluster, y = ZAP70, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+ICOS <- ggplot(hugo_mat, aes(x = cluster, y = ICOS, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+LCK <- ggplot(hugo_mat, aes(x = cluster, y = LCK, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+CD247 <- ggplot(hugo_mat, aes(x = cluster, y = CD247, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+LCP2 <- ggplot(hugo_mat, aes(x = cluster, y = LCP2, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+ggarrange(LAT, ZAP70, ICOS, LCK, CD247, LCP2,
+          common.legend = T, ncol = 3, nrow = 2)
+```
+
+
+## Activation
+
+```{r, fig.width=10, fig.height=7}
+TNFRSF9 <- ggplot(hugo_mat, aes(x = cluster, y = TNFRSF9, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+TNFRSF4 <- ggplot(hugo_mat, aes(x = cluster, y = TNFRSF4, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+ggarrange(TNFRSF9, TNFRSF4,
+          common.legend = T, ncol = 2, nrow = 1)
+```
+
+
+## Cytotoxicity
+
+```{r, fig.width=10, fig.height=7}
+GNLY <- ggplot(hugo_mat, aes(x = cluster, y = GNLY, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+IFNG <- ggplot(hugo_mat, aes(x = cluster, y = IFNG, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+NKG7 <- ggplot(hugo_mat, aes(x = cluster, y = NKG7, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+PRF1 <- ggplot(hugo_mat, aes(x = cluster, y = PRF1, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+GZMA <- ggplot(hugo_mat, aes(x = cluster, y = GZMA, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+GZMB <- ggplot(hugo_mat, aes(x = cluster, y = GZMB, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+GZMH <- ggplot(hugo_mat, aes(x = cluster, y = GZMH, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+GZMK <- ggplot(hugo_mat, aes(x = cluster, y = GZMK, fill = cluster)) + geom_violin(trim = F) +  stat_compare_means(comparisons = mycomps, label = 'p.signif') + theme_bw()
+ggarrange(GNLY, IFNG, NKG7, PRF1, GZMA, GZMB, GZMH, GZMK,
+          common.legend = T, ncol = 4, nrow = 2)
+
+ggarrange(GNLY, IFNG, NKG7, PRF1, GZMA, GZMB, GZMH, GZMK, LAT, ZAP70, ICOS, LCK, CD247, LCP2, TNFRSF9, TNFRSF4, PDCD1, CTLA4, LAG3, HAVCR2, BTLA, BATF, TIGIT,
+          common.legend = T, ncol = 5, nrow = 5)
+dev.off()
+```
+
+
+## Correlation analysis
+
+```{r}
+myData <- hugo_mat %>% select(cluster, IFNG, IL2, LAG3, PDCD1, TIGIT, EOMES, CD8A, CD8B, CTLA4, TNF, HAVCR2, CD244)
+```
+
+```{r}
+myData.npbc <- myData[myData$cluster == 'npbc',]
+myData.ppbcpw <- myData[myData$cluster == 'ppbcpw',]
+myData.ppbcdl <- myData[myData$cluster == 'ppbcdl',]
+myData.prbc <- myData[myData$cluster == 'prbc',]
+```
+
+```{r}
+myData.npbc <- myData.npbc %>% select(-cluster)
+res <- cor(myData.npbc)
+col <- colorRampPalette(c("blue", "white", "red"))(20)
+heatmap(x = res, col = col, symm = TRUE)
+```
+
+```{r}
+myData.ppbcpw <- myData.ppbcpw %>% select(-cluster)
+res <- cor(myData.ppbcpw)
+col <- colorRampPalette(c("blue", "white", "red"))(20)
+heatmap(x = res, col = col, symm = TRUE)
+```
+
+```{r}
+#myData.ppbcdl <- myData.ppbcdl %>% select(-cluster)
+#res <- cor(myData.ppbcdl)
+#col <- colorRampPalette(c("blue", "white", "red"))(20)
+#heatmap(x = res, col = col, symm = TRUE)
+```
+
+```{r}
+myData.prbc <- myData.prbc %>% select(-cluster)
+res <- cor(myData.prbc)
+col <- colorRampPalette(c("blue", "white", "red"))(20)
+heatmap(x = res, col = col, symm = TRUE)
+```
+
+
+## ligands
+
+note. removed CD28 as it did not seem to exist in our data
+
+```{r}
+ligands <- hugo_mat %>% select(cluster, IL2, IL2RA, IL2RB, IFNG, IFNGR1, IFNGR2, TNF, TNFRSF1A, TNFRSF1B, CD80, CD86)
+```
+
+
+```{r}
+ligands.npbc <- ligands[ligands$cluster == 'npbc',]
+ligands.ppbcpw <- ligands[ligands$cluster == 'ppbcpw',]
+ligands.ppbcdl <- ligands[ligands$cluster == 'ppbcdl',]
+ligands.prbc <- ligands[ligands$cluster == 'prbc',]
+```
+
+```{r}
+ligands.npbc <- ligands.npbc %>% select(-cluster)
+ligands.npbc <- na.omit(ligands.npbc)
+res <- rcorr(as.matrix(ligands.npbc))
+corrcoeff.npbc <- res$r
+pval.npbc <- res$P
+```
+
+```{r}
+ligands.ppbcpw <- ligands.ppbcpw %>% select(-cluster)
+ligands.ppbcpw <- na.omit(ligands.ppbcpw)
+res <- rcorr(as.matrix(ligands.ppbcpw))
+corrcoeff.ppbcpw <- res$r
+pval.ppbcpw <- res$P
+```
+
+```{r}
+#ligands.ppbcdl <- ligands.ppbcdl %>% select(-cluster)
+#ligands.ppbcdl <- na.omit(ligands.ppbcdl)
+#res <- rcorr(as.matrix(ligands.ppbcdl))
+#corrcoeff.ppbcdl <- res$r
+#pval.ppbcdl <- res$P
+```
+
+```{r}
+ligands.prbc <- ligands.prbc %>% select(-cluster)
+ligands.prbc <- na.omit(ligands.prbc)
+res <- rcorr(as.matrix(ligands.prbc))
+corrcoeff.prbc <- res$r
+pval.prbc <- res$P
+```
+
+
+### TO DO
+
+```{r}
+#ligands.npbc <- as.data.frame(ligands.npbc)
+#ggplot(ligands.npbc,
+ #      aes(y = cluster, axis1 = corrcoeff.npbc, axis2 = pval.npbc)) +
+  #geom_alluvium(aes(fill = cluster), width = 1/12) +
+  #geom_stratum(width = 1/12, fill = "white", color = "black", size = 1) +
+  #geom_label(stat = "stratum", aes(label = after_stat(stratum))) + theme_void()
+```
+
+
+cicl <- as.data.frame(read.csv('circilizetest.txt', sep = '\t'))
+cicl <- column_to_rownames(cicl, var = 'X.1')
+chordDiagram(cicl)
+
+
+
+
+## TO DO - relative immune fractions vs. csCD8 T cell sig
+
+
+
+
+# T-cell signatures
+
+## TCR signalling
+
+```{r}
+npbc_TCR_sig <- hugo_mat[hugo_mat$cluster == 'npbc',]
+npbc_TCR_sig <- npbc_TCR_sig %>% dplyr::select(c('GeneSymbol','LAT','ZAP70','LCK','ICOS'))
+npbc_TCR_sig <- as.data.frame(column_to_rownames(npbc_TCR_sig, var = 'GeneSymbol'))
+
+TCR_sig_npbc <- as.data.frame(rowSums(npbc_TCR_sig))
+colnames(TCR_sig_npbc) <- c('TCR_sig')
+TCR_sig_npbc$cluster <- 'npbc'
+```
+
+```{r}
+ppbcpw_TCR_sig <- hugo_mat[hugo_mat$cluster == 'ppbcpw',]
+ppbcpw_TCR_sig <- ppbcpw_TCR_sig %>% dplyr::select(c('GeneSymbol','LAT','ZAP70','LCK','ICOS'))
+ppbcpw_TCR_sig <- as.data.frame(column_to_rownames(ppbcpw_TCR_sig, var = 'GeneSymbol'))
+
+TCR_sig_ppbcpw <- as.data.frame(rowSums(ppbcpw_TCR_sig))
+colnames(TCR_sig_ppbcpw) <- c('TCR_sig')
+TCR_sig_ppbcpw$cluster <- 'ppbcpw'
+```
+
+```{r}
+#ppbcdl_TCR_sig <- hugo_mat[hugo_mat$cluster == 'ppbcdl',]
+#ppbcdl_TCR_sig <- ppbcdl_TCR_sig %>% dplyr::select(c('GeneSymbol','LAT','ZAP70','LCK','ICOS'))
+#ppbcdl_TCR_sig <- as.data.frame(column_to_rownames(ppbcdl_TCR_sig, var = 'GeneSymbol'))
+
+#TCR_sig_ppbcdl <- as.data.frame(rowSums(ppbcdl_TCR_sig))
+#colnames(TCR_sig_ppbcdl) <- c('TCR_sig')
+#TCR_sig_ppbcdl$cluster <- 'ppbcdl'
+```
+
+```{r}
+prbc_TCR_sig <- hugo_mat[hugo_mat$cluster == 'prbc',]
+prbc_TCR_sig <- prbc_TCR_sig %>% dplyr::select(c('GeneSymbol','LAT','ZAP70','LCK','ICOS'))
+prbc_TCR_sig <- as.data.frame(column_to_rownames(prbc_TCR_sig, var = 'GeneSymbol'))
+
+TCR_sig_prbc <- as.data.frame(rowSums(prbc_TCR_sig))
+colnames(TCR_sig_prbc) <- c('TCR_sig')
+TCR_sig_prbc$cluster <- 'prbc'
+```
+
+
+```{r}
+TCR_sig <- rbind(TCR_sig_npbc, TCR_sig_ppbcpw, TCR_sig_prbc)
+TCR_sig$TCR_sig <- scale(TCR_sig$TCR_sig, center = F)
+
+comps <-  list(c('ppbcpw', 'npbc'),
+                  c('ppbcpw', 'prbc'),
+                  c('prbc', 'npbc'))
+TCR_sig_vio <- ggplot(TCR_sig, aes(x = cluster, y = TCR_sig, fill = cluster)) + geom_boxplot(trim = F) + geom_jitter(trim = F) +  stat_compare_means(comparisons = comps, hide.ns = F) + xlab(NULL) + ylab('Meta gene expression') + ggtitle('TCR signalling') + theme_bw()
+TCR_sig_vio
+```
+
+
+## Cytotoxicity
+
+```{r}
+npbc_cyt_sig <- hugo_mat[hugo_mat$cluster == 'npbc',]
+npbc_cyt_sig <- npbc_cyt_sig %>% select(c('GeneSymbol','GNLY','IFNG','NKG7','PRF1','GZMA','GZMB','GZMH','GZMK'))
+npbc_cyt_sig <- as.data.frame(column_to_rownames(npbc_cyt_sig, var = 'GeneSymbol'))
+#npbc_cyt_sig <- scale(npbc_cyt_sig, center = F)
+cyt_sig_npbc <- as.data.frame(rowSums(npbc_cyt_sig))
+colnames(cyt_sig_npbc) <- c('cyt_sig')
+cyt_sig_npbc$cluster <- 'npbc'
+```
+
+```{r}
+ppbcpw_cyt_sig <- hugo_mat[hugo_mat$cluster == 'ppbcpw',]
+ppbcpw_cyt_sig <- ppbcpw_cyt_sig %>% select(c('GeneSymbol','GNLY','IFNG','NKG7','PRF1','GZMA','GZMB','GZMH','GZMK'))
+ppbcpw_cyt_sig <- as.data.frame(column_to_rownames(ppbcpw_cyt_sig, var = 'GeneSymbol'))
+#ppbcpw_cyt_sig <- scale(ppbcpw_cyt_sig, center = F)
+cyt_sig_ppbcpw <- as.data.frame(rowSums(ppbcpw_cyt_sig))
+colnames(cyt_sig_ppbcpw) <- c('cyt_sig')
+cyt_sig_ppbcpw$cluster <- 'ppbcpw'
+```
+
+```{r}
+#ppbcdl_cyt_sig <- hugo_mat[hugo_mat$cluster == 'ppbcdl',]
+#ppbcdl_cyt_sig <- ppbcdl_cyt_sig %>% select(c('GeneSymbol','GNLY','IFNG','NKG7','PRF1','GZMA','GZMB','GZMH','GZMK'))
+#ppbcdl_cyt_sig <- as.data.frame(column_to_rownames(ppbcdl_cyt_sig, var = 'GeneSymbol'))
+#ppbcdl_cyt_sig <- scale(ppbcdl_cyt_sig, center = F)
+#cyt_sig_ppbcdl <- as.data.frame(rowSums(ppbcdl_cyt_sig))
+#colnames(cyt_sig_ppbcdl) <- c('cyt_sig')
+#cyt_sig_ppbcdl$cluster <- 'ppbcdl'
+```
+
+```{r}
+prbc_cyt_sig <- hugo_mat[hugo_mat$cluster == 'prbc',]
+prbc_cyt_sig <- prbc_cyt_sig %>% select(c('GeneSymbol','GNLY','IFNG','NKG7','PRF1','GZMA','GZMB','GZMH','GZMK'))
+prbc_cyt_sig <- as.data.frame(column_to_rownames(prbc_cyt_sig, var = 'GeneSymbol'))
+#prbc_cyt_sig <- scale(prbc_cyt_sig, center = F)
+cyt_sig_prbc <- as.data.frame(rowSums(prbc_cyt_sig))
+colnames(cyt_sig_prbc) <- c('cyt_sig')
+cyt_sig_prbc$cluster <- 'prbc'
+```
+
+
+```{r}
+cyt_sig <- rbind(cyt_sig_npbc, cyt_sig_ppbcpw, cyt_sig_prbc)
+cyt_sig$cyt_sig <- scale(cyt_sig$cyt_sig, center = F)
+
+cyt_sig_vio <- ggplot(cyt_sig, aes(x = cluster, y = cyt_sig, fill = cluster)) + geom_boxplot(trim = F) + geom_jitter(trim = F) +  stat_compare_means(comparisons = comps, hide.ns = F) + xlab(NULL) + ylab('Meta gene expression') + ggtitle('Cytotoxicity') + theme_bw()
+cyt_sig_vio
+```
+
+
+
+## Activation
+
+```{r}
+npbc_act_sig <- hugo_mat[hugo_mat$cluster == 'npbc',]
+npbc_act_sig <- npbc_act_sig %>% select(c('GeneSymbol','TNFRSF9','TNFRSF4'))
+npbc_act_sig <- as.data.frame(column_to_rownames(npbc_act_sig, var = 'GeneSymbol'))
+#npbc_act_sig <- scale(npbc_act_sig, center = F)
+act_sig_npbc <- as.data.frame(rowSums(npbc_act_sig))
+colnames(act_sig_npbc) <- c('act_sig')
+act_sig_npbc$cluster <- 'npbc'
+```
+
+```{r}
+ppbcpw_act_sig <- hugo_mat[hugo_mat$cluster == 'ppbcpw',]
+ppbcpw_act_sig <- ppbcpw_act_sig %>% select(c('GeneSymbol','TNFRSF9','TNFRSF4'))
+ppbcpw_act_sig <- as.data.frame(column_to_rownames(ppbcpw_act_sig, var = 'GeneSymbol'))
+#ppbcpw_act_sig <- scale(ppbcpw_act_sig, center = F)
+act_sig_ppbcpw <- as.data.frame(rowSums(ppbcpw_act_sig))
+colnames(act_sig_ppbcpw) <- c('act_sig')
+act_sig_ppbcpw$cluster <- 'ppbcpw'
+```
+
+```{r}
+#ppbcdl_act_sig <- hugo_mat[hugo_mat$cluster == 'ppbcdl',]
+#ppbcdl_act_sig <- ppbcdl_act_sig %>% select(c('GeneSymbol','TNFRSF9','TNFRSF4'))
+#ppbcdl_act_sig <- as.data.frame(column_to_rownames(ppbcdl_act_sig, var = 'GeneSymbol'))
+#ppbcdl_act_sig <- scale(ppbcdl_act_sig, center = F)
+#act_sig_ppbcdl <- as.data.frame(rowSums(ppbcdl_act_sig))
+#colnames(act_sig_ppbcdl) <- c('act_sig')
+#act_sig_ppbcdl$cluster <- 'ppbcdl'
+```
+
+```{r}
+prbc_act_sig <- hugo_mat[hugo_mat$cluster == 'prbc',]
+prbc_act_sig <- prbc_act_sig %>% select(c('GeneSymbol','TNFRSF9','TNFRSF4'))
+prbc_act_sig <- as.data.frame(column_to_rownames(prbc_act_sig, var = 'GeneSymbol'))
+#prbc_act_sig <- scale(prbc_act_sig, center = F)
+act_sig_prbc <- as.data.frame(rowSums(prbc_act_sig))
+colnames(act_sig_prbc) <- c('act_sig')
+act_sig_prbc$cluster <- 'prbc'
+```
+
+
+
+
+```{r}
+act_sig <- rbind(act_sig_npbc, act_sig_ppbcpw, act_sig_prbc)
+act_sig$act_sig <- scale(act_sig$act_sig, center = F)
+
+act_sig_vio <- ggplot(act_sig, aes(x = cluster, y = act_sig, fill = cluster)) + geom_boxplot(trim = F) + geom_jitter(trim = F) +  stat_compare_means(comparisons = comps, hide.ns = F) + xlab(NULL) + ylab('Meta gene expression') + ggtitle('Activation') + theme_bw()
+act_sig_vio
+```
+
+
+
+## Exhaustion 
+
+```{r}
+npbc_ext_sig <- hugo_mat[hugo_mat$cluster == 'npbc',]
+npbc_ext_sig <- npbc_ext_sig %>% select(c('GeneSymbol','PDCD1','CD244','LAG3','BTLA','TIGIT', 'IL2', 'SLAMF6'))
+npbc_ext_sig <- as.data.frame(column_to_rownames(npbc_ext_sig, var = 'GeneSymbol'))
+#npbc_ext_sig <- scale(npbc_ext_sig, center = F)
+ext_sig_npbc <- as.data.frame(rowSums(npbc_ext_sig))
+colnames(ext_sig_npbc) <- c('ext_sig')
+ext_sig_npbc$cluster <- 'npbc'
+```
+
+```{r}
+ppbcpw_ext_sig <- hugo_mat[hugo_mat$cluster == 'ppbcpw',]
+ppbcpw_ext_sig <- ppbcpw_ext_sig %>% select(c('GeneSymbol','PDCD1','CD244','LAG3','BTLA','TIGIT', 'IL2', 'SLAMF6'))
+ppbcpw_ext_sig <- as.data.frame(column_to_rownames(ppbcpw_ext_sig, var = 'GeneSymbol'))
+#ppbcpw_ext_sig <- scale(ppbcpw_ext_sig, center = F)
+ext_sig_ppbcpw <- as.data.frame(rowSums(ppbcpw_ext_sig))
+colnames(ext_sig_ppbcpw) <- c('ext_sig')
+ext_sig_ppbcpw$cluster <- 'ppbcpw'
+```
+
+```{r}
+#ppbcdl_ext_sig <- hugo_mat[hugo_mat$cluster == 'ppbcdl',]
+#ppbcdl_ext_sig <- ppbcdl_ext_sig %>% select(c('GeneSymbol','PDCD1','CTLA4','LAG3','HAVCR2','BTLA','BATF','TIGIT'))
+#ppbcdl_ext_sig <- as.data.frame(column_to_rownames(ppbcdl_ext_sig, var = 'GeneSymbol'))
+#ppbcdl_ext_sig <- scale(ppbcdl_ext_sig, center = F)
+#ext_sig_ppbcdl <- as.data.frame(rowSums(ppbcdl_ext_sig))
+#colnames(ext_sig_ppbcdl) <- c('ext_sig')
+#ext_sig_ppbcdl$cluster <- 'ppbcdl'
+```
+
+```{r}
+prbc_ext_sig <- hugo_mat[hugo_mat$cluster == 'prbc',]
+prbc_ext_sig <- prbc_ext_sig %>% select(c('GeneSymbol','PDCD1','CD244','LAG3','BTLA','TIGIT', 'IL2', 'SLAMF6'))
+prbc_ext_sig <- as.data.frame(column_to_rownames(prbc_ext_sig, var = 'GeneSymbol'))
+#prbc_ext_sig <- scale(prbc_ext_sig, center = F)
+ext_sig_prbc <- as.data.frame(rowSums(prbc_ext_sig))
+colnames(ext_sig_prbc) <- c('ext_sig')
+ext_sig_prbc$cluster <- 'prbc'
+```
+
+```{r}
+ext_sig <- rbind(ext_sig_npbc, ext_sig_ppbcpw, ext_sig_prbc)
+ext_sig$ext_sig <- scale(ext_sig$ext_sig, center = F)
+
+ext_sig_vio <- ggplot(ext_sig, aes(x = cluster, y = ext_sig, fill = cluster)) + geom_violin(trim = F) + geom_jitter(trim = F) +  stat_compare_means(comparisons = comps, hide.ns = F) + xlab(NULL) + ylab('Meta gene expression') + ggtitle('Exhaustion') + theme_bw()
+ext_sig_vio
+```
+
+```{r}
+ext_sig <- rbind(ext_sig_npbc, ext_sig_ppbcpw, ext_sig_prbc)
+ext_sig$ext_sig <- scale(ext_sig$ext_sig, center = F)
+
+ext_sig_vio <- ggplot(ext_sig, aes(x = cluster, y = ext_sig, fill = cluster)) + geom_boxplot(trim = F) + geom_jitter(trim = F) +  stat_compare_means(comparisons = comps, hide.ns = F) + xlab(NULL) + ylab('Meta gene expression') + ggtitle('Exhaustion') + theme_bw()
+ext_sig_vio
+```
+
+
+
+## csCD8+T cell sig
+
+```{r}
+npbc_cs_sig <- hugo_mat[hugo_mat$cluster == 'npbc',]
+npbc_cs_sig <- npbc_cs_sig %>% select(c('GeneSymbol', 'CD244', 'HAVCR2', 'TNF', 'CTLA4', 'EOMES', 'TIGIT', 'PDCD1', 'LAG3', 'IL2','IFNG'))
+npbc_cs_sig <- as.data.frame(column_to_rownames(npbc_cs_sig, var = 'GeneSymbol'))
+#npbc_cs_sig <- scale(npbc_cs_sig, center = F)
+cs_sig_npbc <- as.data.frame(rowSums(npbc_cs_sig))
+colnames(cs_sig_npbc) <- c('cs_sig')
+cs_sig_npbc$cluster <- 'npbc'
+```
+
+```{r}
+ppbcpw_cs_sig <- hugo_mat[hugo_mat$cluster == 'ppbcpw',]
+ppbcpw_cs_sig <- ppbcpw_cs_sig %>% select(c('GeneSymbol', 'CD244', 'HAVCR2', 'TNF', 'CTLA4', 'EOMES', 'TIGIT', 'PDCD1', 'LAG3', 'IL2','IFNG'))
+ppbcpw_cs_sig <- as.data.frame(column_to_rownames(ppbcpw_cs_sig, var = 'GeneSymbol'))
+#ppbcpw_cs_sig <- scale(ppbcpw_cs_sig, center = F)
+cs_sig_ppbcpw <- as.data.frame(rowSums(ppbcpw_cs_sig))
+colnames(cs_sig_ppbcpw) <- c('cs_sig')
+cs_sig_ppbcpw$cluster <- 'ppbcpw'
+```
+
+```{r}
+#ppbcdl_cs_sig <- hugo_mat[hugo_mat$cluster == 'ppbcdl',]
+#ppbcdl_cs_sig <- ppbcdl_cs_sig %>% select(c('GeneSymbol', 'CD244', 'HAVCR2', 'TNF', 'CTLA4', 'EOMES', 'TIGIT', 'PDCD1', 'LAG3', 'IL2','IFNG'))
+#ppbcdl_cs_sig <- as.data.frame(column_to_rownames(ppbcdl_cs_sig, var = 'GeneSymbol'))
+#ppbcdl_cs_sig <- scale(ppbcdl_cs_sig, center = F)
+#cs_sig_ppbcdl <- as.data.frame(rowSums(ppbcdl_cs_sig))
+#colnames(cs_sig_ppbcdl) <- c('cs_sig')
+#cs_sig_ppbcdl$cluster <- 'ppbcdl'
+```
+
+```{r}
+prbc_cs_sig <- hugo_mat[hugo_mat$cluster == 'prbc',]
+prbc_cs_sig <- prbc_cs_sig %>% select(c('GeneSymbol', 'CD244', 'HAVCR2', 'TNF', 'CTLA4', 'EOMES', 'TIGIT', 'PDCD1', 'LAG3', 'IL2','IFNG'))
+prbc_cs_sig <- as.data.frame(column_to_rownames(prbc_cs_sig, var = 'GeneSymbol'))
+#prbc_cs_sig <- scale(prbc_cs_sig, center = F)
+cs_sig_prbc <- as.data.frame(rowSums(prbc_cs_sig))
+colnames(cs_sig_prbc) <- c('cs_sig')
+cs_sig_prbc$cluster <- 'prbc'
+```
+
+
+
+```{r}
+cs_sig <- rbind(cs_sig_npbc, cs_sig_ppbcpw, cs_sig_prbc)
+cs_sig$cs_sig <- scale(cs_sig$cs_sig, center = F)
+
+cs_sig_vio <- ggplot(cs_sig, aes(x = cluster, y = cs_sig, fill = cluster)) + geom_boxplot(trim = F) + geom_jitter(trim = F) +  stat_compare_means(comparisons = comps, hide.ns = F) + xlab(NULL) + ylab('Meta gene expression') + ggtitle('csCD8+ T cell sig') + theme_bw()
+cs_sig_vio
+```
+
+
+```{r, fig.width=10, fig.height=7}
+plot_Tcells <- ggarrange(cyt_sig_vio, TCR_sig_vio, ext_sig_vio, nrow = 1, ncol = 3, common.legend = T)
+plot_Tcells
+```
+
+
+
+
+
+
+

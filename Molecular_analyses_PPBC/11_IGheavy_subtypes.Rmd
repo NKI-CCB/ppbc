@@ -1,0 +1,585 @@
+---
+title: "IG heavy subtypes"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    df_print: paged
+---
+
+```{r, include=F}
+rm(list = ls())
+```
+
+```{r, include=F}
+library(here)
+library(DESeq2)
+library(edgeR)
+library(survival)
+library(survminer)
+library(tidyverse)
+library(ggpubr)
+library(writexl)
+```
+
+
+Supplementary plots regarding antibody isotype abundance, as indicated by RNA expression of IG heavy chains.
+
+## Load data
+
+```{r}
+MCP_Data <- readRDS("PPBC_metadata.RDS")
+MCP_IG <- readRDS("MCP_IG.RDS")
+MCP_IG_low <- readRDS("MCP_IG_low.RDS")
+MCP_IG_medium <- readRDS("MCP_IG_medium.RDS")
+MCP_IG_high <- readRDS("MCP_IG_high.RDS")
+MCP_Filtered <- readRDS("MCP_Filtered.RDS")
+MCP_Final <- readRDS("MCP_Final.RDS")
+```
+
+```{r}
+MCP_Final_without_lac <- subset(MCP_Final, PPBC %in% c("nulliparous", "involuting", "pregnant"), )
+```
+
+
+```{r}
+MCP_Data$study_group <- ordered(MCP_Data$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+
+MCP_Final$study_group <- ordered(MCP_Final$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+
+MCP_Final_without_lac$study_group <- ordered(MCP_Final_without_lac$study_group,
+                                levels = c("ppbcpw", "prbc", "npbc"))
+```
+
+Boxplot -> usd from file Kat 
+
+```{r}
+my_comparisons <- list(c("ppbcpw", "ppbcdl"), c("ppbcpw", "prbc"), c("ppbcpw", "npbc"), c("prbc", "npbc") )
+
+ANOVA_IgA <- ggboxplot(MCP_Final, x="study_group", y="IgA",
+          color = "study_group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "IgA at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.2, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 15) # stat_pvalue_manual(pwc_IgA, hide.ns = TRUE, y.position = c(1000))
+ANOVA_IgA
+```
+
+
+```{r}
+ANOVA_IgD <- ggboxplot(MCP_Final, x="study_group", y="IgD",
+          color = "study_group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "IgD at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.2, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 15) # stat_pvalue_manual(pwc_IgA, hide.ns = TRUE, y.position = c(1000))
+ANOVA_IgD
+```
+
+```{r}
+ANOVA_IgG <- ggboxplot(MCP_Final, x="study_group", y="IgG",
+          color = "study_group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "IgG at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.2, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 20) # stat_pvalue_manual(pwc_IgA, hide.ns = TRUE, y.position = c(1000))
+ANOVA_IgG
+```
+
+```{r}
+ANOVA_IgM <- ggboxplot(MCP_Final, x="study_group", y="IgM",
+          color = "study_group", palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+          order = c("ppbcpw", "ppbcdl", "prbc", "npbc"),
+          ylab = "IgM at Diagnosis", xlab = "Study Group") +
+  geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge", binwidth = 0.2, aes(colour = study_group)) + stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) + stat_compare_means(label.y = 12) # stat_pvalue_manual(pwc_IgA, hide.ns = TRUE, y.position = c(1000))
+ANOVA_IgM
+```
+
+## Kaplan-meier
+
+### IgA
+```{r, fig.width=6, fig.height=4}
+#OS
+survfit(Surv(time=time_OS_months, event=death) ~ IgA_rank,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "study_group",
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Normalized IgA expression and survival"),
+             palette = c("#a10702", "#ffb600"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+#DRS
+survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ IgA_rank,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "study_group",
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Normalized IgA expression and DRS"),
+             palette = c("#a10702", "#ffb600"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+```
+
+stratified per group
+```{r, fig.width=6, fig.height=4}
+#OS
+survfit(Surv(time=time_OS_months, event=death) ~ study_group,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgA_rank",
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Normalized IgA expression and survival"),
+             palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+#DRS
+survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgA_rank",
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Normalized IgA expression and DRS"),
+             
+             palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+```
+
+without lactation group
+```{r, fig.width=6, fig.height=4}
+#OS
+IgA_OS <- survfit(Surv(time=time_OS_months, event=death) ~ study_group,
+        data = as.data.frame(MCP_Final_without_lac)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgA_rank",
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Normalized IgA expression and survival"),
+             palette = c("#46CDCF","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+IgA_OS
+
+#DRS
+IgA_DRS <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group,
+        data = as.data.frame(MCP_Final_without_lac)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgA_rank",
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Normalized IgA expression and DRS"),
+             
+             palette = c("#46CDCF","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+IgA_DRS
+```
+
+
+### IgD
+```{r, fig.width=6, fig.height=4}
+survfit(Surv(time=time_OS_months, event=death) ~ IgD_rank,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "study_group",
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Normalized IgD expression and survival"),
+             palette = c("#a10702", "#ffb600"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+#DRS
+survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ IgD_rank,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "study_group",
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Normalized IgD expression and DRS"),
+             palette = c("#a10702", "#ffb600"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+```
+
+
+stratified per group
+```{r, fig.width=6, fig.height=4}
+#OS
+survfit(Surv(time=time_OS_months, event=death) ~ study_group,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgD_rank",
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Normalized IgD expression and survival"),
+             palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+#DRS
+survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgD_rank",
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Normalized IgD expression and DRS"),
+             
+             palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+```
+
+
+without lactation group
+```{r, fig.width=6, fig.height=4}
+#OS
+IgD_OS <- survfit(Surv(time=time_OS_months, event=death) ~ study_group,
+        data = as.data.frame(MCP_Final_without_lac)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgD_rank",
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Normalized IgD expression and survival"),
+             palette = c("#46CDCF","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+IgD_OS
+
+#DRS
+IgD_DRS <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group,
+        data = as.data.frame(MCP_Final_without_lac)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgD_rank",
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Normalized IgD expression and DRS"),
+             
+             palette = c("#46CDCF","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+IgD_DRS
+```
+
+
+### IgG
+```{r, fig.width=6, fig.height=4}
+survfit(Surv(time=time_OS_months, event=death) ~ IgG_rank,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "study_group",
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Normalized IgG expression and survival"),
+             palette = c("#a10702", "#ffb600"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+#DRS
+survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ IgG_rank,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "study_group",
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Normalized IgG expression and DRS"),
+             palette = c("#a10702", "#ffb600"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+```
+
+stratified per group
+```{r, fig.width=6, fig.height=4}
+#OS
+survfit(Surv(time=time_OS_months, event=death) ~ study_group,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgG_rank",
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Normalized IgG expression and survival"),
+             palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+#DRS
+survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgG_rank",
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Normalized IgG expression and DRS"),
+             
+             palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+```
+
+
+
+without lactation group
+```{r, fig.width=6, fig.height=4}
+#OS
+IgG_OS <- survfit(Surv(time=time_OS_months, event=death) ~ study_group,
+        data = as.data.frame(MCP_Final_without_lac)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgG_rank",
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Normalized IgG expression and survival"),
+             palette = c("#46CDCF","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+IgG_OS
+
+#DRS
+IgG_DRS <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group,
+        data = as.data.frame(MCP_Final_without_lac)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgG_rank",
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Normalized IgG expression and DRS"),
+             
+             palette = c("#46CDCF","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+IgG_DRS
+```
+
+
+### IgM
+```{r, fig.width=6, fig.height=4}
+survfit(Surv(time=time_OS_months, event=death) ~ IgM_rank,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "study_group",
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Normalized IgM expression and survival"),
+             palette = c("#a10702", "#ffb600"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+#DRS
+survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ IgM_rank,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "study_group",
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Normalized IgM expression and DRS"),
+             palette = c("#a10702", "#ffb600"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+```
+
+
+stratified per group
+```{r, fig.width=6, fig.height=4}
+#OS
+survfit(Surv(time=time_OS_months, event=death) ~ study_group,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgM_rank",
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Normalized IgM expression and survival"),
+             palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+#DRS
+survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group,
+        data = as.data.frame(MCP_Final)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgM_rank",
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Normalized IgM expression and DRS"),
+             
+             palette = c("#46CDCF", "#112D4E","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+```
+
+without lactation group
+```{r, fig.width=6, fig.height=4}
+#OS
+IgM_OS <- survfit(Surv(time=time_OS_months, event=death) ~ study_group,
+        data = as.data.frame(MCP_Final_without_lac)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgM_rank",
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Normalized IgM expression and survival"),
+             palette = c("#46CDCF","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+IgM_OS
+
+#DRS
+IgM_DRS <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group,
+        data = as.data.frame(MCP_Final_without_lac)) %>% 
+  ggsurvplot(fit = ., facet.by = "IgM_rank",
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Normalized IgM expression and DRS"),
+             
+             palette = c("#46CDCF","#AA96DA", "#521262"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+IgM_DRS
+```
+
+## CoxPH
+Subset data to two major study_group groups.
+```{r}
+igInv <- MCP_Final %>%
+  filter(study_group == "ppbcpw")
+nrow(igInv)
+
+igNull <- MCP_Final %>%
+  filter(study_group == "npbc")
+
+nrow(igNull)
+```
+
+### All study_group groups
+
+OS
+
+```{r}
+coxph(Surv(time=time_OS_months,
+           event=death) ~ IgA + IgD + IgG + IgM,
+      data = MCP_Final) %>%
+  summary()
+```
+
+DRS
+
+```{r}
+coxph(
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ IgA + IgD + IgG + IgM,
+  data = MCP_Final) %>%
+  summary()
+```
+
+### Involuting
+
+OS
+
+```{r}
+coxph(Surv(time=time_OS_months,
+           event=death) ~ IgA + IgD + IgG + IgM,
+      data = igInv) %>%
+  summary()
+```
+
+DRS
+
+```{r}
+coxph(
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ IgA + IgD + IgG + IgM,
+  data = igInv) %>%
+  summary()
+```
+
+### Nulliparous
+
+OS
+
+```{r}
+coxph(Surv(time=time_OS_months,
+           event=death) ~ IgA + IgD + IgG + IgM,
+      data = igNull) %>%
+  summary()
+```
+
+DRS
+
+```{r}
+coxph(
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ IgA + IgD + IgG + IgM,
+  data = igNull) %>%
+  summary()
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```
+
+
+```{r}
+table(MCP_Final$study_group)
+```
+
+
+
+
+

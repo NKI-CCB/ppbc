@@ -1,551 +1,60 @@
+#### General use ####
+
+# Type "snakemake" with no arguments into console to generate the files listed under rule all
+# Alternatively, specify a rule or output file
+
+# Example, performs a dry run of the gene_reports rule with 8 cores
+# snakemake -np gene_reports -s Snakefile.py -j 8
+
+# Useful arguments
+# -j designates thread number
+# -s specifies a Snakefile path other than the default ("Snakefile" in working dir)
+# -n for dry run, no rule execution
+# -p print shell commands of rules that will be executed, useful together with -n
+
+# The Snakefile is given a .py extension for automatic syntax highlighting in IDEs
+# Either use snakemake -s Snakefile.py, or create a symlink (Snakefile -> Snakefile.py)
+
+# To get a graphical representation of the workflow:
+# "snakemake --dag | dot -Tsvg > dag.svg"
+
+# Subworkflows can be included as additional Snakefiles that are topic specific
+# These are designated with a .smk.py suffix
+
+#### Conda and Snakemake ####
+
+# Create a new conda environment for a specific software version with: 
+#  conda create -n myenv python=3.9
+
+# Save environment to text with: 
+#  conda activate myenv; conda env export > envs/myenv.yml
+
+# For a condensed version:
+#  conda env export --from-history > envs/myenv_brief.yml
+
+# To update an existing environment file: 
+#  conda env update --prefix ./envs --file myenv.yml  --prune
+
+# You can optionally remove the environment from conda once the yml file has been created, 
+# Snakemake will create it anew when rules are run
+
+# To activate conda environment from a config file, use:
+#  conda env create -f envs/myenv.yml
+
+# To use a conda envinroment with snakemake: 
+#  snakemake --use-conda
+
+# Note: the environment file path is relative to the (sub-)Snakefile
+
+# To create the environments without running any rules: 
+#  snakemake --use-conda --create-envs-only
+
 from pathlib import Path
 
 configfile: "config.yaml"
 
-include: "src/spatial/spatial.smk"
-
-# The Snakefile is given a .py extension so that we can see syntax highlighting in IDEs
-
-# general use:
-# -j designates thread number
-# -s indicates non-default Snakefile name
-# Use -np for dry run
-# snakemake {rule or file output} -s Snakefile.py -j 8
-# Example:
-# snakemake -np gene_reports -s Snakefile.py -j 8
-
-#### Conda and Snakemake ####
-#To activate conda environment, use: conda env create -f envs/environment.yml
-#If environment.yml has been updated, update the environment with: conda env update --prefix ./envs --file environment.yml  --prune
-#Save environment to text with: conda env export > envs/environment.yml
-#For condensed version: conda env export --from-history
-#To use a conda envinroment with snakemake: snakemake -n --use-conda
-#To create the environments without running any rules: snakemake -n --use-conda --create-envs-only
-#To get a graphical representation of the workflow:
-#"snakemake --dag | dot -Tsvg > dag.svg"
-
-
-rule all:
-  input:
-    #"reports/16_gene_unity_setup.html", #Pertains to RNAseq analysis, temporary omit
-    "src/spatial/organize_vectra_samples.html",
-    "reports/spatial/01_summary_QC.html",
-    expand("reports/spatial/object_qc_by_batch/02_object_QC_{batch}.html", batch = ['batch' + str(i) for i in range (1, 8)]),
-    expand("reports/spatial/batch_marker_viz/03_{batch}_marker_coexpression.html", batch = ['batch' + str(i) for i in range (1, 8)]),
-    "reports/spatial/03_aggregate_marker_combos.html",
-    "reports/spatial/04_report_cell_types.html",
-    "reports/spatial/05_density.html",
-    "reports/spatial/06_kruskal_total_density.html",
-    "reports/spatial/06b_inv_time_density.html",
-    expand("reports/spatial/07_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
-    "reports/spatial/08_ig_clusters_cd20.html",
-    "reports/spatial/09_tissue_segmentation.html"
-
-
-### RNAseq analyses ###
-
-rule fastqc:
-  input:
-    expand("data/RAW/{sample}.fastq.gz", sample=config['samples'])
-  output:
-    html = expand("results/fastqc/{sample}_fastqc.html", sample=config['samples']),
-    zip = expand("results/fastqc/{sample}_fastqc.zip", sample=config['samples'])
-  threads: 5
-  #conda:
-  #  "envs/environment.yml"         
-  shell:
-        """
-        fastqc {input} -o results/fastqc/ -t {threads}
-        """
-
-rule salmon_index:
-  input:
-    "src/01-build-salmon-index.sh"
-  output:
-    #directory("data/external/index/grch38_index")
-    "data/external/index/grch38_index/hash.bin"
-  #conda:
-  #  "envs/environment.yml"        
-  shell:
-    "bash {input}"
-
-rule salmon_quant:
-  input:
-    "src/01-salmon.sh"
-  output:
-    expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples'])
-  params:
-    index = "data/external/index/grch38_index",
-    outdir = expand("data/RNA-seq/salmon/{sample}", sample=config['samples'])
-  #conda:
-  #  "envs/environment.yml"     
-  shell:
-    """
-    bash {input}
-    """
-
-rule star_index:
-  input:
-    script="src/01-build-STAR-index.sh"
-  output:
-    directory("data/external/index/STAR_grch38_index")
-  params:
-    genomeDir="data/external/index/STAR_grch38_index/",
-    genomeFastaFiles="data/external/index/Homo_sapiens.GRCh38.dna.primary_assembly.fa",
-    sjdbGTFfile="data/external/index/Homo_sapiens.GRCh38.94.gtf",
-    sjdbOverhang=50 #Read length is 51, ideal value is length - 1
-  #conda:
-  #  "envs/environment.yml"
-  shell:
-    """
-    mkdir {params.genomeDir}
-    bash {input.script}
-    """
-
-rule star_align:
-  input:
-    smpls=expand("data/RAW/{sample}.fastq.gz", sample=config['samples']),
-    gtf="data/external/index/Homo_sapiens.GRCh38.94.gtf",
-    script="src/01-STAR_align.sh"
-  output:
-    expand("data/RNA-seq/star/{sample}/Aligned.sortedByCoord.out.bam", sample=config['samples'])
-  #conda:
-  #  "envs/environment.yml"
-  threads: 16
-  params:
-    genomedir="data/external/index/STAR_grch38_index/",
-    outfile=expand("data/RNA-seq/star/{sample}", sample=config['samples']),
-    #max number of multiple alignments allowed for a read: if exceeded, the read is considered unmapped
-    multimapnmax=20, #default 10
-    #maximum number of mismatches per pair, large number switches off this filter
-    mismatchnmax=1, #default 10
-    #int: max number of multiple alignments for a read that will be output to the
-    #SAM/BAM files. Note that if this value is not equal to -1, the top scoring
-    #alignment will be output first
-    sammultnmax=1
-  shell:
-    """
-    {input.script}
-    """
-
-rule multiqc:
-  input:
-    fastqc = "results/fastqc/",
-    salmon_quant = "data/RNA-seq/salmon/"
-  output:
-    report="reports/multiqc_report.html",
-    #alignstats="reports/multiqc_data/multiqc_general_stats.txt", #Decouple
-    #or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt" #Decouple
-  #conda:
-  #  "envs/environment.yml"             
-  shell:
-    """multiqc {input.fastqc} {input.salmon_quant} -o results -n multiqc_report.html --force"""
-
-rule process_metadata:
-  input:
-    #expand("data/RNA-seq/salmon/{sample}/quant.sf", sample=config['samples']), #Decouple
-    raw_metadata="data/external/Hercoderingslijst_v09032020_KM.xlsx",
-    rmd="reports/01_process_metadata_tximport.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    html="reports/01_process_metadata_tximport.html",
-    multiple_patient_fastqs="data/metadata/01_patients_with_multiple_fastqs.csv",
-    excluded_samples="data/metadata/01_pre_excluded_samples.csv",
-    sample_annot="data/metadata/01_sample_annot.tsv",
-    gene_annot="data/metadata/01_tx_annot.tsv",
-    tx="data/Rds/01_tx.Rds",
-    rdata="reports/01_process_metadata_tximport.RData"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-rule QC_salmon:
-  input:
-    script="src/rmarkdown.R",
-    rmd="reports/02_QC_salmon.Rmd",
-    #A tx import object
-    tx="data/Rds/01_tx.Rds", 
-    #Sample and gene annotation
-    sample_annot="data/metadata/01_sample_annot.tsv",
-    refseq_db="data/external/refseqid_genename_hg38.txt",
-    recent_samples="data/metadata/new_samples_jun2019.txt",
-    #Two multiqc report files
-    alignstats="reports/multiqc_data/multiqc_general_stats.txt",
-    or_summary="reports/multiqc_data/mqc_fastqc_overrepresented_sequencesi_plot_1.txt",      
-    #Blast files created via the web browser based on fastas generated in the Rmd
-    blast_or="results/fastqc/overrepresented-BLAST-HitTable.csv",
-    blast_failed="results/fastqc/failedor-BLAST-HitTable.csv",
-    gc_blast="results/fastqc/gc_or_Alignment-HitTable.csv"
-  output:
-    #Overrepresented fasta sequences aggregated in the report
-    "results/fastqc/overrepresented.fa",
-    "results/fastqc/failed_overrepresented.fa",
-    "results/fastqc/gc_or.fa",
-    #Upset plots
-    "data/metadata/02_QC_samples_discarded_by_reason.pdf",
-    "data/metadata/02_QC_patients_discarded_by_reason.pdf",
-    #Kept vs discarded metadata
-    "data/metadata/02_discarded_samples.csv",
-    "data/metadata/02_sample_annot_filtered.csv",
-    #Txdata from only kept samples
-    "data/Rds/02_tx_clean.Rds",
-    #A dds from only kept samples, with replicates collapsed
-    "data/Rds/02_QC_dds.Rds",
-    "reports/02_QC_salmon.RData",
-    html="reports/02_QC_salmon.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-rule pam50_ihc:
-  input:
-    script="src/rmarkdown.R",
-    rmd="reports/03_PAM50_IHC.Rmd",
-    #A DESeqDataSet
-    dds="data/Rds/02_QC_dds.Rds"
-  output:
-    "data/metadata/03_ihc_outliers.csv",
-    # Samples discarded due to clear incongruity
-    "data/metadata/03_removed_pam50_outliers.csv",
-    # New dds post Pam50 determination
-    "data/Rds/03_dds_PAM50.Rds",
-    # New metadata post PAM50 determination
-    "data/metadata/03_sample_annot_filtered_PAM50.csv",
-    html="reports/03_PAM50_IHC.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-rule color_palettes:
-  input:
-    rmd="reports/color_palettes.Rmd",
-    script="src/rmarkdown.R",
-    dds="data/Rds/03_dds_PAM50.Rds"
-  output:
-    html="reports/color_palettes.html",
-    color_palettes="data/Rds/color_palettes.Rds"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-rule survival_colors:
-  output:
-    "data/Rds/survival_colors.Rds"
-  shell:
-    "Rscript src/survival_colors.R"
-
-rule surv_est:
-  input:
-    script="src/rmarkdown.R",
-    rmd="reports/04_survival_and_ESTIMATE.Rmd",
-    dds="data/Rds/03_dds_PAM50.Rds",
-    tx_annot="data/metadata/01_tx_annot.tsv",
-    color_palette="data/Rds/color_palettes.Rds"
-  output:
-    #Files from ESTIMATE
-    "data/RNA-seq/hugo_fpkm.txt",
-    "results/ESTIMATE/filterCommonGenes.gct",
-    "results/ESTIMATE/results_estimate_score.gct",
-    #Survival metadata
-    "data/metadata/04_samples_with_missing_survival_data.csv",
-    "data/metadata/04_survival_metadata.csv",
-    "data/metadata/04_samples_excluded_survival.xlsx",
-    #Samples x features matrix for Cox regressions
-    "data/Rds/04_survdata.Rds",
-    #Kaplan-meier survival curves
-    "results/survival/04_kaplan_meiers.pdf",
-    #Updated colData for dds
-    "data/metadata/04_sample_annot_filtered_PAM50_EST.csv",
-    #Updated dds
-    "data/Rds/04_dds_PAM50_EST.Rds",
-    #Notebook environment
-    "reports/04_survival_and_ESTIMATE.RData",
-    html="reports/04_survival_and_ESTIMATE.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-pca_pdfs = [
-  "scree", "sigPCA_batch", "firstPCA_batch",
-  "sigPCA_PPBC", "firstPCA_PPBC", "sigPCA_Pam50"
-]
-    
-rule batch_effects:
-  input:
-    script="src/rmarkdown.R",
-    rmd="reports/05_batch_effects.Rmd",
-    dds="data/Rds/04_dds_PAM50_EST.Rds",
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    cp="data/Rds/color_palettes.Rds"
-  output:
-    expand("results/PCA/05_{pca}.pdf", pca=pca_pdfs),
-    metadata="data/metadata/05_sample_annot_filtered.csv",
-    dds="data/Rds/05_dds_PAM50_batch.Rds",
-    rdata="reports/05_batch_effects.RData",
-    html="reports/05_batch_effects.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-    
-rule min_count_threshold:
-  input:
-    script = "src/rmarkdown.R",
-    rmd = "reports/05b_minimum_count_threshold.Rmd",
-    dds = "data/Rds/05_dds_PAM50_batch.Rds"
-  output:
-    dds = "data/Rds/05b_dds_filtered.Rds",
-    html = "reports/05b_minimum_count_threshold.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-#Setting the number of threads prevents unwanted parallelization    
-rule lrt_diffex:
-  input:
-    dds="data/Rds/05b_dds_filtered.Rds"
-  output:
-    "data/Rds/06_vsd.Rds",
-    "data/Rds/06_vsd_nolac.Rds",
-    "data/Rds/06_ddsLRT.Rds",
-    "data/Rds/06_ddsLRT_nolac.Rds",
-    "data/Rds/06_ddsLRT_pam.Rds",
-    "data/Rds/06_ddsLRT_pam_nolac.Rds",
-    "data/Rds/06_ddsLRT_batch.Rds",
-    "data/Rds/06_ddsLRT_batch_nolac.Rds"
-  shell:
-    """
-    export OMP_NUM_THREADS=1 
-    Rscript src/06_diffex_lrt.R
-    """
-
-dds_lrt = [
-    "vsd", "vsd_nolac", "ddsLRT",
-    "ddsLRT_nolac", "ddsLRT_pam", "ddsLRT_pam_nolac",
-    "ddsLRT_batch", "ddsLRT_batch_nolac"
-    ]
-    
-gene_sets = [
-  "c5.bp.v7.0.symbols", "h.all.v7.0.symbols",
-  "c2.cp.v7.0.symbols", "c2.cgp.v7.0.symbols"
-]
-
-lrt_reports = [
-  "LRT", "LRT.nolac", "Batch",
-  "Batch.nolac", "Pam", "Pam.nolac"
-]
-
-rule lrt_report:
-  input:
-    expand("data/Rds/06_{dds}.Rds", dds=dds_lrt),
-    expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    dds="data/Rds/05b_dds_filtered.Rds",
-    #ImmPort database: https://www.innatedb.com/redirect.do?go=resourcesGeneLists
-    immune_genes="data/external/gene-sets/InnateDB_genes.csv",
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    cp="data/Rds/color_palettes.Rds",
-    tools="src/deseq_report_functions.R",
-    rmd="reports/06_diffex_lrt.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    padj_comp="results/diffex/figs/06_LRT/06_allgenes_fdrvsexcludelac.pdf",
-    padj_comp_sig="results/diffex/figs/06_LRT/06_siggenes_fdrvsexcludelac.pdf",
-    sig_genes="results/diffex/06_LRT_sig_genes.xlsx",
-    all_genes="results/diffex/06_LRT_allgenes.xlsx",
-    pathways="results/diffex/06_LRT_pathways.xlsx",
-    heatmaps=expand("results/diffex/figs/06_LRT/heatmaps/hm{comp}.pdf", comp=lrt_reports),
-    volcanos=expand("results/diffex/figs/06_LRT/volcano_plots/volc{comp}.outliers.jpeg", comp=lrt_reports),
-    #rdata="reports/06_diffex_lrt.Rdata",
-    html="reports/06_diffex_lrt.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-pairwise_refs = ["non_prbc", "ppbc_lac", "prbc"]
-
-pairwise_apeglm = [
-  "prbc_vs_non_prbc", "ppbc_lac_vs_non_prbc", "ppbc_inv_vs_non_prbc", 
-  "prbc_vs_ppbc_lac", "ppbc_inv_vs_prbc", "ppbc_inv_vs_ppbc_lac"
-]
-    
-rule diffex_pairwise:
-  input:
-    dds="data/Rds/05b_dds_filtered.Rds"
-  output:
-    pairwise_dds=expand("data/Rds/07_dds_pairwise_ref_{pw}.Rds", pw=pairwise_refs),
-    apeglm_results=expand("data/Rds/07_ape_{pw}.Rds", pw=pairwise_apeglm)
-  shell:
-    """
-    export OMP_NUM_THREADS=1 
-    Rscript src/07_diffex_pairwise.R
-    """
-    
-pairwise_prefixes = [
-  "inv_lac", "inv_nonprbc", "inv_prbc",
-  "lac_nonprbc", "lac_prbc", "prbc_nonprbc"
-]
-
-rule pairwise_report:
-  input:
-    pairwise_dds=expand("data/Rds/07_dds_pairwise_ref_{pw}.Rds", pw=pairwise_refs),
-    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    immune_genes="data/external/gene-sets/InnateDB_genes.csv",
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds",
-    vsd="data/Rds/06_vsd.Rds",
-    tools="src/deseq_report_functions.R",
-    apeglm_results=expand("data/Rds/07_ape_{pw}.Rds", pw=pairwise_apeglm),
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    rmd="reports/07_diffex_pairwise.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    "results/diffex/figs/07_pairwise/heatmaps/n_siggenes_pairwise_hm.pdf",
-    #"results/diffex/figs/07_pairwise/heatmaps/07_commoninvpaths_hm.pdf",
-    "results/diffex/figs/07_pairwise/upset_pairwise.pdf",
-    "results/diffex/07_pairwise_comparisons_allgenes.xlsx",
-    "results/diffex/07_pairwise_comparisons_sig_genes.xlsx",
-    "results/diffex/07_pairwise_comparisons_pathways.xlsx",
-    expand("results/diffex/figs/07_pairwise/heatmaps/hm_{pf}.pdf", pf=pairwise_prefixes),
-    expand("results/diffex/figs/07_pairwise/volcano_plots/volc_{pf}.jpeg", pf=pairwise_prefixes),
-    expand("results/diffex/figs/07_pairwise/volcano_plots/volc_{pf}.outliers.jpeg", pf=pairwise_prefixes),
-    html="reports/07_diffex_pairwise.html"
-  shell:
-     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-ovr_comps = ["inv_vs_rest", "prbc_vs_rest", "lac_vs_rest", "nonprbc_vs_rest"]
-     
-rule diffex_one_vs_rest:
-  input:
-    dds="data/Rds/05b_dds_filtered.Rds"
-  output:
-    dds_ovr=expand("data/Rds/08_dds_ovr_{comp}.Rds", comp=ovr_comps),
-    ape_ovr=expand("data/Rds/08_ape_ovr_{comp}.Rds", comp=ovr_comps)
-  shell:
-    """
-    export OMP_NUM_THREADS=1 
-    Rscript src/08_diffex_onevsrest.R
-    """
-ovr_reports = ["inv_rest", "prbc_rest", "lac_rest", "nonprbc_rest"]
-
-rule one_vs_rest_report:
-  input:
-    ape_ovr=expand("data/Rds/08_ape_ovr_{comp}.Rds", comp=ovr_comps),
-    dds_ovr=expand("data/Rds/08_dds_ovr_{comp}.Rds", comp=ovr_comps),
-    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    immune_genes="data/external/gene-sets/InnateDB_genes.csv",
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds",
-    vsd="data/Rds/06_vsd.Rds",
-    tools="src/deseq_report_functions.R",
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    rmd="reports/08_diffex_onevsrest.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    "results/diffex/figs/08_onevsrest/upset_onevsrest.pdf",
-    "results/diffex/figs/08_onevsrest/08_barplot_onevsrest.jpg",
-    "results/diffex/08_one_vs_rest_allgenes.xlsx",
-    "results/diffex/08_one_vs_rest_sig_genes.xlsx",
-    "results/diffex/08_one_vs_rest_pathways.xlsx",
-    expand("results/diffex/figs/08_onevsrest/heatmaps/hm_{ovr}.pdf", ovr=ovr_reports),
-    expand("results/diffex/figs/08_onevsrest/volcano_plots/volc_{ovr}.jpeg", ovr=ovr_reports),
-    expand("results/diffex/figs/08_onevsrest/volcano_plots/volc_{ovr}.outliers.jpeg", ovr=ovr_reports),
-    html="reports/08_diffex_onevsrest.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-diffex_results = [
-  "08_one_vs_rest_allgenes",
-  "07_pairwise_comparisons_allgenes",
-  "06_LRT_allgenes"
-  ]
-
-rule genewise_diffex_reports:
-  input:
-    diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds",
-    tools="src/deseq_report_functions.R",
-    vsd="data/Rds/08_vsd_ovr.Rds",
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    rmd="reports/09_genewise_diffex_reports.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    "results/diffex/figs/milk_vs_IG_genes.pdf",
-    html="reports/09_genewise_diffex_reports.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-rule flexgsea:
-  input:
-    script = "src/deseq_flexgsea.R",
-    lib = "src/deseq_report_functions.R",
-    dds = "data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-    tx_annot = "data/metadata/01_tx_annot.tsv",
-    gene_sets = expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets)
-  output:
-    # 30+ results files in this dir
-    dir("results/flexgsea/deseq"),
-    # Example results file
-    "results/flexgsea/deseq/results/inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"
-  shell:
-    """
-    export OMP_NUM_THREADS=1 
-    Rscript {input.script}
-    """
-    
-rule flexgsea_report:
-  input:
-    # Takes a long time to rerun flexgsea with deseq and multiple comparisons
-    ancient(dir("results/flexgsea/deseq")),
-    ancient("results/flexgsea/deseq/results/inv_vs_rest_canonpath_c2_results_flexdeseq.Rds"),
-    script = "src/rmarkdown.R",
-    rmd = "reports/09b_flexgsea_results.Rmd",
-    tx_annot = "data/metadata/01_tx_annot.tsv",
-    colors = "data/Rds/color_palettes.Rds"
-  params:
-    fdr_thresh = 0.25
-  output:
-    html = "reports/09b_flexgsea_results.html",
-    overview = "results/flexgsea/deseq/flexgsea_aggregate_results.xlsx"
-  shell:
-     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-     " --fdr_thresh '{params.fdr_thresh}'"
-    
-rule cibersortX:
-  input:
-    #Results obtained by uploading hugo_fpkm.txt to the cibersort website with the enumerated parameters
-    ciber_res="results/cibersortX/CIBERSORTx_Job3_Results.csv",
-    geneEx="data/RNA-seq/hugo_fpkm.txt",
-    surv="data/Rds/04_survdata.Rds",
-    metadata="data/metadata/05_sample_annot_filtered.csv",
-    rmd="reports/10_CibersortX.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    pdf="reports/10_CibersortX.pdf"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
-
-#Only those results which include an inv vs something comparison
-inv_comps = [
-  "07_pairwise_comparisons_allgenes",
-  "07_pairwise_comparisons_sig_genes",
-  "08_one_vs_rest_allgenes",
-  "08_one_vs_rest_sig_genes"
-]
-
-rule inv_clustering:
-  input:
-    expand("results/diffex/{inv_comp}.xlsx", inv_comp=inv_comps),
-    rmd="reports/11_clustering_involution.Rmd",
-    script="src/rmarkdown.R",
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds",
-    tools="src/deseq_report_functions.R",
-    vsd="data/Rds/08_vsd_ovr.Rds",
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    surv="data/Rds/04_survdata.Rds"
-  output:
-    "results/clustering/11_hm_clust_DEG_inv_vs_rest.pdf",
-    "results/clustering/11_barplots_ig_clusters.pdf",
-    "results/clustering/11_inv_clusters.xlsx",
-    "data/Rds/11_ig_clusters.Rds",
-    "data/Rds/11_ig_survdata.Rds",
-    "results/survival/11_IG_clusters_by_study_group.pdf"
-    "results/clustering/11_hm_involution_only_heatmaps.pdf",
-    html="reports/11_clustering_involution.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
+include: "src/rnaseq/rnaseq.smk.py"
+include: "src/spatial/spatial.smk.py"
 
 genewise_cox =[
   "multi_genewise_os", "uni_genewise_os",
@@ -553,395 +62,52 @@ genewise_cox =[
   "inv_multi_genewise_os", "inv_uni_genewise_os",
   "inv_multi_genewise_drs", "inv_uni_genewise_drs"
   ]
-
-rule genewise_survival:
-  input:
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    survdata="data/Rds/04_survdata.Rds",
-    dds = "data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-  output:
-    expand("data/Rds/12_{res}.Rds", res=genewise_cox),
-    coxdata="data/Rds/12_coxdata.Rds",
-    invcoxdata="data/Rds/12_invdata.Rds"
-  shell:
-    """
-    Rscript src/12_genewise_survival.R
-    """
-
-rule report_genewise_survival:
-  input:
-    "src/general_R_tools.R",
-    rds=expand("data/Rds/12_{c}.Rds", c=genewise_cox),
-    #cox=genewise_cox,
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds",
-    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    script="src/12_batch_survival_reports.R",
-    rmd="reports/12_genewise_survival.Rmd",
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    coxdata="data/Rds/12_coxdata.Rds",
-    tools="src/enrichment-analysis-functions.R",
-    pw="results/diffex/07_pairwise_comparisons_allgenes.xlsx",
-    ovr="results/diffex/08_one_vs_rest_allgenes.xlsx"
-  output:
-    html=expand("reports/12_{rep}.html", rep=genewise_cox),
-    csv=expand("results/survival/12_{rep}.csv", rep=genewise_cox)
-  shell:
-    """
-    Rscript {input.script}
-    """
-
-rule aggregate_genewise_survival:
-  input:
-    csv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
-    script="src/rmarkdown.R",
-    rmd="reports/12b_aggregate_genewise_survival.Rmd"
-  output:
-    html="reports/12b_aggregate_genewise_survival.html",
-    coxres="results/survival/12_cox_allgenes.xlsx"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-
-interaction_models = [
+  
+interaction_cox = [
   "uni_interaction_os",
   "uni_interaction_drs",
   "multi_interaction_os",
   "multi_interaction_drs"
-]    
-    
-rule surv_inv_int:
+]   
+
+rule all:
   input:
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    coxdata="data/Rds/12_coxdata.Rds",
-    script="src/13_survival_involution_interaction.R"
-  output:
-    expand("data/Rds/13_{m}.Rds", m=interaction_models)
-  shell:
-    """
-    Rscript {input.script}
-    """
+    # RNAseq rules
+    expand("data/rnaseq/salmon/{sample}/quant.sf", sample=config['samples']),
+    expand("results/rnaseq/fastqc/{sample}_fastqc.html", sample=config['samples']),
+    "reports/rnaseq/08_diffex_onevsrest.html",
+    "reports/rnaseq/09_diffex_time_involution.html",
+    "reports/rnaseq/09b_diffex_time_breastfeeding.html",
+    expand("reports/rnaseq/14_subgroup_diffex_{comp}.html",
+      comp=["ppbcpw_vs_npbc","ppbcpw_vs_prbc","ppbcpw_vs_rest"]),
+    "reports/rnaseq/10_CibersortX.pdf",
+    "reports/rnaseq/11_clustering_involution.html",
+    expand("reports/rnaseq/12_{cox}.html", cox=genewise_cox+interaction_cox),
+    "results/rnaseq/TRUST/TRUST_results.xlsx",
+    "reports/rnaseq/15b_antibody_isotypes.html",
+    "reports/rnaseq/16_gene_unity_setup.html",
+    # Spatial rules
+    "reports/spatial/05_report_cell_types.html",
+    "reports/spatial/07_kruskal_density.html",
+    "reports/spatial/08_inv_time_density.html",
+    expand("reports/spatial/09_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
+    "reports/spatial/10_ig_clusters_cd20.html",
+    "reports/spatial/12_spatstat_overview.html"
 
-rule report_interaction_survival:
+# Utility for converting Excel metadata to text
+# Text metadata can be tracked via git (if it's not too large)
+rule excel_to_tsv:
   input:
-    "src/general_R_tools.R",
-    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-    rds=expand("data/Rds/13_{c}.Rds", c=interaction_models),
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds",
-    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    script="src/13_batch_involution_interaction_reports.R",
-    rmd="reports/13_involutionxgene_interaction_models.Rmd",
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    coxdata="data/Rds/12_coxdata.Rds",
-    tools="src/enrichment-analysis-functions.R",
-    pw="results/diffex/07_pairwise_comparisons_allgenes.xlsx",
-    ovr="results/diffex/08_one_vs_rest_allgenes.xlsx"
-  output:
-    html=expand("reports/13_{rep}.html", rep=interaction_models),
-    csv=expand("results/survival/13_{rep}.csv", rep=interaction_models)
-  shell:
-    """
-    Rscript {input.script}
-    """
-
-rule app_setup:
-  input:
-    "data/metadata/01_tx_annot.tsv",
-    "data/external/ensembl_universal_ids_v94.txt",
-    "results/survival/12_cox_allgenes.xlsx",
-    "results/survival/13_multi_interaction_os.csv",
-    "results/survival/13_multi_interaction_drs.csv",
-    expand("results/diffex/{result}.xlsx", result=diffex_results),
-    "data/Rds/12_coxdata.Rds"
-  output:
-    "shinyApp/VisualizePPBCgene/data/app_gx_annot.Rds",
-    "shinyApp/VisualizePPBCgene/data/12_cox_allgenes.xlsx",
-    "shinyApp/VisualizePPBCgene/data/13_multi_interaction_os.csv",
-    "shinyApp/VisualizePPBCgene/data/13_multi_interaction_drs.csv",
-    "shinyApp/VisualizePPBCgene/data/app_diffex_res_list.Rds",
-    "shinyApp/VisualizePPBCgene/data/app_survival_sample_data.Rds",
-    "shinyApp/VisualizePPBCgene/data/app_ensembl_tmmnorm_genesxsample.Rds",
-    "shinyApp/VisualizePPBCgene/data/app_symbol_tmmnorm_genesxsample.Rds"
-  shell:
-    """
-    Rscript shinyApp/VisualizePPBCgene/data_setup.R
-    """
-
-subgroups=["Basal", "Her2", "LumA", "LumB"]
-sub_diffex=[
-  "ppbc_inv_vs_non_prbc",
-  "ppbc_inv_vs_prbc",
-  "ppbc_inv_vs_rest"
-]
-
-rds_dir="/DATA/share/postpartumbc/data/Rds"
-
-rule subgroup_diffex:
-  input:
-    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-    script="src/14_subgroup_diffex.R"
-  output:
-    dds_res=expand("{dir}/subgroup_diffex/14_dds_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
-    ape_res=expand("{dir}/subgroup_diffex/14_ape_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir)
-  shell:
-    """
-    export OMP_NUM_THREADS=1 
-    Rscript {input.script}
-    """
-
-diffex_dir="/DATA/share/postpartumbc/results/diffex"
-    
-rule report_subgroup_comp:
-  input:
-    dds_res=expand("{dir}/subgroup_diffex/14_dds_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
-    ape_res=expand("{dir}/subgroup_diffex/14_ape_{subgroup}_{comp}.Rds", subgroup=subgroups, comp=sub_diffex, dir=rds_dir),
-    rmd="reports/14_subgroup_diffex_by_comparison.Rmd",
-    script="src/14_batch_subgroup_diffex_reports.R"
-  output:
-    allgenes=expand("{dir}/14_subgroup_diffex_{comp}_allgenes.xlsx", comp=sub_diffex, dir=diffex_dir),
-    siggenes=expand("{dir}/14_subgroup_diffex_{comp}_sig_genes.xlsx", comp=sub_diffex, dir=diffex_dir),
-    reports=expand("/DATA/share/postpartumbc/reports/14_subgroup_diffex_{comp}.html",comp=sub_diffex)
+    script="src/utils/excel_to_tsv.R",
+    lib="src/utils/parse_args.R",
+    metadata="data/external/PPBC_metadata_20220811.xlsx"
   params:
-    comp=[
-      "ppbc_inv_vs_non_prbc",
-      "ppbc_inv_vs_prbc",
-      "ppbc_inv_vs_rest"
-      ]
-  shell:
-    """
-    Rscript {input.script}
-    """
-
-rule cox_glm:
-  input:
-    coxdata="data/Rds/12_coxdata.Rds",
-    script="src/15_cox_elastic_net.R"
+    outDir="data/external"
   output:
-    "data/Rds/15_glm_os_1000.Rds",
-    "data/Rds/15_glm_os_5000.Rds",
-    "data/Rds/15_glm_drs_1000.Rds",
-    "data/Rds/15_glm_drs_5000.Rds"
+    sampledata = "data/external/sample_data.tsv",
+    patientdata = "data/external/patient_data.tsv",
+    codebook = "data/external/codebook.tsv"
   shell:
-    """
-    Rscript {input.script}
-    """
-
-#As above, but include only involution samples
-rule inv_cox_glm:
-  input:
-    coxdata="data/Rds/12_invdata.Rds",
-    script="src/15b_inv_cox_elastic_net.R"
-  output:
-    "data/Rds/15b_inv_glm_os_1000.Rds",
-    "data/Rds/15b_inv_glm_os_5000.Rds",
-    "data/Rds/15b_inv_glm_drs_1000.Rds",
-    "data/Rds/15b_inv_glm_drs_5000.Rds"
-  shell:
-    """
-    Rscript {input.script}
-    """
-
-#As above, but use all genes as input
-rule all_inv_cox_glm:
-  input:
-    coxdata="data/Rds/12_invdata.Rds",
-    script="src/15c_inv_cox_elastic_net.R"
-  output:
-    "data/Rds/15c_inv_glm_os_all.Rds",
-    "data/Rds/15c_inv_glm_drs_all.Rds"
-  shell:
-    """
-    Rscript {input.script}
-    """
-
-rule report_cox_glm:
-  input:
-    "data/Rds/15_glm_os_1000.Rds",
-    "data/Rds/15_glm_os_5000.Rds",
-    "data/Rds/15_glm_drs_1000.Rds",
-    "data/Rds/15_glm_drs_5000.Rds",
-    diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
-    gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
-    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    rmd="reports/15_cox_elastic_net.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    "results/survival/15_elastic_cox_features.xlsx",
-    html="reports/15_cox_elastic_net.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-    
-rule report_inv_cox_glm:
-  input:
-    "data/Rds/15b_inv_glm_os_1000.Rds",
-    "data/Rds/15b_inv_glm_os_5000.Rds",
-    "data/Rds/15b_inv_glm_drs_1000.Rds",
-    "data/Rds/15b_inv_glm_drs_5000.Rds",
-    diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
-    gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
-    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    rmd="reports/15b_inv_cox_elastic_net.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    "results/survival/15b_inv_elastic_cox_features.xlsx",
-    html="reports/15b_inv_cox_elastic_net.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"    
-
-rule report_all_inv_cox_glm:
-  input:
-    "data/Rds/15c_inv_glm_os_all.Rds",
-    "data/Rds/15c_inv_glm_drs_all.Rds",
-    diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
-    gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
-    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    rmd="reports/15c_inv_cox_elastic_net.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    "results/survival/15c_all_inv_elastic_cox_features.xlsx",
-    html="reports/15c_all_inv_cox_elastic_net.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}" 
-    
-enet_features=[
-  "15_elastic_cox_features",
-  "15b_inv_elastic_cox_features",
-  "15c_all_inv_elastic_cox_features"
-]
-
-inv_bf = [
-  "breastfeeding",
-  "involution"
-]
-
-rule diffex_involution:
-  input:
-    script="src/rmarkdown.R",
-    rmd="reports/09_diffex_time_involution.Rmd",
-    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-    vsd="data/Rds/08_vsd_ovr.Rds",
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds"
-  output:
-    html="reports/09_diffex_time_involution.html",
-    dds="data/Rds/09_dds_involution_duration.Rds",
-    ape="data/Rds/09_ape_involution_duration.Rds",
-    genes="results/diffex/09_diffex_involution_duration.xlsx",
-    heatmap="results/diffex/figs/09_involution_duration/09_hm_involution_duration.pdf",
-    volcano="results/diffex/figs/09_involution_duration/09_volcano_involution_duration.jpeg"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
-    
-rule diffex_breastfeeding:
-  input:
-    script="src/rmarkdown.R",
-    rmd="reports/09_diffex_breastfeeding_duration.Rmd",
-    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds",
-    vsd="data/Rds/08_vsd_ovr.Rds",
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    sets=expand("data/external/gmt/{gene_set}.gmt", gene_set=gene_sets),
-    cp="data/Rds/color_palettes.Rds",
-    sp="data/Rds/survival_colors.Rds"
-  output:
-    html="reports/09_diffex_time_breastfeeding.html",
-    dds="data/Rds/09_dds_breastfeeding_duration.Rds",
-    ape="data/Rds/09_ape_breastfeeding_duration.Rds",
-    genes="results/diffex/09_diffex_breastfeeding_duration.xlsx",
-    heatmap="results/diffex/figs/09_breastfeeding_duration/09_hm_breastfeeding_duration.pdf",
-    volcano="results/diffex/figs/09_breastfeeding_duration/09_volcano_breastfeeding_duration.jpeg"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"    
-
-rule gene_unity_setup:
-  input:
-    script="src/rmarkdown.R",
-    rmd="reports/16_gene_unity_setup.Rmd",
-    diffex_results=expand("results/diffex/{result}.xlsx", result=diffex_results),
-    invbf_diffex=expand("results/diffex/09_diffex_{result}_duration.xlsx", result=inv_bf),
-    #gw_surv=expand("results/survival/12_{rep}.csv", rep=genewise_cox),
-    gw_surv="results/survival/12_cox_allgenes.xlsx",
-    int_surv=expand("results/survival/13_{rep}.csv", rep=interaction_models),
-    efeat=expand("results/survival/{feat}.xlsx", feat=enet_features),
-    subdiffex=expand("{dir}/14_subgroup_diffex_{comp}_allgenes.xlsx", comp=sub_diffex, dir=diffex_dir),
-    gx_annot="data/metadata/01_tx_annot.tsv",
-    coxdata="data/Rds/12_coxdata.Rds",
-    dds="data/Rds/08_dds_ovr_inv_vs_rest.Rds"
-  output:
-    html="reports/16_gene_unity_setup.html",
-    aggdata="data/Rds/16_gene_report_environment.RData"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"   
-
-
-rule gene_reports:
-  input:
-    aggdata="data/Rds/16_gene_report_environment.RData",
-    script="src/17_batch_gene_reports.R",
-    genes=ancient("reports/genes_to_report.txt")
-  #output:
-  #  directory("reports/gene_reports")
-  shell:
-    "Rscript {input.script}"
-    
-rule trust_setup:
-  output:
-    bcrtcrfa="bin/TRUST4/hg38_bcrtcr.fa",
-    imgt="bin/TRUST4/human_IMGT+C.fa",
-    trust="bin/TRUST4/run-trust4"
-  shell:
-    """
-    git clone https://github.com/liulab-dfci/TRUST4.git
-    mkdir -p bin
-    mv -v TRUST4 ./bin
-    """
-
-rule trust:
-  input:
-    fq=expand("data/RAW/{sample}.fastq.gz", sample=config["samples"]),
-    bcrtcrfa=ancient("bin/TRUST4/hg38_bcrtcr.fa"),
-    imgt=ancient("bin/TRUST4/human_IMGT+C.fa"),
-    trust=ancient("bin/TRUST4/run-trust4")
-  params:
-    threads=16,
-    outdir="data/TRUST/"
-  shell:
-    """
-    mkdir -p {params.outdir} &&
-     #for f in `ls $PROJDIR/data/RAW/*.R1.fastq.gz`
-    for f in `ls data/RAW/*.R1.fastq.gz`; do basefile="$(basename -- $f)"; {input.trust} -u $f -t {params.threads} -f {input.bcrtcrfa} --ref {input.imgt} -o {params.outdir}$basefile; done
-    """
-
-rule trust_report:
-  input:
-    #directory("data/TRUST"),
-    fqdata="data/metadata/01_sample_annot.tsv",
-    sampledata="data/metadata/05_sample_annot_filtered.csv",
-    survdata="data/Rds/04_survdata.Rds",
-    preexcluded_samples="data/metadata/01_pre_excluded_samples.csv",
-    discarded_samples="data/metadata/02_discarded_samples.csv",
-    ihc_outliers="data/metadata/03_removed_pam50_outliers.csv",
-    rmd="reports/18_BCR_clonality.Rmd",
-    script="src/rmarkdown.R"
-  output:
-    alltrust="data/Rds/18_alltrust.Rds",
-    trustdata="data/Rds/18_trustdata.Rds",
-    trustexcel="results/TRUST/18_TRUST_results.xlsx",
-    html="reports/18_BCR_clonality.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}" 
-    
-rule antibody_isotypes:
-  input:
-    script="src/rmarkdown.R",
-    rmd="reports/18b_antibody_isotypes.Rmd",
-    bx_annot=ancient("shinyApp/VisualizePPBCgene/data/app_gx_annot.Rds"),
-    dds=ancient("data/Rds/08_dds_ovr_inv_vs_rest.Rds")
-  output:
-    html="reports/18b_antibody_isotypes.html"
-  shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.html}"  
+    "Rscript {input.script} "
+    "--metadata {input.metadata} "
+    "--outDir {params.outDir}"

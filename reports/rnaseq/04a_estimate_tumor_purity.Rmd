@@ -1,0 +1,375 @@
+---
+title: "ESTIMATE scores for PPBC"
+date: "`r Sys.Date()`"
+author: "Kat Moore"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: kate
+    df_print: paged
+params:
+  dds: "data/rnaseq/interim/03_dds_PAM50.Rds"
+  genes: "data/rnaseq/metadata/01_gene_annot.tsv"
+  color_palette: "data/rnaseq/interim/color_palettes.Rds"
+  survival_colors: "data/rnaseq/interim/survival_colors.Rds"
+---
+
+```{r, message=F}
+library(DESeq2)
+library(here)
+library(estimate)
+library(tidyverse)
+library(ggthemes)
+library(RColorBrewer)
+library(ggpubr)
+
+theme_set(theme_bw())
+```
+
+In this notebook, we use ESTIMATE to calculate immune/stromal scores and tumor purity for the PPBC dataset.
+Several survival analyses are also performed.
+
+## Load and process data
+
+```{r}
+dds <- readRDS(here(params$dds))
+
+tx_annot <- read_tsv(here(params$genes), show_col_types = F)
+
+color_palettes <- readRDS(here(params$color_palette))
+```
+
+We only need the gene id and hgnc symbol for this script.
+
+```{r}
+tx_annot <- tx_annot %>%
+  select(gene_id, hgnc_symbol) %>%
+  distinct()
+```
+
+### Conversion to FPKM with HUGO symbols
+
+Esimate requires transcript length normalization and gene names instead of ensembl ids.
+
+Debatable: whether to use robust = T or F when calculating fpkm for the purposes of determining tumor purity with Estimate. 
+When True, estimateSizeFactors is called to more accurately normalize by library size. 
+Use the robust = F option to disable the median ratio normalization and just get classical fpkm via colSums.
+
+Since we prefer a more robust correction for library size, choose robust = T.
+
+```{r}
+fpkm <- DESeq2::fpkm(dds, robust = T)
+```
+
+Add the HUGO symbols
+
+```{r}
+fpkm <- fpkm %>%
+  as.data.frame() %>%
+  rownames_to_column("gene_id") %>%
+  right_join(select(tx_annot, gene_id, hgnc_symbol),
+             .,
+             by = "gene_id")
+```
+
+Make sure we don't have any NAs in the HGNC field.
+
+```{r}
+print(paste("Removing",
+            sum(is.na(fpkm$hgnc_symbol)),
+            "genes without HUGO ids from the fpkm matrix."))
+
+fpkm <- fpkm %>% filter(!is.na(hgnc_symbol))
+```
+
+```{r}
+print(paste(nrow(fpkm), "genes remaining in the fpkm matrix."))
+```
+
+Drop the ensembl id column.
+
+```{r}
+fpkm <- fpkm %>% select(-gene_id)
+```
+
+### De-duplicate gene symbols
+
+When dealing with duplicated gene names, take the mean fpkm.
+
+```{r}
+summarize_expression_duplicate_ids <- function(mat, id_column, f=colMeans,
+                                               final_gene_symbol_colname="GeneSymbol"){
+  require(dplyr)
+  
+  print(paste("Starting with gene expression matrix containing", nrow(mat), "rows."))
+  
+  #Easiest way to write functions with dplyr is to standardize the column name
+  
+  if(id_column != "symbol"){
+    colnames(mat)[colnames(mat)==id_column] <- "symbol"
+  }
+  
+  #Make frequency table
+  id_table <- as.data.frame(table(mat$symbol))
+  
+  #Identify duplicate genes
+  dups <- id_table$Var1[id_table$Freq > 1]
+  stopifnot(length(dups) == length(unique(dups)))
+  print(paste("Number of genes with duplicate names:", length(dups)))
+  
+  #Set aside rows with unique gene names
+  nodup_df <- mat[!mat$symbol %in% dups,]
+  
+  #Set aside rows with duplicate ids
+  dup_df <- mat[mat$symbol %in% dups,]
+  stopifnot(nrow(nodup_df) + nrow(dup_df) == nrow(mat))
+  
+  #Sort by recurring id
+  dup_df <- dup_df[order(dup_df$symbol),]
+  
+  print(paste("Number of rows with duplicate gene ids:", nrow(dup_df)))
+  
+  #Mean expression fpkm of genes with the same symbol
+  mean_exps <- matrix(ncol = ncol(dup_df)-1, nrow=0) #Empty matrix, -1 gene symbol column
+
+  for (i in 1:length(unique(dup_df$symbol))){
+    #Subset rows with same symbol, discard symbol column, then apply aggregate function
+    exp <- f(as.matrix(dup_df[dup_df$symbol==unique(dup_df$symbol)[i], -1])) 
+    mean_exps <- rbind(mean_exps, exp)
+  }
+  stopifnot(nrow(mean_exps) == length(unique(dup_df$symbol)))
+  
+  rownames(mean_exps) <- unique(dup_df$symbol)
+  mean_exps <- as.data.frame(mean_exps) %>% rownames_to_column("symbol")
+  
+  dedupped_df <- rbind(mean_exps, nodup_df)
+  dedupped_df <- dedupped_df[order(dedupped_df$symbol),]
+  
+  #All symbols should be unique
+  stopifnot(length(unique(dedupped_df$symbol))==length(dedupped_df$symbol)) 
+  stopifnot(nrow(mat) - #starting number
+            nrow(dup_df) + #rows with duplicate genes...
+            length(dups) == #...which condense down into this many unique genes...
+            nrow(dedupped_df)) #...should equal the number of rows in the final matrix
+
+  print(paste("Number of genes after applying", substitute(f),
+              "to duplicate ids:", nrow(dedupped_df)))
+  
+  #For estimate, the column with identifiers HAS to be called GeneSymbol or EntrezGeneID
+  colnames(dedupped_df)[colnames(dedupped_df)=="symbol"] <- final_gene_symbol_colname
+  
+  return(dedupped_df)
+}
+```
+
+```{r}
+clean_fpkm <- summarize_expression_duplicate_ids(fpkm, "hgnc_symbol")
+```
+
+```{r}
+head(clean_fpkm)
+```
+
+The input for ESTIMATE can supposedly be a dataframe, but the function throws an error unless provided with a file.
+
+```{r}
+write.table(clean_fpkm, sep = "\t",
+            file = here("data","rnaseq","interim","hugo_fpkm.txt"),
+            col.names = T, row.names =F, quote=F)
+```
+
+## ESTIMATE
+
+Estimate really only has two functions of interest for us. 
+The first is filterCommonGenes, which unifies genes symbols provided versus the 10,412 used for determining tumor purity.
+
+It requires writing a file instead of returning an object within the R environment. 
+
+```{r}
+dir.create(here("results","rnaseq","ESTIMATE"), showWarnings = F)
+
+filterCommonGenes(input.f=here("data","rnaseq","interim","hugo_fpkm.txt"),
+                  output.f = here("results/rnaseq/ESTIMATE/filterCommonGenes.gct"),
+                  id="GeneSymbol")
+```
+
+The next function computes stromal, immune, and ESTIMATE scores per sample using gene expression data. It also insists on writing files.
+
+```{r}
+estimateScore(input.ds = here("results","rnaseq","ESTIMATE","filterCommonGenes.gct"),
+              output.ds = here("results","rnaseq","ESTIMATE","results_estimate_score.gct"),
+              platform="illumina")
+```
+
+```{r}
+scores <- read_tsv(here("results","rnaseq","ESTIMATE","results_estimate_score.gct"),
+                   skip=2, show_col_types = F)
+
+colnames(scores) <- str_replace_all(colnames(scores), "\\.","-")
+scores[,1:6]
+```
+
+Note: Only validated for microarray data:
+Tumour purity=cos (0.6049872018+0.0001467884 × ESTIMATE score)
+[Source](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3826632/)
+
+```{r}
+purity_score <- scores %>%
+  dplyr::select(-Description) %>%
+  rename(score=NAME) %>%
+  gather(key="sample_name", -score, value=value) %>%
+  spread(key=score,value=value) %>%
+  mutate(tumor_purity = cos(0.6049872018+0.0001467884 * ESTIMATEScore))
+```
+
+## Stromal and Immune Scores
+
+```{r}
+scores %>% dplyr::select(-Description) %>%
+  gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
+  arrange(PPBC) %>%
+  ggplot(aes(x=factor(sample_name, levels = unique(sample_name)),y=Score, fill=PPBC)) +
+  geom_bar(stat="identity") +
+  facet_wrap(~NAME, ncol=1) +
+  theme(axis.text.x=element_blank()) +
+  xlab("Samples") +
+  scale_fill_manual(values = color_palettes$ppbc_colors)
+``` 
+
+```{r}
+scores %>% dplyr::select(-Description) %>%
+  gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
+  filter(NAME != "ESTIMATEScore") %>%
+  ggplot(aes(x=PPBC,y=Score, color=PPBC)) +
+  geom_boxplot(alpha = 0) +
+  ggbeeswarm::geom_quasirandom(method="smile") +
+  facet_wrap(~NAME, ncol=2) +
+  theme(legend.position = "none") +
+  scale_color_manual(values = color_palettes$ppbc_colors)
+  #xlab("Samples")
+```
+
+## Immune scores by study group
+
+```{r}
+comps <- list( c("nulliparous", "involuting"),
+               c("lactating", "involuting"),
+               c("pregnant", "involuting") )
+
+immune_df <- scores %>% dplyr::select(-Description) %>%
+  gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
+  filter(NAME == "ImmuneScore") 
+
+immune_df %>%
+  ggboxplot(x="PPBC", y="Score", add="dotplot", 
+          color = "PPBC", notch = T) +
+  theme(legend.position = "none") +
+  ggtitle("Immune Score by study group") + 
+  stat_compare_means(comparisons = comps)+ 
+  stat_compare_means(label.y = 3500) +
+  scale_color_manual(values = color_palettes$ppbc_colors) +
+  scale_fill_manual(values = color_palettes$ppbc_colors)
+```
+
+```{r}
+comps <- list( c("Basal", "LumA"),
+               c("Basal", "LumB"),
+               c("Basal", "Her2"),
+               c("Basal", "Normal"))
+
+immune_df %>%
+  ggboxplot(x="PAM50", y="Score", add="dotplot", 
+          color = "PAM50", notch = F,
+          order = c("LumA", "LumB", "Basal", "Her2", "Normal")) +
+  theme(legend.position = "none") +
+  ggtitle("Immune Score by PAM50") + 
+  stat_compare_means(comparisons = comps)+ 
+  stat_compare_means(label.y = 3500) +
+  scale_color_manual(values = color_palettes$pam_colors) +
+  scale_fill_manual(values = color_palettes$pam_colors)
+```
+
+## Stromal Scores by study group
+
+```{r}
+comps <- list( c("nulliparous", "involuting"),
+               c("lactating", "involuting"),
+               c("pregnant", "involuting") )
+
+
+stromal_df <- scores %>% dplyr::select(-Description) %>%
+  gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
+  filter(NAME == "StromalScore") 
+
+stromal_df %>%
+  ggboxplot(x="PPBC", y="Score", add="dotplot", 
+          color = "PPBC", notch = T) +
+  theme(legend.position = "none") +
+  ggtitle("Stromal Score by study group") + 
+  stat_compare_means(comparisons = comps)+ 
+  stat_compare_means(label.y = 2500) +
+  scale_color_manual(values = color_palettes$ppbc_colors) +
+  scale_fill_manual(values = color_palettes$ppbc_colors)
+```
+
+```{r}
+comps <- list( c("Basal", "LumA"),
+               c("Basal", "LumB"),
+               c("Basal", "Her2"),
+               c("Basal", "Normal"))
+
+stromal_df %>%
+  ggboxplot(x="PAM50", y="Score", add="dotplot", 
+          color = "PAM50", notch = F,
+          order = c("LumA", "LumB", "Basal", "Her2", "Normal")) +
+  theme(legend.position = "none") +
+  ggtitle("Stromal Score by PAM50") + 
+  stat_compare_means(comparisons = comps)+ 
+  stat_compare_means(label.y = 2500)+
+  scale_color_manual(values = color_palettes$pam_colors) +
+  scale_fill_manual(values = color_palettes$pam_colors)
+```
+
+## Save output
+
+Raw scores.
+
+```{r}
+saveRDS(list(estimate = scores, purity = purity_score),
+        here("data/rnaseq/interim/04a_estimate_scores.Rds"))
+```
+
+Add scores to dds.
+
+```{r}
+stopifnot(all(purity_score$sample_name == colData(dds)$sample_name))
+dds$ESTIMATE_score <- purity_score$ESTIMATEScore
+dds$immune_score <- purity_score$ImmuneScore
+dds$stromal_score <- purity_score$StromalScore
+dds$tumor_purity <- purity_score$tumor_purity
+```
+
+Define tertiles.
+
+```{r}
+dds$immune_tertile <- dplyr::ntile(as.data.frame(colData(dds))$immune_score, 3)
+dds$stromal_tertile <- dplyr::ntile(as.data.frame(colData(dds))$stromal_score, 3)
+```
+
+Write dds.
+
+```{r}
+saveRDS(dds, here("data/rnaseq/interim/04_dds_PAM50_est.Rds"))
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```

@@ -1,0 +1,338 @@
+---
+title: "FlexGSEA results"
+Author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    df_print: paged
+    canon: true
+params:
+  fdr_thresh: 0.25
+  countMatrix: "results/rnaseq/flexgsea/deseq/input/geneSymbol_countmatrix.Rds"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+---
+
+A series of reports generated to visualize FlexGSEA results from script.
+Note: this report currently uses the old study group nomenclature.
+
+* ppbc_inv = ppbcpw
+* ppbc_lac = ppbcdl
+* non_prbc = npbc
+
+```{r, message=F}
+library(flexgsea)
+library(here)
+library(pheatmap)
+library(scrime)
+library(RColorBrewer)
+library(ggthemes)
+library(tidyverse)
+
+theme_set(theme_bw())
+```
+
+## Load data
+
+### Count matrix used as input:
+
+```{r}
+cm <- readRDS(here(params$countMatrix))
+
+cm[1:10,1:10]
+```
+
+### Annotation
+
+```{r}
+gx_annot <- read_tsv(here(params$gx_annot))
+gx_annot <- gx_annot %>%
+  select(ensembl_gene_id = gene_id, gene_name,
+         gene_type, description = gene_description) %>% distinct()
+```
+
+### Gene signatures used for analysis:
+
+```{r}
+gene_signatures <- list(
+  go_c5 = read_gmt(file = here("data","external","gmt","c5.all.v7.0.symbols.gmt")), #Gene ontology BP
+  hallmark = read_gmt(file = here("data","external","gmt","h.all.v7.0.symbols.gmt")), 
+  canonpath_c2 = read_gmt(file = here("data","external","gmt","c2.cp.v7.0.symbols.gmt")), #Canonical pathways
+  cgp_c2 = read_gmt(file = here("data", "external", "gmt", "c2.cgp.v7.0.symbols.gmt")) #Chemical and genetic perturbations
+)
+
+signature_files <- enframe(c(
+  go_c5 = here("data","external","gmt","c5.all.v6.2.symbols.gmt"), #Gene ontology BP
+  hallmark = here("data","external","gmt","h.all.v6.2.symbols.gmt"), 
+  canonpath_c2 =  here("data","external","gmt","c2.cp.v6.2.symbols.gmt"), #Canonical pathways
+  cgp_c2 = here("data", "external", "gmt", "c2.cgp.v7.0.symbols.gmt") #Chemical and genetic perturbations
+  ), "signature_name", "file") %>% mutate( abs = c(T, F, T, F))
+
+signature_files
+```
+
+### Results files
+
+Most of the important comparisons were made in a single batch. A few additional pairwise (group A vs group B) were made later.
+
+```{r}
+result_files <- here("results", "rnaseq", "flexgsea", "deseq", "results",
+                    list.files(here("results", "rnaseq", "flexgsea", "deseq", "results"),
+                               pattern = ".Rds"))
+
+result_files <- c(result_files, 
+                 here("results", "rnaseq", "flexgsea", "deseq", "results_more_pairwise",
+                    list.files(here("results", "rnaseq", "flexgsea", "deseq", "results_more_pairwise"),
+                               pattern = ".Rds")))
+
+stopifnot(all(file.exists(result_files)))
+```
+
+### FDR threshold
+
+Threshold below which pathways may be considered relevant. Flexgsea is a stringent test and a more permissive threshold than normal may be considered.
+
+```{r}
+#params inherited by Snakemake are can be coerced to characters
+fdr_thresh <- as.numeric(params$fdr_thresh)
+fdr_thresh
+```
+
+## Combine results
+
+### Output structure
+
+Results file is structure as a nested list with parameters and flexgsea results in the top level. Most results are stored in table, which is a list of each coefficient run (there will be only one for vs rest comparisons). Running es and leading edge can be used to make mountain plots. For leading edge, integers are reported instead of gene names. These correspond to the row number in the input matrix.
+
+```{r, include=F}
+#test <- readRDS(result_files[1])
+test <- readRDS(here("results/rnaseq/flexgsea/deseq/results/study_group_canonpath_c2_results_flexdeseq.Rds") )
+#str(test)
+
+names(test)
+
+head(test$parameters$value, 1)
+
+names(test$flexgsea_results)
+test$flexgsea_results$running_es_neg$study_group_ppbc_inv_vs_non_prbc[1]
+test$flexgsea_results$running_es_pos$study_group_ppbc_inv_vs_non_prbc[1]
+test$flexgsea_results$leading_edge$study_group_ppbc_inv_vs_non_prbc[1]
+
+test$flexgsea_results$table %>% names()
+rownames(cm)[4842]
+```
+
+### Parsing the data list
+
+Create single list of all files and bind the results tables together. Store the name of the coefficient under "key"
+
+```{r}
+datalist <- lapply(result_files, readRDS)
+
+gene_sig <- lapply(datalist, function(x) c(
+    as.character(x$parameters[x$parameters$parameter == "signature_name", "value"]))
+    ) %>% unlist()
+
+gseares <- lapply(datalist, function(x) gsea_results = x$flexgsea_results$table)
+  
+gseares <- lapply(gseares, function(x) bind_rows(x, .id="key"))
+
+names(gseares) <- gene_sig
+
+gseares <- gseares %>% bind_rows(.id = "gene_signature")
+
+unique(gseares$key)
+#unique(gseares$gene_signature)
+
+#Because it's large, remove
+rm(datalist)
+```
+
+Split the key into a more readable format.
+
+```{r}
+gseares <- gseares %>% mutate(comparison = case_when(
+  str_detect(key, "vs_rest_") ~ str_replace(
+    str_remove(str_remove(key, ".*_rest_"), "ppbc_"), "non_", "non"
+    ),
+  str_detect(key, "study_group") ~ str_replace(
+    str_remove(str_remove(key, "study_group_"), "ppbc_"),
+    "non_", "non"
+    ),
+  str_detect(key, "reflac") ~ str_replace(
+    str_remove_all(str_remove(key, "reflac_"), "ppbc_"),
+    "non_", "non"
+    ),
+  str_detect(key, "refprbc") ~ str_replace(
+    str_remove_all(str_remove(key, "refprbc_"), "ppbc_"),
+    "non_", "non"
+    ),
+  TRUE ~ key
+))
+
+gseares <- gseares %>% select(fdr, p, comparison, GeneSet, everything())
+
+gseares %>% select(key, comparison) %>% distinct()
+```
+
+### Write aggregate table
+
+```{r}
+openxlsx::write.xlsx(gseares, file = here("results", "rnaseq", "flexgsea",
+                                          "deseq", "flexgsea_aggregate_results.xlsx"))
+```
+
+## Total number of significant gene signatures
+
+```{r}
+gseares %>% mutate(sigfdr = fdr < fdr_thresh) %>%
+  select(comparison, sigfdr) %>% table()
+```
+
+### Bar plot
+
+```{r}
+gseares %>% mutate(sigfdr = fdr < fdr_thresh) %>%
+  group_by(comparison, sigfdr) %>% summarise(n=n(), .groups = "drop") %>%
+  arrange(desc(n)) %>% ungroup %>% filter(sigfdr == T) %>%
+  ggplot(aes(x = factor(comparison, level=comparison), y = n)) +
+  geom_bar(stat="identity") + #scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab("Comparison") + ylab("Signatures significant at FDR < 0.25") +
+  ggtitle("Number of significant gene signatures across all comparisons")
+
+```
+
+Comparisons with no significant gene signatures:
+
+```{r}
+no_sig_genesets = gseares %>% mutate(sigfdr = fdr < fdr_thresh) %>%
+  select(comparison, sigfdr) %>% table() %>% as.data.frame() %>%
+  filter(sigfdr == T & Freq == 0)
+
+no_sig_genesets
+```
+
+## Significant collections by comparison
+
+```{r}
+gseares %>% filter(fdr < fdr_thresh) %>%
+  group_by(comparison, gene_signature) %>%
+  summarise(n=n(), .groups = "drop") %>% arrange(desc(n))
+```
+
+### Beehive plot
+
+```{r, fig.width=10}
+gseares %>% mutate(sigFDR = fdr < fdr_thresh) %>% 
+  ggplot(aes(x = gene_signature, y = -log10(fdr))) +
+  geom_jitter(aes(color = sigFDR), width=0.1, height = 0) +
+  facet_wrap(~ comparison, ncol = 4) +
+  theme(axis.text.x = element_text(angle=90)) +
+  scale_color_manual(values = c("darkgray", "darkred")) +
+  geom_hline(yintercept = -log10(fdr_thresh), linetype = "dashed") +
+  ggtitle(paste0("Signficant gene collections at FDR < ", fdr_thresh,", all comparisons"))
+
+```
+
+## Exploration of significant pathways
+
+```{r}
+sigflex <- gseares %>% filter(fdr < fdr_thresh) %>%
+  select(comparison, GeneSet, fdr, everything())
+
+sigflex %>% group_by(comparison) %>% summarise(n=n()) %>% arrange(desc(n))
+```
+
+Show top 30 for each comparison.
+
+```{r}
+for (i in 1:length(unique(sigflex$comparison))){
+ temp = sigflex[sigflex$comparison==unique(sigflex$comparison)[i],]
+  temp = arrange(temp, fdr, p)
+  temp = temp %>% select(comparison, GeneSet, fdr, nes, max_es_at, everything())
+  print(head(temp, 30))
+}
+```
+
+### Bar plot
+
+```{r}
+plot_top_pathway <- function(df, thresh, top_n, comparison){
+  
+  stopifnot(comparison %in% unique(df$comparison))
+  comp = df[df$comparison == comparison, ]
+  comp_thresh <- comp[comp$fdr < thresh, ]
+  top_comp <- comp_thresh %>%
+    arrange(fdr, p) %>%
+    head(top_n)
+
+  if(nrow(top_comp) <1 ){
+    return(paste("No sig pathways for", comparison,"at FDR threshold", thresh))
+  }
+  
+  top_comp %>%
+    #truncate long terms
+    mutate(GeneSet = substr(GeneSet,1,50)) %>%
+    ggplot(aes(x = GeneSet, y = nes, fill = fdr)) +
+    geom_bar(stat = "identity") + coord_flip() +
+    ggtitle(paste0("Top 30 ", comparison, "\n(",
+                   nrow(comp_thresh),
+                   " total hits) at FDR ", thresh))
+
+}
+
+lapply(unique(gseares$comparison),function(x){
+  plot_top_pathway(df = gseares, thresh = fdr_thresh,
+                   top_n = 20, comparison = x)})
+```
+
+
+```{r}
+for (i in 1:length(unique(sigflex$comparison))){
+ temp = sigflex[sigflex$comparison==unique(sigflex$comparison)[i],]
+  temp = arrange(temp, fdr, p)
+  temp = temp %>% select(comparison, GeneSet, fdr, nes, max_es_at, everything())
+  temp = temp %>% mutate(GeneSet = substr(GeneSet,1,50))
+  p = head(temp, 30) %>%
+    ggplot(aes(x = GeneSet, y = nes)) +
+    geom_bar(stat = "identity") + coord_flip() +
+    ggtitle(paste0("Top 30 ", unique(sigflex$comparison)[i], " (",
+                   nrow(filter(temp, fdr < fdr_thresh)), " total hits)"))
+  
+  print(p)
+}
+
+```
+
+## Involution comparisons
+
+Focus on pathways significant in comparisons with involution.
+
+Significant hits:
+
+```{r}
+sigflex %>% group_by(comparison) %>% summarise(n=n()) %>% arrange(n) %>%
+  filter(str_detect(comparison, "inv"))
+```
+
+### Bar plot
+
+Show top pathways, also if not significant
+
+```{r}
+invflex <- filter(gseares, str_detect(comparison, "inv"))
+
+lapply(unique(invflex$comparison), function(x){
+  plot_top_pathway(df = invflex, thresh = Inf,
+                   top_n = 20, comparison = x)
+})
+  
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```

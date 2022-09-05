@@ -1,0 +1,713 @@
+---
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    df_print: paged
+    highlight: kate
+    canon: true
+params:
+  survival_results: "data/rnaseq/processed/12_uni_interaction_drs.Rds"
+  dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+  tools: "src/rnaseq/enrichment-analysis-functions.R"
+  duplicates: "src/rnaseq/summarize_duplicate_ids.R"
+  cp: "data/rnaseq/interim/color_palettes.Rds"
+  sp: "data/rnaseq/interim/survival_colors.Rds"
+  coxdata: "data/rnaseq/processed/12_coxdata.Rds"
+  invcoxdata: "data/rnaseq/processed/12_invdata.Rds"
+  pw: "results/rnaseq/diffex/07_pairwise_comparisons_allgenes.xlsx"
+  ovr: "results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx"
+---
+
+Report on genewise Cox models.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
+library(DESeq2)
+library(survival)
+library(survminer)
+library(pheatmap)
+library(RColorBrewer)
+library(openxlsx)
+library(here)
+library(ggpubr)
+library(tidyverse)
+
+theme_set(theme_bw())
+```
+
+# Load data {.tabset}
+
+Auto detection of analysis type:
+  
+```{r test}
+params$survival_results
+```
+
+Results from copxh analysis:  
+
+```{r survres}
+res <- readRDS(here(params$survival_results))
+```
+  
+Detect basefile and analysis type:
+
+```{r}
+call = if_else(str_detect(params$survival_results, "multi"),
+               "multivariate", "univariate")
+
+event = if_else(str_detect(params$survival_results, "_drs."),
+               "distant recurrence","overall survival")
+
+input = if_else(str_detect(params$survival_results, "_inv_"),
+                "involution only", "all samples")
+
+coef = if_else(str_detect(params$survival_results, "interaction"),
+                  "Interaction", "Genewise")
+analysis_type = paste( coef, call, event, paste0("(",input,")"))
+print(paste0(basename(params$survival_results), ": ", analysis_type))
+```
+
+---
+title: '`r paste("Survival report:", analysis_type)`'
+---
+ 
+Gene annotation:
+
+```{r}
+gx_annot <- read_tsv(here(params$gx_annot), show_col_types = F)
+gx_annot = gx_annot %>% select(ensembl_gene_id = gene_id, gene_name,
+                               gene_type, description = gene_description) %>%
+  distinct()
+```
+
+For pathway analysis:
+
+```{r}
+source(here(params$tools))
+```
+
+## Gene sets
+
+For Fisher's exact tests
+
+```{r}
+gene_sets = list(
+  go_bp = flexgsea::read_gmt(here("data","external","gmt","c5.bp.v7.0.symbols.gmt")),
+  hallmark = flexgsea::read_gmt(here("data","external","gmt","h.all.v7.0.symbols.gmt")),
+  c2_canon = flexgsea::read_gmt(here("data","external","gmt","c2.cp.v7.0.symbols.gmt")),
+  c2_cgp = flexgsea::read_gmt(here("data","external","gmt","c2.cgp.v7.0.symbols.gmt"))
+)
+```
+
+## Colors
+
+```{r}
+cp = readRDS(here(params$cp))
+study_colors = cp$study_colors
+pam_colors = cp$pam_colors
+gene_colors = cp$gene_colors
+ppbc_colors = cp$ppbc_colors
+
+sp = readRDS(here(params$sp))
+```
+
+## Coxdata
+
+A sample x feature matrix, where the first columns are clinical covariates and the rest are genes.
+
+```{r}
+input
+```
+
+```{r}
+coxfile = ifelse(input == "all samples",
+                 here(params$coxdata),
+                 here(params$invcoxdata))
+
+print(paste("Loading", basename(coxfile)))
+coxdata = readRDS(coxfile)
+```
+
+## Gene expression matrix
+
+Has been TMM normalized/log2 transformed.
+
+```{r}
+geneEx = select(coxdata, ENSG00000000003:ncol(coxdata))
+geneEx = t(geneEx)
+geneEx[1:4,1:4]
+```
+
+Convert IDs to symbols and average duplicates.
+
+```{r}
+source(here(params$duplicates))
+geneEx = rownames_to_column(as.data.frame(geneEx), "ensembl_gene_id")
+geneEx = right_join(select(gx_annot, gene_name, ensembl_gene_id),
+                    geneEx, by = "ensembl_gene_id") %>%
+  select(-ensembl_gene_id)
+geneEx = summarize_expression_duplicate_ids(geneEx, id_column = "gene_name")
+```
+
+Format for pheatmap:
+
+```{r}
+rownames(geneEx) = NULL
+geneEx = column_to_rownames(geneEx, "GeneSymbol")
+geneEx = as.matrix(geneEx)
+geneEx[1:4,1:4]
+```
+
+## Sample data
+
+Extracted from dds.
+
+```{r}
+dds <- readRDS(here(params$dds))
+sampledata <- as.data.frame(colData(dds))
+```
+
+## Diffex results
+
+```{r}
+pw <- here(params$pw) %>% 
+  readxl::excel_sheets() %>% 
+  purrr::set_names() %>% 
+  purrr::map(readxl::read_excel, path = here(params$pw))
+#names(pw)
+
+ovr = here(params$ovr) %>% 
+  readxl::excel_sheets() %>% 
+  purrr::set_names() %>% 
+  purrr::map(readxl::read_excel, path = here(params$ovr))
+#names(ovr)
+
+diffex_list = append(pw, ovr)
+names(diffex_list) = str_remove_all(str_remove_all(names(diffex_list), "rep_"), "_all")
+names(diffex_list) = str_replace(names(diffex_list), "_", "_vs_")
+#names(res_list)
+
+diffex_list = bind_rows(diffex_list, .id="comparison")
+
+basemeans = ovr$rep_inv_rest_all %>%
+  select(ensembl_gene_id, baseMean, type=Type) %>%
+  arrange(ensembl_gene_id) %>% distinct() %>%
+  mutate(baseMean = round(baseMean, 2))
+
+stopifnot(nrow(filter(basemeans, duplicated(ensembl_gene_id))$ensembl_gene_id)==0)
+```
+
+## Survival results
+
+```{r}
+head(res)
+```
+
+Add average expression, condensed biotypes...
+
+```{r}
+res = res %>% left_join(., basemeans, by="ensembl_gene_id") %>%
+  select(gene_name:p.value, baseMean, type, everything())
+```
+
+...and selection involution padj and l2fcs to results:
+
+```{r}
+res = res %>% left_join(
+  ., select(filter(diffex_list, comparison == "inv_vs_nonprbc" ),
+       ensembl_gene_id, padj.inv_vs_nonprbc = padj,
+       l2fc.inv_vs_nonprbc = log2FoldChange),
+  by = "ensembl_gene_id"
+) %>% left_join(
+  ., select(filter(diffex_list, comparison == "inv_vs_rest" ),
+       ensembl_gene_id, padj.inv_vs_rest = padj,
+       l2fc.inv_vs_rest = log2FoldChange),
+  by = "ensembl_gene_id"
+) %>%
+  select(gene_name:type, padj.inv_vs_rest, padj.inv_vs_nonprbc,
+         l2fc.inv_vs_rest, l2fc.inv_vs_nonprbc, everything())
+
+res %>% head()
+```
+
+# Overview
+
+Example formula for coxph (one per gene):
+
+```{r}
+df_formulas = res %>% select(gene_name, ensembl_gene_id, call)
+as.character(df_formulas$call[[1]])
+res = res %>% select(-call)
+```
+
+```{r}
+df_thresh = tibble(cutoff = seq(0.05, 0.3, by =0.05),
+       hits = sapply(seq(0.05, 0.3, by =0.05), function(x){nrow(res[res$fdr <= x,])})
+)
+
+for(i in 1:nrow(df_thresh)){
+  print(paste0(
+    "Genes with fdr <= ", df_thresh$cutoff[i], ": ", df_thresh$hits[i]
+  ))
+}
+```
+
+Threshold selection.
+Pick the minimum threshold that has at least 20 hits for exploration.
+
+```{r}
+pthresh = df_thresh %>% filter(hits >= 20) %>% dplyr::slice(1) %>% pull(cutoff)
+if (length(pthresh) == 0){
+  pthresh <- 0.3
+}
+print(paste("Fdr threshold:", pthresh))
+```
+
+# Top genes
+
+Top 30 most significant results.
+
+```{r}
+res = res %>% arrange(fdr, p.value)
+
+head(res, 30)
+```
+
+Protein coding genes below the threshold:
+
+```{r}
+res %>% filter(type == "protein coding" & fdr <= !!pthresh) %>%
+  mutate(description = str_remove(description, "\\[.*\\]")) %>%
+  mutate(hit = paste(gene_name, description, "FDR",
+                     signif(fdr, 2), "nom.p", signif(p.value, 2),
+                     sep=": ")) %>%
+  pull(hit)
+```
+
+# Boxplot top 4
+
+Show the boxplots of gene expression for the top 5 hits.
+Should show if significance is driven by an outlier.
+
+```{r}
+gene_boxplot <- function(df, n = 4, sanno = sampledata,
+                         mat=geneEx, p = pthresh,
+                         colorby=event){
+  
+  # Select genes that meet the threshold and subset to top n
+  df <- df %>%
+    filter(fdr < pthresh) %>%
+    arrange(fdr) %>%
+    head(n) %>%
+    select(gene_name, fdr, beta)
+  #return(df)
+  
+  if(nrow(df)==0){
+    return(paste("No significant genes at fdr", pthresh))
+  }
+  
+  if(colorby == "overall survival"){
+    colorby <- "death"
+  } else if (colorby == "distant recurrence"){
+    colorby <- "distant_recurrence"
+  } else {stop("Event is not not overall survival or distant recurrence")}
+  
+  mat <- mat[rownames(mat) %in% df$gene_name, ]
+  
+  sanno <- select(sanno, sample_name, study_group,
+                  death, time_OS_months,
+                  distant_recurrence, time_DRS_months) %>%
+    mutate(death = as.factor(death), distant_recurrence = as.factor(distant_recurrence)) %>%
+    mutate(involution = factor(ifelse(study_group == "ppbcpw", "ppbcpw", "rest"),
+                               levels = c("rest", "ppbcpw")))
+  
+  df <- mat %>%
+    as.data.frame() %>%
+    rownames_to_column("gene_name") %>%
+    pivot_longer(cols = -gene_name, names_to = "sample_name",
+                 values_to = "expression") %>%
+    left_join(., df, by = "gene_name") %>%
+    right_join(sanno,.,by="sample_name") 
+  #return(df)
+  
+  df %>%
+    ggplot(aes(x = study_group, y = expression)) +
+    geom_jitter(height = 0, width = 0.2,
+                aes(color = get(colorby))) +
+    labs(color = colorby) +
+    facet_wrap(~gene_name)  +
+    ggtitle(paste("Top", n, "genes below FDR", pthresh, "\n", analysis_type))
+  
+}
+
+gene_boxplot(res) +
+  ggthemes::scale_color_colorblind()
+```
+
+# Kaplan-Meier top 4
+
+```{r}
+top_n_km <- function(df, n = 4, sanno = sampledata,
+                         mat=geneEx, p = pthresh, outcome=event){
+  df <- df %>%
+    filter(fdr < pthresh) %>%
+    arrange(fdr) %>%
+    head(n) %>%
+    select(gene_name, fdr, beta)
+  #return(df)
+  
+  if(nrow(df)==0){
+    return(paste("No significant genes at fdr", pthresh))
+  }
+  
+  mat <- mat[rownames(mat) %in% df$gene_name, ]
+  
+  sanno <- select(sanno, sample_name, study_group,
+                  death, time_OS_months,
+                  distant_recurrence, time_DRS_months) %>%
+    mutate(involution = factor(ifelse(study_group == "ppbcpw", "ppbcpw", "rest"),
+                               levels = c("rest", "ppbcpw")))
+  
+  df <- mat %>%
+    as.data.frame() %>%
+    rownames_to_column("gene_name") %>%
+    pivot_longer(cols = -gene_name, names_to = "sample_name",
+                 values_to = "expression") %>%
+    group_by(gene_name) %>%
+    mutate(gene_median = median(expression), .after = expression) %>%
+    mutate(gene_expression = factor(ifelse(expression > gene_median,
+                                           "high", "low"),
+                                    levels=c("low", "high"))) %>%
+    left_join(., df, by = "gene_name") %>%
+    right_join(sanno,.,by="sample_name") %>% as.data.frame()
+  
+  if(input == "involution only"){
+    df <- df %>% filter(study_group == "ppbcpw")
+  }
+  
+  pal <- cp$tertile_colors[names(cp$tertile_colors) %in% c("low", "high")]
+  
+  #return(df)
+  for(i in 1:length(unique(df$gene_name))){
+    
+    gene <- unique(df$gene_name)[i]
+   
+    thisgene <- df %>% filter(gene_name == gene) %>% as.data.frame()
+  
+    fdr <- signif(unique(thisgene$fdr),2)
+    
+    if(event == "overall survival" & coef == "Interaction"){
+      surv <- survfit(Surv(time=time_OS_months, event=death) ~ gene_expression,
+                      data = thisgene)
+      names(surv$strata) <- str_remove(names(surv$strata), "gene_expression=")
+      print(ggsurvplot(surv, pval=T,
+                       data = thisgene,
+                       facet.by = "involution",
+                       title = paste(gene, "FDR", fdr, analysis_type),
+                       ggtheme = theme_bw(),
+                       palette = pal,
+                       xlab = "Months",
+                       ylab = stringr::str_to_sentence(event)
+      ))
+    } else if(event == "distant recurrence" & coef == "Interaction"){
+      surv <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ gene_expression,
+                      data = thisgene)
+      names(surv$strata) <- str_remove(names(surv$strata), "gene_expression=")
+      print(ggsurvplot(surv, pval=T,
+                       data = thisgene,
+                       facet.by = "involution",
+                       title = paste(gene, "FDR", fdr, analysis_type),
+                       ggtheme = theme_bw(),
+                       palette = pal,
+                       xlab = "Months",
+                       ylab = stringr::str_to_sentence(event)
+      ))
+      
+    } else if(event == "overall survival" & coef == "Genewise"){
+      surv <- survfit(Surv(time=time_OS_months, event=death) ~ gene_expression,
+                      data = thisgene)
+      names(surv$strata) <- str_remove(names(surv$strata), "gene_expression=")
+      print(ggsurvplot(surv, pval=T,
+                       data = thisgene,
+                       title = paste(gene, "FDR", fdr, analysis_type),
+                       palette = pal,
+                       ggtheme = theme_bw(),
+                       xlab = "Months",
+                       ylab = stringr::str_to_sentence(event)
+      ))
+    } else if(event == "distant recurrence" & coef == "Genewise"){
+      surv <- survfit(Surv(time=time_OS_months, event=death) ~ gene_expression,
+                      data = thisgene)
+      names(surv$strata) <- str_remove(names(surv$strata), "gene_expression=")
+      print(ggsurvplot(surv, pval=T,
+                       data = thisgene,
+                       title = paste(gene, "FDR", fdr, analysis_type),
+                       ggtheme = theme_bw(),
+                       palette = pal,
+                       xlab = "Months",
+                       ylab = stringr::str_to_sentence(event)
+      ))
+      
+    } else {stop("Event must be overall survival or distant recurrence and
+                 coef must be Interaction or Genewise")}
+    
+    }
+}
+
+top_n_km(res)
+```
+
+# Deleterious genes
+
+Beta > 0 : Higher gene expression = Likelier death
+
+```{r, collapse=T}
+print(paste0("Genes with beta > 0, fdr <= ", pthresh, ": ",
+      nrow(res %>% filter(beta > 0 & fdr <= !!pthresh))))
+
+```
+
+```{r}
+res %>% filter(beta > 0 & fdr <= !!pthresh) %>%
+  mutate(description = str_remove(description, "\\[.*\\]")) %>%
+  mutate(hit = paste0(gene_name, ", ", "fdr: ", signif(fdr, 2),
+                      " beta: ", beta, ", ", description)) %>% pull(hit)
+```
+
+# Protective genes
+
+Beta < 0 : Lower gene expression = Likelier death
+
+```{r, collapse=T}
+print(paste0("Genes with beta < 0, fdr <= ", pthresh, ": ",
+      nrow(res %>% filter(beta < 0 & fdr <= !!pthresh))))
+
+```
+
+```{r}
+res %>% filter(beta < 0 & fdr <= !!pthresh) %>%
+  mutate(description = str_remove(description, "\\[.*\\]")) %>%
+  mutate(hit = paste0(gene_name, ", ", "fdr: ", signif(fdr, 2),
+                      " beta: ", beta, ", ", description)) %>%
+  pull(hit) %>% head(50)
+```
+
+# Pathway overview: Fisher's exact {.tabset}
+
+```{r}
+source(here(params$tools))
+paththresh <- 0.1
+paths = fisher_pathways(
+  sig_genes = pull(filter(res, fdr < !!pthresh),gene_name),
+      background_genes = res$gene_name,
+      list_signatures = gene_sets,
+      fdr_cutoff = paththresh,
+      verbose = F,
+      collapse_rows=F)
+
+print(paste0("Sig pathways for all genes associated with survival, fdr < ",
+             paththresh,": "))
+
+lapply(paths, nrow)
+```
+
+Top 20 pathways:
+
+```{r}
+bind_rows(paths, .id = "gene_set") %>%
+  arrange(fdr, pval, fold_enrichment) %>% 
+  select(- gene_set) %>%
+  select(pathway, fdr, pval, fold_enrichment,
+         members_in_sample,
+         path_in_sample, path_in_pop, everything()) %>%
+  head(20)
+```
+
+## Pathways for deleterious genes
+
+```{r}
+delpaths = fisher_pathways(
+  sig_genes = pull(filter(res, fdr < !!pthresh & beta > 0), gene_name),
+      background_genes = res$gene_name,
+      list_signatures = gene_sets,
+      fdr_cutoff = paththresh,
+      verbose = F,
+      collapse_rows=F)
+
+print(paste0("Sig pathways fdr < ", paththresh, ": "))
+
+lapply(delpaths, nrow)
+```
+
+Show the top 20 paths (if available)
+
+```{r}
+bind_rows(delpaths, .id = "gene_set") %>%
+  arrange(fdr, pval, fold_enrichment) %>% 
+  select( - gene_set) %>%
+  select(pathway, fdr, pval, fold_enrichment,
+         members_in_sample,
+         path_in_sample, path_in_pop, everything()) %>%
+  head(20)
+
+```
+
+## Pathways for protective genes
+
+```{r}
+goodpaths = fisher_pathways(
+  sig_genes = pull(filter(res, fdr < !!pthresh & beta < 0), gene_name),
+      background_genes = res$gene_name,
+      list_signatures = gene_sets,
+      fdr_cutoff = paththresh,
+      verbose = F,
+      collapse_rows=F)
+
+print(paste0("Sig pathways fdr < ", paththresh, ": "))
+
+lapply(goodpaths, nrow)
+```
+
+Show the top 20 paths (if available)
+
+```{r}
+bind_rows(goodpaths, .id = "gene_set") %>%
+  arrange(fdr, pval, fold_enrichment) %>% 
+  select( - gene_set) %>%
+  select(pathway, fdr, pval, fold_enrichment,
+         members_in_sample,
+         path_in_sample, path_in_pop, everything()) %>%
+  head(20)
+
+```
+
+# Heatmap
+
+Using a quantile-based color scale to prevent outliers from bleaching the heatmaps.
+
+```{r, fig.height=8, fig.width=7}
+#Define column annotation
+ann_df = coxdata[, c("PPBC", "death")]
+
+#Sort by survival
+ann_df = ann_df[order(ann_df$death),]
+
+#Subset geneEx to genes below threshold
+if(nrow(filter(res, fdr <= !!pthresh)) < 5){
+  mat = geneEx[rownames(geneEx) %in% head(res, 10)$gene_name, , drop=F]
+  ttext = paste0("Top 10:\n ", analysis_type)
+} else {
+ mat = geneEx[rownames(geneEx) %in% filter(res, fdr <= !!pthresh)$gene_name, , drop=F] 
+ ttext = paste0("Genewise fdr <", pthresh, ":\n ", analysis_type)
+}
+#dim(mat)
+
+#Match matrix columns to annotation
+mat = mat[,colnames(mat)[match(rownames(ann_df), colnames(mat))]]
+
+#sp$overall_survival #white is too light
+death_cols = sp$overall_survival
+death_cols[2] = "lightgray"
+
+#Quantile normalization
+quantile_breaks <- function(xs, n = 10) {
+  breaks <- quantile(xs, probs = seq(0, 1, length.out = n))
+  breaks[!duplicated(breaks)]
+}
+
+mat_breaks <- quantile_breaks(mat, n = 11)
+
+
+
+pheatmap::pheatmap(mat, show_colnames = F,fontsize_row = 7,
+                   scale="row", annotation_col = ann_df,
+                   cluster_cols = T, drop_levels = T,
+                   breaks =  mat_breaks,
+                   color = colorRampPalette(rev(brewer.pal(n = 11,
+                                                           name = "RdYlBu")))(length(mat_breaks) - 1),
+                   annotation_colors = list(PPBC = ppbc_colors[-5],
+                                            death = death_cols), #sp$overall_survival white is too light
+                   main = ttext
+) 
+```
+
+Alternative visualization without column clustering
+
+```{r, fig.height=8, fig.width=7}
+pheatmap::pheatmap(mat, show_colnames = F, fontsize_row = 7,
+                   scale="row", annotation_col = ann_df,
+                   cluster_cols = F, drop_levels = T,
+                   breaks =  mat_breaks,
+                   color = colorRampPalette(rev(brewer.pal(n = 11,
+                                                           name = "RdYlBu")))(length(mat_breaks) - 1),
+                   annotation_colors = list(PPBC = ppbc_colors[-5],
+                                            death = death_cols), #sp$overall_survival white is too light
+                   main = ttext
+) 
+```
+
+# Overlap with diffex
+
+Focusing exclusively on those genes significant in inv vs nonprbc or inv vs rest.
+
+Are there any genes that meet this criteria?
+
+```{r}
+res %>% filter(fdr <= !!pthresh) %>%
+  filter(padj.inv_vs_rest <= 0.05 | padj.inv_vs_nonprbc <= 0.05)
+```
+
+Show genes that are at least below 0.25 in both.
+Note that there's no l2fc cutoff here.
+
+```{r}
+res %>%
+  filter(fdr < 0.25 & padj.inv_vs_rest < 0.25 ) %>%
+  ggplot(aes(x = fdr, y = padj.inv_vs_rest,
+             color = type)) +
+  geom_point() +
+  scale_color_manual(values = cp$gene_colors) +
+  ggrepel::geom_label_repel(aes(label = gene_name),
+                            show.legend = F) +
+  ggtitle(paste("Genes with both cox fdr and inv vs rest padj < 0.25")) +
+  xlab("cox fdr") +
+  ylab("padj inv vs rest")
+
+res %>%
+  filter(fdr < 0.25 & padj.inv_vs_nonprbc < 0.25 ) %>%
+  ggplot(aes(x = fdr, y = padj.inv_vs_nonprbc,
+             color = type)) +
+  geom_point() +
+  scale_color_manual(values = cp$gene_colors) +
+  ggrepel::geom_label_repel(aes(label = gene_name),
+                            show.legend = F) +
+  ggtitle(paste("Genes with both cox fdr and inv vs nonprbc padj < 0.25")) +
+  xlab("cox fdr") +
+  ylab("padj inv vs nonprbc")
+
+```
+
+# Save data
+
+```{r}
+res = res %>%
+  mutate(analysis = analysis_type)
+
+resdir <- here("results/rnaseq/survival")
+dir.create(resdir, showWarnings = F)
+
+write_csv(res, here(resdir, str_replace(basename(params$survival_results),"Rds", "csv")))
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```

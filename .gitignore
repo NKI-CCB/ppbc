@@ -1,25 +1,23 @@
 .RData
-testingparalellel.txt
-snakemake_notuptodate
 .snakemake/
 *results
-postpartumbc.Rproj
-flexgsea_input_for_tycho.RData.gz
-flexgsea_crash_env.RData
-doc
-data
+*.Rproj
+
+data/rnaseq/*
+data/vectra/*
+data/external/index
+data/external/gene_ref
+data/external/gmt
 bin
-Rplots.pdf
+
 .here
-.git_old
 .Rproj.user
 .Rhistory
-z
-to_do.nb.html
-to_do.Rmd
-reports/spatial/archive
+
+*/archive
+doc/
 reports/spatial/batch_marker_viz
-reprots/spatial/object_qc_by_batch
+reports/spatial/object_qc_by_batch
 
 *.RData
 *.Rdata
@@ -30,7 +28,6 @@ reprots/spatial/object_qc_by_batch
 *.Rhistory
 *.html
 *.tar.xy
-*.csv
 *.xlsx
 *.pdf
 
@@ -38,20 +35,15 @@ renv/library
 reports/archive/
 reports/multiqc_data/
 reports/*.tar.xy
-reports/gene_reports/
-src/*test*
-src/lambda_score_example.R
+reports/rnaseq/gene_reports/
 *scratch*
-src/dec2018_samples/
-src/NMF.R
 spatial_example_code/
 *hugo_fpkm.txt
+*.fastq.gz
 
 shinyApp/*/data
 shinyApp/*/data_old
 shinyApp/*/*.pdf
 shinyApp/*/reports
 
-#Archive pre April 2020 metadata update
-reports/pre_April2020_metadata_update/
-src/src_pre_metadata_update_April2020/
+*notes*.txt

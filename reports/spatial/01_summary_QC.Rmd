@@ -9,6 +9,9 @@ output:
     toc_depth: 4
     df_print: paged
     highlight: kate
+params:
+  filedict: "data/vectra/metadata/file_location_dictionary.csv"
+  dir: "data/vectra/raw/summary"
 ---
 
 ```{r setup, include=FALSE}
@@ -24,7 +27,7 @@ theme_set(theme_bw())
 ```
 
 ```{r}
-filedict <- read_csv(here("data/metadata/spatial/00_file_location_dictionary.csv"))
+filedict <- read_csv(here(params$filedict))
 ```
 
 ## Summary files
@@ -35,7 +38,7 @@ MPIF26 = CD3_CD20_CD27_FoxP3_PanCK
 MPIF27 = CD3_CD8_CD138_CD20_PanCK
 
 ```{r}
-read_fn <- function(file, trim_string = here("data/vectra/raw/summary/")) {
+read_fn <- function(file, trim_string = here(paste0(params$dir, "/"))) {
   read_csv(file, col_types=cols(
       .default = col_double(),
       `Image Location` = col_character(),
@@ -48,12 +51,12 @@ read_fn <- function(file, trim_string = here("data/vectra/raw/summary/")) {
 }
 
 summary1 <-
-    list.files(here("data/vectra/raw/summary"), 
+    list.files(here(params$dir), 
                full.names = T, pattern = "MPIF26") %>% 
     map_df(~read_fn(.))
 
 summary2 <-
-    list.files(here("data/vectra/raw/summary"), 
+    list.files(here(params$dir), 
                full.names = T, pattern = "MPIF27") %>% 
     map_df(~read_fn(.))
 ```
@@ -226,8 +229,3 @@ plot_common_columns(col = "cd20_positive_cells")
 ```{r}
 sessionInfo()
 ```
-
-
-                         
-
-

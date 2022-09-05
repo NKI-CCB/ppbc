@@ -1,0 +1,473 @@
+---
+title: "Multivariate survival analysis for PPBC"
+date: "`r Sys.Date()`"
+author: "Kat Moore"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: kate
+    df_print: paged
+params:
+  coxdata: "data/rnaseq/interim/04_survdata.Rds"
+  dds: "data/rnaseq/interim/04_dds_PAM50_est.Rds"
+  color_palette: "data/rnaseq/interim/color_palettes.Rds"
+  survival_colors: "data/rnaseq/interim/survival_colors.Rds"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
+library(DESeq2)
+library(here)
+library(estimate)
+library(survival)
+library(survminer)
+library(tidyverse)
+library(ggthemes)
+library(RColorBrewer)
+library(ggpubr)
+
+theme_set(theme_bw())
+```
+
+## Load data
+
+Survival data and color palettes.
+
+```{r}
+coxdata <- readRDS(here(params$coxdata))
+dds <- readRDS(here(params$dds))
+color_palettes <- readRDS(here(params$color_palette))
+sp <- readRDS(here(params$survival_colors))
+```
+
+Remove "rest" categories from color palettes.
+
+```{r}
+color_palettes$study_colors <- color_palettes$study_colors[
+  names(color_palettes$study_colors) != "rest"]
+
+color_palettes$ppbc_colors <- color_palettes$ppbc_colors[
+  names(color_palettes$ppbc_colors) != "rest"]
+```
+
+## Sequential analysis of clinical covariates
+
+Check the importance oof our various clinical covariates.
+
+```{r}
+#colnames(coxdata)
+covariates <- c("age_at_diagnosis", "year_diagnosis","stage","grade",
+                "surgery", "radiotherapy", "hormonetherapy", "chemotherapy",
+                "herceptin")
+```
+
+Of the remaining covariates, only stage and surgery are significant.
+
+```{r}
+res.simple.univ <- sapply(
+  covariates,function(x) as.formula(paste('Surv(time=time_OS_months, event=death)~', x))) %>%
+  lapply(., function(x){coxph(x, data = coxdata)}) %>%
+  lapply(.,
+                       function(x){ 
+                          x <- summary(x)
+                          p.value<-signif(x$wald["pvalue"], digits=2)
+                          wald.test<-signif(x$wald["test"], digits=2)
+                          beta<-signif(x$coef[1], digits=2);#coeficient beta
+                          HR <-signif(x$coef[2], digits=2);#exp(beta)
+                          HR.confint.lower <- signif(x$conf.int[,"lower .95"], 2)
+                          HR.confint.upper <- signif(x$conf.int[,"upper .95"],2)
+                          HR <- paste0(HR, " (", 
+                                       HR.confint.lower, "-", HR.confint.upper, ")")
+                          res<-c(beta, HR, wald.test, p.value)
+                          names(res)<-c("beta", "HR (95% CI for HR)", "wald.test", 
+                                        "p.value")
+                          return(res)
+                          #return(exp(cbind(coef(x),confint(x))))
+                         })
+
+#res.simple.univ <- t(as.data.frame(res.simple.univ, check.names = FALSE))
+res.simple.univ
+```
+
+## Testing the proportional hazards assumption
+
+>In principle, the Schoenfeld residuals are independent of time. A plot that shows a non-random pattern against time is evidence of violation of the PH assumption.
+The proportional hazard assumption is supported by a non-significant relationship between residuals and time, and refuted by a significant relationship.
+For each covariate, the function cox.zph() correlates the corresponding set of scaled Schoenfeld residuals with time, to test for independence between residuals and time.
+Additionally, it performs a global test for the model as a whole.
+
+[Source](http://www.sthda.com/english/wiki/cox-model-assumptions)
+
+```{r}
+test.ph.os <- coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + year_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + PPBC,
+  data = coxdata) %>%
+  cox.zph()
+test.ph.os
+```
+
+### Year of diagnosis
+
+The most significant problem covariate is year_diagnosis, which we can see trends downwards over time.
+
+```{r}
+allcov.cox <- coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + year_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + PPBC,
+  data = coxdata)
+
+plot(test.ph.os, var = 2,
+     main = paste0("Schoenfeld p: ",
+                   signif(test.ph.os$table[2,3],2)))
+abline(h = coef(allcov.cox)[2], col = "red", lwd = 2, lty=2)
+#ggcoxzph(test.ph.os, var="year_diagnosis")[[1]]
+```
+
+It has a weak, non significant coefficient.
+
+```{r}
+res.simple.univ$year_diagnosis
+```
+
+We can safely discard this covariate.
+
+Run the model again without it and test for PH assumptions.
+
+```{r}
+adj.cov.cox <- coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + hormonetherapy + chemotherapy + herceptin + PAM50 + PPBC,
+  data = coxdata)
+cox.zph(adj.cov.cox)
+```
+
+### Treatment interventions
+
+Several of the various treatment interventions violate the proportional hazards assumption.
+
+Chemotherapy treands weakly downward over time, whereas hormonetherapy trends weakly upward over time.
+
+```{r}
+par(mfrow= c(1,2))
+#Chemo
+plot(test.ph.os, var = 8,
+     main = paste0("Schoenfeld p: ",
+                   signif(test.ph.os$table[8,3],2)))
+abline(h = coef(allcov.cox)[8], col = "red", lwd = 2, lty=2)
+#ggcoxzph(test.ph.os, var="chemotherapy")[[1]]
+
+#Hormone
+plot(test.ph.os, var = 7,
+     main = paste0("Schoenfeld p: ",
+                   signif(test.ph.os$table[7,3],2)))
+abline(h = coef(allcov.cox)[7], col = "red", lwd = 2, lty=2)
+#ggcoxzph(test.ph.os, var="hormonetherapy")[[1]]
+
+```
+
+For chemotherapy, the trend appears to be largely driven by outliers.
+For hormonetherapy, this is biologically logical, since hormonetherapy will be largely correlated with ER status.
+
+These covariates are stronger, albeit not significant, and in any case we cannot simply discard some interventions.
+
+```{r}
+res.simple.univ$chemotherapy
+res.simple.univ$hormonetherapy
+```
+
+To quote an expert within the department:
+
+>The effect of ER status on survival is not constant over time. 
+ER-negative patients have a high risk of dying in the first five years after diagnosis, but then the risk levels off. 
+This is in contrast to ER-positive patients, where the risk is much lower initially, but continuous at a similar level for a much longer time.
+Based on its association with ER status I do believe that tamoxifen treatment violates the assumption, but perhaps only in breast cancer overall, not in ER-positive patients. 
+For chemotherapy, I believe I have seen people use it as a normal covariate (which is admittedly not a proof of it being right). 
+My remark about chemotherapy was mostly triggered by your observation that the trend over time could be caused by outliers. In that case, you could just include it as a covariate, I suppose.
+
+We will stratify HT but not CT.
+
+```{r}
+coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + 
+    radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + 
+    PAM50 + PPBC,
+  data = coxdata) %>%
+  cox.zph()
+```
+
+### PAM50
+
+The trend over time appears to be largely driven by outliers. 
+However, since this is a categorical variable, the trend is harder to interpret.
+
+```{r}
+plot(test.ph.os, var = 10,
+     main = paste0("Schoenfeld p: ",
+                   signif(test.ph.os$table[10,3],2)))
+abline(h = coef(allcov.cox)[10], col = "red", lwd = 2, lty=2)
+```
+
+No individual level of PAM50 is significant compared to Basal, but for biological reasons, we cannot simply discard this covariate.
+It's too strong a signal in breast cancer to ignore.
+
+```{r}
+coxph(Surv(time=time_OS_months, event=death) ~ PAM50, data = coxdata)
+```
+
+Since we aren't interested in assessing the individual effect of PAM50 on survival, we can simply stratify it.
+
+```{r}
+coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + strata(PAM50) + PPBC,
+  data = coxdata) %>%
+  cox.zph()
+```
+
+### Stage
+
+Stage is just barely not sigificant when looking at Schoenfeld residuals.
+
+```{r}
+#plot(test.ph.os, var = 4,
+#     main = paste0("Schoenfeld p: ",
+#                   signif(test.ph.os$table[4,3],2)))
+#abline(h = coef(allcov.cox)[4], col = "red", lwd = 2, lty=2)
+ggcoxzph(test.ph.os, var="stage")[[1]]
+```
+
+However, the Schoenfeld individual test is no logner significant after the other problem covariates have been stratified, as we saw in the previous section.
+No further action is taken here.
+
+## Testing influential observations
+
+>Specifying the argument type = “dfbeta”, plots the estimated changes in the regression coefficients upon deleting each observation in turn; likewise, type=“dfbetas” produces the estimated changes in the coefficients divided by their standard errors.
+
+Although some notable outliers are present for nearly every covariate, the points are relatively evenly distributed around the center for all save PPBC-pregnancy.
+This cannot be corrected for without discarding some samples, which is not warranted based on these plots.
+
+```{r, fig.width=7, fig.height=10}
+coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + strata(PPBC),
+  data = coxdata) %>%
+ggcoxdiagnostics(., type = "dfbeta",
+                 linear.predictions = FALSE, ggtheme = theme_bw())
+```
+
+## Multivariate Cox models
+
+After diagnostics, we discard year of diagnosis and stratify hormonetherapy, chemotherapy and PAM50.
+
+Kaplan-Meier curves produced in this section will be corrected via the conditional method of `ggadjustedcurves()` from the `survminer` package.
+
+>For method = “conditional” a separate survival curve is plotted for each level of a grouping variable selected by variable argument. If this argument is not specified, then it will be extracted from the strata component of fit object. Subpopulations are balanced in a following way: (1) the data is replicated as many times as many subpopulations are considered (say k), (2) for each row in original data a set of k copies are created and for every copy a different value of a grouping variable is assigned, this will create a new dataset balanced in terms of grouping variables, (3) expected survival is calculated for each subpopulation based on the new artificial dataset. Here the model fit is not refitted.
+
+[Source](https://github.com/kassambara/survminer/blob/master/R/ggadjustedcurves.R)
+
+When displaying p values for these plots, we perform an anova with a reduced model that lacks the covariate of interest.
+
+## Adjusting for clinical covariates
+
+Advanced stage and PPBC involuting patients have a significantly worse outcome. 
+Patients who undergo surgery have a significantly better outcome.
+
+```{r}
+clin.cov.cox <- coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    PPBC,
+  data = coxdata)
+summary(clin.cov.cox)
+```
+
+It is worth noting that most patients underwent surgery, so it is likely that those patients who were inelligble were at an advanced stage of disease progression at diagnosis.
+
+```{r}
+table(coxdata$surgery)
+```
+
+For distant recurrence, stage remains significantly deleterious while surgery is significantly protective.
+Involuting patients are not significantly worse off.
+
+```{r}
+drs.clin.cov.cox <- coxph(
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    PPBC,
+  data = coxdata)
+summary(drs.clin.cov.cox)
+```
+
+## Adjused models for immune and stromal scores
+
+After adjusting for clinical covariates, immune tertile is significantly protective, especially for DRS.
+Stromal tertile is not.
+
+```{r}
+coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    PPBC +
+    stromal_tertile +
+    immune_tertile,
+  data = coxdata) %>% summary()
+
+coxph(
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    PPBC +
+    stromal_tertile +
+    immune_tertile,
+  data = coxdata) %>% summary()
+
+```
+
+## Adjused models for time in involution and breastfeeding
+
+```{r}
+inv_cox <- coxdata %>%
+  filter(study_group == "ppbcpw") %>%
+  na.omit()
+
+print(paste(nrow(inv_cox), "of", nrow(filter(coxdata, study_group == "ppbcpw")),
+            "involution samples with complete metadata have breastfeeding and time since weaning"))
+```
+
+Duration categories:
+
+```{r}
+inv_cox <- inv_cox %>%
+  mutate(involution = case_when(
+    months_involution <= 6 ~ "<= 6 months",
+    months_involution > 6 ~ "> 6 months",
+  )) %>% mutate(breastfeeding = case_when(
+    months_breastfeeding <= 1 ~ "<= 1 month",
+    months_breastfeeding > 1 ~ "> 1 month",
+  )) %>%
+  select(sample_name, months_involution, involution,
+         months_breastfeeding, breastfeeding, everything()) %>%
+  mutate(involution = factor(involution,
+                             levels = c("<= 6 months", "> 6 months")),
+         breastfeeding = factor(breastfeeding,
+                                levels = c("<= 1 month", "> 1 month")))
+
+inv_cox <- droplevels(inv_cox)
+inv_cox$involution %>% table()
+inv_cox$breastfeeding %>% table()
+```
+
+
+Numeric involution and breastfeeding duration:
+
+```{r}
+coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    months_involution +
+    months_breastfeeding,
+  data = inv_cox) %>% summary()
+
+coxph(
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    months_involution +
+    months_breastfeeding,
+  data = inv_cox) %>% summary()
+```
+
+Categorical variables involution (< 6 months) or breastfeeding (1 < month):
+
+```{r}
+coxph(
+  Surv(time=time_OS_months,
+       event=death) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    involution +
+    breastfeeding,
+  data = inv_cox) %>% summary()
+
+coxph(
+  Surv(time=time_DRS_months,
+       event=distant_recurrence) ~ age_at_diagnosis +
+    grade +
+    stage +
+    surgery +
+    radiotherapy +
+    strata(hormonetherapy) +
+    chemotherapy +
+    herceptin +
+    strata(PAM50) +
+    involution +
+    breastfeeding,
+  data = inv_cox) %>% summary()
+
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```

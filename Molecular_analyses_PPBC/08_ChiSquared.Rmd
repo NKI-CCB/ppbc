@@ -1,0 +1,2514 @@
+---
+title: "Chi-Squared analysis - categorical data"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+---
+
+# Loading Packages 
+
+```{r}
+library(tidyverse)
+library(readxl)
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("tximport")
+library(tximport)
+library(here)
+library(dplyr)
+library(tidyr)
+#install.packages("gplots")
+library(gplots)
+library(ggplot2)
+library(grid)
+#install.packages("vcd")
+library(vcd)
+#install.packages("corrplot")
+library(corrplot)
+#install.packages("ca")
+library(ca)
+library(scales)
+#install.packages("ggthemes")
+library(ggthemes)
+#install.packages("ztable")
+library(ztable)
+```
+
+# Load the data
+
+```{r}
+MCP_Data <- readRDS("PPBC_metadata.RDS")
+```
+
+# edit data
+
+create study_group_integer
+```{r}
+MCP_Data$study_group_integer <- NA
+MCP_Data$study_group_integer[MCP_Data$study_group=="ppbcpw"] <- 1
+MCP_Data$study_group_integer[MCP_Data$study_group=="ppbcdl"] <- 2
+MCP_Data$study_group_integer[MCP_Data$study_group=="prbc"] <- 3
+MCP_Data$study_group_integer[MCP_Data$study_group=="npbc"] <- 4
+```
+
+create grade subgroups
+```{r}
+MCP_Data$grade_I <- NA
+MCP_Data$grade_I[MCP_Data$grade=="grade I"] <- 1
+MCP_Data$grade_I[MCP_Data$grade=="grade II"] <- 0
+MCP_Data$grade_I[MCP_Data$grade=="grade III"] <- 0
+
+
+MCP_Data$grade_II <- NA
+MCP_Data$grade_II[MCP_Data$grade=="grade I"] <- 0
+MCP_Data$grade_II[MCP_Data$grade=="grade II"] <- 1
+MCP_Data$grade_II[MCP_Data$grade=="grade III"] <- 0
+
+
+MCP_Data$grade_III <- NA
+MCP_Data$grade_III[MCP_Data$grade=="grade I"] <- 0
+MCP_Data$grade_III[MCP_Data$grade=="grade II"] <- 0
+MCP_Data$grade_III[MCP_Data$grade=="grade III"] <- 1
+```
+
+create stage subgroups
+```{r}
+MCP_Data$stage_I <- NA
+MCP_Data$stage_I[MCP_Data$stage=="stage I"] <- 1
+MCP_Data$stage_I[MCP_Data$stage=="stage II"] <- 0
+MCP_Data$stage_I[MCP_Data$stage=="stage III"] <- 0
+MCP_Data$stage_I[MCP_Data$stage=="stage IV"] <- 0
+
+MCP_Data$stage_II <- NA
+MCP_Data$stage_II[MCP_Data$stage=="stage I"] <- 0
+MCP_Data$stage_II[MCP_Data$stage=="stage II"] <- 1
+MCP_Data$stage_II[MCP_Data$stage=="stage III"] <- 0
+MCP_Data$stage_II[MCP_Data$stage=="stage IV"] <- 0
+
+
+MCP_Data$stage_III <- NA
+MCP_Data$stage_III[MCP_Data$stage=="stage I"] <- 0
+MCP_Data$stage_III[MCP_Data$stage=="stage II"] <- 0
+MCP_Data$stage_III[MCP_Data$stage=="stage III"] <- 1
+MCP_Data$stage_III[MCP_Data$stage=="stage IV"] <- 0
+
+MCP_Data$stage_IV <- NA
+MCP_Data$stage_IV[MCP_Data$stage=="stage I"] <- 0
+MCP_Data$stage_IV[MCP_Data$stage=="stage II"] <- 0
+MCP_Data$stage_IV[MCP_Data$stage=="stage III"] <- 0
+MCP_Data$stage_IV[MCP_Data$stage=="stage IV"] <- 1
+```
+
+create PAM50 subgroups
+```{r}
+MCP_Data$PAM50_integer <- NA
+MCP_Data$PAM50_integer[MCP_Data$PAM50=="LumA"] <- 1
+MCP_Data$PAM50_integer[MCP_Data$PAM50=="LumB"] <- 2
+MCP_Data$PAM50_integer[MCP_Data$PAM50=="Her2"] <- 3
+MCP_Data$PAM50_integer[MCP_Data$PAM50=="Basal"] <- 4
+MCP_Data$PAM50_integer[MCP_Data$PAM50=="Normal"] <- 5
+```
+
+```{r}
+MCP_Data$LumA <- NA
+MCP_Data$LumA[MCP_Data$PAM50_integer=="1"] <- 1
+MCP_Data$LumA[MCP_Data$PAM50_integer=="2"] <- 0
+MCP_Data$LumA[MCP_Data$PAM50_integer=="3"] <- 0
+MCP_Data$LumA[MCP_Data$PAM50_integer=="4"] <- 0
+MCP_Data$LumA[MCP_Data$PAM50_integer=="5"] <- 0
+
+
+MCP_Data$LumB <- NA
+MCP_Data$LumB[MCP_Data$PAM50_integer=="1"] <- 0
+MCP_Data$LumB[MCP_Data$PAM50_integer=="2"] <- 1
+MCP_Data$LumB[MCP_Data$PAM50_integer=="3"] <- 0
+MCP_Data$LumB[MCP_Data$PAM50_integer=="4"] <- 0
+MCP_Data$LumB[MCP_Data$PAM50_integer=="5"] <- 0
+
+
+MCP_Data$Her2 <- NA
+MCP_Data$Her2[MCP_Data$PAM50_integer=="1"] <- 0
+MCP_Data$Her2[MCP_Data$PAM50_integer=="2"] <- 0
+MCP_Data$Her2[MCP_Data$PAM50_integer=="3"] <- 1
+MCP_Data$Her2[MCP_Data$PAM50_integer=="4"] <- 0
+MCP_Data$Her2[MCP_Data$PAM50_integer=="5"] <- 0
+
+MCP_Data$Basal <- NA
+MCP_Data$Basal[MCP_Data$PAM50_integer=="1"] <- 0
+MCP_Data$Basal[MCP_Data$PAM50_integer=="2"] <- 0
+MCP_Data$Basal[MCP_Data$PAM50_integer=="3"] <- 0
+MCP_Data$Basal[MCP_Data$PAM50_integer=="4"] <- 1
+MCP_Data$Basal[MCP_Data$PAM50_integer=="5"] <- 0
+
+MCP_Data$Normal <- NA
+MCP_Data$Normal[MCP_Data$PAM50_integer=="1"] <- 0
+MCP_Data$Normal[MCP_Data$PAM50_integer=="2"] <- 0
+MCP_Data$Normal[MCP_Data$PAM50_integer=="3"] <- 0
+MCP_Data$Normal[MCP_Data$PAM50_integer=="4"] <- 0
+MCP_Data$Normal[MCP_Data$PAM50_integer=="5"] <- 1
+```
+
+create clin_subype subgroups
+```{r}
+MCP_Data$clin_subtype_integer <- NA
+MCP_Data$clin_subtype_integer[MCP_Data$clin_subtype=="LumA"] <- 1
+MCP_Data$clin_subtype_integer[MCP_Data$clin_subtype=="Luminal B (HER2neg)"] <- 2
+MCP_Data$clin_subtype_integer[MCP_Data$clin_subtype=="Luminal B (HER2pos)"] <- 3
+MCP_Data$clin_subtype_integer[MCP_Data$clin_subtype=="HER2pos (non-luminal)"] <- 4
+MCP_Data$clin_subtype_integer[MCP_Data$clin_subtype=="TripleNegative"] <- 5
+```
+
+
+```{r}
+MCP_Data$LumAlike <- NA
+MCP_Data$LumAlike[MCP_Data$clin_subtype_integer=="1"] <- 1
+MCP_Data$LumAlike[MCP_Data$clin_subtype_integer=="2"] <- 0
+MCP_Data$LumAlike[MCP_Data$clin_subtype_integer=="3"] <- 0
+MCP_Data$LumAlike[MCP_Data$clin_subtype_integer=="4"] <- 0
+MCP_Data$LumAlike[MCP_Data$clin_subtype_integer=="5"] <- 0
+
+
+MCP_Data$LumBlike <- NA
+MCP_Data$LumBlike[MCP_Data$clin_subtype_integer=="1"] <- 0
+MCP_Data$LumBlike[MCP_Data$clin_subtype_integer=="2"] <- 1
+MCP_Data$LumBlike[MCP_Data$clin_subtype_integer=="3"] <- 0
+MCP_Data$LumBlike[MCP_Data$clin_subtype_integer=="4"] <- 0
+MCP_Data$LumBlike[MCP_Data$clin_subtype_integer=="5"] <- 0
+
+MCP_Data$Her2luminal <- NA
+MCP_Data$Her2luminal[MCP_Data$clin_subtype_integer=="1"] <- 0
+MCP_Data$Her2luminal[MCP_Data$clin_subtype_integer=="2"] <- 0
+MCP_Data$Her2luminal[MCP_Data$clin_subtype_integer=="3"] <- 1
+MCP_Data$Her2luminal[MCP_Data$clin_subtype_integer=="4"] <- 0
+MCP_Data$Her2luminal[MCP_Data$clin_subtype_integer=="5"] <- 0
+
+MCP_Data$Her2like <- NA
+MCP_Data$Her2like[MCP_Data$clin_subtype_integer=="1"] <- 0
+MCP_Data$Her2like[MCP_Data$clin_subtype_integer=="2"] <- 0
+MCP_Data$Her2like[MCP_Data$clin_subtype_integer=="3"] <- 0
+MCP_Data$Her2like[MCP_Data$clin_subtype_integer=="4"] <- 1
+MCP_Data$Her2like[MCP_Data$clin_subtype_integer=="5"] <- 0
+
+MCP_Data$TN <- NA
+MCP_Data$TN[MCP_Data$clin_subtype_integer=="1"] <- 0
+MCP_Data$TN[MCP_Data$clin_subtype_integer=="2"] <- 0
+MCP_Data$TN[MCP_Data$clin_subtype_integer=="3"] <- 0
+MCP_Data$TN[MCP_Data$clin_subtype_integer=="4"] <- 0
+MCP_Data$TN[MCP_Data$clin_subtype_integer=="5"] <- 1
+```
+
+create TIL subgroups
+```{r}
+MCP_Data$TIL_low <- NA
+MCP_Data$TIL_low[MCP_Data$TIL=="low"] <- 1
+MCP_Data$TIL_low[MCP_Data$TIL=="medium"] <- 0
+MCP_Data$TIL_low[MCP_Data$TIL=="high"] <- 0
+
+
+MCP_Data$TIL_medium <- NA
+MCP_Data$TIL_medium[MCP_Data$TIL=="low"] <- 0
+MCP_Data$TIL_medium[MCP_Data$TIL=="medium"] <- 1
+MCP_Data$TIL_medium[MCP_Data$TIL=="high"] <- 0
+
+
+MCP_Data$TIL_high <- NA
+MCP_Data$TIL_high[MCP_Data$TIL=="low"] <- 0
+MCP_Data$TIL_high[MCP_Data$TIL=="medium"] <- 0
+MCP_Data$TIL_high[MCP_Data$TIL=="high"] <- 1
+```
+
+create IG subgroups
+```{r}
+MCP_Data$IG_low <- NA
+MCP_Data$IG_low[MCP_Data$IG_ID=="low"] <- 1
+MCP_Data$IG_low[MCP_Data$IG_ID=="medium"] <- 0
+MCP_Data$IG_low[MCP_Data$IG_ID=="high"] <- 0
+
+MCP_Data$IG_medium <- NA
+MCP_Data$IG_medium[MCP_Data$IG_ID=="low"] <- 0
+MCP_Data$IG_medium[MCP_Data$IG_ID=="medium"] <- 1
+MCP_Data$IG_medium[MCP_Data$IG_ID=="high"] <- 0
+
+MCP_Data$IG_high <- NA
+MCP_Data$IG_high[MCP_Data$IG_ID=="low"] <- 0
+MCP_Data$IG_high[MCP_Data$IG_ID=="medium"] <- 0
+MCP_Data$IG_high[MCP_Data$IG_ID=="high"] <- 1
+```
+
+
+recreate MCP_IG based on new MCP_Data 
+```{r}
+MCP_IG <- subset(MCP_Data, IG_ID %in% c("low", "medium", "high"), )
+
+MCP_Filtered <- MCP_IG %>% filter(!is.na(death)) %>%
+  filter(time_OS_months > 20 | reason_death == "BC")
+
+MCP_IG %>%
+  mutate(keep = time_OS_months > 20 | reason_death == "BC") %>%
+  ggplot(aes(x = study_group, y = time_OS_months, shape = reason_death, color = keep)) +
+  geom_jitter(width = 0.1, height = 0) +
+  geom_hline(yintercept = 20) +
+  ggtitle("Discard samples with < 20 mo follow up, unless due to death")
+
+#sanity check
+table(MCP_IG$study_group)
+```
+
+# MCP_Final: Select only patients that have non-missing data in all analsyes (n=184)
+```{r}
+MCP_Final <- MCP_Filtered %>% filter(!is.na(distant_recurrence)) %>%
+  filter(!is.na(year_diagnosis)) %>%
+  filter(!is.na(grade)) %>%
+  filter(!is.na(stage)) %>%
+  filter(!is.na(PAM50)) %>%
+  filter(!is.na(surgery)) %>%
+  filter(!is.na(RT)) %>%
+  filter(!is.na(HT)) %>%
+  filter(!is.na(CT)) %>%
+  filter(!is.na(herceptin))
+
+table(MCP_Final$study_group)
+
+table(MCP_Final$study_group, MCP_Final$IG_ID)
+```
+
+
+subset data for within analyses
+```{r}
+MCP_inv_vs_npbc <- subset(MCP_Final, study_group %in% c("ppbcpw","npbc"), )
+MCP_inv_vs_prbc <- subset(MCP_Final, study_group %in% c("ppbcpw","prbc"), )
+MCP_inv_vs_lac <- subset(MCP_Final, study_group %in% c("ppbcpw","ppbcdl"), )
+MCP_prbc_vs_npbc <- subset(MCP_Final, study_group %in% c("prbc","npbc"), )
+MCP_inv <- subset(MCP_Final, study_group == "ppbcpw", )
+MCP_lac <- subset(MCP_Final, study_group == "ppbcdl", )
+MCP_prbc <- subset(MCP_Final, study_group == "prbc", )
+MCP_npbc <- subset(MCP_Final, study_group == "npbc", )
+```
+
+Change reference level
+```{r}
+MCP_Data$study_group <- ordered(MCP_Data$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+MCP_IG$study_group <- ordered(MCP_IG$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+MCP_Final$study_group <- ordered(MCP_Final$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+MCP_inv_vs_npbc$study_group <- ordered(MCP_inv_vs_npbc$study_group,
+                                levels = c("ppbcpw", "npbc"))
+MCP_inv_vs_prbc$study_group <- ordered(MCP_inv_vs_prbc$study_group,
+                                levels = c("ppbcpw", "prbc"))
+MCP_inv_vs_lac$study_group <- ordered(MCP_inv_vs_lac$study_group,
+                                levels = c("ppbcpw", "ppbcdl"))
+MCP_prbc_vs_npbc$study_group <- ordered(MCP_prbc_vs_npbc$study_group,
+                                levels = c("prbc", "npbc"))
+```
+
+
+# MCP_Final  - 184 patients 
+
+use all 184 patients from whom sequencing was performed with adequate data
+
+## IG cluster (high-medium-low)
+
+```{r}
+table(MCP_IG$study_group, MCP_IG$IG_ID)
+chisq_IG <- chisq.test(MCP_IG$study_group, MCP_IG$IG_ID, correct = F)
+prop.table(table(MCP_IG$study_group, MCP_IG$IG_ID),1)*100
+chisq_IG
+
+table.IG_ID <- table(MCP_IG$study_group, MCP_IG$IG_ID)
+```
+
+
+```{r}
+# For ppbcpw
+MCP_IG_inv <- MCP_inv %>%
+  mutate(IG_ID = as.ordered(IG_ID),
+         study_group = as.factor(study_group))
+MCP_IG_inv <- subset(MCP_IG_inv, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, IG_ID))
+summary(MCP_IG_inv %>% filter(is.na(IG_ID)))
+MCP_IG_inv <- MCP_IG_inv %>% filter(!is.na(IG_ID))
+MCP_IG_inv_prop <- MCP_IG_inv %>%
+  count(study_group, IG_ID) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_IG_inv_prop)
+
+# For ppbcdl
+MCP_IG_lac <- MCP_lac %>%
+  mutate(IG_ID = as.ordered(IG_ID),
+         study_group = as.factor(study_group))
+MCP_IG_lac <- subset(MCP_IG_lac, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, IG_ID))
+summary(MCP_IG_lac %>% filter(is.na(IG_ID)))
+MCP_IG_lac <- MCP_IG_lac %>% filter(!is.na(IG_ID))
+MCP_IG_lac_prop <- MCP_IG_lac %>%
+  count(study_group, IG_ID) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_IG_lac_prop)
+
+# For prbc
+MCP_IG_prbc <- MCP_prbc %>%
+  mutate(IG_ID = as.ordered(IG_ID),
+         study_group = as.factor(study_group))
+MCP_IG_prbc <- subset(MCP_IG_prbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, IG_ID))
+summary(MCP_IG_prbc %>% filter(is.na(IG_ID)))
+MCP_IG_prbc <- MCP_IG_prbc %>% filter(!is.na(IG_ID))
+MCP_IG_prbc_prop <- MCP_IG_prbc %>%
+  count(study_group, IG_ID) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_IG_prbc_prop)
+
+# For npbc
+MCP_IG_npbc <- MCP_npbc %>%
+  mutate(IG_ID = as.ordered(IG_ID),
+         study_group = as.factor(study_group))
+MCP_IG_npbc <- subset(MCP_IG_npbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, IG_ID))
+summary(MCP_IG_npbc %>% filter(is.na(IG_ID)))
+MCP_IG_npbc <- MCP_IG_npbc %>% filter(!is.na(IG_ID))
+MCP_IG_npbc_prop <- MCP_IG_npbc %>%
+  count(study_group, IG_ID) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_IG_npbc_prop)
+
+
+``` 
+
+
+```{r}
+plot(ca(table(MCP_IG$study_group, MCP_IG$IG_ID)))
+assoc(table(MCP_IG$study_group, MCP_IG$IG_ID), shade = TRUE, legend = TRUE)
+corrplot(chisq_IG$residuals, is.corr = FALSE)
+```
+
+
+## IG cluster (high-low)
+ 
+```{r}
+table(MCP_IG$study_group, MCP_IG$IG_ID_short)
+chisq_IG_short <- chisq.test(MCP_IG$study_group, MCP_IG$IG_ID_short, correct = F)
+prop.table(table(MCP_IG$study_group, MCP_IG$IG_ID_short),1)*100
+chisq_IG_short
+
+table.IG_ID_short <- table(MCP_IG$study_group, MCP_IG$IG_ID_short)
+```
+
+```{r}
+# For ppbcpw
+MCP_IG_inv_short <- MCP_inv %>%
+  mutate(IG_ID_short = as.ordered(IG_ID_short),
+         study_group = as.factor(study_group))
+MCP_IG_inv_short <- subset(MCP_IG_inv_short, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, IG_ID_short))
+summary(MCP_IG_inv_short %>% filter(is.na(IG_ID_short)))
+MCP_IG_inv_short <- MCP_IG_inv_short %>% filter(!is.na(IG_ID_short))
+MCP_IG_inv_short_prop <- MCP_IG_inv_short %>%
+  count(study_group, IG_ID_short) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_IG_inv_short_prop)
+
+# For ppbcdl
+MCP_IG_lac_short <- MCP_lac %>%
+  mutate(IG_ID_short = as.ordered(IG_ID_short),
+         study_group = as.factor(study_group))
+MCP_IG_lac_short <- subset(MCP_IG_lac_short, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, IG_ID_short))
+summary(MCP_IG_lac_short %>% filter(is.na(IG_ID_short)))
+MCP_IG_lac_short <- MCP_IG_lac_short %>% filter(!is.na(IG_ID_short))
+MCP_IG_lac_short_prop <- MCP_IG_lac_short %>%
+  count(study_group, IG_ID_short) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_IG_lac_short_prop)
+
+# For prbc
+MCP_IG_prbc_short <- MCP_prbc %>%
+  mutate(IG_ID_short = as.ordered(IG_ID_short),
+         study_group = as.factor(study_group))
+MCP_IG_prbc_short <- subset(MCP_IG_prbc_short, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, IG_ID_short))
+summary(MCP_IG_prbc_short %>% filter(is.na(IG_ID_short)))
+MCP_IG_prbc_short <- MCP_IG_prbc_short %>% filter(!is.na(IG_ID_short))
+MCP_IG_prbc_short_prop <- MCP_IG_prbc_short %>%
+  count(study_group, IG_ID_short) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_IG_prbc_short_prop)
+
+# For npbc
+MCP_IG_npbc_short <- MCP_npbc %>%
+  mutate(IG_ID_short = as.ordered(IG_ID_short),
+         study_group = as.factor(study_group))
+MCP_IG_npbc_short <- subset(MCP_IG_npbc_short, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, IG_ID_short))
+summary(MCP_IG_npbc_short %>% filter(is.na(IG_ID_short)))
+MCP_IG_npbc_short <- MCP_IG_npbc_short %>% filter(!is.na(IG_ID_short))
+MCP_IG_npbc_short_prop <- MCP_IG_npbc_short %>%
+  count(study_group, IG_ID_short) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_IG_npbc_short_prop)
+
+
+``` 
+
+
+```{r}
+assoc(table(MCP_IG$study_group, MCP_IG$IG_ID_short), shade = TRUE, legend = TRUE)
+COR_IG <- corrplot(chisq_IG_short$residuals, is.corr = FALSE, method = 'color')
+COR_IG
+```
+
+
+
+```{r}
+IG_plot <- MCP_IG %>%
+  mutate(IG_ID_short = as.ordered(IG_ID_short),
+         study_group = as.factor(study_group))
+
+IG_ID_short_prop <- IG_plot %>%
+  count(study_group, IG_ID_short) %>%
+  mutate(prop.table(n))
+
+as.data.frame(IG_ID_short_prop)
+
+df <- as.data.frame(IG_ID_short_prop)
+```
+
+```{r}
+gg_IG_ID_short_prop <- ggplot(data = data.frame()
+                             , aes(x = study_group, y = prop.table(n), fill = IG_ID_short)) +
+  geom_bar(stat = 'identity', position = 'dodge', alpha = 2/3) + 
+  scale_y_continuous(labels = percent) +
+  labs(x = 'study_group', y = NULL, fill = 'IG_ID_short', title = 'Proportion by TAPC score')
+
+gg_IG_ID_short_prop %+%
+  IG_ID_short_prop
+```
+
+```{r}
+IG_plot_v2 <- MCP_IG %>%
+  mutate(study_group = as.ordered(study_group),
+         IG_ID_short = as.factor(IG_ID_short))
+
+IG_ID_short_prop_v2 <- IG_plot_v2 %>%
+  count(study_group, IG_ID_short) %>%
+  mutate(prop.table(n))
+
+as.data.frame(IG_ID_short_prop_v2)
+```
+
+
+```{r}
+gg_IG_ID_short_prop_v2 <- ggplot(data = data.frame()
+                             , aes(x = IG_ID_short, y = prop.table(n), fill = study_group)) +
+  geom_bar(stat = 'identity', position = 'dodge', alpha = 2/3) + 
+  scale_y_continuous(labels = percent) +
+  labs(x = 'IG_ID_short', y = NULL, fill = 'study_group', title = 'Proportion by IG score')
+
+Plot_IG_study_group <- gg_IG_ID_short_prop_v2 %+%
+  IG_ID_short_prop_v2
+Plot_IG_study_group
+```
+
+
+## PAM50
+
+```{r}
+table_PAM50 <- table(MCP_IG$study_group, MCP_IG$PAM50)
+table_PAM50
+proptable_PAM50 <- prop.table(table_PAM50,1)*100
+proptable_PAM50
+chisq_PAM50 <- chisq.test(MCP_IG$study_group, MCP_IG$PAM50, correct = FALSE)
+chisq_PAM50
+```
+
+```{r}
+# For ppbcpw
+MCP_PAM50_inv <- MCP_inv %>%
+  mutate(PAM50 = as.ordered(PAM50),
+         study_group = as.factor(study_group))
+MCP_PAM50_inv <- subset(MCP_PAM50_inv, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, PAM50))
+summary(MCP_PAM50_inv %>% filter(is.na(PAM50)))
+MCP_PAM50_inv <- MCP_PAM50_inv %>% filter(!is.na(PAM50))
+MCP_PAM50_inv_prop <- MCP_PAM50_inv %>%
+  count(study_group, PAM50) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_PAM50_inv_prop)
+
+# For ppbcdl
+MCP_PAM50_lac <- MCP_lac %>%
+  mutate(PAM50 = as.ordered(PAM50),
+         study_group = as.factor(study_group))
+MCP_PAM50_lac <- subset(MCP_PAM50_lac, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, PAM50))
+summary(MCP_PAM50_lac %>% filter(is.na(PAM50)))
+MCP_PAM50_lac <- MCP_PAM50_lac %>% filter(!is.na(PAM50))
+MCP_PAM50_lac_prop <- MCP_PAM50_lac %>%
+  count(study_group, PAM50) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_PAM50_lac_prop)
+
+# For prbc
+MCP_PAM50_prbc <- MCP_prbc %>%
+  mutate(PAM50 = as.ordered(PAM50),
+         study_group = as.factor(study_group))
+MCP_PAM50_prbc <- subset(MCP_PAM50_prbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, PAM50))
+summary(MCP_PAM50_prbc %>% filter(is.na(PAM50)))
+MCP_PAM50_prbc <- MCP_PAM50_prbc %>% filter(!is.na(PAM50))
+MCP_PAM50_prbc_prop <- MCP_PAM50_prbc %>%
+  count(study_group, PAM50) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_PAM50_prbc_prop)
+
+# For npbc
+MCP_PAM50_npbc <- MCP_npbc %>%
+  mutate(PAM50 = as.ordered(PAM50),
+         study_group = as.factor(study_group))
+MCP_PAM50_npbc <- subset(MCP_PAM50_npbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, PAM50))
+summary(MCP_PAM50_npbc %>% filter(is.na(PAM50)))
+MCP_PAM50_npbc <- MCP_PAM50_npbc %>% filter(!is.na(PAM50))
+MCP_PAM50_npbc_prop <- MCP_PAM50_npbc %>%
+  count(study_group, PAM50) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_PAM50_npbc_prop)
+
+
+``` 
+
+
+```{r}
+plot(ca(table(MCP_IG$study_group, MCP_IG$PAM50)))
+assoc(table(MCP_IG$study_group, MCP_IG$PAM50), shade = TRUE, legend = TRUE)
+corrplot(chisq_PAM50$residuals, is.corr = FALSE)
+```
+
+
+## Molecular Subtype
+```{r}
+
+table_clin_subtype <- table(MCP_IG$study_group, MCP_IG$clin_subtype)
+table_clin_subtype
+proptable_clin_subtype <- prop.table(table_clin_subtype,1)*100
+proptable_clin_subtype
+chisq_clin_subtype <- chisq.test(MCP_IG$study_group, MCP_IG$clin_subtype_integer, correct = FALSE)
+chisq_clin_subtype
+
+```
+
+```{r}
+# For ppbcpw
+MCP_clin_subtype_inv <- MCP_inv %>%
+  mutate(clin_subtype = as.ordered(clin_subtype),
+         study_group = as.factor(study_group))
+MCP_clin_subtype_inv <- subset(MCP_clin_subtype_inv, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, clin_subtype))
+summary(MCP_clin_subtype_inv %>% filter(is.na(clin_subtype)))
+MCP_clin_subtype_inv <- MCP_clin_subtype_inv %>% filter(!is.na(clin_subtype))
+MCP_clin_subtype_inv_prop <- MCP_clin_subtype_inv %>%
+  count(study_group, clin_subtype) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_clin_subtype_inv_prop)
+
+# For ppbcdl
+MCP_clin_subtype_lac <- MCP_lac %>%
+  mutate(clin_subtype = as.ordered(clin_subtype),
+         study_group = as.factor(study_group))
+MCP_clin_subtype_lac <- subset(MCP_clin_subtype_lac, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, clin_subtype))
+summary(MCP_clin_subtype_lac %>% filter(is.na(clin_subtype)))
+MCP_clin_subtype_lac <- MCP_clin_subtype_lac %>% filter(!is.na(clin_subtype))
+MCP_clin_subtype_lac_prop <- MCP_clin_subtype_lac %>%
+  count(study_group, clin_subtype) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_clin_subtype_lac_prop)
+
+# For prbc
+MCP_clin_subtype_prbc <- MCP_prbc %>%
+  mutate(clin_subtype = as.ordered(clin_subtype),
+         study_group = as.factor(study_group))
+MCP_clin_subtype_prbc <- subset(MCP_clin_subtype_prbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, clin_subtype))
+summary(MCP_clin_subtype_prbc %>% filter(is.na(clin_subtype)))
+MCP_clin_subtype_prbc <- MCP_clin_subtype_prbc %>% filter(!is.na(clin_subtype))
+MCP_clin_subtype_prbc_prop <- MCP_clin_subtype_prbc %>%
+  count(study_group, clin_subtype) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_clin_subtype_prbc_prop)
+
+# For npbc
+MCP_clin_subtype_npbc <- MCP_npbc %>%
+  mutate(clin_subtype = as.ordered(clin_subtype),
+         study_group = as.factor(study_group))
+MCP_clin_subtype_npbc <- subset(MCP_clin_subtype_npbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, clin_subtype))
+summary(MCP_clin_subtype_npbc %>% filter(is.na(clin_subtype)))
+MCP_clin_subtype_npbc <- MCP_clin_subtype_npbc %>% filter(!is.na(clin_subtype))
+MCP_clin_subtype_npbc_prop <- MCP_clin_subtype_npbc %>%
+  count(study_group, clin_subtype) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_clin_subtype_npbc_prop)
+
+
+``` 
+
+```{r}
+
+plot(ca(table(MCP_IG$study_group, MCP_IG$clin_subtype)))
+assoc(table(MCP_IG$study_group, MCP_IG$clin_subtype), shade = TRUE, legend = TRUE)
+corrplot(chisq_clin_subtype$residuals, is.corr = FALSE)
+
+```
+
+
+## Grade
+
+```{r}
+table(MCP_IG$study_group, MCP_IG$grade)
+chisq_grade <- chisq.test(MCP_IG$study_group, MCP_IG$grade, correct=FALSE)
+prop.table(table(MCP_IG$study_group, MCP_IG$grade),1)*100
+chisq_grade
+```
+
+```{r}
+# For ppbcpw
+MCP_grade_inv <- MCP_inv %>%
+  mutate(grade = as.ordered(grade),
+         study_group = as.factor(study_group))
+MCP_grade_inv <- subset(MCP_grade_inv, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, grade))
+summary(MCP_grade_inv %>% filter(is.na(grade)))
+MCP_grade_inv <- MCP_grade_inv %>% filter(!is.na(grade))
+MCP_grade_inv_prop <- MCP_grade_inv %>%
+  count(study_group, grade) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_grade_inv_prop)
+
+# For ppbcdl
+MCP_grade_lac <- MCP_lac %>%
+  mutate(grade = as.ordered(grade),
+         study_group = as.factor(study_group))
+MCP_grade_lac <- subset(MCP_grade_lac, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, grade))
+summary(MCP_grade_lac %>% filter(is.na(grade)))
+MCP_grade_lac <- MCP_grade_lac %>% filter(!is.na(grade))
+MCP_grade_lac_prop <- MCP_grade_lac %>%
+  count(study_group, grade) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_grade_lac_prop)
+
+# For prbc
+MCP_grade_prbc <- MCP_prbc %>%
+  mutate(grade = as.ordered(grade),
+         study_group = as.factor(study_group))
+MCP_grade_prbc <- subset(MCP_grade_prbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, grade))
+summary(MCP_grade_prbc %>% filter(is.na(grade)))
+MCP_grade_prbc <- MCP_grade_prbc %>% filter(!is.na(grade))
+MCP_grade_prbc_prop <- MCP_grade_prbc %>%
+  count(study_group, grade) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_grade_prbc_prop)
+
+# For npbc
+MCP_grade_npbc <- MCP_npbc %>%
+  mutate(grade = as.ordered(grade),
+         study_group = as.factor(study_group))
+MCP_grade_npbc <- subset(MCP_grade_npbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, grade))
+summary(MCP_grade_npbc %>% filter(is.na(grade)))
+MCP_grade_npbc <- MCP_grade_npbc %>% filter(!is.na(grade))
+MCP_grade_npbc_prop <- MCP_grade_npbc %>%
+  count(study_group, grade) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_grade_npbc_prop)
+``` 
+```{r}
+plot(ca(table(MCP_IG$study_group, MCP_IG$grade)))
+assoc(table(MCP_IG$study_group, MCP_IG$grade), shade = TRUE, legend = TRUE)
+corrplot(chisq_grade$residuals, is.corr = FALSE)
+```
+
+
+## Stage
+
+```{r}
+
+table(MCP_IG$study_group, MCP_IG$stage)
+chisq_stage <- chisq.test(MCP_IG$study_group, MCP_IG$stage, correct=FALSE)
+prop.table(table(MCP_IG$study_group, MCP_IG$stage),1)*100
+chisq_stage
+
+table(MCP_IG$study_group, MCP_IG$stage)
+chisq.test(MCP_IG$study_group, MCP_IG$stage, correct=FALSE)
+
+```
+
+```{r}
+# For ppbcpw
+MCP_stage_inv <- MCP_inv %>%
+  mutate(stage = as.ordered(stage),
+         study_group = as.factor(study_group))
+MCP_stage_inv <- subset(MCP_stage_inv, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, stage))
+summary(MCP_stage_inv %>% filter(is.na(stage)))
+MCP_stage_inv <- MCP_stage_inv %>% filter(!is.na(stage))
+MCP_stage_inv_prop <- MCP_stage_inv %>%
+  count(study_group, stage) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_stage_inv_prop)
+
+# For ppbcdl
+MCP_stage_lac <- MCP_lac %>%
+  mutate(stage = as.ordered(stage),
+         study_group = as.factor(study_group))
+MCP_stage_lac <- subset(MCP_stage_lac, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, stage))
+summary(MCP_stage_lac %>% filter(is.na(stage)))
+MCP_stage_lac <- MCP_stage_lac %>% filter(!is.na(stage))
+MCP_stage_lac_prop <- MCP_stage_lac %>%
+  count(study_group, stage) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_stage_lac_prop)
+
+# For prbc
+MCP_stage_prbc <- MCP_prbc %>%
+  mutate(stage = as.ordered(stage),
+         study_group = as.factor(study_group))
+MCP_stage_prbc <- subset(MCP_stage_prbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, stage))
+summary(MCP_stage_prbc %>% filter(is.na(stage)))
+MCP_stage_prbc <- MCP_stage_prbc %>% filter(!is.na(stage))
+MCP_stage_prbc_prop <- MCP_stage_prbc %>%
+  count(study_group, stage) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_stage_prbc_prop)
+
+# For npbc
+MCP_stage_npbc <- MCP_npbc %>%
+  mutate(stage = as.ordered(stage),
+         study_group = as.factor(study_group))
+MCP_stage_npbc <- subset(MCP_stage_npbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, stage))
+summary(MCP_stage_npbc %>% filter(is.na(stage)))
+MCP_stage_npbc <- MCP_stage_npbc %>% filter(!is.na(stage))
+MCP_stage_npbc_prop <- MCP_stage_npbc %>%
+  count(study_group, stage) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_stage_npbc_prop)
+``` 
+
+```{r}
+plot(ca(table(MCP_IG$study_group, MCP_IG$stage)))
+assoc(table(MCP_IG$study_group, MCP_IG$stage), shade = TRUE, legend = TRUE)
+corrplot(chisq_stage$residuals, is.corr = FALSE)
+```
+
+
+## TIL
+
+```{r}
+table(MCP_IG$study_group, MCP_IG$TIL)
+chisq_TIL <- chisq.test(MCP_IG$study_group, MCP_IG$TIL, correct=FALSE)
+prop.table(table(MCP_IG$study_group, MCP_IG$TIL),1)*100
+chisq_TIL
+```
+
+```{r}
+# For ppbcpw
+MCP_TIL_inv <- MCP_inv %>%
+  mutate(TIL = as.ordered(TIL),
+         study_group = as.factor(study_group))
+MCP_TIL_inv <- subset(MCP_TIL_inv, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, TIL))
+summary(MCP_TIL_inv %>% filter(is.na(TIL)))
+MCP_TIL_inv <- MCP_TIL_inv %>% filter(!is.na(TIL))
+MCP_TIL_inv_prop <- MCP_TIL_inv %>%
+  count(study_group, TIL) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_TIL_inv_prop)
+
+# For ppbcdl
+MCP_TIL_lac <- MCP_lac %>%
+  mutate(TIL = as.ordered(TIL),
+         study_group = as.factor(study_group))
+MCP_TIL_lac <- subset(MCP_TIL_lac, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, TIL))
+summary(MCP_TIL_lac %>% filter(is.na(TIL)))
+MCP_TIL_lac <- MCP_TIL_lac %>% filter(!is.na(TIL))
+MCP_TIL_lac_prop <- MCP_TIL_lac %>%
+  count(study_group, TIL) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_TIL_lac_prop)
+
+# For prbc
+MCP_TIL_prbc <- MCP_prbc %>%
+  mutate(TIL = as.ordered(TIL),
+         study_group = as.factor(study_group))
+MCP_TIL_prbc <- subset(MCP_TIL_prbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, TIL))
+summary(MCP_TIL_prbc %>% filter(is.na(TIL)))
+MCP_TIL_prbc <- MCP_TIL_prbc %>% filter(!is.na(TIL))
+MCP_TIL_prbc_prop <- MCP_TIL_prbc %>%
+  count(study_group, TIL) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_TIL_prbc_prop)
+
+# For npbc
+MCP_TIL_npbc <- MCP_npbc %>%
+  mutate(TIL = as.ordered(TIL),
+         study_group = as.factor(study_group))
+MCP_TIL_npbc <- subset(MCP_TIL_npbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, TIL))
+summary(MCP_TIL_npbc %>% filter(is.na(TIL)))
+MCP_TIL_npbc <- MCP_TIL_npbc %>% filter(!is.na(TIL))
+MCP_TIL_npbc_prop <- MCP_TIL_npbc %>%
+  count(study_group, TIL) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_TIL_npbc_prop)
+``` 
+```{r}
+plot(ca(table(MCP_IG$study_group, MCP_IG$TIL)))
+assoc(table(MCP_IG$study_group, MCP_IG$TIL), shade = TRUE, legend = TRUE)
+corrplot(chisq_TIL$residuals, is.corr = FALSE)
+```
+
+
+
+# ppbcpw vs npbc
+
+```{r}
+table(MCP_inv_vs_npbc$study_group)
+```
+
+## Grade
+```{r}
+table.MCP_grade_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade)
+table.MCP_grade_inv_npbc
+prop.table(table.MCP_grade_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade, correct=FALSE)
+```
+
+```{r}
+table(MCP_inv_vs_npbc$grade_I)
+```
+
+
+### grade I
+
+```{r}
+table.MCP_grade_I_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade_I)
+table.MCP_grade_I_inv_npbc
+prop.table(table.MCP_grade_I_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade_I, correct=FALSE)
+fisher.test(table.MCP_grade_I_inv_npbc)
+```
+
+### grade II
+
+```{r}
+table.MCP_grade_II_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade_II)
+table.MCP_grade_II_inv_npbc
+prop.table(table.MCP_grade_II_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade_II, correct=FALSE)
+fisher.test(table.MCP_grade_II_inv_npbc)
+```
+
+### grade III
+
+```{r}
+table.MCP_grade_III_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade_III)
+table.MCP_grade_III_inv_npbc
+prop.table(table.MCP_grade_III_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade_III, correct=FALSE)
+fisher.test(table.MCP_grade_III_inv_npbc)
+```
+
+
+## Stage
+
+```{r}
+table.MCP_stage_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage)
+table.MCP_stage_inv_npbc
+prop.table(table.MCP_stage_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage, correct=FALSE)
+fisher.test(table.MCP_stage_inv_npbc)
+```
+
+
+### Stage I 
+
+```{r}
+table.MCP_stage_I_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_I)
+table.MCP_stage_I_inv_npbc
+prop.table(table.MCP_stage_I_inv_npbc, 1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_I, correct=FALSE)
+fisher.test(table.MCP_stage_I_inv_npbc)
+```
+
+
+### Stage II
+
+```{r}
+table.MCP_stage_II_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_II)
+table.MCP_stage_II_inv_npbc
+prop.table(table.MCP_stage_II_inv_npbc, 1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_II, correct=FALSE)
+fisher.test(table.MCP_stage_II_inv_npbc)
+```
+
+
+### Stage III
+
+```{r}
+table.MCP_stage_III_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_III)
+table.MCP_stage_III_inv_npbc
+prop.table(table.MCP_stage_III_inv_npbc, 1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_III, correct = FALSE)
+fisher.test(table.MCP_stage_III_inv_npbc)
+```
+
+### Stage IV
+
+```{r}
+table.MCP_stage_IV_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_IV)
+table.MCP_stage_IV_inv_npbc
+prop.table(table.MCP_stage_IV_inv_npbc, 1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_IV, correct=FALSE)
+fisher.test(table.MCP_stage_IV_inv_npbc)
+```
+
+
+## Molecular Subtype
+
+## PAM50
+```{r}
+table.CP_PAM50_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$PAM50)
+table.CP_PAM50_inv_npbc
+prop.table(table.CP_PAM50_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$PAM50, correct = FALSE)
+```
+
+
+### Luminal A 
+```{r}
+table.CP_luminalA_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$LumA)
+table.CP_luminalA_inv_npbc
+prop.table(table.CP_luminalA_inv_npbc,1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$LumA, correct = FALSE)
+fisher.test(table.CP_luminalA_inv_npbc)
+```
+
+
+### Luminal B
+```{r}
+table.CP_LumB_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$LumB)
+table.CP_LumB_inv_npbc
+prop.table(table.CP_LumB_inv_npbc,1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$LumB, correct = FALSE)
+fisher.test(table.CP_LumB_inv_npbc)
+```
+
+### HER2+
+```{r}
+table.CP_HER2_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$Her2)
+table.CP_HER2_inv_npbc
+prop.table(table.CP_HER2_inv_npbc,1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$Her2)
+fisher.test(table.CP_HER2_inv_npbc)
+```
+
+
+### Basal
+```{r}
+table.CP_Basal_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$Basal)
+table.CP_Basal_inv_npbc
+prop.table(table.CP_Basal_inv_npbc,1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$Basal, correct = FALSE)
+fisher.test(table.CP_Basal_inv_npbc)
+```
+
+
+### Normal
+```{r}
+table.CP_Normal_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$Normal)
+table.CP_Normal_inv_npbc
+prop.table(table.CP_Normal_inv_npbc,1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$Normal, correct = FALSE)
+fisher.test(table.CP_Normal_inv_npbc)
+```
+
+
+## ER
+```{r}
+table.CP_ER_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$ER)
+table.CP_ER_inv_npbc
+prop.table(table.CP_ER_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$ER, correct=FALSE)
+fisher.test(table.CP_ER_inv_npbc)
+```
+
+## PR
+```{r}
+table.CP_PR_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$PR)
+table.CP_PR_inv_npbc
+prop.table(table.CP_PR_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$PR, correct=FALSE)
+fisher.test(table.CP_PR_inv_npbc)
+```
+
+## HER2
+```{r}
+table.CP_HER2_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$HER2)
+table.CP_HER2_inv_npbc
+prop.table(table.CP_HER2_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$HER2, correct=FALSE)
+fisher.test(table.CP_HER2_inv_npbc)
+```
+
+
+## Surgery
+```{r}
+table.CP_surgery_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$surgery)
+table.CP_surgery_inv_npbc
+prop.table(table.CP_surgery_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$surgery, correct=FALSE)
+fisher.test(table.CP_surgery_inv_npbc)
+```
+
+## CT
+
+```{r}
+table.CP_CT_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$CT)
+table.CP_CT_inv_npbc
+prop.table(table.CP_CT_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$CT, correct=FALSE)
+fisher.test(table.CP_CT_inv_npbc)
+```
+
+### CT_type
+```{r}
+table.CP_CT_type_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$CT_type)
+table.CP_CT_type_inv_npbc
+prop.table(table.CP_CT_type_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$CT_type, correct=FALSE)
+fisher.test(table.CP_CT_type_inv_npbc)
+```
+
+## RT
+```{r}
+table.CP_RT_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$RT)
+table.CP_RT_inv_npbc
+prop.table(table.CP_RT_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$RT, correct=FALSE)
+fisher.test(table.CP_RT_inv_npbc)
+```
+
+## HT
+```{r}
+table.CP_HT_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$HT)
+table.CP_HT_inv_npbc
+prop.table(table.CP_HT_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$HT, correct=FALSE)
+fisher.test(table.CP_HT_inv_npbc)
+```
+
+## herceptin
+```{r}
+table.CP_herceptin_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$herceptin)
+table.CP_herceptin_inv_npbc
+prop.table(table.CP_herceptin_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$herceptin, correct=FALSE)
+fisher.test(table.CP_herceptin_inv_npbc)
+```
+
+
+# TIL
+
+## ppbcpw vs NP-BC
+
+```{r}
+table.MCP_TIL_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$TIL)
+table.MCP_TIL_inv_npbc
+prop.table(table.MCP_TIL_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$TIL, correct=FALSE)
+```
+
+### low
+
+```{r}
+table.MCP_TIL_low_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$TIL_low)
+table.MCP_TIL_low_inv_npbc
+prop.table(table.MCP_TIL_low_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$TIL_low, correct=FALSE)
+fisher.test(table.MCP_TIL_low_inv_npbc)
+```
+
+### medium
+
+```{r}
+table.MCP_TIL_medium_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$TIL_medium)
+table.MCP_TIL_medium_inv_npbc
+prop.table(table.MCP_TIL_medium_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$TIL_medium, correct=FALSE)
+fisher.test(table.MCP_TIL_medium_inv_npbc)
+```
+
+### high
+
+```{r}
+table.MCP_TIL_high_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$TIL_high)
+table.MCP_TIL_high_inv_npbc
+prop.table(table.MCP_TIL_high_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$TIL_high, correct=FALSE)
+fisher.test(table.MCP_TIL_high_inv_npbc)
+```
+
+
+## ppbcpw vs prbc
+
+Make npbc the reference level
+
+```{r}
+table(MCP_inv_vs_prbc$study_group)
+```
+
+
+```{r}
+table.MCP_TIL_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$TIL)
+table.MCP_TIL_inv_prbc
+prop.table(table.MCP_TIL_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$TIL, correct=FALSE)
+```
+
+### low
+
+```{r}
+table.MCP_TIL_low_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$TIL_low)
+table.MCP_TIL_low_inv_prbc
+prop.table(table.MCP_TIL_low_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$TIL_low, correct=FALSE)
+fisher.test(table.MCP_TIL_low_inv_prbc)
+```
+
+### medium
+
+```{r}
+table.MCP_TIL_medium_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$TIL_medium)
+table.MCP_TIL_medium_inv_prbc
+prop.table(table.MCP_TIL_medium_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$TIL_medium, correct=FALSE)
+fisher.test(table.MCP_TIL_medium_inv_prbc)
+```
+
+### high
+
+```{r}
+table.MCP_TIL_high_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$TIL_high)
+table.MCP_TIL_high_inv_prbc
+prop.table(table.MCP_TIL_high_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$TIL_high, correct=FALSE)
+fisher.test(table.MCP_TIL_high_inv_prbc)
+```
+
+
+## ppbcpw vs ppbcdl
+
+Make npbc the reference level
+
+```{r}
+table(MCP_inv_vs_lac$study_group)
+```
+
+
+```{r}
+table.MCP_TIL_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$TIL)
+table.MCP_TIL_inv_lac
+prop.table(table.MCP_TIL_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$TIL, correct=FALSE)
+```
+
+```{r}
+table(MCP_inv_vs_lac$TIL_low)
+table(MCP_inv_vs_lac$TIL_medium)
+table(MCP_inv_vs_lac$TIL_high)
+```
+
+
+### low
+
+```{r}
+table.MCP_TIL_low_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$TIL_low)
+table.MCP_TIL_low_inv_lac
+prop.table(table.MCP_TIL_low_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$TIL_low, correct=FALSE)
+fisher.test(table.MCP_TIL_low_inv_lac)
+```
+
+### medium
+
+```{r}
+table.MCP_TIL_medium_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$TIL_medium)
+table.MCP_TIL_medium_inv_lac
+prop.table(table.MCP_TIL_medium_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$TIL_medium, correct=FALSE)
+fisher.test(table.MCP_TIL_medium_inv_lac)
+```
+
+### high
+
+```{r}
+table.MCP_TIL_high_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$TIL_high)
+table.MCP_TIL_high_inv_lac
+prop.table(table.MCP_TIL_high_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$TIL_high, correct=FALSE)
+fisher.test(table.MCP_TIL_high_inv_lac)
+```
+
+
+# Ig-signature
+
+## ppbcpw vs NP-BC
+
+```{r}
+table.MCP_IG_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$IG_ID)
+table.MCP_IG_inv_npbc
+prop.table(table.MCP_IG_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$IG_ID, correct=FALSE)
+```
+
+```{r}
+table(MCP_inv_vs_npbc$IG_low)
+table(MCP_inv_vs_npbc$IG_medium)
+table(MCP_inv_vs_npbc$IG_high)
+```
+
+### low
+```{r}
+table.MCP_IG_low_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$IG_low)
+table.MCP_IG_low_inv_npbc
+prop.table(table.MCP_IG_low_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$IG_low, correct=FALSE)
+fisher.test(table.MCP_IG_low_inv_npbc)
+```
+
+### medium
+```{r}
+table.MCP_IG_low_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$IG_medium)
+table.MCP_IG_low_inv_npbc
+prop.table(table.MCP_IG_low_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$IG_medium, correct=FALSE)
+fisher.test(table.MCP_IG_low_inv_npbc)
+```
+
+
+### high
+```{r}
+table.MCP_IG_high_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$IG_high)
+table.MCP_IG_high_inv_npbc
+prop.table(table.MCP_IG_high_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$IG_high, correct=FALSE)
+fisher.test(table.MCP_IG_high_inv_npbc)
+```
+
+## ppbcpw vs prbc
+```{r}
+table.MCP_IG_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$IG_ID)
+table.MCP_IG_inv_prbc
+prop.table(table.MCP_IG_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$IG_ID, correct=FALSE)
+```
+
+```{r}
+table(MCP_inv_vs_prbc$IG_low)
+table(MCP_inv_vs_prbc$IG_medium)
+table(MCP_inv_vs_prbc$IG_high)
+```
+
+
+### low
+```{r}
+table.MCP_IG_low_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$IG_low)
+table.MCP_IG_low_inv_prbc
+prop.table(table.MCP_IG_low_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$IG_low, correct=FALSE)
+fisher.test(table.MCP_IG_low_inv_prbc)
+```
+
+### median
+```{r}
+table.MCP_IG_low_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$IG_medium)
+table.MCP_IG_low_inv_prbc
+prop.table(table.MCP_IG_low_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$IG_medium, correct=FALSE)
+fisher.test(table.MCP_IG_low_inv_prbc)
+```
+
+### high
+```{r}
+table.MCP_IG_high_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$IG_high)
+table.MCP_IG_high_inv_prbc
+prop.table(table.MCP_IG_high_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$IG_high, correct=FALSE)
+fisher.test(table.MCP_IG_high_inv_prbc)
+```
+
+
+## ppbcpw vs ppbcdl
+
+```{r}
+table.MCP_IG_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$IG_ID)
+table.MCP_IG_inv_lac
+prop.table(table.MCP_IG_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$IG_ID, correct=FALSE)
+```
+
+```{r}
+table(MCP_inv_vs_lac$IG_low)
+table(MCP_inv_vs_lac$IG_medium)
+table(MCP_inv_vs_lac$IG_high)
+```
+
+
+### low
+```{r}
+table.MCP_IG_low_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$IG_low)
+table.MCP_IG_low_inv_lac
+prop.table(table.MCP_IG_low_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$IG_low, correct=FALSE)
+fisher.test(table.MCP_IG_low_inv_lac)
+```
+
+### median
+```{r}
+table.MCP_IG_low_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$IG_medium)
+table.MCP_IG_low_inv_lac
+prop.table(table.MCP_IG_low_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$IG_medium, correct=FALSE)
+fisher.test(table.MCP_IG_low_inv_lac)
+```
+
+### high
+```{r}
+table.MCP_IG_high_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$IG_high)
+table.MCP_IG_high_inv_lac
+prop.table(table.MCP_IG_high_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$IG_high, correct=FALSE)
+fisher.test(table.MCP_IG_high_inv_lac)
+```
+
+
+# MCP_Data - 230 patients 
+use all 230 patients that are included in the study (also those that we only have immunological data for)
+
+```{r}
+MCP_inv <- subset(MCP_Data, study_group == "ppbcpw", )
+MCP_lac <- subset(MCP_Data, study_group == "ppbcdl", )
+MCP_prbc <- subset(MCP_Data, study_group == "prbc", )
+MCP_npbc <- subset(MCP_Data, study_group == "npbc", )
+MCP_inv_vs_npbc <- subset(MCP_Data, study_group %in% c("ppbcpw","npbc"), )
+MCP_inv_vs_prbc <- subset(MCP_Data, study_group %in% c("ppbcpw","prbc"), )
+MCP_inv_vs_lac <- subset(MCP_Data, study_group %in% c("ppbcpw","ppbcdl"), )
+MCP_prbc_vs_npbc <- subset(MCP_Data, study_group %in% c("prbc","npbc"), )
+```
+
+Change reference level
+```{r}
+MCP_inv$study_group <- ordered(MCP_inv$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+MCP_lac$study_group <- ordered(MCP_lac$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+MCP_prbc$study_group <- ordered(MCP_prbc$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+MCP_npbc$study_group <- ordered(MCP_npbc$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+MCP_inv_vs_npbc$study_group <- ordered(MCP_inv_vs_npbc$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+MCP_inv_vs_prbc$study_group <- ordered(MCP_inv_vs_prbc$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+MCP_inv_vs_lac$study_group <- ordered(MCP_inv_vs_lac$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+MCP_prbc_vs_npbc$study_group <- ordered(MCP_prbc_vs_npbc$study_group,
+                                levels = c("ppbcpw", "ppbcdl", "prbc", "npbc"))
+```
+
+
+```{r}
+table(MCP_Data$study_group)
+```
+
+
+## Molecular Subtype
+```{r}
+table_clin_subtype <- table(MCP_Data$study_group, MCP_Data$clin_subtype)
+table_clin_subtype
+proptable_clin_subtype <- prop.table(table_clin_subtype,1)*100
+proptable_clin_subtype
+chisq_clin_subtype <- chisq.test(MCP_Data$study_group, MCP_Data$clin_subtype_integer, correct = FALSE)
+chisq_clin_subtype
+```
+
+```{r}
+# For ppbcpw
+MCP_clin_subtype_inv <- MCP_inv %>%
+  mutate(clin_subtype = as.ordered(clin_subtype),
+         study_group = as.factor(study_group))
+MCP_clin_subtype_inv <- subset(MCP_clin_subtype_inv, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, clin_subtype))
+summary(MCP_clin_subtype_inv %>% filter(is.na(clin_subtype)))
+MCP_clin_subtype_inv <- MCP_clin_subtype_inv %>% filter(!is.na(clin_subtype))
+MCP_clin_subtype_inv_prop <- MCP_clin_subtype_inv %>%
+  count(study_group, clin_subtype) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_clin_subtype_inv_prop)
+
+# For ppbcdl
+MCP_clin_subtype_lac <- MCP_lac %>%
+  mutate(clin_subtype = as.ordered(clin_subtype),
+         study_group = as.factor(study_group))
+MCP_clin_subtype_lac <- subset(MCP_clin_subtype_lac, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, clin_subtype))
+summary(MCP_clin_subtype_lac %>% filter(is.na(clin_subtype)))
+MCP_clin_subtype_lac <- MCP_clin_subtype_lac %>% filter(!is.na(clin_subtype))
+MCP_clin_subtype_lac_prop <- MCP_clin_subtype_lac %>%
+  count(study_group, clin_subtype) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_clin_subtype_lac_prop)
+
+# For prbc
+MCP_clin_subtype_prbc <- MCP_prbc %>%
+  mutate(clin_subtype = as.ordered(clin_subtype),
+         study_group = as.factor(study_group))
+MCP_clin_subtype_prbc <- subset(MCP_clin_subtype_prbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, clin_subtype))
+summary(MCP_clin_subtype_prbc %>% filter(is.na(clin_subtype)))
+MCP_clin_subtype_prbc <- MCP_clin_subtype_prbc %>% filter(!is.na(clin_subtype))
+MCP_clin_subtype_prbc_prop <- MCP_clin_subtype_prbc %>%
+  count(study_group, clin_subtype) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_clin_subtype_prbc_prop)
+
+# For npbc
+MCP_clin_subtype_npbc <- MCP_npbc %>%
+  mutate(clin_subtype = as.ordered(clin_subtype),
+         study_group = as.factor(study_group))
+MCP_clin_subtype_npbc <- subset(MCP_clin_subtype_npbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, clin_subtype))
+summary(MCP_clin_subtype_npbc %>% filter(is.na(clin_subtype)))
+MCP_clin_subtype_npbc <- MCP_clin_subtype_npbc %>% filter(!is.na(clin_subtype))
+MCP_clin_subtype_npbc_prop <- MCP_clin_subtype_npbc %>%
+  count(study_group, clin_subtype) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_clin_subtype_npbc_prop)
+``` 
+
+
+```{r}
+plot(ca(table(MCP_Data$study_group, MCP_Data$clin_subtype)))
+assoc(table(MCP_Data$study_group, MCP_Data$clin_subtype), shade = TRUE, legend = TRUE)
+corrplot(chisq_clin_subtype$residuals, is.corr = FALSE)
+```
+
+
+
+## Grade
+```{r}
+table(MCP_Data$study_group, MCP_Data$grade)
+chisq_grade <- chisq.test(MCP_Data$study_group, MCP_Data$grade, correct=FALSE)
+prop.table(table(MCP_Data$study_group, MCP_Data$grade),1)*100
+chisq_grade
+```
+
+```{r}
+# For ppbcpw
+MCP_grade_inv <- MCP_inv %>%
+  mutate(grade = as.ordered(grade),
+         study_group = as.factor(study_group))
+MCP_grade_inv <- subset(MCP_grade_inv, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, grade))
+summary(MCP_grade_inv %>% filter(is.na(grade)))
+MCP_grade_inv <- MCP_grade_inv %>% filter(!is.na(grade))
+MCP_grade_inv_prop <- MCP_grade_inv %>%
+  count(study_group, grade) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_grade_inv_prop)
+
+# For ppbcdl
+MCP_grade_lac <- MCP_lac %>%
+  mutate(grade = as.ordered(grade),
+         study_group = as.factor(study_group))
+MCP_grade_lac <- subset(MCP_grade_lac, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, grade))
+summary(MCP_grade_lac %>% filter(is.na(grade)))
+MCP_grade_lac <- MCP_grade_lac %>% filter(!is.na(grade))
+MCP_grade_lac_prop <- MCP_grade_lac %>%
+  count(study_group, grade) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_grade_lac_prop)
+
+# For prbc
+MCP_grade_prbc <- MCP_prbc %>%
+  mutate(grade = as.ordered(grade),
+         study_group = as.factor(study_group))
+MCP_grade_prbc <- subset(MCP_grade_prbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, grade))
+summary(MCP_grade_prbc %>% filter(is.na(grade)))
+MCP_grade_prbc <- MCP_grade_prbc %>% filter(!is.na(grade))
+MCP_grade_prbc_prop <- MCP_grade_prbc %>%
+  count(study_group, grade) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_grade_prbc_prop)
+
+# For npbc
+MCP_grade_npbc <- MCP_npbc %>%
+  mutate(grade = as.ordered(grade),
+         study_group = as.factor(study_group))
+MCP_grade_npbc <- subset(MCP_grade_npbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, grade))
+summary(MCP_grade_npbc %>% filter(is.na(grade)))
+MCP_grade_npbc <- MCP_grade_npbc %>% filter(!is.na(grade))
+MCP_grade_npbc_prop <- MCP_grade_npbc %>%
+  count(study_group, grade) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_grade_npbc_prop)
+``` 
+```{r}
+plot(ca(table(MCP_Data$study_group, MCP_Data$grade)))
+assoc(table(MCP_Data$study_group, MCP_Data$grade), shade = TRUE, legend = TRUE)
+corrplot(chisq_grade$residuals, is.corr = FALSE)
+```
+
+
+## Stage
+
+```{r}
+table(MCP_Data$study_group, MCP_Data$stage)
+chisq_stage <- chisq.test(MCP_Data$study_group, MCP_Data$stage, correct=FALSE)
+prop.table(table(MCP_Data$study_group, MCP_Data$stage),1)*100
+chisq_stage
+
+table(MCP_Data$study_group, MCP_Data$stage)
+chisq.test(MCP_Data$study_group, MCP_Data$stage, correct=FALSE)
+```
+
+```{r}
+# For ppbcpw
+MCP_stage_inv <- MCP_inv %>%
+  mutate(stage = as.ordered(stage),
+         study_group = as.factor(study_group))
+MCP_stage_inv <- subset(MCP_stage_inv, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, stage))
+summary(MCP_stage_inv %>% filter(is.na(stage)))
+MCP_stage_inv <- MCP_stage_inv %>% filter(!is.na(stage))
+MCP_stage_inv_prop <- MCP_stage_inv %>%
+  count(study_group, stage) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_stage_inv_prop)
+
+# For ppbcdl
+MCP_stage_lac <- MCP_lac %>%
+  mutate(stage = as.ordered(stage),
+         study_group = as.factor(study_group))
+MCP_stage_lac <- subset(MCP_stage_lac, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, stage))
+summary(MCP_stage_lac %>% filter(is.na(stage)))
+MCP_stage_lac <- MCP_stage_lac %>% filter(!is.na(stage))
+MCP_stage_lac_prop <- MCP_stage_lac %>%
+  count(study_group, stage) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_stage_lac_prop)
+
+# For prbc
+MCP_stage_prbc <- MCP_prbc %>%
+  mutate(stage = as.ordered(stage),
+         study_group = as.factor(study_group))
+MCP_stage_prbc <- subset(MCP_stage_prbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, stage))
+summary(MCP_stage_prbc %>% filter(is.na(stage)))
+MCP_stage_prbc <- MCP_stage_prbc %>% filter(!is.na(stage))
+MCP_stage_prbc_prop <- MCP_stage_prbc %>%
+  count(study_group, stage) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_stage_prbc_prop)
+
+# For npbc
+MCP_stage_npbc <- MCP_npbc %>%
+  mutate(stage = as.ordered(stage),
+         study_group = as.factor(study_group))
+MCP_stage_npbc <- subset(MCP_stage_npbc, study_group %in% c("ppbcpw", "ppbcdl", "prbc", "npbc"), c(study_group, study_group_integer, stage))
+summary(MCP_stage_npbc %>% filter(is.na(stage)))
+MCP_stage_npbc <- MCP_stage_npbc %>% filter(!is.na(stage))
+MCP_stage_npbc_prop <- MCP_stage_npbc %>%
+  count(study_group, stage) %>%
+  mutate(prop = prop.table(n))
+as.data.frame(MCP_stage_npbc_prop)
+``` 
+
+```{r}
+plot(ca(table(MCP_Data$study_group, MCP_Data$stage)))
+assoc(table(MCP_Data$study_group, MCP_Data$stage), shade = TRUE, legend = TRUE)
+corrplot(chisq_stage$residuals, is.corr = FALSE)
+```
+
+
+## CT
+```{r}
+table(MCP_Data$study_group, MCP_Data$CT)
+chisq_CT <- chisq.test(MCP_Data$study_group, MCP_Data$CT, correct=FALSE)
+prop.table(table(MCP_Data$study_group, MCP_Data$CT),1)*100
+chisq_CT
+```
+
+```{r}
+table(MCP_Data$study_group, MCP_Data$CT_type)
+chisq_CT <- chisq.test(MCP_Data$study_group, MCP_Data$CT_type, correct=FALSE)
+prop.table(table(MCP_Data$study_group, MCP_Data$CT_type),1)*100
+chisq_CT
+```
+
+## surgery
+
+```{r}
+table(MCP_Data$study_group, MCP_Data$surgery)
+chisq_surgery <- chisq.test(MCP_Data$study_group, MCP_Data$surgery, correct=FALSE)
+prop.table(table(MCP_Data$study_group, MCP_Data$surgery),1)*100
+chisq_surgery
+```
+
+## RT
+
+```{r}
+table(MCP_Data$study_group, MCP_Data$RT)
+chisq_RT <- chisq.test(MCP_Data$study_group, MCP_Data$RT, correct=FALSE)
+prop.table(table(MCP_Data$study_group, MCP_Data$RT),1)*100
+chisq_RT
+```
+
+
+## HT
+
+```{r}
+table(MCP_Data$study_group, MCP_Data$HT)
+chisq_HT <- chisq.test(MCP_Data$study_group, MCP_Data$HT, correct=FALSE)
+prop.table(table(MCP_Data$study_group, MCP_Data$HT),1)*100
+chisq_HT
+```
+
+
+## herceptin
+```{r}
+table(MCP_Data$study_group, MCP_Data$herceptin)
+chisq_herceptin <- chisq.test(MCP_Data$study_group, MCP_Data$herceptin, correct=FALSE)
+prop.table(table(MCP_Data$study_group, MCP_Data$herceptin),1)*100
+chisq_herceptin
+```
+
+## OS
+```{r}
+table(MCP_Data$study_group, MCP_Data$death)
+chisq_OS <- chisq.test(MCP_Data$study_group, MCP_Data$death, correct=FALSE)
+prop.table(table(MCP_Data$study_group, MCP_Data$death),1)*100
+chisq_OS
+```
+
+
+## DR
+```{r}
+table(MCP_Data$study_group, MCP_Data$distant_recurrence)
+chisq_DR <- chisq.test(MCP_Data$study_group, MCP_Data$distant_recurrence, correct=FALSE)
+prop.table(table(MCP_Data$study_group, MCP_Data$distant_recurrence),1)*100
+chisq_DR
+```
+
+
+## Country
+```{r}
+table(MCP_Data$study_group, MCP_Data$country)
+chisq_country <- chisq.test(MCP_Data$study_group, MCP_Data$country, correct=FALSE)
+prop.table(table(MCP_Data$study_group, MCP_Data$country),1)*100
+chisq_country
+```
+
+## PAM50
+```{r}
+table(MCP_Data$study_group, MCP_Data$PAM50)
+chisq_PAM50 <- chisq.test(MCP_Data$study_group, MCP_Data$PAM50, correct=FALSE)
+prop.table(table(MCP_Data$study_group, MCP_Data$PAM50),1)*100
+chisq_PAM50
+```
+
+
+
+## ppbcpw vs study_group-DL
+
+
+### Grade
+```{r}
+table.MCP_grade_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$grade)
+table.MCP_grade_inv_lac
+prop.table(table.MCP_grade_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$grade, correct=FALSE)
+```
+
+```{r}
+table(MCP_inv_vs_lac$grade_I)
+```
+
+
+#### grade I
+```{r}
+table.MCP_grade_I_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$grade_I)
+table.MCP_grade_I_inv_lac
+prop.table(table.MCP_grade_I_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$grade_I, correct=FALSE)
+fisher.test(table.MCP_grade_I_inv_lac)
+```
+
+#### grade II
+```{r}
+table.MCP_grade_II_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$grade_II)
+table.MCP_grade_II_inv_lac
+prop.table(table.MCP_grade_II_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$grade_II, correct=FALSE)
+fisher.test(table.MCP_grade_II_inv_lac)
+```
+
+#### grade III
+```{r}
+table.MCP_grade_III_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$grade_III)
+table.MCP_grade_III_inv_lac
+prop.table(table.MCP_grade_III_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$grade_III, correct=FALSE)
+fisher.test(table.MCP_grade_III_inv_lac)
+```
+
+
+### Stage
+```{r}
+table.MCP_stage_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$stage)
+table.MCP_stage_inv_lac
+prop.table(table.MCP_stage_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$stage, correct=FALSE)
+fisher.test(table.MCP_stage_inv_lac)
+```
+
+
+#### Stage I 
+```{r}
+table.MCP_stage_I_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$stage_I)
+table.MCP_stage_I_inv_lac
+prop.table(table.MCP_stage_I_inv_lac, 1)*100
+
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$stage_I, correct=FALSE)
+fisher.test(table.MCP_stage_I_inv_lac)
+
+```
+
+
+#### Stage II
+```{r}
+table.MCP_stage_II_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$stage_II)
+table.MCP_stage_II_inv_lac
+prop.table(table.MCP_stage_II_inv_lac, 1)*100
+
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$stage_II, correct=FALSE)
+fisher.test(table.MCP_stage_II_inv_lac)
+```
+
+#### Stage III
+```{r}
+table.MCP_stage_III_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$stage_III)
+table.MCP_stage_III_inv_lac
+prop.table(table.MCP_stage_III_inv_lac, 1)*100
+
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$stage_III, correct = FALSE)
+fisher.test(table.MCP_stage_III_inv_lac)
+```
+
+#### Stage IV
+```{r}
+table.MCP_stage_IV_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$stage_IV)
+table.MCP_stage_IV_inv_lac
+prop.table(table.MCP_stage_IV_inv_lac, 1)*100
+
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$stage_IV, correct=FALSE)
+fisher.test(table.MCP_stage_IV_inv_lac)
+```
+
+
+
+### Molecular Subtype 
+```{r}
+table.MCP_MS_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$clin_subtype)
+table.MCP_MS_inv_lac
+prop.table(table.MCP_MS_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$clin_subtype, correct=FALSE)
+fisher.test(table.MCP_MS_inv_lac)
+```
+
+
+### Luminal A like
+```{r}
+table.CP_luminalA_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$LumAlike)
+table.CP_luminalA_inv_lac
+prop.table(table.CP_luminalA_inv_lac,1)*100
+
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$LumAlike, correct = FALSE)
+fisher.test(table.CP_luminalA_inv_lac)
+```
+
+### Luminal B
+```{r}
+table.CP_LumB_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$LumBlike)
+table.CP_LumB_inv_lac
+prop.table(table.CP_LumB_inv_lac,1)*100
+
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$LumBlike, correct = FALSE)
+fisher.test(table.CP_LumB_inv_lac)
+```
+
+### HER2 luminal
+```{r}
+table.CP_Her2lum_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$Her2luminal)
+table.CP_Her2lum_inv_lac
+prop.table(table.CP_Her2lum_inv_lac,1)*100
+
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$Her2luminal, correct = FALSE)
+fisher.test(table.CP_Her2lum_inv_lac)
+```
+
+### HER2+
+```{r}
+table.CP_HER2_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$Her2like)
+table.CP_HER2_inv_lac
+prop.table(table.CP_HER2_inv_lac,1)*100
+
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$Her2like)
+fisher.test(table.CP_HER2_inv_lac)
+```
+
+### TN
+```{r}
+table.CP_TN_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$TN)
+table.CP_TN_inv_lac
+prop.table(table.CP_TN_inv_lac,1)*100
+
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$TN, correct = FALSE)
+fisher.test(table.CP_TN_inv_lac)
+```
+
+## ER
+```{r}
+table.CP_ER_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$ER)
+table.CP_ER_inv_lac
+prop.table(table.CP_ER_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$ER, correct=FALSE)
+fisher.test(table.CP_ER_inv_lac)
+```
+
+## PR
+```{r}
+table.CP_PR_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$PR)
+table.CP_PR_inv_lac
+prop.table(table.CP_PR_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$PR, correct=FALSE)
+fisher.test(table.CP_PR_inv_lac)
+```
+
+## HER2
+```{r}
+table.CP_HER2_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$HER2)
+table.CP_HER2_inv_lac
+prop.table(table.CP_HER2_inv_lac, 1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$HER2, correct=FALSE)
+fisher.test(table.CP_HER2_inv_lac)
+```
+
+## CT
+```{r}
+table.CP_CT_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$CT)
+table.CP_CT_inv_lac
+prop.table(table.CP_CT_inv_lac,1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$CT, correct=FALSE)
+fisher.test(table.CP_CT_inv_lac)
+```
+
+### CT_type
+```{r}
+table.CP_CT_type_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$CT_type)
+table.CP_CT_type_inv_lac
+prop.table(table.CP_CT_type_inv_lac,1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$CT_type, correct=FALSE)
+fisher.test(table.CP_CT_type_inv_lac)
+```
+
+## Surgery
+```{r}
+table.CP_surgery_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$surgery)
+table.CP_surgery_inv_lac
+prop.table(table.CP_surgery_inv_lac,1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$surgery, correct=FALSE)
+fisher.test(table.CP_surgery_inv_lac)
+```
+
+## RT
+```{r}
+table.CP_RT_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$RT)
+table.CP_RT_inv_lac
+prop.table(table.CP_RT_inv_lac,1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$RT, correct=FALSE)
+fisher.test(table.CP_RT_inv_lac)
+```
+
+## HT
+```{r}
+table.CP_HT_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$HT)
+table.CP_HT_inv_lac
+prop.table(table.CP_HT_inv_lac,1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$HT, correct=FALSE)
+fisher.test(table.CP_HT_inv_lac)
+```
+
+## herceptin
+```{r}
+table.CP_herceptin_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$herceptin)
+table.CP_herceptin_inv_lac
+prop.table(table.CP_herceptin_inv_lac,1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$herceptin, correct=FALSE)
+fisher.test(table.CP_herceptin_inv_lac)
+```
+
+
+## OS
+```{r}
+table.CP_OS_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$death)
+table.CP_OS_inv_lac
+prop.table(table.CP_OS_inv_lac,1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$death, correct=FALSE)
+fisher.test(table.CP_OS_inv_lac)
+```
+
+## DR
+```{r}
+table.CP_DR_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$distant_recurrence)
+table.CP_DR_inv_lac
+prop.table(table.CP_DR_inv_lac,1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$distant_recurrence, correct=FALSE)
+fisher.test(table.CP_DR_inv_lac)
+```
+
+## DR
+```{r}
+table.CP_PAM50_inv_lac <- table(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$PAM50)
+table.CP_PAM50_inv_lac
+prop.table(table.CP_PAM50_inv_lac,1)*100
+chisq.test(MCP_inv_vs_lac$study_group, MCP_inv_vs_lac$PAM50, correct=FALSE)
+fisher.test(table.CP_PAM50_inv_lac)
+```
+
+## ppbcpw vs prbc
+```{r}
+table(MCP_inv_vs_prbc$study_group)
+```
+
+### Grade
+```{r}
+table.MCP_grade_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$grade)
+table.MCP_grade_inv_prbc
+prop.table(table.MCP_grade_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$grade, correct=FALSE)
+```
+
+```{r}
+table(MCP_inv_vs_prbc$grade_I)
+```
+
+#### grade I
+```{r}
+table.MCP_grade_I_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$grade_I)
+table.MCP_grade_I_inv_prbc
+prop.table(table.MCP_grade_I_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$grade_I, correct=FALSE)
+fisher.test(table.MCP_grade_I_inv_prbc)
+```
+
+#### grade II
+```{r}
+table.MCP_grade_II_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$grade_II)
+table.MCP_grade_II_inv_prbc
+prop.table(table.MCP_grade_II_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$grade_II, correct=FALSE)
+fisher.test(table.MCP_grade_II_inv_prbc)
+```
+
+#### grade III
+```{r}
+table.MCP_grade_III_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$grade_III)
+table.MCP_grade_III_inv_prbc
+prop.table(table.MCP_grade_III_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$grade_III, correct=FALSE)
+fisher.test(table.MCP_grade_III_inv_prbc)
+```
+
+### Stage
+```{r}
+table.MCP_stage_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$stage)
+table.MCP_stage_inv_prbc
+prop.table(table.MCP_stage_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$stage, correct=FALSE)
+fisher.test(table.MCP_stage_inv_prbc)
+```
+
+#### Stage I 
+```{r}
+table.MCP_stage_I_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$stage_I)
+table.MCP_stage_I_inv_prbc
+prop.table(table.MCP_stage_I_inv_prbc, 1)*100
+
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$stage_I, correct=FALSE)
+fisher.test(table.MCP_stage_I_inv_prbc)
+```
+
+#### Stage II
+```{r}
+table.MCP_stage_II_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$stage_II)
+table.MCP_stage_II_inv_prbc
+prop.table(table.MCP_stage_II_inv_prbc, 1)*100
+
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$stage_II, correct=FALSE)
+fisher.test(table.MCP_stage_II_inv_prbc)
+```
+
+
+#### Stage III
+```{r}
+table.MCP_stage_III_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$stage_III)
+table.MCP_stage_III_inv_prbc
+prop.table(table.MCP_stage_III_inv_prbc, 1)*100
+
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$stage_III, correct = FALSE)
+fisher.test(table.MCP_stage_III_inv_prbc)
+```
+
+#### Stage IV
+```{r}
+table.MCP_stage_IV_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$stage_IV)
+table.MCP_stage_IV_inv_prbc
+prop.table(table.MCP_stage_IV_inv_prbc, 1)*100
+
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$stage_IV, correct=FALSE)
+fisher.test(table.MCP_stage_IV_inv_prbc)
+```
+
+### Molecular Subtype 
+```{r}
+table.MCP_MS_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$clin_subtype)
+table.MCP_MS_inv_prbc
+prop.table(table.MCP_MS_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$clin_subtype, correct=FALSE)
+fisher.test(table.MCP_MS_inv_prbc)
+```
+
+### Luminal A like
+```{r}
+table.CP_luminalA_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$LumAlike)
+table.CP_luminalA_inv_prbc
+prop.table(table.CP_luminalA_inv_prbc,1)*100
+
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$LumAlike, correct = FALSE)
+fisher.test(table.CP_luminalA_inv_prbc)
+```
+
+### Luminal B
+```{r}
+table.CP_LumB_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$LumBlike)
+table.CP_LumB_inv_prbc
+prop.table(table.CP_LumB_inv_prbc,1)*100
+
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$LumBlike, correct = FALSE)
+fisher.test(table.CP_LumB_inv_prbc)
+```
+
+
+### HER2 luminal
+```{r}
+table.CP_Her2lum_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$Her2luminal)
+table.CP_Her2lum_inv_prbc
+prop.table(table.CP_Her2lum_inv_prbc,1)*100
+
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$Her2luminal, correct = FALSE)
+fisher.test(table.CP_Her2lum_inv_prbc)
+```
+
+### HER2+
+```{r}
+table.CP_HER2_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$Her2like)
+table.CP_HER2_inv_prbc
+prop.table(table.CP_HER2_inv_prbc,1)*100
+
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$Her2like)
+fisher.test(table.CP_HER2_inv_prbc)
+```
+
+### TN
+```{r}
+table.CP_TN_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$TN)
+table.CP_TN_inv_prbc
+prop.table(table.CP_TN_inv_prbc,1)*100
+
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$TN, correct = FALSE)
+fisher.test(table.CP_TN_inv_prbc)
+```
+
+## ER
+```{r}
+table.CP_ER_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$ER)
+table.CP_ER_inv_prbc
+prop.table(table.CP_ER_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$ER, correct=FALSE)
+fisher.test(table.CP_ER_inv_prbc)
+```
+
+## PR
+```{r}
+table.CP_PR_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$PR)
+table.CP_PR_inv_prbc
+prop.table(table.CP_PR_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$PR, correct=FALSE)
+fisher.test(table.CP_PR_inv_prbc)
+```
+
+## HER2
+
+```{r}
+table.CP_HER2_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$HER2)
+table.CP_HER2_inv_prbc
+prop.table(table.CP_HER2_inv_prbc, 1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$HER2, correct=FALSE)
+fisher.test(table.CP_HER2_inv_prbc)
+```
+
+## CT
+```{r}
+table.CP_CT_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$CT)
+table.CP_CT_inv_prbc
+prop.table(table.CP_CT_inv_prbc,1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$CT, correct=FALSE)
+fisher.test(table.CP_CT_inv_prbc)
+```
+
+### CT_type
+```{r}
+table.CP_CT_type_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$CT_type)
+table.CP_CT_type_inv_prbc
+prop.table(table.CP_CT_type_inv_prbc,1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$CT_type, correct=FALSE)
+fisher.test(table.CP_CT_type_inv_prbc)
+```
+
+## Surgery
+```{r}
+table.CP_surgery_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$surgery)
+table.CP_surgery_inv_prbc
+prop.table(table.CP_surgery_inv_prbc,1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$surgery, correct=FALSE)
+fisher.test(table.CP_surgery_inv_prbc)
+```
+
+
+## RT
+```{r}
+table.CP_RT_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$RT)
+table.CP_RT_inv_prbc
+prop.table(table.CP_RT_inv_prbc,1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$RT, correct=FALSE)
+fisher.test(table.CP_RT_inv_prbc)
+```
+
+## HT
+```{r}
+table.CP_HT_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$HT)
+table.CP_HT_inv_prbc
+prop.table(table.CP_HT_inv_prbc,1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$HT, correct=FALSE)
+fisher.test(table.CP_HT_inv_prbc)
+```
+
+## herceptin
+```{r}
+table.CP_herceptin_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$herceptin)
+table.CP_herceptin_inv_prbc
+prop.table(table.CP_herceptin_inv_prbc,1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$herceptin, correct=FALSE)
+fisher.test(table.CP_herceptin_inv_prbc)
+```
+
+
+## OS
+```{r}
+table.CP_OS_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$death)
+table.CP_OS_inv_prbc
+prop.table(table.CP_OS_inv_prbc,1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$death, correct=FALSE)
+fisher.test(table.CP_OS_inv_prbc)
+```
+
+
+## DR
+```{r}
+table.CP_DR_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$distant_recurrence)
+table.CP_DR_inv_prbc
+prop.table(table.CP_DR_inv_prbc,1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$distant_recurrence, correct=FALSE)
+fisher.test(table.CP_DR_inv_prbc)
+```
+
+
+## PAM50
+```{r}
+table.CP_PAM50_inv_prbc <- table(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$PAM50)
+table.CP_PAM50_inv_prbc
+prop.table(table.CP_PAM50_inv_prbc,1)*100
+chisq.test(MCP_inv_vs_prbc$study_group, MCP_inv_vs_prbc$PAM50, correct=FALSE)
+fisher.test(table.CP_PAM50_inv_prbc)
+```
+
+## ppbcpw vs npbc
+
+```{r}
+table(MCP_inv_vs_npbc$study_group)
+```
+
+### Grade
+```{r}
+table.MCP_grade_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade)
+table.MCP_grade_inv_npbc
+prop.table(table.MCP_grade_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade, correct=FALSE)
+```
+
+```{r}
+table(MCP_inv_vs_npbc$grade_I)
+```
+
+
+#### grade I
+```{r}
+table.MCP_grade_I_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade_I)
+table.MCP_grade_I_inv_npbc
+prop.table(table.MCP_grade_I_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade_I, correct=FALSE)
+fisher.test(table.MCP_grade_I_inv_npbc)
+```
+
+#### grade II
+```{r}
+table.MCP_grade_II_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade_II)
+table.MCP_grade_II_inv_npbc
+prop.table(table.MCP_grade_II_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade_II, correct=FALSE)
+fisher.test(table.MCP_grade_II_inv_npbc)
+```
+
+#### grade III
+```{r}
+table.MCP_grade_III_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade_III)
+table.MCP_grade_III_inv_npbc
+prop.table(table.MCP_grade_III_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$grade_III, correct=FALSE)
+fisher.test(table.MCP_grade_III_inv_npbc)
+```
+
+
+### Stage
+```{r}
+table.MCP_stage_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage)
+table.MCP_stage_inv_npbc
+prop.table(table.MCP_stage_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage, correct=FALSE)
+fisher.test(table.MCP_stage_inv_npbc)
+```
+
+#### Stage I 
+```{r}
+table.MCP_stage_I_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_I)
+table.MCP_stage_I_inv_npbc
+prop.table(table.MCP_stage_I_inv_npbc, 1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_I, correct=FALSE)
+fisher.test(table.MCP_stage_I_inv_npbc)
+```
+
+#### Stage II
+```{r}
+table.MCP_stage_II_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_II)
+table.MCP_stage_II_inv_npbc
+prop.table(table.MCP_stage_II_inv_npbc, 1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_II, correct=FALSE)
+fisher.test(table.MCP_stage_II_inv_npbc)
+```
+
+#### Stage III
+```{r}
+table.MCP_stage_III_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_III)
+table.MCP_stage_III_inv_npbc
+prop.table(table.MCP_stage_III_inv_npbc, 1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_III, correct = FALSE)
+fisher.test(table.MCP_stage_III_inv_npbc)
+```
+
+#### Stage IV
+
+```{r}
+table.MCP_stage_IV_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_IV)
+table.MCP_stage_IV_inv_npbc
+prop.table(table.MCP_stage_IV_inv_npbc, 1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$stage_IV, correct=FALSE)
+fisher.test(table.MCP_stage_IV_inv_npbc)
+```
+
+### Molecular Subtype 
+```{r}
+table.MCP_MS_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$clin_subtype)
+table.MCP_MS_inv_npbc
+prop.table(table.MCP_MS_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$clin_subtype, correct=FALSE)
+fisher.test(table.MCP_MS_inv_npbc)
+```
+
+### Luminal A like
+```{r}
+table.CP_luminalA_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$LumAlike)
+table.CP_luminalA_inv_npbc
+prop.table(table.CP_luminalA_inv_npbc,1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$LumAlike, correct = FALSE)
+fisher.test(table.CP_luminalA_inv_npbc)
+```
+
+### Luminal B
+```{r}
+table.CP_LumB_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$LumBlike)
+table.CP_LumB_inv_npbc
+prop.table(table.CP_LumB_inv_npbc,1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$LumBlike, correct = FALSE)
+fisher.test(table.CP_LumB_inv_npbc)
+```
+
+
+### HER2 luminal
+```{r}
+table.CP_Her2lum_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$Her2luminal)
+table.CP_Her2lum_inv_npbc
+prop.table(table.CP_Her2lum_inv_npbc,1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$Her2luminal, correct = FALSE)
+fisher.test(table.CP_Her2lum_inv_npbc)
+```
+
+### HER2+
+```{r}
+table.CP_HER2_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$Her2like)
+table.CP_HER2_inv_npbc
+prop.table(table.CP_HER2_inv_npbc,1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$Her2like)
+fisher.test(table.CP_HER2_inv_npbc)
+```
+
+### TN
+```{r}
+table.CP_TN_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$TN)
+table.CP_TN_inv_npbc
+prop.table(table.CP_TN_inv_npbc,1)*100
+
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$TN, correct = FALSE)
+fisher.test(table.CP_TN_inv_npbc)
+```
+
+## ER
+```{r}
+table.CP_ER_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$ER)
+table.CP_ER_inv_npbc
+prop.table(table.CP_ER_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$ER, correct=FALSE)
+fisher.test(table.CP_ER_inv_npbc)
+```
+
+## PR
+```{r}
+table.CP_PR_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$PR)
+table.CP_PR_inv_npbc
+prop.table(table.CP_PR_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$PR, correct=FALSE)
+fisher.test(table.CP_PR_inv_npbc)
+```
+
+## HER2
+```{r}
+table.CP_HER2_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$HER2)
+table.CP_HER2_inv_npbc
+prop.table(table.CP_HER2_inv_npbc, 1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$HER2, correct=FALSE)
+fisher.test(table.CP_HER2_inv_npbc)
+```
+
+## CT
+```{r}
+table.CP_CT_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$CT)
+table.CP_CT_inv_npbc
+prop.table(table.CP_CT_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$CT, correct=FALSE)
+fisher.test(table.CP_CT_inv_npbc)
+```
+
+### CT_type
+```{r}
+table.CP_CT_type_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$CT_type)
+table.CP_CT_type_inv_npbc
+prop.table(table.CP_CT_type_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$CT_type, correct=FALSE)
+fisher.test(table.CP_CT_type_inv_npbc)
+```
+
+## Surgery
+```{r}
+table.CP_surgery_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$surgery)
+table.CP_surgery_inv_npbc
+prop.table(table.CP_surgery_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$surgery, correct=FALSE)
+fisher.test(table.CP_surgery_inv_npbc)
+```
+
+
+## RT
+```{r}
+table.CP_RT_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$RT)
+table.CP_RT_inv_npbc
+prop.table(table.CP_RT_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$RT, correct=FALSE)
+fisher.test(table.CP_RT_inv_npbc)
+```
+
+## HT
+```{r}
+table.CP_HT_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$HT)
+table.CP_HT_inv_npbc
+prop.table(table.CP_HT_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$HT, correct=FALSE)
+fisher.test(table.CP_HT_inv_npbc)
+```
+
+## herceptin
+```{r}
+table.CP_herceptin_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$herceptin)
+table.CP_herceptin_inv_npbc
+prop.table(table.CP_herceptin_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$herceptin, correct=FALSE)
+fisher.test(table.CP_herceptin_inv_npbc)
+```
+
+## OS
+```{r}
+table.CP_OS_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$death)
+table.CP_OS_inv_npbc
+prop.table(table.CP_OS_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$death, correct=FALSE)
+fisher.test(table.CP_OS_inv_npbc)
+```
+
+## DR
+```{r}
+table.CP_DR_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$distant_recurrence)
+table.CP_DR_inv_npbc
+prop.table(table.CP_DR_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$distant_recurrence, correct=FALSE)
+fisher.test(table.CP_DR_inv_npbc)
+```
+
+## PAM50
+```{r}
+table.CP_PAM50_inv_npbc <- table(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$PAM50)
+table.CP_PAM50_inv_npbc
+prop.table(table.CP_PAM50_inv_npbc,1)*100
+chisq.test(MCP_inv_vs_npbc$study_group, MCP_inv_vs_npbc$PAM50, correct=FALSE)
+fisher.test(table.CP_PAM50_inv_npbc)
+```
+
+

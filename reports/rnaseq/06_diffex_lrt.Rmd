@@ -1,0 +1,752 @@
+---
+title: "Likelihood ratio test"
+Author: Kat Moore
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    df_print: paged
+    highlight: kate
+    canon: true
+params:
+  dds: "data/rnaseq/interim/05b_dds_filtered.Rds"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+  immune_genes: "data/external/gene_ref/InnateDB_genes.csv"
+  tools: "src/rnaseq/deseq_report_functions.R"
+  cp: "data/rnaseq/interim/color_palettes.Rds"
+  sp: "data/rnaseq/interim/survival_colors.Rds"
+  vsd: "data/rnaseq/interim/06_vsd.Rds"
+---
+
+```{r, message=F}
+library(DESeq2)
+library(apeglm)
+library(here)
+library(flexgsea)
+library(tidyverse)
+library(ggrepel)
+library(ComplexHeatmap)
+library(openxlsx)
+library(scrime)
+library(RColorBrewer)
+
+theme_set(theme_bw())
+```
+
+In this notebook, we enact differential expression as a fourway comparison between all 4 postpartum breast cancer groups, using the DESeq2 package and a likelihood ratio test. 
+
+# Load and pre-process data {.tabset}
+
+## Gene and sample data
+
+```{r}
+dds <- readRDS(file = here(params$dds))
+gx_annot <- read_tsv(here(params$gx_annot), show_col_types = F)
+gx_annot <- gx_annot %>%
+  select(ensembl_gene_id = gene_id, gene_name,
+         gene_type, description = gene_description) %>%
+  distinct()
+```
+
+## Gene signatures
+
+```{r}
+gene_sets = list(
+  go_bp = flexgsea::read_gmt(here("data","external","gmt","c5.bp.v7.0.symbols.gmt")),
+  hallmark = flexgsea::read_gmt(here("data","external","gmt","h.all.v7.0.symbols.gmt")),
+  c2_canon = flexgsea::read_gmt(here("data","external","gmt","c2.cp.v7.0.symbols.gmt")),
+  c2_cgp = flexgsea::read_gmt(here("data","external","gmt","c2.cgp.v7.0.symbols.gmt"))
+)
+```
+
+## Retrieve immune genes
+
+For downstream analyses, we'd like to know which of the differentially expressed genes are immunologically relevant.
+
+An immune gene is defined as follows:
+
+Either immune/immuno/interleukin is part of the gene name and description OR the gene is part of the the [ImmPort database](https://www.innatedb.com/redirect.do?go=resourcesGeneLists).
+
+The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
+
+```{r}
+immune_gene_list <- read_csv(here(params$immune_genes), show_col_types = F)
+head(immune_gene_list)
+```
+
+## Helper functions
+
+```{r}
+source(here(params$tools))
+```
+
+## Color palettes
+
+Defined in the corresponding notebook:
+
+```{r}
+cp = readRDS(here(params$cp))
+study_colors = cp$study_colors
+gene_colors = cp$gene_colors
+pam_colors = cp$pam_colors
+```
+
+We'll need a palette for survival and drs too.
+For now, this will be a binary yes or no.
+
+```{r}
+sc <- readRDS(here(params$sp))
+
+#color_grid(sc$distant_recurrence)
+```
+
+## Variance stabilizing transformation
+
+```{r}
+vsd = readRDS(here(params$vsd))
+```
+
+A version without the lac group is also produced.
+
+```{r}
+vsd.nolac = readRDS(here("data", "rnaseq","interim", "06_vsd_nolac.Rds"))
+```
+
+# Likelihood ratio test {.tabset}
+
+The likelihood ratio test (LRT) is an ANOVA-like test design to check for genes which are significantly differentially expressed in at least one group. 
+From the manual: "The LRT examines two models for the counts, a full model with a certain number of terms and a reduced model, in which some of the terms of the full model are removed. 
+The test determines if the increased likelihood of the data using the extra terms in the full model is more than expected if those extra terms are truly zero."
+
+Our design formula is as follows (tumor_purity has been removed on the basis of notebook 5):
+
+```{r}
+design(dds)
+```
+
+We will test it versus a formula that lacks the study group for genes of interest.
+This object was produced via `src/06_diffex_LRT.R`
+
+```{r}
+ddsLRT = readRDS(here("data/rnaseq/interim/06_ddsLRT.Rds"))
+```
+
+```{r}
+resLRT <- results(ddsLRT)
+
+resLRT@elementMetadata$description
+```
+
+The log fold change of a likelihood ratio test is actually between the first and last levels of the factor in the design formula.
+In this case, of study_group.
+Because we don't want to filter based on a pairwise log fold change when examining the results of a LRT, we set the absl2fc parameter to 0.
+
+## Summary
+
+```{r}
+repLRT = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0, 
+                      variance_stabilized_dds = vsd,
+                      #groups = c("ppbc_inv", "rest"),
+                      top_vars = c("PPBC", "death"),
+                      top_colors = list(PPBC = cp$ppbc_colors,
+                                        death = sc$overall_survival),
+                      beehive_groups = "all", title = "Likelihood ratio test")
+```
+
+## Top genes
+
+```{r}
+repLRT$significant_genes %>%
+  head(30)
+```
+
+## Heatmap
+
+```{r, fig.height=6, fig.width=10}
+repLRT$heatmap
+```
+
+## Box plots
+
+Plot the top 5 most significant.
+
+```{r}
+repLRT$beehive_plots
+```
+
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+ repLRT$pathways %>% bind_rows() %>%
+  filter(fdr < 0.1) %>%
+  select(pathway,everything()) %>%
+  arrange(fdr)
+```
+
+```{r, fig.height=6, fig.width=8}
+#repLRT$pathway_plots
+
+bind_rows(repLRT$pathways) %>%
+  #filter(fdr < 0.1) %>%
+  plot_enrichment(
+        enrich_res = .,
+        fdr = 0.1,
+        max_nchar_path = 40,
+        max_path = 20,
+        title = "Sig pathways fdr < 0.1: LRT study group"
+      )
+```
+
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+repLRT$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold. Sorted by descending l2fc, top 10:
+
+```{r}
+repLRT$outlier_bees
+```
+
+# LRT - without the lac group {.tabset}
+
+Both upstream and downstream results indicate that lactation samples, by far the smallest group in the study, are contributing disproportionately to the model and, in this small selection, have a poorer prognosis than is represented in the larger clinical data. 
+
+For this reason, we also examine the results when excluding the lactation group.
+
+```{r}
+ddsLRT = readRDS(here("data", "rnaseq", "interim", "06_ddsLRT_nolac.Rds"))
+```
+
+```{r}
+resLRT = results(ddsLRT)
+resLRT@elementMetadata$description
+```
+
+## Summary
+
+```{r}
+repLRT.nolac = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0, 
+                      variance_stabilized_dds = vsd.nolac,
+                      #groups = c("ppbc_inv", "rest"),
+                      top_vars = c("PPBC", "death"),
+                      top_colors = list(PPBC = cp$ppbc_colors,
+                                        death = sc$overall_survival),
+                      beehive_groups = "all", title = "LRT, lactation excluded")
+```
+
+## Top genes
+
+```{r}
+repLRT.nolac$significant_genes %>% head(30)
+```
+
+## Comparison with group including lac
+
+We can see that lac was over-contributing based on the number of significant genes.
+
+```{r}
+print(paste("Sig genes with lac:", nrow(repLRT$significant_genes)))
+print(paste("Sig genes without lac:", nrow(repLRT.nolac$significant_genes)))
+```
+
+Types of genes gained:
+
+```{r}
+distinct(gx_annot[gx_annot$gene_name %in% intersect(unique(repLRT$significant_genes$gene_name),
+                                                    unique(repLRT.nolac$significant_genes$gene_name)),]) %>%
+  group_by(gene_type) %>%
+  summarise(n = n()) %>%
+  arrange(desc(n))
+#intersect(unique(repLRT$significant_genes$gene_name), unique(repLRT.nolac$significant_genes$gene_name))
+```
+
+Lost from diffex when excluding lac:
+
+```{r}
+filter(select(gx_annot,gene_name, gene_type),
+       gene_name %in% unique(repLRT$significant_genes$gene_name)[!unique(repLRT$significant_genes$gene_name) %in% unique(repLRT.nolac$significant_genes$gene_name)]) %>%
+  distinct() %>%
+  group_by(gene_type) %>%
+  summarise(n = n()) %>%
+  arrange(desc(n))
+
+```
+
+Becomes significant after excluding lac, not in original list:
+
+```{r}
+filter(select(gx_annot,gene_name, gene_type),
+       gene_name %in% unique(repLRT.nolac$significant_genes$gene_name)[!unique(repLRT.nolac$significant_genes$gene_name) %in% unique(repLRT$significant_genes$gene_name)]) %>%
+  distinct() %>%
+  group_by(gene_type) %>%
+  summarise(n = n()) %>%
+  arrange(desc(n))
+```
+
+The protein coding genes in this list are:
+
+```{r}
+filter(select(gx_annot, gene_name, gene_type),
+       gene_name %in% unique(repLRT.nolac$significant_genes$gene_name)[!unique(repLRT.nolac$significant_genes$gene_name) %in% unique(repLRT$significant_genes$gene_name)]) %>%
+   distinct() %>%
+  filter(gene_type == "protein_coding")
+```
+
+Plot the padj of significant genes with and without lac against each other:
+
+```{r}
+sig.somewhere = unique(c(repLRT$significant_genes$ensembl_gene_id, repLRT.nolac$significant_genes$ensembl_gene_id))
+
+tibble(
+  lac.padj = arrange(repLRT$annotated_results[repLRT$annotated_results$ensembl_gene_id %in% sig.somewhere,c("ensembl_gene_id","padj")],
+                     ensembl_gene_id)$padj,
+  nolac.padj = arrange(repLRT.nolac$annotated_results[repLRT.nolac$annotated_results$ensembl_gene_id %in% sig.somewhere,c("ensembl_gene_id","padj")],
+                       ensembl_gene_id)$padj
+  ) %>%
+  ggplot(aes(x = lac.padj, y = nolac.padj)) +
+  geom_point() +
+  theme_bw() +
+  ggtitle("Significant genes in LRT with and without lac samples")
+
+tibble(
+  lac.padj = repLRT$annotated_results %>% arrange(ensembl_gene_id) %>% pull(padj),
+  nolac.padj = repLRT.nolac$annotated_results %>% arrange(ensembl_gene_id) %>% pull(padj)
+  ) %>%
+  ggplot(aes(x = lac.padj, y = nolac.padj)) +
+  geom_point() +
+  theme_bw() +
+  ggtitle("All genes in LRT with and without lac samples")
+```
+
+## Heatmap
+
+```{r, fig.height=6, fig.width=10}
+repLRT.nolac$heatmap
+```
+
+## Box plots
+
+Plot the top 5 most significant.
+
+```{r}
+repLRT.nolac$beehive_plots
+```
+
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+repLRT.nolac$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+```{r, fig.height=6, fig.width=8}
+repLRT.nolac$pathway_plots
+```
+
+Those not in the version that includes lactation:
+
+```{r}
+repLRT.nolac$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05)
+
+setdiff(filter(bind_rows(repLRT.nolac$pathways), fdr < 0.05)$pathway, filter(bind_rows(repLRT$pathways), fdr < 0.05)$pathway)
+```
+
+## Cook's outliers
+
+Have a quick look at genes that had their padj set to NA because one or more samples exceeded the Cook's threshold
+
+```{r}
+repLRT.nolac$volc_outliers
+```
+
+Beehive plot of genes that fail Cooks filtering and are above the fold change threshold. Sorted by descending l2fc, top 5:
+
+```{r}
+repLRT.nolac$outlier_bees[1:5]
+```
+
+# Batch {.tabset}
+
+```{r}
+ddsLRT = readRDS(here("data", "rnaseq", "interim","06_ddsLRT_batch.Rds"))
+resLRT = results(ddsLRT)
+resLRT@elementMetadata$description
+```
+
+
+## Summary
+
+```{r}
+repBatch = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0, 
+                        variance_stabilized_dds = vsd,
+                        top_vars = c("PPBC", "death"),
+                        top_colors = list(PPBC = cp$ppbc_colors,
+                                          death = sc$overall_survival),
+                        beehive_groups = "all", title = "LRT Batch")
+
+```
+
+## Top genes
+
+```{r}
+repBatch$significant_genes %>% head(30)
+```
+
+## Heatmap
+
+```{r, fig.height=6, fig.width=10}
+repBatch$heatmap
+```
+
+## Box plots
+
+Plot the top 5 most significant.
+
+```{r}
+repBatch$beehive_plots
+```
+
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+repBatch$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+```{r, fig.height=6, fig.width=8}
+repBatch$pathway_plots
+```
+
+# Batch - no lac {.tabset}
+
+```{r}
+ddsLRT = readRDS(here("data", "rnaseq", "interim", "06_ddsLRT_batch_nolac.Rds"))
+resLRT = results(ddsLRT)
+resLRT@elementMetadata$description
+```
+
+## Summary
+
+```{r}
+repBatch.nolac = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0, 
+                        variance_stabilized_dds = vsd.nolac,
+                        top_vars = c("PPBC", "death"),
+                        top_colors = list(PPBC = cp$ppbc_colors,
+                                          death = sc$overall_survival),
+                        beehive_groups = "all", title = "LRT Batch, lactation excluded")
+
+```
+
+## Top genes
+
+```{r}
+repBatch.nolac$significant_genes %>% head(30)
+```
+
+## Heatmap
+
+```{r, fig.height=6, fig.width=10}
+repBatch.nolac$heatmap
+```
+
+## Box plots
+
+Plot the top 5 most significant.
+
+```{r}
+repBatch.nolac$beehive_plots
+```
+
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+repBatch.nolac$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+
+```{r, fig.height=6, fig.width=8}
+repBatch.nolac$pathway_plots
+```
+
+# PAM50 {.tabset}
+
+```{r}
+ddsLRT = readRDS(here("data", "rnaseq", "interim", "06_ddsLRT_pam.Rds"))
+resLRT = results(ddsLRT)
+resLRT@elementMetadata$description
+```
+
+## Summary
+
+```{r}
+repPam = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0, 
+                      variance_stabilized_dds = vsd,
+                      #groups = c("ppbc_inv", "rest"),
+                      top_vars = c("PPBC", "death"),
+                      top_colors = list(PPBC = cp$ppbc_colors,
+                                        death = sc$overall_survival),
+                      beehive_groups = "all", title = "LRT PAM50")
+
+```
+
+## Top genes
+
+```{r}
+repPam$significant_genes %>% head(30)
+```
+
+## Heatmap
+
+```{r, fig.height=6, fig.width=10}
+repPam$heatmap
+```
+
+## Box plots
+
+Plot the top 5 most significant.
+
+```{r}
+repPam$beehive_plots
+```
+
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+repPam$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr)
+```
+
+```{r, fig.height=6, fig.width=8}
+repPam$pathway_plots
+```
+
+# PAM50 - no lac {.tabset}
+
+```{r}
+ddsLRT = readRDS(here("data", "rnaseq", "interim", "06_ddsLRT_pam_nolac.Rds"))
+resLRT = results(ddsLRT)
+resLRT@elementMetadata$description
+```
+
+## Summary
+
+```{r}
+repPam.nolac = deseq_report(resLRT, dds=ddsLRT, absl2fc = 0, 
+                        variance_stabilized_dds = vsd.nolac,
+                        #groups = c("ppbc_inv", "rest"),
+                        top_vars = c("PPBC", "death"),
+                        top_colors = list(PPBC = cp$ppbc_colors,
+                                          death = sc$overall_survival),
+                        beehive_groups = "all", title = "LRT PAM50, lactation excluded")
+
+```
+
+## Top genes
+
+```{r}
+repPam.nolac$significant_genes %>% head(30)
+```
+
+## Heatmap
+
+```{r, fig.height=6, fig.width=10}
+repPam.nolac$heatmap
+```
+
+## Box plots
+
+Plot the top 5 most significant.
+
+```{r}
+repPam.nolac$beehive_plots
+```
+
+## Preliminary pathway
+
+A fast method for a general overview. See FlexGSEA for a properly rigorous analysis.
+
+```{r}
+repPam.nolac$pathways %>% bind_rows() %>%
+  filter(fdr < 0.05) %>% select(pathway,everything()) %>% arrange(fdr) %>%
+  head(30)
+```
+
+```{r, fig.height=6, fig.width=8}
+repPam.nolac$pathway_plots
+```
+
+# Overlap LRTs {.tabset}
+
+Generally a sign of colinearity if many genes are significant for multiple terms.
+
+## Venn genes
+
+```{r}
+stopifnot(all(sort(repLRT$annotated_results$ensembl_gene_id) ==
+                sort(repPam$annotated_results$ensembl_gene_id)))
+stopifnot(all(sort(repLRT$annotated_results$ensembl_gene_id) ==
+                sort(repBatch$annotated_results$ensembl_gene_id)))
+
+#Binary df for all genes to indicate comparison significance
+background = sort(repLRT$annotated_results$ensembl_gene_id)
+sig_genes = data.frame(
+  PPBC = background %in% repLRT$significant_genes$ensembl_gene_id,
+  PAM50 = background %in% repPam$significant_genes$ensembl_gene_id,
+  Batch = background %in% repBatch$significant_genes$ensembl_gene_id)
+rownames(sig_genes) = background
+
+#Remove genes that weren't significant anwyhere
+#sig_genes = sig_genes[rowSums(sig_genes) > 0,] #Not actually necessary
+#dim(sig_genes)
+
+vc = limma::vennCounts(sig_genes)
+
+limma::vennDiagram(vc,
+  names = colnames(sig_genes), 
+  cex = 1,
+  main = "Overlap significant genes from likelihood ratio tests")
+```
+
+Which genes are unique to study group?
+
+```{r}
+unique_ppbc_genes = repLRT$significant_genes$ensembl_gene_id[
+  !repLRT$significant_genes$ensembl_gene_id %in% repPam$significant_genes$ensembl_gene_id &
+  !repLRT$significant_genes$ensembl_gene_id %in% repBatch$significant_genes$ensembl_gene_id]
+
+repLRT$significant_genes %>% filter(ensembl_gene_id %in% unique_ppbc_genes)
+```
+
+Showing just the gene names from the unique group:
+
+```{r}
+repLRT$significant_genes %>%
+  filter(ensembl_gene_id %in% unique_ppbc_genes) %>%
+  pull(gene_name)
+```
+
+## Venn pathways
+
+We'll see a similar picture for pathways.
+
+```{r}
+#Binary df for all genes to indicate comparison significance
+
+background = c(names(gene_sets$go_bp), names(gene_sets$hallmark),
+               names(gene_sets$c2_canon), names(gene_sets$c2_cgp))
+
+sig_paths = data.frame(
+  PPBC = background %in% filter(bind_rows(repLRT$pathways), fdr < 0.1)$pathway,
+  PAM50 = background %in% filter(bind_rows(repPam$pathways), fdr < 0.1)$pathway,
+  Batch = background %in% filter(bind_rows(repBatch$pathways), fdr < 0.1)$pathway)
+rownames(sig_paths) = background
+
+#Remove genes that weren't significant anwyhere
+#sig_genes = sig_genes[rowSums(sig_genes) > 0,] #Not actually necessary
+#dim(sig_genes)
+
+vp = limma::vennCounts(sig_paths)
+
+limma::vennDiagram(vp,
+  names = colnames(sig_paths), 
+  cex = 1,
+  main = "Overlap significant pathways from likelihood ratio tests")
+```
+
+Which 5 pathways from study group are unique?
+
+```{r}
+unique_ppbc_paths = filter(bind_rows(repLRT$pathways), fdr < 0.1)$pathway[
+  !filter(bind_rows(repLRT$pathways), fdr < 0.1)$pathway %in% filter(bind_rows(repPam$pathways), fdr < 0.1)$pathway &
+  !filter(bind_rows(repLRT$pathways), fdr < 0.1)$pathway %in% filter(bind_rows(repBatch$pathways), fdr < 0.1)$pathway]
+
+bind_rows(repLRT$pathways) %>% filter(pathway %in% unique_ppbc_paths)
+```
+
+# Save data {.tabset}
+
+Create a master results list.
+
+```{r}
+#Get all report objects from environment
+reslist = mget(ls(pattern="rep"))
+reslist = reslist[-1:-3] #Slightly too greedy
+names(reslist)
+```
+
+## Significance of genes
+
+Save the individual results lists, without the figures.
+
+```{r}
+dir.create(here("results/rnaseq/diffex"), showWarnings = F)
+#Save the results for all genes in an Excel file with multiple tabs
+#The tab names will be the list names
+resdf = lapply(reslist, function(x) x$annotated_results)
+names(resdf) = paste(names(resdf),"all", sep="_")
+openxlsx::write.xlsx(resdf, file = here("results", "rnaseq",
+                                        "diffex", "06_LRT_allgenes.xlsx"))
+
+#Save the significant genes in a multi-tab excel file
+resdf = lapply(reslist, function(x) x$significant_genes)
+names(resdf) = paste("sig",names(resdf), sep="_")
+#Also keep the thresholds used for significance
+resdf[[length(resdf)+1]] = 
+enframe(unlist(lapply(reslist, function(x) x$sig_threshold)), "name", "value") %>%
+  mutate(groups = if_else(str_detect(name, "nolac"), "no lactation", "allgroups")) %>%
+  mutate(name = str_remove(name, ".nolac")) %>%
+  separate(name, into = c("comparison", "threshold"), sep="\\.")
+names(resdf)[length(resdf)] = "thresholds"
+openxlsx::write.xlsx(resdf, file = here("results", "rnaseq",
+                                        "diffex", "06_LRT_sig_genes.xlsx"))
+
+rm(resdf)
+```
+
+## Pathway results
+
+Fisher's exact pathway analyses
+
+```{r}
+resdf = lapply(reslist, function(x) x$pathways)
+
+#Returns a list of aggregated path results per comparison
+pathlist = list()
+pathlist[[names(resdf)[1]]] = resdf %>% map(1, .depth=1) %>% bind_rows( .id = "comp")
+for (i in 2:length(resdf[[1]])){
+  path = resdf %>% map(i, .depth=1) %>% bind_rows( .id = "comp")
+  pathlist[[names(resdf)[i]]] = path
+}
+
+#Fix names
+names(pathlist) = lapply(pathlist, function(x) unique(x$collection)) %>% unlist(use.names = F)
+pathlist = lapply(pathlist, function(x) x[order(x$fdr),])
+
+openxlsx::write.xlsx(pathlist, file = here("results", "rnaseq",
+                                           "diffex", "06_LRT_pathways.xlsx"))
+
+rm(resdf)
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```

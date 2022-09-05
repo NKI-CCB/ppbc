@@ -1,0 +1,685 @@
+---
+title: "Univariate survival analysis for PPBC"
+date: "`r Sys.Date()`"
+author: "Kat Moore"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: kate
+    df_print: paged
+params:
+  dds: "data/rnaseq/interim/04_dds_PAM50_est.Rds"
+  scores: "data/rnaseq/interim/04a_estimate_scores.Rds"
+  color_palette: "data/rnaseq/interim/color_palettes.Rds"
+  survival_colors: "data/rnaseq/interim/survival_colors.Rds"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
+library(DESeq2)
+library(here)
+library(estimate)
+library(survival)
+library(survminer)
+library(tidyverse)
+library(ggthemes)
+library(RColorBrewer)
+library(ggpubr)
+
+theme_set(theme_bw())
+```
+
+## Survival setup
+
+Load count matrix and ESTIMATE results.
+
+```{r}
+dds <- readRDS(here(params$dds))
+scores <- readRDS(here(params$scores))
+color_palettes <- readRDS(here(params$color_palette))
+sp <- readRDS(here(params$survival_colors))
+```
+
+Remove "rest" categories from color palettes.
+
+```{r}
+color_palettes$study_colors <- color_palettes$study_colors[
+  names(color_palettes$study_colors) != "rest"]
+
+color_palettes$ppbc_colors <- color_palettes$ppbc_colors[
+  names(color_palettes$ppbc_colors) != "rest"]
+```
+
+
+Add immune, stromal and tumor purity to metadata
+
+```{r}
+purity_score <- scores$purity
+scores <- scores$estimate
+stopifnot(all(colData(dds)$sample_name == purity_score$sample_name))
+dds$immune_score = purity_score$ImmuneScore
+dds$stromal_score = purity_score$StromalScore
+dds$tumor_purity = purity_score$tumor_purity
+```
+
+Separate dataframes for some downstream analyses.
+
+```{r}
+immune_df <- scores %>% dplyr::select(-Description) %>%
+  gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
+  filter(NAME == "ImmuneScore")
+
+stromal_df <- scores %>% dplyr::select(-Description) %>%
+  gather(key = "sample_name", -NAME, value="Score") %>%
+  left_join(., as.data.frame(colData(dds)), by="sample_name") %>%
+  filter(NAME == "StromalScore") 
+```
+
+
+### Prepare metadata
+
+Covariates: grade, stage, molecular subtype, age at diagnosis, year of diagnosis, therapy type(s)
+
+We will try to keep the columns of the metadata as consistent as possible between versions.
+
+```{r}
+as.data.frame(colData(dds)) %>% colnames()
+```
+
+
+```{r}
+sd <- as.data.frame(colData(dds))
+sd <- sd %>%
+  select(sample_name, reason_death, 
+         study_group, PPBC, PAM50,
+         grade, stage,
+         FU_time_months, year_diagnosis, year_birth,
+         death, time_OS_months,
+         distant_recurrence, time_DRS_months,
+         months_involution, months_breastfeeding,
+         surgery, radiotherapy = RT, hormonetherapy = HT,
+         chemotherapy = CT, herceptin,
+         year_diagnosis, year_birth
+         ) %>%
+  mutate(age_at_diagnosis = (year_diagnosis - year_birth),
+         .before = year_diagnosis)
+
+sd %>% head()
+```
+
+How many samples lack complete info?
+
+```{r}
+samples_missing_info <- sd %>%
+  #This is always NA for non PPBCpw samples
+  select(-months_involution, -months_breastfeeding)
+samples_missing_info <- samples_missing_info[rowSums(is.na(samples_missing_info))> 0,]
+
+samples_missing_info
+```
+
+### Excluded samples
+
+Exclude samples for which there has been less than 20 months of follow up, unless the reason for the lack of follow up is that the patient passed away due to disease (and not an accident or suicide).
+
+In this version, non-BC deaths have been already filtered out
+
+```{r}
+unique(sd$reason_death)
+```
+
+follow_up > 20 | death == 1
+
+```{r, collapse=T}
+print(paste("Started with", nrow(sd), "samples"))
+
+print(paste("Samples with missing values in survival data:",
+            nrow(samples_missing_info)))
+excluded <- sd %>% filter(sample_name %in% samples_missing_info$sample_name) %>%
+  mutate(reason = "missing survival data")
+
+print(paste("Samples excluded due to patient death unrelated to disease:",
+            nrow(sd %>% filter(!reason_death %in% c("alive", "BC")))))
+
+excluded <- bind_rows(excluded,
+                     mutate(filter(sd, !reason_death %in% c("alive", "BC")),
+                            reason = "unrelated death")
+                     )
+
+print(paste("Samples excluded due to insufficient follow up:",
+      nrow(sd %>% filter(FU_time_months < 20 & reason_death == "BC"))))
+
+excluded <- bind_rows(excluded,
+                     mutate(filter(sd, FU_time_months < 20 & reason_death == "BC"),
+                            reason = "insufficient followup"))
+
+metadata <- sd %>% filter(!sample_name %in% samples_missing_info$sample_name) %>%
+  filter(reason_death %in% c("alive", "BC")) %>%
+  filter(FU_time_months >= 20 | reason_death == "BC")
+
+print(paste(nrow(metadata), "samples remaining post filtering"))
+
+stopifnot(all(rowSums(is.na(
+  select(metadata, -months_involution, -months_breastfeeding))) == 0))
+```
+
+Overview excluded samples:
+
+```{r}
+excluded_samples <- excluded %>%
+  select(sample_name, reason_exclusion = reason, study_group) %>%
+  remove_rownames() %>%
+  arrange(sample_name)
+
+
+table(excluded$sample_name, excluded$reason)
+
+write_csv(excluded_samples,
+          here("data/rnaseq/metadata/04_samples_excluded_survival.csv"))
+```
+
+We will not be using genes as features in this notebook: those analyses will come later.
+The metadata as prepared can be used as input for survival analyses.
+
+```{r}
+coxdata <- metadata
+colnames(coxdata)
+```
+
+## Univariate survival curves
+
+Kaplan-meier curves with univariate design (not correcting for clinical covariates).
+
+### Set up tertiles
+
+Define tertiles for immune and stromal scores when plotting.
+
+```{r calculate tertiles}
+immune_df$tertile <- dplyr::ntile(immune_df$Score, 3)
+stromal_df$tertile <- dplyr::ntile(stromal_df$Score, 3)
+
+tertile_colors <- color_palettes$tertile_colors
+names(tertile_colors) = c(1,2,3)
+
+bind_rows(immune_df, stromal_df) %>%
+  ggplot(aes(x = NAME, y = Score, color = as.factor(tertile))) +
+  geom_jitter() +
+  #geom_boxplot(alpha = 0) +
+  xlab("") +
+  labs(color = "tertile") +
+  ggtitle("Distribution of immune and stromal score by tertile") +
+  scale_color_manual(values = tertile_colors)
+
+```
+
+```{r add tertitles to metadata}
+coxdata <- right_join(
+  select(immune_df, sample_name, immune_tertile = tertile),
+  coxdata, by = "sample_name")
+
+coxdata <- right_join(
+  select(stromal_df, sample_name, stromal_tertile = tertile),
+  coxdata, by = "sample_name")
+
+coxdata <- coxdata %>%
+  select(sample_name:PAM50, immune_tertile, stromal_tertile, everything())
+```
+
+Subset the data down to involution only samples for analyses related to breastfeeding.
+Add months_involution (the number of months since the onset of weaning) and months_breastfeeding (the number of months of breastfeeding before stopping) to the coxdata.
+Omit missing values.
+
+```{r}
+inv_cox <- coxdata %>%
+  filter(study_group == "ppbcpw") %>%
+  na.omit()
+
+print(paste(nrow(inv_cox), "of", nrow(filter(coxdata, study_group == "ppbcpw")),
+            "involution samples with complete metadata have breastfeeding and time since weaning"))
+```
+
+```{r}
+inv_cox %>%
+  select(sample_name, months_involution, months_breastfeeding) %>%
+  gather(key = "type", -sample_name, value = "months") %>%
+  ggplot(aes(x = months, fill = type)) +
+  geom_density(alpha = 0.5) +
+  ggtitle("Distribution of breastfeeding and involution duration")
+```
+
+### Duration
+
+Set up duration categories.
+Adjusted in consultation with Hanne.
+
+For time in involution, greater or less than 6 months
+
+* ≤6 months: #3538F2
+* >6 months: #FF831E
+
+And for breastfeeding, greater or less than 1 month
+
+* ≤ 1 month: #264653
+* > 1 month: #E9C46A
+
+```{r}
+inv_cox <- inv_cox %>%
+  mutate(involution = case_when(
+    months_involution <= 6 ~ "<= 6 months",
+    months_involution > 6 ~ "> 6 months",
+  )) %>% mutate(breastfeeding = case_when(
+    months_breastfeeding <= 1 ~ "<= 1 month",
+    months_breastfeeding > 1 ~ "> 1 month",
+  )) %>%
+  select(sample_name, months_involution, involution,
+         months_breastfeeding, breastfeeding, everything()) %>%
+  mutate(involution = factor(involution,
+                             levels = c("<= 6 months", "> 6 months")),
+         breastfeeding = factor(breastfeeding,
+                                levels = c("<= 1 month", "> 1 month")))
+
+inv_cox$involution %>% table()
+inv_cox$breastfeeding %>% table()
+```
+
+### PPBC
+
+Lactation shows the worst prognosis, followed by involution.
+
+```{r, fig.width = 8}
+ppbc_colors <- color_palettes$ppbc_colors
+names(ppbc_colors) <- paste0("PPBC=",names(color_palettes$ppbc_colors))
+
+km_ppbc <- survfit(
+  Surv(time=time_OS_months, event=death) ~ PPBC,
+  data = coxdata) %>% 
+  ggsurvplot(fit = ., 
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("OS: All samples with adequate data (n = ",
+                            nrow(coxdata), ")"),
+             palette = ppbc_colors,
+             #palette = "Dark2",
+             #linetype = "strata",
+             #conf.int = T,
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+km_ppbc$plot #Avoids printing a blank plot
+```
+
+Survdiff implements the log-rank test, which compares one or more curves vs the null hypothesis that there is no difference in survival between the curves. 
+The log-rank statistic is chi-square distributed.
+
+```{r}
+survdiff(Surv(time=time_OS_months, event=death) ~ PPBC, data = coxdata)
+```
+
+Pairwise log-rank tests show that none of the individual pairings are significant.
+
+```{r}
+pairwise_survdiff(Surv(time=time_OS_months, event=death) ~ PPBC, data = coxdata)
+```
+
+### PAM50
+
+```{r}
+pam_colors = color_palettes$pam_colors
+names(pam_colors) = paste0("PAM50=", names(color_palettes$pam_colors))
+
+km_pam50 = 
+survfit(Surv(time=time_OS_months, event=death) ~ PAM50, data = coxdata) %>%
+ggsurvplot(fit = ., 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = paste0("OS: All samples with adequate data (n = ", nrow(coxdata), ")"),
+    pval = T,
+    palette = pam_colors,
+    ggtheme = theme_bw(),
+    risk.table = F,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F)
+
+km_pam50$plot
+```
+
+Log-rank test for PAM50. Basal generally has a worse than expected outcome, consistent with the literature. 
+The others are almost exactly matched with expected.
+
+```{r}
+survdiff(Surv(time=time_OS_months, event=death) ~ PAM50, data = coxdata)
+```
+
+Pairwise log-rank tests demonstrate that no pairing is remotely significant.
+
+```{r}
+pairwise_survdiff(Surv(time=time_OS_months, event=death) ~ PAM50, data = coxdata)
+```
+
+### Immune score
+
+```{r}
+names(tertile_colors) <- paste0("tertile=", 1:3)
+
+km_IS <- survfit(Surv(time=time_OS_months, event=death) ~ tertile,
+                 data = rename(coxdata, tertile = immune_tertile)) %>%
+  ggsurvplot(fit = ., 
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Overall survival by immune score (n = ",
+                            nrow(coxdata), ")"),
+             pval = T,
+             palette = tertile_colors,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+km_IS$plot
+```
+
+```{r}
+survdiff(Surv(time=time_OS_months, event=death) ~ immune_tertile, data = coxdata)
+```
+
+### Stromal score
+
+```{r}
+km_SS <- survfit(Surv(time=time_OS_months, event=death) ~ tertile,
+                 data = rename(coxdata, tertile = stromal_tertile)) %>%
+  ggsurvplot(fit = ., 
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Overall survival by stromal score (n = ",
+                            nrow(coxdata), ")"),
+             pval = T,
+             palette = tertile_colors,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+km_SS$plot
+```
+
+```{r}
+survdiff(Surv(time=time_OS_months, event=death) ~ stromal_tertile, data = coxdata)
+```
+
+### Time in involution
+
+Distribution of groups:
+
+```{r}
+table(inv_cox$involution)
+```
+
+```{r, fig.width=8, fig.height=6}
+inv_colors <- sp$involution_duration
+names(inv_colors) = c("involution \u2264 6 months", "involution > 6 months")
+#paste0("involution=", names(inv_colors))
+
+km_time_inv = 
+survfit(Surv(time=time_OS_months, event=death) ~ involution,
+        data = inv_cox) %>%
+ggsurvplot(fit = ., 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = paste0("Overall survival by time since weaning (n = ", nrow(inv_cox), ")"),
+    pval = T,
+    #palette = viridis::plasma(length(unique(inv_cox$involution))),
+    palette = inv_colors,
+    ggtheme = theme_bw(),
+    risk.table = F,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F,
+    legend.labs = c("involution \u2264 6 months", "involution > 6 months"))
+
+km_time_inv$plot
+
+```
+
+```{r}
+survdiff(Surv(time=time_OS_months, event=death) ~ involution, data = inv_cox)
+```
+
+### Breastfeeding duration
+
+Distribution of groups:
+
+```{r}
+table(inv_cox$breastfeeding)
+```
+
+```{r, fig.width=8, fig.height=6}
+bf_colors <- sp$breastfeeding_duration
+names(bf_colors) <- c("breastfeeding \u2264 1 month", "breastfeeding > 1 month")
+
+km_brf <- survfit(Surv(time=time_OS_months, event=death) ~ breastfeeding,
+        data = inv_cox) %>%
+  ggsurvplot(fit = ., 
+             xlab = "Months", 
+             ylab = "Overall survival probability",
+             title = paste0("Overall survival by breastfeeding duration (n = ",
+                            nrow(inv_cox), ")"),
+             pval = T,
+             palette = bf_colors,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F,
+             legend.labs = c("breastfeeding \u2264 1 month", "breastfeeding > 1 month"))
+
+km_brf$plot
+```
+
+```{r}
+survdiff(Surv(time=time_OS_months, event=death) ~ breastfeeding, data = inv_cox)
+```
+
+## Univariate DRS curves
+
+### PPBC
+
+Just like OS, lactation shows the worst prognosis, followed by involution.
+The comparison is less significant overall.
+
+```{r, fig.width = 8}
+drs_ppbc = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ PPBC, data = coxdata) %>% 
+ggsurvplot(fit = ., 
+    xlab = "Months", 
+    ylab = "DRS probability",
+    title =  paste0("DRS: All samples with adequate data (n = ", nrow(coxdata), ")"),
+    #linetype = "strata",
+    palette = ppbc_colors,
+    ggtheme = theme_bw(),
+    pval = T,
+    risk.table = F,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F)
+
+drs_ppbc$plot #Avoids printing a blank plot
+```
+
+```{r}
+survdiff(Surv(time=time_DRS_months, event=distant_recurrence) ~ PPBC, data = coxdata)
+```
+
+Pairwise log-rank tests
+
+```{r}
+pairwise_survdiff(Surv(time=time_DRS_months, event=distant_recurrence) ~ PPBC,
+                  data = coxdata)
+```
+
+### PAM50
+
+```{r}
+drs_pam50 <- survfit(
+  Surv(time=time_DRS_months, event=distant_recurrence) ~ PAM50,
+  data = coxdata) %>%
+  ggsurvplot(fit = ., 
+             xlab = "Months", 
+             ylab = "DRS probability",
+             title =  paste0("DRS: All samples with adequate data (n = ", nrow(coxdata), ")"),
+             pval = T,
+             palette = "Paired",
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+drs_pam50$plot
+```
+
+Log-rank test for PAM50 is similar to OS. Basal generally has a worse than expected outcome,the others match approximately with expected.
+
+```{r}
+survdiff(Surv(time=time_DRS_months, event=distant_recurrence) ~ PAM50,
+         data = coxdata)
+```
+
+Pairwise log-rank tests demonstrate that no pairing is remotely significant.
+
+```{r}
+pairwise_survdiff(Surv(time=time_DRS_months, event=distant_recurrence) ~ PAM50,
+                  data = coxdata)
+```
+
+### Immune score
+
+```{r}
+drs_IS <- survfit(
+  Surv(time=time_DRS_months, event=distant_recurrence) ~ tertile,
+  data = rename(coxdata, tertile = immune_tertile)) %>%
+  ggsurvplot(fit = ., 
+             xlab = "Months", 
+             ylab = "Distant recurrence probability",
+             title = paste0("Distant recurrence by immune score (n = ",
+                            nrow(coxdata), ")"),
+             pval = T,
+             palette = "YlOrRd",
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+drs_IS$plot
+```
+
+```{r}
+survdiff(Surv(time=time_DRS_months, event=distant_recurrence) ~ immune_tertile,
+         data = coxdata)
+```
+
+### Stromal score
+
+```{r}
+drs_SS <- survfit(
+  Surv(time=time_DRS_months, event=distant_recurrence) ~ tertile,
+        data = rename(coxdata, tertile = stromal_tertile)) %>%
+  ggsurvplot(fit = ., 
+             xlab = "Months", 
+             ylab = "DRS probability",
+             title = paste0("Distant recurrence by stromal score (n = ",
+                            nrow(coxdata), ")"),
+             pval = T,
+             palette = "YlOrRd",
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+
+drs_SS$plot
+```
+
+```{r}
+survdiff(Surv(time=time_DRS_months, event=distant_recurrence) ~ stromal_tertile,
+         data = coxdata)
+```
+
+### Time in involution
+
+Distribution of groups:
+
+```{r}
+table(inv_cox$involution)
+```
+
+```{r}
+km_drs_inv <- survfit(
+  Surv(time=time_DRS_months, event=distant_recurrence) ~ involution,
+  data = inv_cox) %>%
+  ggsurvplot(fit = ., 
+             xlab = "Months", 
+             ylab = "DRS probability",
+             title = paste0("DRS by time since weaning (n = ", nrow(inv_cox), ")"),
+             pval = T,
+             #palette = viridis::cividis(length(unique(inv_cox$involution))),
+             palette = inv_colors,
+             ggtheme = theme_bw(),
+             risk.table = F,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F,
+             legend.labs = names(inv_colors))
+
+km_drs_inv$plot
+```
+
+```{r}
+survdiff(Surv(time=time_DRS_months, event=distant_recurrence) ~ involution,
+         data = inv_cox)
+```
+
+### Breastfeeding duration
+
+Distribution of groups:
+
+```{r}
+table(inv_cox$breastfeeding)
+```
+
+```{r, fig.width=8, fig.height=6}
+drs_brf <- survfit(
+  Surv(time=time_DRS_months, event=distant_recurrence) ~ breastfeeding,
+        data = inv_cox) %>%
+ggsurvplot(fit = ., 
+    xlab = "Months", 
+    ylab = "DRS probability",
+    title = paste0("DRS by breastfeeding duration (n = ", nrow(inv_cox), ")"),
+    pval = T,
+    palette = bf_colors,
+    ggtheme = theme_bw(),
+    risk.table = F,
+    cumevents = F, cumcensor = F,
+    test.for.trend = F,
+    legend.labs = names(bf_colors))
+
+drs_brf$plot
+```
+
+```{r}
+survdiff(Surv(time=time_DRS_months, event=distant_recurrence) ~ breastfeeding, data = inv_cox)
+```
+
+## Save data
+
+```{r}
+colnames(coxdata)
+saveRDS(coxdata, here("data/rnaseq/interim/04_survdata.Rds"))
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```

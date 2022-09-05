@@ -1,0 +1,699 @@
+---
+title: "Diffex Involution Duration"
+Author: Kat Moore
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    df_print: paged
+    highlight: kate
+    canon: true
+params:
+  dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
+  vsd: "data/rnaseq/interim/08_vsd_ovr.Rds"
+  gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
+  immune_genes: "data/external/gene_ref/InnateDB_genes.csv"
+  cp: "data/rnaseq/interim/color_palettes.Rds"
+  sp: "data/rnaseq/interim/survival_colors.Rds"
+  lib: "src/rnaseq/enrichment-analysis-functions.R"
+  overwrite: TRUE
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
+library(flexgsea) #For read_gmt()
+library(ggrepel)
+library(ComplexHeatmap)
+library(openxlsx)
+library(scrime)
+library(RColorBrewer)
+library(here)
+library(tictoc)
+library(DESeq2)
+library(UpSetR)
+library(apeglm)
+library(tidyverse)
+
+theme_set(theme_bw())
+```
+
+# Load data {.tabset}
+
+Count data, in DESeq dataset and variance-stabilized transformed format.
+
+```{r}
+dds <- readRDS(here(params$dds))
+vsd <- readRDS(here(params$vsd))
+```
+
+## Gene data
+
+```{r}
+gx_annot <- read_tsv(here(params$gx_annot), show_col_types = F)
+#head(gx_annot)
+gx_annot = gx_annot %>%
+  select(ensembl_gene_id = gene_id, gene_name, hgnc_symbol,
+         gene_type, description = gene_description) %>%
+  distinct()
+```
+
+## Gene signatures
+
+```{r}
+gene_sets = list(
+  go_bp = flexgsea::read_gmt(here("data","external","gmt","c5.bp.v7.0.symbols.gmt")),
+  hallmark = flexgsea::read_gmt(here("data","external","gmt","h.all.v7.0.symbols.gmt")),
+  c2_canon = flexgsea::read_gmt(here("data","external","gmt","c2.cp.v7.0.symbols.gmt")),
+  c2_cgp = flexgsea::read_gmt(here("data","external","gmt","c2.cgp.v7.0.symbols.gmt"))
+)
+```
+
+## Retrieve immune genes
+
+For downstream analyses, we'd like to know which of the differentially expressed genes are immunologically relevant.
+
+An immune gene is defined as follows:
+
+Either immune/immuno/interleukin is part of the gene name and description OR the gene is part of the the ImmPort database. See https://www.innatedb.com/redirect.do?go=resourcesGeneLists
+
+The Immunology Database and Analysis Portal (ImmPort) system was developed under the Bioinformatics Integration Support Contract (BISC) Phase II by the Northrop Grumman Information Technology Health Solutions team for the NIH, NIAID, and DAIT. The principal investigator of the BISC project is Dr. Richard Scheuermann at University of Texas Southwestern Medical Center. The list of immunologically related genes in ImmPort is a collection of ~6,000 human genes, which was formed with the goal of retrieving all genes that have immune system-related functions. This list was generated using automatic searches of EntrezGene and Gene Ontology records using immunology-related keywords. The list was then manually curated by immunology experts examining various literature sources. 
+
+```{r}
+immune_gene_list <- read_csv(here(params$immune_genes), show_col_types = F)
+head(immune_gene_list)
+```
+
+## Colors
+
+```{r}
+cp = readRDS(here(params$cp))
+study_colors = cp$study_colors
+pam_colors = cp$pam_colors
+gene_colors = cp$gene_colors
+
+sp = readRDS(here(params$sp))
+```
+
+# Set up contrast
+
+Subset down to samples where involution duration is known:
+
+```{r}
+dds <- dds[,dds$PPBC=="involuting"]
+dds <- dds[,!is.na(dds$involution_duration)]
+```
+
+The greater/lesser symbols cause problems with DESeq result reporting.
+Recode.
+
+```{r}
+dds$involution_duration = 
+  recode(dds$involution_duration,
+       "<= 6 months"="6 months or less",
+       "> 6 months"="more than 6 months")
+
+dds$involution_duration = 
+  relevel(dds$involution_duration,
+        ref="more than 6 months")
+```
+
+Remaining samples:
+
+```{r}
+dds$study_group <- droplevels(dds$study_group)
+dds$PPBC <- droplevels(dds$PPBC)
+dds$batch <- droplevels(dds$batch)
+dds$PAM50 <- droplevels(dds$PAM50)
+
+table(dds$PPBC, dds$involution_duration)
+table(dds$batch, dds$involution_duration)
+table(dds$PAM50, dds$involution_duration)
+```
+
+Discuss: Combine small groups?
+
+```{r}
+design(dds) <- ~batch + PAM50 + involution_duration
+```
+
+# Differential expression
+
+```{r DESeq}
+ddsfile = here("data/rnaseq/processed/09_dds_involution_duration.Rds")
+overwrite <- as.logical(params$overwrite)
+
+if(file.exists(ddsfile) == F | overwrite == T){
+  tic()
+  dds <- DESeq2::DESeq(dds)
+  toc()
+  saveRDS(dds, ddsfile)
+} else {
+  dds = readRDS(ddsfile)
+}
+
+```
+
+## Apeglm
+
+Get the right column name:
+
+```{r}
+colnames(coef(dds))
+```
+
+Extract contrast from dds:
+
+```{r}
+rdds = results(dds)
+rdds
+```
+
+
+```{r}
+apefile = here("data/rnaseq/processed/09_ape_involution_duration.Rds")
+
+if(file.exists(apefile) == F | overwrite == T){
+  tic()
+  ape = lfcShrink(dds, type = "apeglm", res=rdds,
+                coef = "involution_duration_6.months.or.less_vs_more.than.6.months")
+  toc()
+  saveRDS(ape,apefile)
+} else {
+  ape = readRDS(apefile)
+}
+```
+
+Thresholds:
+
+```{r}
+fdr = 0.05 #padj threshold
+alfc = 0.5 #abs(l2fc) threshold
+```
+
+Title for plots
+
+```{r}
+ts = "Involution duration: <=6mo vs >6mo"
+```
+
+# Annotate results
+
+Add gene name, consolidate biotypes, etc.
+
+```{r annotate results}
+annotate_results <- function(results_object, anno_df = gx_annot, immune_df = immune_gene_list,
+                             mark_immune = T, mark_outliers = T, pthresh, lfcthresh){
+  
+  #Takes a res object from deseq, merges it with a gene annotation file, and an optional immune list to create a data frame sorted by adjusted p value
+  #Type is an aggregate of immunoglobulin genes from gene type and genes with a known immune function from ImmPort
+  require(tidyverse)
+  
+  anno_res <- results_object %>% as.data.frame() %>% rownames_to_column("ensembl_gene_id") %>%
+    right_join(anno_df,., by = "ensembl_gene_id") %>% arrange(padj)
+  
+  if (mark_immune==T){ #Shows genes that defined as immune based on external list
+    anno_res = anno_res %>% mutate(ImmPort_gene = if_else(
+      ensembl_gene_id %in% immune_df$ensembl, T, F
+    ))
+    
+    anno_res = anno_res %>%
+      mutate(Type=case_when( #Order is hierarchical
+        str_detect(string=gene_type,pattern="^IG") ~ "immunoglobulin",
+        str_detect(string=gene_type,pattern="^TR") ~ "T cell receptor",
+        ImmPort_gene == T ~ "immune protein coding",
+        gene_type == "protein_coding" ~ "protein coding",
+        TRUE ~ "other noncoding"))
+    
+    anno_res = anno_res %>% select(gene_name,gene_type,Type, everything())
+  }
+  
+  #DESeq sets both the pval and padj to NA for genes above a Cooks distance threshold
+  #Cook’s distance is a measure of how much a single sample is influencing the fitted coefficients for a gene,
+  #and a large value of Cook’s distance is intended to indicate an outlier count.
+  #If a row is filtered by automatic independent filtering, for having a low mean normalized count,
+  # then only the adjusted p value will be set to NA.
+  #Keep track of both possibilities
+  
+  if (mark_outliers == T){
+    anno_res = anno_res %>%
+      mutate(cooks_outlier = if_else(baseMean > 0 & is.na(pvalue), T, F)) %>%
+      mutate(indepfilt = if_else(!is.na(pvalue) & is.na(padj), T, F))
+  }
+  
+  #Significance column
+  anno_res = anno_res %>%
+     mutate(sig = padj <= !!pthresh & abs(log2FoldChange) >= !!lfcthresh)
+  
+  #Clean up text presentation, round numbers, reorder columns
+  anno_res = anno_res %>% arrange(padj) %>%
+    mutate(description = str_remove(description, "\\[.*\\]")) %>%
+    mutate(padj = signif(padj, 2),
+           log2FoldChange = round(log2FoldChange, 2),
+           baseMean = round(baseMean, 1),
+           lfcSE = signif(lfcSE, 2),
+           pvalue = signif(pvalue, 2),
+    ) %>%
+    select(gene_name, gene_type, sig,
+           padj,
+           l2fc = log2FoldChange,
+           lfcSE,
+           baseMean,
+           pvalue,
+           description,
+           everything())
+  
+  
+  return(anno_res)
+}
+
+annotated_results <- annotate_results(ape, pthresh = fdr, lfcthresh = alfc)
+
+head(annotated_results)
+```
+
+# Significant results
+
+Based on padj threshold `r fdr` and l2fc threshold `r alfc`.
+
+```{r}
+sig_results <- dplyr::filter(annotated_results, sig == T)
+```
+
+Significant genes:
+
+```{r}
+nrow(sig_results)
+```
+
+```{r}
+sig_results
+```
+
+MS4A1/CD20 is here.
+Surprising to see ERBB2/HER2 here, given that the HER2 subtype is evenly split between the groups.
+MUC2 is strongly enriched.
+
+# Volcano plots
+
+```{r volcano plots}
+volcano_plot <- function(x, title="", path_save_fig = NULL, pthresh = 0.05, absl2fc=0.5,
+                         shape_col=NULL, dedup_ids = T, colors = gene_colors){
+  
+  require(tidyverse)
+  require(ggrepel)
+  require(here)
+  
+  volcdf <- x %>%
+    mutate(NegLog10FDR = -log10(padj),
+           Significant = (padj < !!pthresh & abs(l2fc) > !!absl2fc),
+           Color = if_else(
+             sig == T, Type, "n.s."
+           )) %>%
+    filter(!is.na(Significant))
+  
+  if (dedup_ids == T){
+    print("Summarizing -log10FDR and log2FoldChange by median for duplicate gene names in volcano plot")
+    volcdf = volcdf %>% group_by(gene_name, Significant, Type, Color) %>%
+      summarise(log2FoldChange = median(l2fc), NegLog10FDR = median(NegLog10FDR),
+                .group = "drop") %>%
+      arrange(desc(NegLog10FDR))
+  }
+  
+  colors = c(colors,"n.s."="gray")
+  
+  volcplot <-ggplot(volcdf, aes(x=log2FoldChange, y=NegLog10FDR, color=Color)) +
+    geom_point() +
+    scale_color_manual(values=colors) +
+    geom_hline(yintercept = -log10(pthresh), colour="darkred", linetype="dashed") +
+    geom_vline(xintercept = absl2fc, color="darkred", linetype="dashed") +
+    geom_vline(xintercept = -absl2fc, color="darkred", linetype="dashed") +
+    theme_bw()
+  
+  volcplot <-
+    volcplot +
+    geom_text_repel(data=head(volcdf[volcdf$Significant==T,], 10),
+                    aes(label=gene_name), show.legend = F) +
+    ggtitle(title) +
+    labs(y="-log10(FDR)")
+  
+  if (is.null(path_save_fig)==F){
+    suppressMessages(ggsave(filename=path_save_fig, plot = volcplot))
+  }
+  
+  if (is.null(shape_col)==F){
+    volcplot = volcplot + aes(shape=get(shape_col)) + labs(shape=shape_col)
+  }
+  
+  return(volcplot)
+  
+}
+
+#volcano_plots <- Map(volcano_plot, x = annotated_results, title = paste0(ts, ": ", names(annotated_results)))
+vp <- volcano_plot(x = annotated_results, title = ts)
+```
+
+```{r}
+vp
+```
+
+# Pathways
+
+```{r fisher pathways}
+source(here(params$lib))
+pathway_cutoff = 0.1
+
+tic("Fisher pathways")
+pathways = fisher_pathways(
+      sig_genes = sig_results$gene_name,
+      background_genes = annotated_results$gene_name,
+      list_signatures = gene_sets,
+      fdr_cutoff = pathway_cutoff,
+      verbose = T,
+      collapse_rows=T)
+
+
+toc()
+```
+
+```{r}
+pathways
+```
+
+# Prepare heatmap
+
+Create a gene expression matrix with gene symbols for heatmaps:
+
+```{r gene symbols}
+summarize_expression_duplicate_ids <- function(mat, id_column=NULL, f=colMeans, verbose=F){
+  require(dplyr)
+  
+  #Easiest way to write functions with dplyr is to standardize the column name
+  
+  input = mat #Save input before doing anything to it in case there are no duplicates
+  
+  if(is.null(id_column)==T){
+    mat = as.data.frame(mat)
+    mat = rownames_to_column(mat, "symbol")
+    id_column = "symbol"
+  }
+  
+  if(id_column != "symbol"){
+    colnames(mat)[colnames(mat)==id_column] <- "symbol"
+  }
+  
+  if (sum(duplicated(mat$symbol)) == 0){
+    print("No duplicate symbols")
+    return(input)
+  }
+  
+  if(verbose==T){
+    print(paste("Starting with gene expression matrix containing", nrow(mat), "rows."))
+  }
+  
+  #Make frequency table
+  id_table <- as.data.frame(table(mat$symbol))
+  
+  #Identify duplicate genes
+  dups <- id_table$Var1[id_table$Freq > 1]
+  stopifnot(length(dups) == length(unique(dups)))
+  if(verbose == T){
+    print(paste("Number of genes with duplicate names:", length(dups)))
+  }
+  
+  #Set aside rows with unique gene names
+  nodup_df <- mat[!mat$symbol %in% dups,]
+  
+  #Set aside rows with duplicate ids
+  dup_df <- mat[mat$symbol %in% dups,]
+  stopifnot(nrow(nodup_df) + nrow(dup_df) == nrow(mat))
+  
+  #Sort by recurring id
+  dup_df <- dup_df[order(dup_df$symbol),]
+  
+  if(verbose==T){
+    print(paste("Number of rows with duplicate gene ids:", nrow(dup_df)))
+  }
+  
+  #Mean expression fpkm of genes with the same symbol
+  mean_exps <- matrix(ncol = ncol(dup_df)-1, nrow=0) #Empty matrix, -1 gene symbol column
+  
+  for (i in 1:length(unique(dup_df$symbol))){
+    #Subset rows with same symbol, discard symbol column, then apply aggregate function
+    exp <- f(as.matrix(dup_df[dup_df$symbol==unique(dup_df$symbol)[i], -1]))
+    mean_exps <- rbind(mean_exps, exp)
+  }
+  stopifnot(nrow(mean_exps) == length(unique(dup_df$symbol)))
+  
+  rownames(mean_exps) <- unique(dup_df$symbol)
+  mean_exps <- as.data.frame(mean_exps) %>% rownames_to_column("symbol")
+  
+  dedupped_df <- rbind(mean_exps, nodup_df)
+  dedupped_df <- dedupped_df[order(dedupped_df$symbol),]
+  
+  stopifnot(length(unique(dedupped_df$symbol))==length(dedupped_df$symbol)) #All symbols should not be unique
+  stopifnot(nrow(mat) - #starting number
+              nrow(dup_df) + #rows with duplicate genes...
+              length(dups) == #...which condense down into this many unique genes...
+              nrow(dedupped_df)) #...should equal the number of rows in the final matrix
+  
+  if (verbose == T){
+    print(paste("Number of genes after applying", substitute(f),  "to duplicate ids:", nrow(dedupped_df)))
+  }
+  
+  rownames(dedupped_df) = NULL #Required for column_to_rownames
+  dedupped_df = column_to_rownames(dedupped_df, "symbol")
+  
+  return(dedupped_df)
+}
+
+geneEx = rownames_to_column(as.data.frame(assay(vsd)), "ensembl_gene_id") %>%
+                  right_join(select(gx_annot, gene_name, ensembl_gene_id), ., by = "ensembl_gene_id") %>%
+                  select(-ensembl_gene_id)
+  
+geneEx = as.matrix(summarize_expression_duplicate_ids(geneEx, id_column = "gene_name"))
+
+geneEx[1:4,1:4]
+```
+
+Add death column, adjust color names:
+
+```{r}
+death_colors = sp$overall_survival
+death_colors[names(death_colors) == 0] <- "lightgray"
+
+inv_colors = sp$involution_duration
+names(inv_colors) <- c("6 months or less", "more than 6 months")
+#levels(dds$involution_duration)
+```
+
+
+```{r}
+deseq_heatmap = function(mat = geneEx,
+                         sampledata = as.data.frame(colData(dds)),
+                         sig_res = sig_results,
+                         groups_to_plot=levels(as.data.frame(colData(dds))[,"involution_duration"]),
+                         title= "Involution duration",
+                         #intgroup = "involution_duration",
+                         top_vars = "involution_duration",
+                         top_colors = list(involution_duration=inv_colors),
+                         bottom_vars = "death",
+                         bottom_colors = list(death = death_colors),
+                         row_colors = list(Type = gene_colors),
+                         legend_title = NULL,
+                         row_scale = T,
+                         maxn_rownames = 50,
+                         maxn_genes = 5000,
+                         row_size = 8, col_size = 8,
+                         show_col_names = F, ...){
+
+  #Reduce genes to significant only
+  sig_res = sig_res %>% arrange(padj)
+  genestoplot = sig_res$gene_name[1:maxn_genes]
+  mat = mat[rownames(mat) %in% genestoplot, ]
+  
+  #Reduce genes and sample data to compared groups only
+  #sampledata = sampledata %>% dplyr::filter(study_group %in% groups_to_plot)
+  #sampledata = sampledata %>% dplyr::filter(!!as.symbol(intgroup) %in% groups_to_plot)
+  mat = mat[,colnames(mat) %in% sampledata$sample_name]
+  stopifnot(identical(colnames(mat), sampledata$sample_name))
+  
+  #Toggle row labels depending on size of heatmap
+  if (nrow(mat) <= maxn_rownames){
+    show_row_names = T
+  } else {
+    show_row_names = F
+  }
+  
+  #Row scale settings
+  if (row_scale==T){
+    mat = scrime::rowScales(mat)
+  }
+  #Change legend according to whether input is scaled
+  if (row_scale==T){
+    hlp = list(title="rowscaled vst")
+  } else {
+    hlp = list(title="vst counts")
+  }
+  
+  #Ensure input is matrix
+  mat = as.matrix(mat)
+  #return(mat)
+  #Heatmap annotation
+  ann_top = sampledata[,top_vars, drop=F]
+  #Essential that the order be the same!
+  #ann_top = ann_top[match(rownames(mat),rownames(anno_rows)), ,drop=F]
+  
+  #return(ann_top)
+  #Top column annotation
+  colTop <- HeatmapAnnotation(df=ann_top, which="col",
+                              col = top_colors
+                              #annotation_legend_param = list(list(title = legend_title))
+                              )
+  #return(colTop)
+  #Bottom column annotation
+  ann_bottom = sampledata[,bottom_vars, drop=F]
+  colBottom <- HeatmapAnnotation(df=ann_bottom, which="col", col = bottom_colors)
+  
+  # Row annotation
+  anno_rows = sig_res %>%
+    select(gene_name, Type) %>%
+    distinct() %>%
+    filter(!duplicated(gene_name)) %>%
+    column_to_rownames("gene_name")
+  
+  #Essential that the order be the same!
+  anno_rows = anno_rows[match(rownames(mat),rownames(anno_rows)), ,drop=F]
+  
+  rowAnno = HeatmapAnnotation(df=anno_rows, which="row",
+                              col=row_colors
+                              #col=list(Type = row_colors)
+  )
+  
+  Heatmap(mat,
+          top_annotation = colTop,
+          bottom_annotation = colBottom,
+          left_annotation = rowAnno,
+          heatmap_legend_param = hlp,
+          show_row_names = show_row_names,
+          show_column_names = show_col_names,
+          cluster_rows = T,
+          row_names_gp = gpar(fontsize = row_size),
+          column_names_gp = gpar(fontsize = col_size),
+          column_title = title,
+          ...)
+}
+
+
+hm = deseq_heatmap(maxn_rownames=80)
+
+```
+
+# Heatmap
+
+```{r, fig.height=8, fig.width = 8}
+draw(hm, heatmap_legend_side = "right", annotation_legend_side = "bottom")
+```
+
+# Beehive plots
+
+Function for plotting a given gene.
+
+```{r}
+plot_gene_simple = function(dds, ensembl_gene_id, gene_name,
+                            intgroup="involution_duration", colorby="death"){
+  require(DESeq2)
+  require(tidyverse)
+  
+  #Normalizes by size factors and log transform the data with a pseudocount of 0.5
+  d <- plotCounts(dds, gene=ensembl_gene_id,
+                  intgroup=c(intgroup,colorby), normalize=T, transform=T, returnData=TRUE)
+  
+  d[,intgroup] <- as.factor(d[,intgroup])
+  d[,colorby] <- as.factor(d[,colorby])
+  
+  dplot = ggplot(d, aes(x=get(intgroup), y=count)) +
+    geom_point(position=position_jitter(w=0.1,h=0),
+               aes(color=get(colorby))) +
+    geom_boxplot(alpha = 0) +
+    scale_y_log10() + xlab(intgroup) + labs(color=colorby) +
+    ggtitle(paste(gene_name,ensembl_gene_id, sep=":")) +
+    scale_color_viridis_d() +
+    theme_bw()
+  
+  return(dplot)
+}
+
+```
+
+Top 3:
+
+```{r}
+lapply(seq(1:3), function(i){
+  plot_gene_simple(dds, ensembl_gene_id = sig_results$ensembl_gene_id[i],
+                   gene_name = sig_results$gene_name[i])})
+```
+
+## CD20
+
+```{r}
+gn = "MS4A1"
+en = gx_annot %>% filter(gene_name == !!gn) %>% pull(ensembl_gene_id)
+
+plot_gene_simple(dds, ensembl_gene_id = en,
+                 gene_name = gn, colorby="PAM50")
+```
+
+## HER2
+
+Probably just due to there being fewer Lums in 6 mo or less.
+
+```{r}
+gn = "ERBB2"
+en = gx_annot %>% filter(gene_name == !!gn) %>% pull(ensembl_gene_id)
+
+plot_gene_simple(dds, ensembl_gene_id = en,
+                 gene_name = gn, colorby = "PAM50")
+```
+
+# Save data
+
+Save the significant genes and results from each comparison.
+
+```{r}
+resDir = here("results", "rnaseq", "diffex")
+dir.create(resDir, showWarnings = F)
+
+#The tab names will be the list names
+resdf = list(sig_results, annotated_results, pathways)
+names(resdf) = c("sig", "all", "sig_pathways")
+
+write.xlsx(resdf, file = here(resDir, "09_diffex_involution_duration.xlsx"))
+rm(resdf)
+```
+
+Heatmap
+
+```{r}
+pdf(file.path(resDir, "09_hm_involution_duration.pdf"), width = 10, height = 8)
+print(draw(hm, heatmap_legend_side = "right", annotation_legend_side = "bottom"))
+dev.off()
+```
+
+Volcano plots
+
+```{r}
+pdf(file.path(resDir, "09_volcano_involution_duration.pdf"), width = 8, height = 6)
+vp
+dev.off()
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```

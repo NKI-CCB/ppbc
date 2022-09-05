@@ -11,26 +11,29 @@ library(tidyverse)
 
 #### Load data ----
 {
-appDir <- "/DATA/share/postpartumbc/shinyApp/VisualizePPBCgene"
+appDir <- here("shinyApp/VisualizePPBCgene")
 dataDir <- file.path(appDir, "data")
 
 #Gene annotation data
 gx_annot <- readRDS(file.path(dataDir,"app_gx_annot.Rds"))
 
+#readxl::excel_sheets(file.path(dataDir, "12_cox_allgenes.xlsx"))
+
 #Genewise overall survival
 os <- readxl::read_excel(path = file.path(dataDir, "12_cox_allgenes.xlsx"),
-                         sheet = "multi_cox_surv")
+                         sheet = "multi_genewise_os")
 
 #Genewise distant recurrence
 drs <- readxl::read_excel(path = file.path(dataDir, "12_cox_allgenes.xlsx"),
-                          sheet = "multi_cox_dr")
-
+                          sheet = "multi_genewise_drs")
 
 #Interaction model overall survival
-inv_int_os <- read_csv(file.path(dataDir, "13_multi_interaction_os.csv"))
+inv_int_os <- readxl::read_excel(path = file.path(dataDir, "12_cox_allgenes.xlsx"),
+                                 sheet = "multi_interaction_os")
 
 #Interaction model distant recurrence
-inv_int_drs <- read_csv(file.path(dataDir, "13_multi_interaction_drs.csv"))
+inv_int_drs <- readxl::read_excel(path = file.path(dataDir, "12_cox_allgenes.xlsx"),
+                                  sheet = "multi_interaction_drs")
 
 #Differential expression results
 res_list <- readRDS(file.path(dataDir, "app_diffex_res_list.Rds"))
@@ -45,8 +48,8 @@ ens_mat <- readRDS(file.path(dataDir, "app_ensembl_tmmnorm_genesxsample.Rds"))
 }
 
 #Functions for plotting
-source(here("src", "survival_tools.R"))
-source(here("src", "retrieve_gene_summaries.R"))
+source(here("src", "rnaseq", "survival_tools.R"))
+source(here("src", "rnaseq", "retrieve_gene_summaries.R"))
 
 #### UI ----
 ui <- fluidPage(
@@ -81,15 +84,15 @@ ui <- fluidPage(
                      hr(),
                      h3("Genewise survival results"),
                      tags$p("Model types 'overall survival' and 'distant recurrence' will identify genes associated with OS/DRS in all study groups",
-                            "using the following multivariate Cox model (notebook 12):",
+                            "using the following multivariate Cox model:",
                             br(),
                             tags$code("survival ~ age + year of diagnosis + stage + grade + treatment + PAM50 + gene"),
                             br(),
-                            "Displayed is the p value for the gene covariate, corrected for multiple testing across the entire dataset (~22K genes).",
+                            "Displayed is the p value for the gene covariate, corrected for multiple testing across the entire dataset.",
                             br(),
                             br(),
                             "By contrast, interaction-type models seek to identify genes that behave differently in the involution patients",
-                            "than in patients who are nulliparous, lactating or pregnant. The interaction model is as follows (notebook 12d):",
+                            "than in patients who are nulliparous, lactating or pregnant. The interaction model is as follows:",
                             br(),
                             tags$code("survival ~ age + year of diagnosis + stage + grade + treatment + PAM50 + gene + involution + involution*gene"),
                             br(),
@@ -97,8 +100,7 @@ ui <- fluidPage(
                             "Displayed is the p value for the involution * gene covariate.",
                             br(),
                             "For all models, gene expression input was TMM and log2 normalized.",
-                            "Only genes which pass the minimum count threshold were considered.",
-                            "(Nonzero count in 1/3 of dataset.)"),
+                            "Only genes which pass the minimum count threshold were considered."),
                      
                      hr(),
                      tableOutput("survival_summary") %>% shinycssloaders::withSpinner(),

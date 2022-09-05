@@ -1,0 +1,203 @@
+---
+title: "RNA metadata"
+date: "`r Sys.Date()`"
+author: "Kat Moore"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: kate
+    df_print: paged
+params:
+  sampledata: "data/external/sample_data.tsv"
+  patientdata: "data/external/patient_data.tsv"
+  salmondir: "data/rnaseq/salmon"
+  pre_excluded_samples: "data/external/pre_excluded_samples.csv"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(here)
+library(tidyverse)
+```
+
+Match the RNAseq fastq-derived IDs with their corresponding identifiers and read the salmon quantifications with tximport.
+
+Some fastqs were pre-excluded:
+
+```{r}
+pre_excluded_samples <- read_csv(here(params$pre_excluded_samples), show_col_types = F)
+
+pre_excluded_samples
+```
+
+## Sample data
+
+```{r}
+sampledataRaw <- read_tsv(here(params$sampledata))
+```
+
+```{r}
+glimpse(sampledataRaw)
+```
+
+General overview all sample and platforms
+
+```{r}
+sampledataRaw %>% group_by(sample_type, experimental_platform, Included) %>% count()
+```
+
+Batch HALO is only relevant for spatial data (slide type).
+
+```{r}
+sampledataRaw %>% 
+  mutate(batch_Leuven = ifelse(!is.na(batch_Leuven), "exists", "missing")) %>%
+  mutate(batch_HALO = ifelse(!is.na(batch_HALO), "exists", "missing")) %>% 
+  group_by(sample_type, batch_Leuven, batch_HALO) %>% count()
+```
+
+Duplicate patient IDs may exist where a sample has been sequenced more than once. Column typing is therefore not set until later.
+
+```{r}
+source(here("src/rnaseq/read_rna_sampledata.R"))
+sampledata <- read_rna_sampledata(here(params$sampledata), verbose = T)
+```
+
+```{r}
+head(sampledata)
+```
+
+## Patient data
+
+```{r}
+patientdataRaw <- read_tsv(here(params$patientdata))
+glimpse(patientdataRaw)
+```
+
+Sample availability by study group
+
+```{r}
+patientdataRaw %>%
+  group_by(study_group, PPBC) %>%
+  count()
+```
+
+Clinical subtyping by study group
+
+```{r}
+patientdataRaw %>%
+  group_by(study_group, clin_subtype) %>%
+  count() %>%
+  pivot_wider(names_from = study_group, values_from = n, values_fill = 0)
+```
+
+A number of columns contain median or tertile calculation that were made manually in Excel, without a formula. These columns pertain to the TAPC, TIL, and CD38 scoring. 
+
+The raw scoring from pathologists is kept, the median/tertiles will be recalculated downstream.
+
+```{r}
+source(here("src/utils/read_patient_data.R"))
+patientdata <- read_patient_data(here(params$patientdata), verbose = T)
+```
+
+```{r}
+head(patientdata)
+```
+
+## RNA metadata
+
+Combine patient and sample data.
+
+```{r}
+rnaMeta <- left_join(sampledata, patientdata, by = "patient_ID")
+
+rnaMeta
+```
+
+## Check missing files
+
+```{r}
+salmonfiles <- list.files(here(params$salmondir))
+```
+
+Samples that have no corresponding fastq.
+
+```{r}
+no_fastq <- sampledata %>%
+  filter(!str_remove(sampledata$fastq, ".fastq.gz") %in% salmonfiles)
+
+no_fastq
+
+filecheck <- function(df, fn){
+  
+  if(file.exists(fn)){file.remove(here(fn))}
+  
+  if(nrow(df) > 0){write_csv(df, fn)}
+  
+}
+
+filecheck(no_fastq, fn = here("data/rnaseq/metadata/01_nofastq.csv"))
+```
+
+Salmon output with no link to metadata file.
+
+```{r}
+no_metadata <- salmonfiles[!salmonfiles %in% str_remove(sampledataRaw$sample_ID,
+                                                        ".fastq.gz")]
+no_metadata
+```
+
+Are these samples among those pre-excluded?
+
+```{r}
+no_metadata_excluded <- pre_excluded_samples %>%
+  filter(fastq_file %in% no_metadata)
+no_metadata_excluded
+```
+
+Show those which cannot be found in the pre-excluded list.
+
+```{r}
+missing_metadata <- pre_excluded_samples %>%
+  filter(!fastq_file %in% no_metadata)
+
+missing_metadata
+
+filecheck(missing_metadata, fn = here("data/rnaseq/metadata/01_missing_metdata.csv"))
+```
+
+## Duplicate summary
+
+These patients have duplicate samples:
+
+```{r}
+duplicate_samples <- rnaMeta %>%
+  filter(patient_ID %in% filter(rnaMeta, duplicated(patient_ID))$patient_ID) %>%
+  arrange(patient_ID) %>% select(patient_ID, fastq, batch)
+
+duplicate_samples
+```
+
+Duplicates per sample:
+
+```{r}
+duplicate_samples %>% group_by(patient_ID) %>% count() %>%
+  group_by(n) %>% count(name = "number of samples with n duplicates")
+```
+
+## Write metadata
+
+```{r}
+saveRDS(rnaMeta, here("data/rnaseq/metadata/01_rnaMeta.Rds"))
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```
+
