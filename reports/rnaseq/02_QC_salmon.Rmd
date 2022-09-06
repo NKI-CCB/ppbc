@@ -493,6 +493,8 @@ Also look at random correlations as a point of comparison.
 We (correctly) suspect that low correlations between repeat sequencing runs from the same patient is due to one library size being much smaller than the other.
 
 ```{r}
+set.seed(123)
+
 correlations_random <- 
   purrr::map(rep("random", 100), get_correlations_for_patient_samples) %>% 
   bind_rows() 
