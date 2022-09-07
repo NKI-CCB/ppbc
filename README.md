@@ -32,10 +32,14 @@ This project utilizes a three-pronged approach:
 2) RNAseq-based analyses on FFPE-preserved primary tumors from a subset of patients within the PPBC cohort
 3) Spatial analysis from Vectra multiplex panels on a subset of the aforementioned patients
 
+## Instructions
+
+1) Install R and Python and their dependencies. R dependency versions are in `renv.lock` and can be restored with `renv::restore()`. For Python, use `pipenv install` to generate a virtual environment based on `requirements.txt`, and `pipenv shell` to activate it.
+2) Add the RNA fastq files to `data/rnaseq/RAW` and the spatial vectra files to `data/vectra/raw`.
+3) Run with `snakemake`. If you get a permission error when knitting a notebook, run snakemake again. This is due to rmarkdown's inability to handle multiple simultaneous knitting jobs from the same file, and should resolve itself on subsequent runs.
+
 ## Directory structure
 
 Based on [cookiecutter data science](https://drivendata.github.io/cookiecutter-data-science/) but does not perfectly conform to that formula.
 
 WIP (fill in dir structure when final)
-
-RNAseq reports are in the parent `reports` directory. Spatial reports are in a sub-folder: `reports/spatial`.
