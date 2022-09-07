@@ -14,7 +14,7 @@
 #' @examples read_patient_data(here("data/external/patient_data.tsv"))
 read_patient_data <- function(path, verbose = T){
   
-  pd <- read_tsv(path, show_col_types = F)
+  pd <- read_tsv(path, show_col_types = F, na = c("", "NA"))
   
   stopifnot(pd$Ref == pd$patient_ID)
   colnames_before <- colnames(pd)
@@ -31,14 +31,14 @@ read_patient_data <- function(path, verbose = T){
     dplyr::transmute( # Transmute discards columns not mentioned
       patient_ID, sample_name,
       study_group = readr::parse_factor(
-        study_group, levels = c("npbc", "prbc", "ppbcdl", "ppbcpw")
+        study_group, levels = c("npbc", "prbc", "ppbcdl", "ppbcpw"), include_na=F
       ),
       PPBC = readr::parse_factor(
-        PPBC, levels = c("nulliparous", "pregnant", "lactating", "involuting")
+        PPBC, levels = c("nulliparous", "pregnant", "lactating", "involuting"), include_na=F
       ),
       clin_subtype = readr::parse_factor(
         clin_subtype, levels = c("TripleNegative", "LumA", "Luminal B (HER2neg)",
-                                 "Luminal B (HER2pos)", "HER2pos (non-luminal)")
+                                 "Luminal B (HER2pos)", "HER2pos (non-luminal)"), include_na=F
       ),
       ER = as.integer(ER),
       PR = as.integer(PR),
@@ -48,13 +48,13 @@ read_patient_data <- function(path, verbose = T){
       time_DRS_months = as.double(time_DRS_months),
       distant_recurrence = as.integer(distant_recurrence),
       stage = readr::parse_factor(
-        stage, levels = c("stage I", "stage II", "stage III", "stage IV")
+        stage, levels = c("stage I", "stage II", "stage III", "stage IV"), include_na=F
       ),
       grade = readr::parse_factor(
-        grade, levels = c("grade I", "grade II", "grade III")
+        grade, levels = c("grade I", "grade II", "grade III"), include_na=F
       ),
       country = readr::parse_factor(
-        country, levels = c("BE", "IT", "GER", "CA", "NL")
+        country, levels = c("BE", "IT", "GER", "CA", "NL"), include_na=F
       ),
       # Remove no_ppbc to parse as dbl
       months_involution = ifelse(months_involution == "no_ppbc",
@@ -71,18 +71,18 @@ read_patient_data <- function(path, verbose = T){
       RT = as.integer(RT),
       HT = as.integer(HT),
       HT_type = readr::parse_factor(
-        HT_type, levels = c(NA, "no_HT", "adj_HT", "neoadj_HT", "combo_HT")
+        HT_type, levels = c(NA, "no_HT", "adj_HT", "neoadj_HT", "combo_HT"), include_na=F
       ),
       CT = as.integer(CT),
       CT_type = readr::parse_factor(
-        CT_type, levels = c(NA, "adj_CT", "no_CT", "neoadj_CT", "combo_CT")
+        CT_type, levels = c(NA, "adj_CT", "no_CT", "neoadj_CT", "combo_CT"), include_na=F
       ),
       herceptin = as.integer(herceptin),
       herceptin_type = readr::parse_factor(
         herceptin_type, levels = c(NA, "no_herceptin", "adj_herceptin",
-                                   "neoadj_herceptin",  "combo_herceptin")
+                                   "neoadj_herceptin",  "combo_herceptin"), include_na=F
       ),
-      database = readr::parse_factor(database, levels = c("MBC", "INCIP")),
+      database = readr::parse_factor(database, levels = c("MBC", "INCIP"), include_na=F),
       year_birth = as.double(year_birth),
       year_diagnosis = as.double(year_diagnosis),
       FU_year = as.double(FU_year),
@@ -107,7 +107,7 @@ read_patient_data <- function(path, verbose = T){
       TAPC_score,
       # Manual recoding of TAPC 0-1 as "low" and 2-3 as "high"
       # TAPC,
-      reason_death = readr::parse_factor(reason_death, levels = c("alive", "BC"))
+      reason_death = readr::parse_factor(reason_death, levels = c("alive", "BC"), include_na=F)
     )
   
   if(verbose){
