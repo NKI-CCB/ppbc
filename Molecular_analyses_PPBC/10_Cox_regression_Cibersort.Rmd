@@ -1,7 +1,7 @@
 ---
 title: "Cox Regression analyses - Cibersort RELATIVE fractions"
 output:
-  html_notebook:
+  html_document:
     toc: yes
     toc_float: yes
 ---

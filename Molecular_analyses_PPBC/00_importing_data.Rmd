@@ -1,9 +1,6 @@
 ---
 title: "Importing the data"
 output:
-  html_notebook:
-    toc: yes
-    toc_float: yes
   html_document:
     df_print: paged
     toc: yes

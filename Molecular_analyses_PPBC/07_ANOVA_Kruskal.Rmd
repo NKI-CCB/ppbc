@@ -1,9 +1,6 @@
 ---
 title: "ANOVA or Kruskal-Wallis testing - continuous data"
 output:
-  html_notebook:
-    toc: yes
-    toc_float: yes
   html_document:
     df_print: paged
     toc: yes

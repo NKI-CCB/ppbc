@@ -1,7 +1,7 @@
 ---
 title: "Cox Regression analyses - study_group & IG & TIL"
 output:
-  html_notebook:
+  html_document:
     toc: yes
     toc_float: yes
 ---
