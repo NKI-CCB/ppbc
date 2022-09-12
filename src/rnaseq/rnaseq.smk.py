@@ -681,7 +681,9 @@ rule cibersortX:
     rmd="reports/rnaseq/10_CibersortX.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    pdf="reports/rnaseq/10_CibersortX.pdf"
+    pdf="reports/rnaseq/10_CibersortX.pdf",
+    ciberdf="data/rnaseq/processed/10_ciberdf.Rds",
+    abs_ciberdf="data/rnaseq/processed/10_abs_ciberdf.Rds"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
     " --ciber_input '{input.ciber_input}'"
@@ -969,7 +971,9 @@ rule antibody_isotypes:
     bx_annot=ancient("data/rnaseq/processed/bx_annot.Rds"),
     dds=ancient("data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds")
   output:
-    html="reports/rnaseq/15b_antibody_isotypes.html"
+    html="reports/rnaseq/15b_antibody_isotypes.html",
+    igNorm="data/processed/15b_igNorm.Rds",
+    igSurv="data/processed/15b_igSurv.Rds"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"  
     " --dds {input.dds}"

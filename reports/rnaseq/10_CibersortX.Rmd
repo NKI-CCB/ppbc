@@ -2282,6 +2282,13 @@ coxph(
 
 ```
 
+# Save output
+
+```{r}
+saveRDS(ciberdf, here("data/rnaseq/processed/10_ciberdf.Rds"))
+saveRDS(abs_ciberdf, here("data/rnaseq/processed/10_abs_ciberdf.Rds"))
+```
+
 # Session info
 
 ```{r}
