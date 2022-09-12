@@ -55,6 +55,7 @@ configfile: "config.yaml"
 
 include: "src/rnaseq/rnaseq.smk.py"
 include: "src/spatial/spatial.smk.py"
+include: "src/figures/figures.smk.py"
 
 genewise_cox =[
   "multi_genewise_os", "uni_genewise_os",
@@ -73,8 +74,6 @@ interaction_cox = [
 rule all:
   input:
     # RNAseq rules
-    expand("data/rnaseq/salmon/{sample}/quant.sf", sample=config['samples']),
-    expand("results/rnaseq/fastqc/{sample}_fastqc.html", sample=config['samples']),
     "reports/rnaseq/08_diffex_onevsrest.html",
     "reports/rnaseq/09_diffex_time_involution.html",
     "reports/rnaseq/09b_diffex_time_breastfeeding.html",
@@ -91,8 +90,8 @@ rule all:
     "reports/spatial/07_kruskal_density.html",
     "reports/spatial/08_inv_time_density.html",
     expand("reports/spatial/09_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
-    "reports/spatial/10_ig_clusters_cd20.html",
-    "reports/spatial/12_spatstat_overview.html"
+    "reports/spatial/10_ig_clusters_cd20.html"#,
+    #"reports/spatial/12_spatstat_overview.html" #Temp disable due to long runtime
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)
