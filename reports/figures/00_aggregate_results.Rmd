@@ -1,0 +1,353 @@
+---
+title: "Aggregate results"
+date: "`r Sys.Date()`"
+author: "Kat Moore"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    highlight: kate
+    df_print: paged
+params:
+  patientdata: "data/external/patient_data.tsv"
+  dds: "data/rnaseq/interim/05_dds_PAM50_batch.Rds"
+  ciber_input: "results/rnaseq/cibersortX/CIBERSORTx_Job6_Results.csv"
+  igSurv: "data/processed/15b_igSurv.Rds"
+  read_patient_data: "src/utils/read_patient_data.R"
+  quantile_categories: "src/figures/quantile_categories.R"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
+library(here)
+library(readxl)
+library(DESeq2)
+library(tidyverse)
+
+theme_set(theme_bw())
+```
+
+## Load data
+
+Current metadata:
+
+```{r}
+source(here(params$read_patient_data))
+
+patientdata <- read_patient_data(here(params$patientdata), verbose = T)
+```
+
+```{r}
+colnames(patientdata)
+```
+
+```{r, include=F,eval=F}
+# The problem file in which Hanne merged metadata and results manually in Excel
+PPBC_metadata <- read_excel(here("data/external/old_metadata/PPBC_metadata_20220807.xlsx"),
+                            sheet = "patient_data")
+
+colnames(PPBC_metadata)[colnames(PPBC_metadata)%in%colnames(patientdata)]
+# Tons and tons of columns, many of which were never used
+colnames(PPBC_metadata)[!colnames(PPBC_metadata)%in%colnames(patientdata)]
+```
+
+dds from which to extract PAM50 groups
+
+```{r}
+dds <- readRDS(here(params$dds))
+```
+
+CibersortX plasma cell results.
+
+```{r}
+ciber_input <- read_csv(here(params$ciber_input), name_repair = "universal") %>%
+  dplyr::rename(sample_name = Mixture)
+```
+
+Normalized IG expression.
+
+```{r}
+igSurv <- readRDS(here(params$igSurv))
+```
+
+Utilties for creating categories based on quantiles or the median.
+
+```{r}
+source(here(params$quantile_categories))
+```
+
+## CD38 categories
+
+`TI_CD38_total` and `SI_CD38_total` refer to the percentage of intratumoral and stromal regions occupied by cells labelled for CD38, as scored by the pathologist. These can be separated into high and low categories, based on whether the value is above or equal to the median.
+
+```{r}
+stainingdata <- dichotomize_median(patientdata, from.col = "TI_CD38_total", to.col = "TI_CD38")
+stainingdata <- dichotomize_median(stainingdata, from.col = "SI_CD38_total", to.col = "SI_CD38")
+```
+
+```{r}
+visualize_CD38 <- function(df = stainingdata, returndata = F){
+  
+  # Reshape the data frame
+  dft <- df %>%
+    select(patient_ID, study_group, TI_CD38_total, TI_CD38) %>%
+    filter(!is.na(TI_CD38_total)) %>%
+    pivot_longer(cols = c(TI_CD38_total),
+                 names_to = c("Region"), values_to = "percent_CD38") %>%
+    mutate(Region = "Intratumoral") %>%
+    dplyr::rename(CD38_category = TI_CD38)
+  
+  dfs <- df %>% select(patient_ID, study_group, SI_CD38_total, SI_CD38) %>%
+    filter(!is.na(SI_CD38_total)) %>%
+    pivot_longer(cols = c(SI_CD38_total),
+                 names_to = c("Region"), values_to = "percent_CD38") %>%
+    mutate(Region = "Stromal") %>%
+    dplyr::rename(CD38_category = SI_CD38)
+  
+  dflong <- bind_rows(dft, dfs)
+  
+  if(returndata){return(dflong)}
+  
+  dflong %>%
+    ggplot(aes(x = Region, color = CD38_category, y = percent_CD38)) +
+    geom_point(position = position_jitter())
+    #geom_jitter(height = 0, width = 0.25)
+  
+}
+
+visualize_CD38(stainingdata) + ggtitle("CD38 categories in tumor and stroma")
+```
+
+```{r}
+visualize_CD38(stainingdata, returndata = T) %>%
+  group_by(Region, percent_CD38) %>% dplyr::count() %>%
+  pivot_wider(names_from="Region", values_from = n, values_fill = 0)
+```
+
+```{r}
+visualize_CD38(stainingdata, returndata = T) %>%
+  group_by(Region, CD38_category) %>% dplyr::count() %>%
+  pivot_wider(names_from="Region", values_from = n, values_fill = 0)
+```
+
+## TAPC categories
+
+TAPCs are scored 0 when no plasma cells, 1 when a few scattered plasma cells, 2 when a small cluster of five plasma cells and 3 when a confluence of clusters of plasma cells is present in the stroma surrounding the tumor cell nests.
+
+TAPC scores of 0 and 1 are recoded as "low" while 2 and 3 are recoded as "high".
+
+```{r}
+tapcdata <- stainingdata %>%
+  mutate(TAPC = case_when(
+    TAPC_score %in% c(0, 1) ~ "low",
+    TAPC_score %in% c(2, 3) ~ "high"
+  ), .after=TAPC_score) %>%
+  mutate(TAPC = factor(TAPC, levels = c("low","high")))
+
+group_by(tapcdata, TAPC_score, TAPC) %>% dplyr::count() %>% arrange(TAPC_score)
+```
+
+## TIL categories
+
+`TIL` is based on tertiles, and `TIL_short` is high if above or equal to the median.
+
+```{r}
+tildata <- dichotomize_median(tapcdata, from.col = "TILpercent", to.col="TIL_short")
+tildata <- create_ntiles(tildata, from.col = "TILpercent", to.col = "TIL")
+```
+
+```{r}
+tildata %>% select(TILpercent,TIL,TIL_short) %>%
+  group_by(TIL, TIL_short) %>% count()
+```
+
+
+```{r}
+tildata %>% select(TILpercent,TIL,TIL_short) %>%
+  ggplot(aes(x="TIL", y=TILpercent)) +
+  geom_point(aes(color=TIL, shape=TIL_short), position=position_jitter()) +
+  geom_boxplot(alpha = 0) +
+  ggtitle("TIL tertiles and median split")
+```
+
+## PAM50
+
+PAM50 via genefu is unavailable for samples without RNAseq data.
+
+```{r}
+pamdata <- tildata %>%
+  left_join(.,select(as.data.frame(colData(dds)), patient_ID, PAM50),
+            by = "patient_ID") %>%
+  relocate(PAM50, .after=clin_subtype)
+```
+
+## Cibersort
+
+Also available only for RNA. Cell types:
+
+```{r}
+colnames(ciber_input)
+```
+
+Remove unused columns.
+
+```{r}
+ciber_input <- ciber_input %>%
+  select(-P.value, -Correlation, -RMSE)
+```
+
+Standardize column names.
+
+```{r}
+colnames(ciber_input) <- str_replace_all(colnames(ciber_input), "\\.", "_")
+
+paste(colnames(ciber_input), collapse=", ")
+```
+
+Apply Hanne's nomenclature.
+
+```{r}
+ciberdata <- ciber_input %>%
+  select(sample_name,
+         Plasma_fraction = Plasma_cells,
+         naive_B_fraction = B_cells_naive, 
+         memory_B_fraction = B_cells_memory,
+         CD8_fraction = T_cells_CD8,
+         CD4naive_fraction = T_cells_CD4_naive,
+         CD4MR_fraction = T_cells_CD4_memory_resting,
+         CD4MA_fraction = T_cells_CD4_memory_activated,
+         TFH_fraction = T_cells_follicular_helper,
+         Treg_fraction = T_cells_regulatory__Tregs_,
+         GDT_fraction = T_cells_gamma_delta,
+         NKrest_fraction = NK_cells_resting,
+         NKactiv_fraction = NK_cells_activated,
+         Monocytes_fraction = Monocytes,
+         M0_fraction = Macrophages_M0,
+         M1_fraction = Macrophages_M1,
+         M2_fraction = Macrophages_M2,
+         DR_fraction = Dendritic_cells_resting,
+         DA_fraction = Dendritic_cells_activated,
+         MR_fraction = Mast_cells_resting,
+         MA_fraction = Mast_cells_activated,
+         Eosinophil_fraction = Eosinophils,
+         Neutrophil_fraction = Neutrophils
+         ) %>%
+  left_join(pamdata, ., by = "sample_name")
+
+head(ciberdata)
+```
+
+## Cibersort categories
+
+`Plasma_fraction` is the relative plasma B cell estimate from Cibersort. `Plasma_ID` is	based on tertiles. `Plasma_cat` is high if the sample is greater than or equal to the median plasma fraction.
+
+The other cell categories are similar. We are only interested in main category B and CD8 T cells for now.
+
+```{r}
+#paste(colnames(ciberdata), collapse = ", ")
+
+ciber_cells <- c("Plasma_fraction", "naive_B_fraction", "memory_B_fraction", "CD8_fraction")
+```
+
+
+```{r}
+cibercategories <- ciberdata
+
+for(cell in ciber_cells){
+  cibercategories <- dichotomize_median(cibercategories, from.col = cell,
+                                        to.col=str_replace(cell, "fraction", "cat"))
+  cibercategories <- create_ntiles(cibercategories, from.col = cell,
+                                   to.col = str_replace(cell, "fraction", "ID"))
+}
+```
+
+```{r}
+head(cibercategories)
+```
+
+```{r}
+lapply(ciber_cells, function(x){
+  cell <- str_remove(x, "_fraction")
+  df <- cibercategories %>%
+    select(sample_name, study_group, contains(all_of(cell)))
+  colnames(df) <- str_remove(colnames(df), paste0(cell,"_"))
+  df %>%
+    ggplot(aes(x = cell, y = fraction)) +
+    geom_point(aes(color = ID, shape = cat), position = position_jitter()) +
+    geom_boxplot(alpha = 0) +
+    ggtitle(paste(cell, "categories"))
+}) %>% set_names(ciber_cells)
+```
+
+```{r}
+lapply(ciber_cells, function(cell){
+  cibercategories %>%
+    group_by(across(all_of(str_replace(cell, "fraction", "ID"))),
+             across(all_of(str_replace(cell, "fraction", "cat")))) %>%
+    count() %>% 
+    pivot_wider(names_from= all_of(str_replace(cell, "fraction", "cat")),
+                values_from = n, values_fill = 0)
+}) %>% set_names(ciber_cells)
+  
+```
+
+## Antibodies
+
+Only available for samples with RNAseq.
+
+```{r}
+igdata <- igSurv %>%
+  select(sample_name, IgA_rank, IgD_rank, IgG_rank, IgM_rank,
+         IgA, IgD, IgG, IgM) %>%
+  left_join(cibercategories, ., by = "sample_name")
+
+head(igdata)
+```
+
+```{r}
+immunoglobulins <- c("IgA", "IgD", "IgG", "IgM")
+lapply(immunoglobulins, function(ig){
+  df <- igdata %>%
+    select(sample_name, study_group, contains(all_of(ig)))
+  
+  colnames(df) <- str_remove(colnames(df), paste0(ig,"_"))
+  colnames(df) <- str_replace(colnames(df), ig, "normExp")
+  
+  #return(df)
+  df %>%
+    ggplot(aes(x = ig, y = normExp)) +
+    geom_point(aes(color=rank), position = position_jitter()) +
+    geom_boxplot(alpha = 0) +
+    ggtitle(paste(ig, "categories"))
+}) %>% set_names(immunoglobulins)
+```
+
+## Study group reformat
+
+The nomenclature on the printed charts changes.
+
+```{r}
+figuredata <- igdata %>%
+  mutate(original_group = study_group, .after = study_group) %>%
+  mutate(study_group = recode(study_group, "npbc"="NP-BC", "prbc"="Pr-BC",
+                              "ppbcdl"="PP-BCDL", "ppbcpw"="PP-BCPW"))
+
+figuredata %>% group_by(study_group, original_group) %>% count()
+```
+
+## Save data
+
+```{r}
+dir.create(here("data/figures"), showWarnings = F)
+saveRDS(figuredata, here("data/figures/00_figuredata.Rds"))
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```
