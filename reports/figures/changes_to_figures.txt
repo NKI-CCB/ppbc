@@ -1,0 +1,4 @@
+#### Figure 1 ####
+
+- Figure 1A was labelled as Inv vs rest K-means, but was actually Inv vs Np hierarchical clustering. This has been fixed.
+- Figure 1B used FPKM and row scaling to create the IG metagene scores, neither are which are easily rationalized. Now it uses DESeq2's median ratio method and log10 transformation. There were also outliers removed without mentioning that; these are now included.

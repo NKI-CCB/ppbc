@@ -17,7 +17,7 @@ params:
   tools: "src/rnaseq/deseq_report_functions.R"
   cp: "data/rnaseq/interim/color_palettes.Rds"
   sp: "data/rnaseq/interim/survival_colors.Rds"
-  fig: "Fig1a_DEG_heatmap.pdf"
+  fig: "figures/Fig1a_DEG_heatmap.pdf"
 ---
 
 ```{r, message=F}
@@ -233,6 +233,14 @@ fig.hm = deseq_heatmap(
 fig.hm
 ```
 
+```{r}
+figureDir = file.path(here("figures"))
+dir.create(figureDir, showWarnings = F)
+pdf(file = here(params$fig), width = 10, height = 10)
+fig.hm
+dev.off()
+```
+
 ```{r, fig.height=8, fig.width=10, eval=F,include=F}
 # In which we try and fail to diagnose this mysterious problem.
 create_hm_matrix <- function(mat, sampledata, sig_results,
@@ -280,14 +288,6 @@ Heatmap(
   column_title = "Significant DEGs from PPBCpw vs rest, K-means clustering",
   column_km=3, row_km = 3
 )
-```
-
-```{r}
-figureDir = file.path(here("figures"))
-dir.create(figureDir, showWarnings = F)
-pdf(file = here(params$fig))
-fig.hm
-dev.off()
 ```
 
 # Retrieve clustering

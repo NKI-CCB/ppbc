@@ -1,0 +1,2 @@
+Fig1a - DEG heatmap PPBC-pw vs rest is produced in reports/rnaseq/11_clustering_involution.Rmd
+Fig1b - Boxplot IG cluster by study group is produced in reports/figures/01_IG_clusters.Rmd
