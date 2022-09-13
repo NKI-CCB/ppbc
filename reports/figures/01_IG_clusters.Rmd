@@ -122,9 +122,9 @@ igbp <- figuredata %>%
   ggtitle("Relationship between IG gene signature expression and patient group") +
   stat_compare_means(method = "wilcox.test", comparisons = list(
     c('PP-BCpw', 'NP-BC'),
-    c('PP-BCpw', 'Pr-BC'),
-    c('PP-BCpw', 'PP-BCdl')#,
-    #c('Pr-BC', 'NP-BC')
+    c('PP-BCpw', 'Pr-BC')#,
+    #c('PP-BCpw', 'PP-BCdl'), # Removed due to lack of samples
+    #c('Pr-BC', 'NP-BC') # Removed due to lack of interest
   ), hide.ns = F)
 
 igbp
