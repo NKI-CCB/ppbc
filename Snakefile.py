@@ -95,7 +95,8 @@ rule all:
     #Figures
     "data/figures/00_figuredata.Rds",
     "figures/Fig1a_DEG_heatmap.pdf",
-    "figures/Fig1b_ig_boxplot.pdf"
+    "figures/Fig1b_ig_boxplot.pdf",
+    "figures/Fig1d_IG_cluster_barplot.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)

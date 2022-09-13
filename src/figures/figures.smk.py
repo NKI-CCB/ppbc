@@ -31,14 +31,16 @@ rule ig_clusters:
     rmd="reports/figures/01_IG_clusters.Rmd"
   output:
     report="rreports/figures/01_IG_clusters.pdf",
-    fig="figures/Fig1b_ig_boxplot.pdf"
+    fig1="figures/Fig1b_ig_boxplot.pdf",
+    fig2="figures/Fig1d_IG_cluster_barplot.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --cluster_results {input.cluster_results}"
     " --dds {input.dds}"
     " --bx_annot {input.bx_annot}"
     " --figuredata {output.figuredata}"
-    " --fig {output.fig}"
+    " --fig1 {output.fig1}"
+    " --fig2 {output.fig2}"
     
 #vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
 #cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",

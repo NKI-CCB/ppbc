@@ -17,7 +17,8 @@ params:
   tools: "src/rnaseq/deseq_report_functions.R"
   cp: "data/rnaseq/interim/color_palettes.Rds"
   sp: "data/rnaseq/interim/survival_colors.Rds"
-  fig: "figures/Fig1a_DEG_heatmap.pdf"
+  fig1: "figures/Fig1a_DEG_heatmap.pdf"
+  fig2: "figures/Fig1d_IG_cluster_barplot.pdf"
 ---
 
 ```{r, message=F}
@@ -236,7 +237,7 @@ fig.hm
 ```{r}
 figureDir = file.path(here("figures"))
 dir.create(figureDir, showWarnings = F)
-pdf(file = here(params$fig), width = 10, height = 10)
+pdf(file = here(params$fig1), width = 10, height = 10)
 fig.hm
 dev.off()
 ```
@@ -332,7 +333,7 @@ names(IG_expression_colors) = c("low", "medium", "high")
 color_grid(IG_expression_colors)
 ```
 
-## Bar plot IG clusters
+# Figure 1D
 
 ```{r, fig.width=8}
 study_ig = col_clust %>% ggplot(aes(x = IG_col_cluster, fill=study_group)) + geom_bar(position = "fill") +
@@ -353,6 +354,12 @@ clust_ig
 
 ```
 
+```{r}
+pdf(file = here(params$fig2),
+    width = 10, height = 7)
+study_ig
+dev.off()
+```
 
 ```{r}
 pdf(file = file.path(clusterDir, "11_barplots_ig_clusters.pdf"),
