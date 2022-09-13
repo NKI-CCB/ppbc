@@ -720,6 +720,7 @@ rule inv_clustering:
     coxdata="data/rnaseq/interim/04_survdata.Rds"
   output:
     cluster_heatmap="results/rnaseq/clustering/11_hm_clust_DEG_inv_vs_rest.pdf",
+    fig="figures/Fig1a_DEG_heatmap.pdf",
     cluster_barplot="results/rnaseq/clustering/11_barplots_ig_clusters.pdf",
     cluster_results="results/rnaseq/clustering/11_inv_clusters.xlsx",
     cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",
@@ -733,6 +734,7 @@ rule inv_clustering:
     " --vsd {input.vsd}"
     " --tools {input.tools}"
     " --coxdata '{input.coxdata}'"
+    " --fig '{output.fig}'"
 
 #### Survival analyses based on gene expression ####
 

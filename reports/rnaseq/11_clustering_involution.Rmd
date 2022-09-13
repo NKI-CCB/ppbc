@@ -17,6 +17,7 @@ params:
   tools: "src/rnaseq/deseq_report_functions.R"
   cp: "data/rnaseq/interim/color_palettes.Rds"
   sp: "data/rnaseq/interim/survival_colors.Rds"
+  fig: "Fig1a_DEG_heatmap.pdf"
 ---
 
 ```{r, message=F}
@@ -111,6 +112,7 @@ study_colors = cp$study_colors
 pam_colors = cp$pam_colors
 gene_colors = cp$gene_colors
 ppbc_colors = cp$ppbc_colors
+inv_colors = cp$study_colors[names(cp$study_colors) %in% c("rest", "ppbcpw")]
 
 sp = readRDS(here(params$sp))
 ```
@@ -207,6 +209,87 @@ inv.hm
 dev.off()
 ```
 
+# Figure 1A
+
+Slight tweaks for manuscript figure. Show all non-ppbcpw as "rest", but `deseq_heatmap` does not set the colors properly with `inv_vs_rest`. This is because of some kind of very weird bug in ComplexHeamtap that prevents color hexes from being recognized...sometimes. It is not possible to perfectly match the colors, but it's close. This figure is otherwise identical to the one that shows all groups
+
+```{r, fig.height=8, fig.width=10}
+set.seed(1)
+
+fig.hm = deseq_heatmap(
+  mat = geneEx, sampledata = sd,
+  top_vars = "inv_vs_rest",
+  #top_colors = list(inv_vs_rest = inv_colors),
+  #top_colors = list(inv_vs_rest = c("rest"="#F73859", "ppbcpw"="#46CDCF")), # does not work
+  top_colors = list(inv_vs_rest = c("rest"="purple4", "ppbcpw"="darkturquoise")),
+  sig_results = sig.invr,
+  title = "Significant DEGs from PPBCpw vs rest, K-means clustering",
+  maxn_rownames = Inf,
+  intgroup = "inv_vs_rest",
+  groups_to_plot =c("ppbcpw", "rest"),
+  column_km=3, row_km = 3
+  )
+
+fig.hm
+```
+
+```{r, fig.height=8, fig.width=10, eval=F,include=F}
+# In which we try and fail to diagnose this mysterious problem.
+create_hm_matrix <- function(mat, sampledata, sig_results,
+                             maxn_genes = length(unique(sig_results$gene_name)),
+                             row_scale = T){
+  
+  #Reduce genes to significant only
+  sig_results = sig_results %>% arrange(padj)
+  genestoplot = sig_results$gene_name[1:maxn_genes]
+  mat = mat[rownames(mat) %in% genestoplot, ]
+  
+  stopifnot(identical(colnames(mat), sampledata$sample_name))
+  
+  #Row scale settings
+  if (row_scale==T){
+    mat = scrime::rowScales(mat)
+  }
+  
+  #Ensure input is matrix
+  mat = as.matrix(mat)
+  
+  mat
+  
+}
+
+set.seed(1)
+
+Heatmap(
+  create_hm_matrix(mat = geneEx, sampledata = sd, sig_results = sig.invr),
+  top_annotation = HeatmapAnnotation(
+    df=as.data.frame(sd[,"inv_vs_rest", drop=F]),
+    which="col",
+    #col = list(inv_vs_rest = inv_colors), #does not work
+    #col = list(inv_vs_rest = c("rest"="#F73859", "ppbcpw"="#46CDCF")) # does not work
+    col = list(inv_vs_rest = c("rest"="purple4", "ppbcpw"="darkturquoise")) #does work for some reason
+  ),
+  # bottom_annotation = colBottom,
+  # left_annotation = rowAnno,
+  # heatmap_legend_param = hlp,
+  show_row_names = T,
+  show_column_names = F,
+  cluster_rows = T,
+  row_names_gp = gpar(fontsize = 8),
+  column_names_gp = gpar(fontsize = 8),
+  column_title = "Significant DEGs from PPBCpw vs rest, K-means clustering",
+  column_km=3, row_km = 3
+)
+```
+
+```{r}
+figureDir = file.path(here("figures"))
+dir.create(figureDir, showWarnings = F)
+pdf(file = here(params$fig))
+fig.hm
+dev.off()
+```
+
 # Retrieve clustering
 
 Extract the samples (columns) and genes (rows) found by k-means clustering.
@@ -218,20 +301,19 @@ The column clusters can be split into a low (1), medium(2) and high(3) Ig-expres
 We can retrieve the gene/sample names either with row/column_order functions, which return indices:
 
 ```{r, fig.height = 7, fig.width= 10}
-inv.hm = draw(inv.hm)
+fig.hm = draw(fig.hm)
 ```
 
-
 ```{r, collapse=F}
-#row_order(inv.hm)
-#column_order(inv.hm) #Shows that `3` is high, `2` is medium and `1` is low
-lapply(column_order(inv.hm), length)
+#row_order(fig.hm)
+#column_order(fig.hm) #Shows that `3` is high, `2` is medium and `1` is low
+lapply(column_order(fig.hm), length)
 
 col_clust = 
 bind_rows(
-  tibble(sample_name = colnames(geneEx)[column_order(inv.hm)$`1`],IG_col_cluster = "low", col_cluster=1),
-  tibble(sample_name = colnames(geneEx)[column_order(inv.hm)$`2`],IG_col_cluster = "medium", col_cluster=2),
-  tibble(sample_name = colnames(geneEx)[column_order(inv.hm)$`3`],IG_col_cluster = "high", col_cluster=3)
+  tibble(sample_name = colnames(geneEx)[column_order(fig.hm)$`1`],IG_col_cluster = "low", col_cluster=1),
+  tibble(sample_name = colnames(geneEx)[column_order(fig.hm)$`2`],IG_col_cluster = "medium", col_cluster=2),
+  tibble(sample_name = colnames(geneEx)[column_order(fig.hm)$`3`],IG_col_cluster = "high", col_cluster=3)
 ) %>% left_join(.,select(as.data.frame(colData(dds)), sample_name, study_group, PAM50), by="sample_name") %>%
   mutate(IG_col_cluster = factor(IG_col_cluster, levels = c("low", "medium", "high")))
 
@@ -285,7 +367,7 @@ dev.off()
 Extract and store the row clusters:
 
 ```{r}
-rowdend.hm = row_dend(inv.hm)
+rowdend.hm = row_dend(fig.hm)
 
 row_clust = 
 bind_rows(
@@ -309,6 +391,8 @@ write.xlsx(list(row_clusters = row_clust, col_clusters = col_clust),
 ```
 
 # Clusters as metagenes
+
+This is a sanity check to make sure the clustering makes sense.
 
 Remember that row cluster 3 is the IG genes.
 

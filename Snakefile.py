@@ -93,7 +93,8 @@ rule all:
     "reports/spatial/10_ig_clusters_cd20.html",
     #"reports/spatial/12_spatstat_overview.html" #Temp disable due to long runtime
     #Figures
-    "data/figures/00_figuredata.Rds"
+    "data/figures/00_figuredata.Rds",
+    "figures/Fig1a_DEG_heatmap.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)
