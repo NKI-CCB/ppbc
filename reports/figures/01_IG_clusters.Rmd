@@ -1,6 +1,6 @@
 ---
 title: "Boxplot IG signature cluster"
-Author: Kat Moore
+author: "Kat Moore"
 date: "`r Sys.Date()`"
 output: 
   pdf_document:
