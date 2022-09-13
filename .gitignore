@@ -30,6 +30,7 @@ reports/spatial/object_qc_by_batch
 *.tar.xy
 *.xlsx
 *.pdf
+*.knit.md
 
 renv/library
 reports/archive/
@@ -40,6 +41,7 @@ reports/rnaseq/gene_reports/
 spatial_example_code/
 *hugo_fpkm.txt
 *.fastq.gz
+exploration/Mixture*.txt
 
 shinyApp/*/data
 shinyApp/*/data_old
