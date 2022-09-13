@@ -91,10 +91,11 @@ rule all:
     "reports/spatial/08_inv_time_density.html",
     expand("reports/spatial/09_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
     "reports/spatial/10_ig_clusters_cd20.html",
-    #"reports/spatial/12_spatstat_overview.html" #Temp disable due to long runtime
+    "reports/spatial/12_spatstat_overview.html", #Temp disable due to long runtime
     #Figures
     "data/figures/00_figuredata.Rds",
-    "figures/Fig1a_DEG_heatmap.pdf"
+    "figures/Fig1a_DEG_heatmap.pdf",
+    "figures/Fig1b_ig_boxplot.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)

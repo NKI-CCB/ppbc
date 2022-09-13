@@ -1,0 +1,145 @@
+---
+title: "Boxplot IG signature cluster"
+Author: Kat Moore
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    toc: yes
+    df_print: tibble
+    highlight: kate
+params:
+    cluster_results: "results/rnaseq/clustering/11_inv_clusters.xlsx"
+    dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
+    bx_annot: "data/rnaseq/processed/bx_annot.Rds"
+    figuredata: "data/figures/00_figuredata.Rds"
+    fig: "figures/Fig1b_ig_boxplot.pdf"
+---
+
+## Dependencies
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
+library(here)
+library(DESeq2)
+library(tidyverse)
+library(ggpubr)
+
+theme_set(theme_bw())
+```
+
+## Load data
+
+DESeqDataSet with count matrix.
+
+```{r}
+dds <- readRDS(here(params$dds))
+```
+
+Gene annotation.
+
+```{r}
+bx_annot <- readRDS(here(params$bx_annot))
+head(bx_annot)
+```
+
+K-means clustering results of DEGs from PPBC-pw vs rest.
+
+```{r}
+row_clusters <- readxl::read_excel(here(params$cluster_results),
+                                   sheet="row_clusters") %>%
+  relocate(row_cluster, ensembl_gene_id, .before = everything()) %>%
+  arrange(row_cluster, padj)
+head(row_clusters)
+```
+
+```{r}
+col_clusters <- readxl::read_excel(here(params$cluster_results),
+                                   sheet="col_clusters")
+head(col_clusters)
+```
+
+Aggregated data for figures.
+
+```{r}
+figuredata <- readRDS(here(params$figuredata))
+```
+
+## Immune cluster
+
+Cluster 3 is dominated by IG gnes.
+
+```{r}
+list(
+  cluster_1=row_clusters %>% filter(row_cluster == 1) %>% pull(gene_name),
+  cluster_2=row_clusters %>% filter(row_cluster == 2) %>% pull(gene_name),
+  cluster_3=row_clusters %>% filter(row_cluster == 3) %>% pull(gene_name)
+  )
+```
+
+## IG metagene
+
+Create an IG cluster metagene for each sample. For Hanne: see [this discussion on normalization](https://hbctraining.github.io/DGE_workshop/lessons/02_DGE_count_normalization.html) to understand the rationale.
+
+```{r}
+countmat <- DESeq2::counts(estimateSizeFactors(dds), normalized=T)
+```
+
+Select the IG genes
+
+```{r}
+igmat <- countmat[rownames(countmat) %in%
+                    filter(row_clusters, row_cluster == 3)$ensembl_gene_id, ]
+
+stopifnot(nrow(igmat) == nrow(filter(row_clusters, row_cluster == 3)))
+```
+
+Sum the expression of all genes within the IG cluster and add to figuredata.
+
+```{r}
+figuredata <- figuredata %>%
+  left_join(., enframe(colSums(igmat), "sample_name", "igClusterScore"),
+            by = "sample_name")
+```
+
+## Boxplot Figure 1B
+
+```{r}
+igbp <- figuredata %>%
+  filter(!is.na(igClusterScore)) %>%
+  ggplot(aes(x = factor(study_group,
+                        levels=c("PP-BCpw", "NP-BC", "Pr-BC", "PP-BCdl")),
+             y = igClusterScore)) +
+  geom_boxplot(aes(fill = study_group),
+               outlier.shape = NA) +
+  geom_point(position = position_jitter(), shape = 15) +
+  scale_y_log10() +
+  scale_fill_manual(values = c("NP-BC"="#521262", "PP-BCdl"="#282c75",
+                               "PP-BCpw"="#46cdcf", "Pr-BC"="#aa96da")) +
+  xlab("Study group") + ylab("Log10 sum of normalized counts within IG cluster") +
+  ggtitle("Relationship between IG gene signature expression and patient group") +
+  stat_compare_means(method = "wilcox.test", comparisons = list(
+    c('PP-BCpw', 'NP-BC'),
+    c('PP-BCpw', 'Pr-BC'),
+    c('PP-BCpw', 'PP-BCdl')#,
+    #c('Pr-BC', 'NP-BC')
+  ), hide.ns = F)
+
+igbp
+```
+
+```{r}
+figureDir = file.path(here("figures"))
+dir.create(figureDir, showWarnings = F)
+pdf(file = here(params$fig), width = 10, height = 7)
+igbp
+dev.off()
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```
