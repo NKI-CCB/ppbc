@@ -1,4 +1,15 @@
+#### General ####
+
+RNAseq has enough power for prbc but not ppbc-lac. Ppbc-lac is only included in 1 vs rest comparisons and non quantitative visualizations.
+For spatial analyses, insufficient power for prbc and ppbc lac.
+For spatial visualizations of density etc box plots, include all 4 groups but only do statistical test between ppbcinv and nulliparous
+Survival analyses (OS, DRS) in RNAseq data either exclude lac or use one vs rest
+For survival (OS, DRS) analyses in spatial data, only include ppbc inv and nulliparous
+
 #### Figure 1 ####
 
-- Figure 1A was labelled as Inv vs rest K-means, but was actually Inv vs Np hierarchical clustering. This has been fixed.
-- Figure 1B used FPKM and row scaling to create the IG metagene scores, neither are which are easily rationalized. Now it uses DESeq2's median ratio method and log10 transformation. There were also outliers removed without mentioning that; these are now included.
+1A - Previously was labelled as Inv vs rest K-means, but was actually Inv vs Np hierarchical clustering. This has been fixed.
+1B - Previously used FPKM and row scaling to create the IG metagene scores, neither are which are easily rationalized. Now it uses DESeq2's median ratio method and log10 transformation. There were also outliers removed without mentioning that; these are now included. The statistical test for PPBCdl was removed due to lack of samples.
+1C - unchanged
+1D - unchanged 
+1E - Now includes a rough risk table and exports the risk table data for potentially better formatting.

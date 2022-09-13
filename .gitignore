@@ -37,6 +37,7 @@ reports/archive/
 reports/multiqc_data/
 reports/*.tar.xy
 reports/rnaseq/gene_reports/
+figures/
 *scratch*
 spatial_example_code/
 *hugo_fpkm.txt

@@ -17,8 +17,10 @@ params:
   tools: "src/rnaseq/deseq_report_functions.R"
   cp: "data/rnaseq/interim/color_palettes.Rds"
   sp: "data/rnaseq/interim/survival_colors.Rds"
-  fig1: "figures/Fig1a_DEG_heatmap.pdf"
-  fig2: "figures/Fig1d_IG_cluster_barplot.pdf"
+  fig1a: "figures/Fig1a_DEG_heatmap.pdf"
+  fig1d: "figures/Fig1d_IG_cluster_barplot.pdf"
+  fig1e: "figures/Fig1e_IG_cluster_KM.pdf"
+  risktable1e: "figures/Fig1e_risktable.csv"
 ---
 
 ```{r, message=F}
@@ -30,6 +32,7 @@ library(openxlsx)
 library(scrime)
 library(survival)
 library(survminer)
+library(ggrepel)
 library(RColorBrewer)
 library(here)
 library(tidyverse)
@@ -237,7 +240,7 @@ fig.hm
 ```{r}
 figureDir = file.path(here("figures"))
 dir.create(figureDir, showWarnings = F)
-pdf(file = here(params$fig1), width = 10, height = 10)
+pdf(file = here(params$fig1a), width = 10, height = 10)
 fig.hm
 dev.off()
 ```
@@ -355,7 +358,7 @@ clust_ig
 ```
 
 ```{r}
-pdf(file = here(params$fig2),
+pdf(file = here(params$fig1d),
     width = 10, height = 7)
 study_ig
 dev.off()
@@ -768,18 +771,64 @@ sg_ig
 
 ### KM study group, faceted by IG cluster
 
+# Figure 1E
+
+Remove lactation from survival curves for publication due to lack of power.
+
 ```{r, fig.width=8}
-ggsurvplot(
-    fit = survfit(Surv(time=time_OS_months, event=death) ~ PPBC + IG, data = surv), 
+nolacsurv <- as.data.frame(droplevels(filter(surv, study_group != "ppbcdl")))
+
+ig_km <- ggsurvplot(
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ study_group + IG,
+                  data = nolacsurv), 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = "Study group by IG cluster",
     pval = T, 
     facet.by = "IG",
-    palette = ppbc_colors[names(ppbc_colors)!="rest"],
-    ggtheme = theme_bw())
+    palette = study_colors[!names(ppbc_colors) %in% c("ppbcdl", "rest")],
+    ggtheme = theme_bw(),
+    risk.table = T)
 
+ig_km
+```
 
+Risk table is extremely hard to plot legibly.
+
+```{r, fig.height=7, fig.width=15}
+text.size <- 8
+
+rt_ig_km <- ggplot(ig_km$data, aes(time, study_group)) + 
+  #geom_text(aes(label = n.risk), position=position_jitter(width = 0, height = 0.1)) +
+  ggrepel::geom_text_repel(aes(label = n.risk)) +
+  facet_wrap(~IG, 3) + theme_bw() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill="white", size = 1),
+        axis.text.x = element_text(color="black", size = text.size+2),
+        axis.text.y = element_text(color="black", size = text.size),
+        axis.title = element_text(color="black", size = text.size+4),
+        strip.text = element_text(color="black", size = text.size))+
+  #scale_y_discrete(limits=c("2","1"), labels=c("2" = "sex=2", "1" = "sex=1")) +
+  ggtitle("Risk Tables") +
+  xlab("Time") + ylab("")
+rt_ig_km
+```
+
+Save output
+
+```{r}
+pdf(file = here(params$fig1e),
+    width = 12, height = 7)
+ig_km
+rt_ig_km
+dev.off()
+```
+
+Save risk table data separately.
+
+```{r}
+write_csv(ig_km$data, here(params$risktable1e))
 ```
 
 ### Multivariate Cox
