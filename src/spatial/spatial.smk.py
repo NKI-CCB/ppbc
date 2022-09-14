@@ -164,18 +164,6 @@ rule load_objects:
     "export OMP_NUM_THREADS=1\n"
     "python3 {input.script} {input.summary} {input.objects} {output.objects}"
     
-#Create a single data frame that includes object info for all samples
-#May be extremely slow to load due to size
-#FIXME: Is this deprecated and removable?
-rule aggregrate_objects:
-  input:
-    object_files = [f"data/vectra/interim/objects/{s.sample_id}_{s.panel}_{s.batch_HALO}.nc"
-                    for s in vectra_samples],
-    script = "src/spatial/read_cells.R"
-  output:
-    "data/vectra/interim/objects.Rds"
-  shell:
-    "Rscript {input.script} {input.object_files} {output}"
 
 #QC reports based on object files rather than summary files
 #Generate batchwise output by adding this to rule all:
