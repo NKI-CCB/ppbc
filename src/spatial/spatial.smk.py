@@ -49,7 +49,6 @@ class Sample():
                 scoring = x["experimental_platform"],
             )
 
-# @Tycho I've expanded the data classes but it's still not part of the RNAseq workflow
 @dataclass(frozen=True)
 class VectraSample(Sample):
     sample_id: str
