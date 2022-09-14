@@ -469,7 +469,11 @@ rule report_spatstat:
     density="data/vectra/processed/density_ppbc.Rds",
     script="src/utils/rmarkdown.R"
   output:
-    html="reports/spatial/12_spatstat_overview.html"
+    html="reports/spatial/12_spatstat_overview.html",
+    spatstat="data/vectra/processed/11_spatstat.Rds",
+    spatstat_l="data/vectra/processed/11_spatstat_l.Rds",
+    spatstat_lcross_immune="data/vectra/processed/11_spatstat_lcross_immune.Rds",
+    spatstat_lcross_panck="data/vectra/processed/11_spatstat_lcross_panck.Rds"
   shell:
     "Rscript {input.script} {input.rmd} $(realpath -s {output.html})"
     " --metadata {input.metadata}"

@@ -477,6 +477,19 @@ plot_lcross_dens <- function(df){
 plot_lcross_dens(spatLcrossdens)
 ```
 
+## Save data
+
+```{r}
+saveRDS(spatstat, here("data/vectra/processed/11_spatstat.Rds"))
+saveRDS(spatstat_l, here("data/vectra/processed/11_spatstat_l.Rds"))
+saveRDS(spatstat_lcross_immune,
+        here("data/vectra/processed/11_spatstat_lcross_immune.Rds"))
+saveRDS(spatstat_lcross_panck,
+        here("data/vectra/processed/11_spatstat_lcross_panck.Rds"))
+```
+
+## Session info
+
 ```{r}
 sessionInfo()
 ```
