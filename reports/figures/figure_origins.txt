@@ -5,3 +5,210 @@
 1c - Online STRING by Hanne
 1d - Barplot IG clusters is produced in reports/rnaseq/11_clustering_involution.Rmd
 1e - Kaplan Meier IG curves is produced in reports/rnaseq/11_clustering_involution.Rmd
+
+#### Figure 2 ####
+
+2a - HALO image
+2b - reports/figures/02_spatial_figures.Rmd
+2c - reports/figures/02_spatial_figures.Rmd
+2d - HALO image
+2e - reports/figures/02_spatial_figures.Rmd WIP
+2f - reports/figures/02_spatial_figures.Rmd
+2h - reports/figures/02_spatial_figures.Rmd
+
+
+#### To do####
+
+Figure 2
+# correlation TAPC - study_group
+## overall
+### all cases
+I.	Code Hanne: 01_TAPC_scoring.Rmd
+# OS - plasma count
+#### KM by plasma score - without PPBCDL
+J.	IHC image
+K.	Code Hanne: 02_CD38_infiltration.Rmd
+# ANOVA CD38 ALL intensity
+## tumor
+### Visualization
+L.	Code Hanne: 02_CD38_infiltration.Rmd
+# OS - CD38 count
+## Tumor
+### stratified CD38 – only PPBCpw and npbc
+
+Figure 3
+A.	Code Kat: 18b_antibody_isotypes.Rmd
+B.	Code Hanne: 11_IGheavy_subtypes.Rmd
+## Kaplan-meier
+### IgA - without lactation group
+### IgD - without lactation group
+### IgG - without lactation group
+Note. To draw this data, I used your igSurv file, generated in 18b_antibody_isotypes.Rmd
+C.	Code Hanne: 03_correlation_analyses.Rmd
+# correlation IgA/IgG – TAPC
+## PPBC-inv
+### IgA
+### IgG
+
+Figure 4
+A.	Code Hanne: 07_ANOVA_Kruskal.Rmd
+# TIL scoring
+## Visualization
+B.	Code Hanne: 07_ANOVA_Kruskal.Rmd
+# CD8 in study group
+## Visualization
+C.	Code Hanne: 10_Cox_regression_Cibersort.Rmd
+# CD8+ cells - Median
+CD8_ID --> Median
+## OS 
+### Kaplan-Meier
+#### KM high vs low
+D.	Code Kat: 07_cox_density.Rmd and Code Hanne: 07_cox_density_withoutCD27
+E.	Code Kat: 07_cox_density.Rmd and Code Hanne: 07_cox_density_withoutCD27
+F.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
+G.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
+H.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
+I.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
+
+Supplementary Figures 
+
+Fig. S1
+General outline – no code 
+
+Fig. S2.
+Code Hanne: 09_Cox_regression_study_group_IG.Rmd
+# study group
+## OS
+## DRS
+Note. I still need to remove PPBCdl from the visualizations (they have not been considered for p-values)
+
+Fig. S3. S4. S5. S6.
+Code Kat
+
+Fig. S7. 
+A.	Code Kat
+B.	Code Hanne: 04_correlation_IGmilksignature.Rmd
+# Correlation
+## overall
+## PPBC-inv
+
+Fig. S8. 
+Code Kat 
+Reproduced in 09_Cox_regression_study_group_IG.Rmd 
+# IG cluster
+# OS / DR
+
+Fig. S9. 
+Code Kat & reproduced in Code Hanne: 09_Cox_regression_study_group_IG.Rmd
+# IG cluster
+## DR
+### Kaplan-Meier
+#### KM high vs low
+
+Fig. S10. 
+Code Kat & reproduced in Code Hanne: 09_Cox_regression_study_group_IG.Rmd
+# IG cluster
+## OS / DR
+### Kaplan-Meier
+#### KM by PAM50
+
+Fig. S11.
+Code Kat 
+Note. I made these using your 17_gene_report_template.Rmd
+
+Fig. S12.
+A.	Code Kat
+B.	Code Hanne: 07_ANOVA_Kruskal.Rmd
+# Plasma fraction in study group
+# Memory B in study group
+# Naive B in study group
+C.	Code Hanne: 10_Cox_regression_Cibersort.Rmd
+# Plasma cells - based on median
+Plasma_cat --> BASED ON MEDIAN
+## OS / DRS
+### Kaplan-Meier
+#### KM high vs low
+D.	Code Hanne: 10_Cox_regression_Cibersort.Rmd
+# memoryB+ cells - median
+memoryB_ID --> BASED ON MEDIAN
+## OS / DRS
+### Kaplan-Meier
+#### KM high vs low
+
+Fig. S13. 
+A.	Code Kat: 07_cox_density.Rmd and Code Hanne: 07_cox_density_withoutCD27
+B.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
+C.	Code Hanne: 01_TAPC_scoring.Rmd
+# DRS - plasma count
+#### KM by plasma score - without PPBCDL
+D.	Code Hanne: 02_CD38_infiltration.Rmd
+# DRS - CD38 count
+## Tumor
+### stratified CD38 – only PPBCpw and npbc
+
+Fig. S14. 
+Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
+
+Fig. S15. 
+Image provided by Prof. Floris
+
+Fig. S16.
+Code Hanne: 03_correlation_analyses.Rmd
+# correlation CD38 expression – TAPC
+## overall
+## PPBC-inv
+
+Fig. S17.
+Code Hanne: 04_correlation_IGmilksignature.Rmd
+# milk signature
+# correlation analysis IgA - Milk signature
+## overall
+## PPBC-inv
+##PrBC
+##NP-BC
+## PP-BCDL
+
+Fig. S18. 
+Code Hanne: 11_IGheavy_subtypes.Rmd
+## Kaplan-meier
+### IgA - without lactation group
+### IgD - without lactation group
+### IgG - without lactation group
+Note. To draw this data, I used your igSurv file, generated in 18b_antibody_isotypes.Rmd
+
+Fig. S19. 
+Code Hanne: 03_correlation_analyses.Rmd
+# correlation IgA/IgG – TAPC
+## overall
+## PrBC
+## NPBC
+
+Fig. S20.
+Code Hanne: 03_correlation_analyses.Rmd
+# correlation IG expression - IgA-IgG
+
+Fig. S21. 
+This figure was made based on edits I made in your code 18_BCR_clonality.Rmd
+However, I think it does not really make much sense what I did. So I’m probably replacing this figure by your figure regarding overall clonal diversity (however I’ll wait for the edits as the TRUST analyses got changed) 
+ 
+
+Fig. S22. 
+Code Hanne: 06_immune_landscapes.Rmd
+
+Fig. S23. 
+A.	Code Hanne: 10_Cox_regression_Cibersort.Rmd
+# CD8+ cells - Median
+CD8_ID --> Median
+## DR 
+### Kaplan-Meier
+#### KM high vs low
+B.	Code Kat: 07_cox_density.Rmd and Code Hanne: 07_cox_density_withoutCD27
+C.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
+D.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
+E.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
+F.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
+G.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
+
+Fig. S24.
+Code Hanne: 05_exhaustion.Rmd
+But unsure if we’ll include this figure.

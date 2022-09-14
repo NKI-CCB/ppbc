@@ -1,0 +1,337 @@
+---
+title: "Spatial figures"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    toc: yes
+    df_print: tibble
+    highlight: kate
+params:
+    figuredata: "data/figures/00_figuredata.Rds"
+    sampledata: "data/external/sample_data.tsv"
+    density: "data/vectra/processed/density_ppbc.Rds"
+    radius: 0.03
+    spatstat_l: "data/vectra/processed/11_spatstat_l.Rds"
+    spatstat_lcross_immune: "data/vectra/processed/11_spatstat_lcross_immune.Rds"
+    spatstat_lcross_panck: "data/vectra/processed/11_spatstat_lcross_panck.Rds"
+    fig2b: "figures/Fig2b_CD20_density_boxplot.pdf"
+    fig2c: "figures/Fig2c_CD20_density_km.pdf"
+    rt_fig2c: "figures/Fig2c_risktable.csv"
+    fig2e: "figures/Fig2e_CD20_l_boxplot.pdf"
+    fig2f: "figures/Fig2f_Cd20_l_km.pdf"
+    rt_fig2f: "figures/Fig2f_risktable.csv"
+---
+
+## Dependencies
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F}
+library(here)
+library(tidyverse)
+library(ggpubr)
+library(survival)
+library(survminer)
+library(ggrepel)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+
+theme_set(theme_bw())
+```
+
+## Load data
+
+Linkage of t-numbers to patient_IDs.
+
+```{r}
+sampledata <- read_tsv(here(params$sampledata))
+```
+
+Processed outcome data.
+
+```{r}
+figuredata <- readRDS(here(params$figuredata))
+```
+
+Cell density from Vectra data.
+
+```{r}
+density <- readRDS(here(params$density)) %>%
+  mutate(original_group = study_group, .after = study_group) %>%
+  mutate(study_group = recode(study_group, "npbc"="NP-BC", "prbc"="Pr-BC",
+                              "ppbcdl"="PP-BCdl", "ppbcpw"="PP-BCpw")) %>%
+  rename(sample_ID = t_number)
+```
+
+L stat (same cell type)
+
+```{r}
+l <- readRDS(here(params$spatstat_l))
+```
+
+L cross immune <-> immune
+
+```{r}
+lximmune <- readRDS(here(params$spatstat_lcross_immune))
+```
+
+L cross immune <-> panck
+
+```{r}
+lxpanck <- readRDS(here(params$spatstat_lcross_panck))
+```
+
+## Colors
+
+```{r}
+figuredata$study_group %>% levels()
+study_colors <- c("NP-BC"="#521262", "Pr-BC"="#AA96DA", "PP-BCdl"="#112D4E", "PP-BCpw"="#46CDCF")
+```
+
+## Link outcomes
+
+Add the t-numbers to the figure data.
+
+```{r}
+outcomedata <- sampledata %>%
+  filter(sample_type == "slide" & !is.na(sample_ID) & !is.na(batch_HALO) & Included == 1) %>%
+  select(patient_ID, sample_ID) %>%
+  distinct() %>%
+  inner_join(., figuredata, by = "patient_ID")
+
+stopifnot(nrow(filter(outcomedata, duplicated(sample_ID))) == 0)
+```
+
+## Figure 2B
+
+```{r}
+fig2b <- density %>%
+  filter(cell_type == "CD20+" & classifier_label == "Total") %>%
+  ggplot(aes(x = factor(study_group,
+                        levels = c("PP-BCpw", "NP-BC", "Pr-BC", "PP-BCdl")),
+             y = log10(density + 1), color = study_group)) +
+  geom_point(position = position_jitter(height = 0), shape = 15) +
+  geom_boxplot(alpha = 0) +
+  scale_color_manual(values = study_colors) +
+  xlab("Study group") + #ylab("CD20+ multiplex IF density") +
+  stat_compare_means(method = "wilcox.test",
+                     comparisons = list(c("PP-BCpw", "NP-BC"))) +
+  stat_compare_means(label.y = 3.7) +
+  ggtitle("CD20+ density by study group")
+
+fig2b
+```
+
+### Save output
+
+```{r}
+figureDir = file.path(here("figures"))
+dir.create(figureDir, showWarnings = F)
+pdf(file = here(params$fig2b), width = 10, height = 7)
+fig2b
+dev.off()
+```
+
+## Figure 2C
+
+Due to power issues, only use PP-BCpw and NP-BC. High/low is around the median density.
+
+```{r}
+density_km <- function(df, cell, event_type = c("OS", "DRS"), returndata = F){
+
+  stopifnot(cell %in% df$cell_type)
+  
+  event_type <- match.arg(event_type)
+  
+  df <- df %>% 
+    filter(
+      classifier_label == "Total",
+      study_group %in% c("PP-BCpw", "NP-BC"),
+      cell_type %in% cell,
+      !is.na(density)
+    ) %>%
+    rename(density_int = density)
+  
+  med <- median(df$density_int)
+  #print(med)
+  
+  df$density <- factor(ifelse(df$density_int > med, "high", "low"),
+                       levels = c("low", "high"))
+  df <- df %>% relocate(density, .after = density_int)
+  
+  if(returndata){return(df)}
+  
+  if(event_type == "OS"){
+    df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+      as.data.frame()
+    y <- "Overall survival"
+    fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + density, data = df)
+  } else {
+    df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+      as.data.frame()
+    y <- "Distant recurrence"
+    fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + density, data = df)
+  }
+
+  ggsurvplot(
+    fit, data = df,
+    xlab = "Months", 
+    ylab = paste(y,"probability"),
+    title = paste(y, cell, "stratified by median density:", signif(med, 2)),
+    palette = study_colors[names(study_colors) %in% unique(df$study_group)],
+    ggtheme = theme_bw(),
+    pval = T,
+    facet.by = "density",
+    legend.title="Study group:"
+    )
+}
+
+fig2c <- density_km(density, cell = "CD20+", event_type = "OS", returndata = F)
+fig2c
+```
+
+### Risk table
+
+```{r, fig.height=7, fig.width=12}
+density_risktable <- function(ggkm, text.size = 8){
+  ggplot(ggkm$data, aes(time, study_group)) + 
+    ggrepel::geom_text_repel(aes(label = n.risk)) +
+    facet_wrap(~density, 3) + theme_bw() + 
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          strip.background = element_rect(fill="white", size = 1),
+          axis.text.x = element_text(color="black", size = text.size+2),
+          axis.text.y = element_text(color="black", size = text.size),
+          axis.title = element_text(color="black", size = text.size+4),
+          strip.text = element_text(color="black", size = text.size))+
+    ggtitle("Risk Tables") +
+    xlab("Time") + ylab("")
+}
+
+rt_fig2c <- density_risktable(fig2c)
+rt_fig2c
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$fig2c), width = 12, height = 7)
+fig2c
+rt_fig2c
+dev.off()
+```
+
+Also save risk table as csv.
+
+```{r}
+write_csv(fig2c$data, here(params$rt_fig2c))
+```
+
+## Figure 2E
+
+## Figure 2F
+
+Due to power issues, only use PP-BCpw and NP-BC. Stratification is around the median delta L estimate.
+
+```{r}
+lstat_km <- function(df, cell, outcome=outcomedata, rad=params$radius,
+                       event_type = c("OS", "DRS"), returndata = F){
+
+  stopifnot(class(rad)=="numeric")  
+  stopifnot(cell %in% df$cell_type)
+  
+  event_type <- match.arg(event_type)
+  
+  df <- df %>%
+    left_join(., outcome, by="sample_ID") %>%
+    filter(
+      study_group %in% c("PP-BCpw", "NP-BC"),
+      cell_type %in% cell,
+      radius == rad,
+      !is.na(delta_estimate)
+    )
+  
+  med <- median(df$delta_estimate)
+  #print(med)
+  
+  df$delta_l <- factor(ifelse(df$delta_estimate > med, "high", "low"),
+                      levels = c("low", "high"))
+  df <- df %>% relocate(delta_l, .after = delta_estimate)
+  
+  if(returndata){return(df)}
+  
+  if(event_type == "OS"){
+    df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+      as.data.frame()
+    y <- "Overall survival"
+    fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + delta_l, data = df)
+  } else {
+    df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+      as.data.frame()
+    y <- "Distant recurrence"
+    fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + delta_l, data = df)
+  }
+
+  ggsurvplot(
+    fit, data = df,
+    xlab = "Months", 
+    ylab = paste(y,"probability"),
+    title = paste(y, cell, "stratified by median delta L:", signif(med, 2)),
+    palette = study_colors[names(study_colors) %in% unique(df$study_group)],
+    ggtheme = theme_bw(),
+    pval = T,
+    facet.by = "delta_l",
+    legend.title="Study group:"
+    )
+}
+
+fig2f <- lstat_km(l, cell = "CD20+", event_type = "OS", returndata = F)
+fig2f
+```
+
+### Risk table
+
+```{r, fig.height=7, fig.width=12}
+l_risktable <- function(ggkm, text.size = 8){
+  ggplot(ggkm$data, aes(time, study_group)) + 
+    ggrepel::geom_text_repel(aes(label = n.risk)) +
+    facet_wrap(~delta_l, 3) + theme_bw() + 
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          strip.background = element_rect(fill="white", size = 1),
+          axis.text.x = element_text(color="black", size = text.size+2),
+          axis.text.y = element_text(color="black", size = text.size),
+          axis.title = element_text(color="black", size = text.size+4),
+          strip.text = element_text(color="black", size = text.size))+
+    ggtitle("Risk Tables") +
+    xlab("Time") + ylab("")
+}
+
+rt_fig2f <- l_risktable(fig2f)
+rt_fig2c
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$fig2f), width = 12, height = 7)
+fig2f
+rt_fig2f
+dev.off()
+```
+
+Also save risk table as csv.
+
+```{r}
+write_csv(fig2f$data, here(params$rt_fig2f))
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```

@@ -13,3 +13,11 @@ For survival (OS, DRS) analyses in spatial data, only include ppbc inv and nulli
 1C - unchanged
 1D - unchanged 
 1E - Now includes a rough risk table and exports the risk table data for potentially better formatting.
+
+#### Figure 2 ####
+
+2A - Unchanged
+2B - P-value has changed to be no longer significant, and test label was misleading or incorrect (says Wilcoxon, was KW according to code). Density is now log10 tranformed with a pseudocount of 1 for visualization.
+2C - P-values have changed but not much and the graph looks mostly the same.
+2E - I'm ambivalent about whether showing the delta estimate this way is a good idea, but ok.
+2F - P-values have changed but not much and the graph looks mostly the same.
