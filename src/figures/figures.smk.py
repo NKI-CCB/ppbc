@@ -27,19 +27,20 @@ rule ig_clusters:
     cluster_results="results/rnaseq/clustering/11_inv_clusters.xlsx", #for row clusters
     dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
     bx_annot="data/rnaseq/processed/bx_annot.Rds",
-    figuredata="data/figures/00_figuredata.Rds"
-    rmd="reports/figures/01_IG_clusters.Rmd"
+    figuredata="data/figures/00_figuredata.Rds",
+    rmd="reports/figures/01_IG_clusters.Rmd",
+    script="src/utils/rmarkdown.R"
   output:
-    report="rreports/figures/01_IG_clusters.pdf",
+    report="reports/figures/01_IG_clusters.pdf",
     fig="figures/Fig1b_ig_boxplot.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --cluster_results {input.cluster_results}"
     " --dds {input.dds}"
     " --bx_annot {input.bx_annot}"
-    " --figuredata {output.figuredata}"
-    " --fig {output.fig1}"
-    " --fig2 {output.fig2}"
+    " --figuredata {input.figuredata}"
+    " --fig {output.fig}"
+
     
 #vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
 #cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",

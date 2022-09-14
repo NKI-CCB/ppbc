@@ -12,7 +12,7 @@ params:
     dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
     bx_annot: "data/rnaseq/processed/bx_annot.Rds"
     figuredata: "data/figures/00_figuredata.Rds"
-    fig: "figures/Fig1b_ig_boxplot.pdf"
+    fig1b: "figures/Fig1b_ig_boxplot.pdf"
 ---
 
 ## Dependencies
@@ -133,7 +133,7 @@ igbp
 ```{r}
 figureDir = file.path(here("figures"))
 dir.create(figureDir, showWarnings = F)
-pdf(file = here(params$fig), width = 10, height = 7)
+pdf(file = here(params$fig1b), width = 10, height = 7)
 igbp
 dev.off()
 ```
