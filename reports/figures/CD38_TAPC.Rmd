@@ -9,10 +9,386 @@ output:
     highlight: kate
 params:
     figuredata: "data/figures/00_figuredata.Rds"
+    fig2h: "figures/Fig2h_TAPC_PPBC_cor.pdf"
+    fig2i: "figures/Fig2i_TAPC_KM.pdf"
+    rt_fig2i: "figures/Fig2i_risktable.csv"
+    fig2k: "figures/Fig2k_CD38_boxplot.pdf"
+    fig2l: "figures/Fig2l_CD38_KM.pdf"
+    rt_fig2l: "figures/Fig2l_risktable.csv"
 ---
+
+## Dependencies
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+library(here)
+library(tidyverse)
+library(ggpubr)
+library(survival)
+library(survminer)
+library(ggrepel)
+library(ggcorrplot)
+library(conflicted)
 
+conflict_prefer("filter", "dplyr")
+
+theme_set(theme_bw())
+```
+
+## Load data
+
+```{r}
+figuredata <- readRDS(here(params$figuredata))
+
+head(figuredata)
+```
+
+## Colors
+
+```{r}
+#figuredata$study_group <- factor(figuredata$study_group, ordered = T)
+study_colors <- c("NP-BC"="#521262", "Pr-BC"="#AA96DA", "PP-BCdl"="#112D4E", "PP-BCpw"="#46CDCF")
+```
+
+## Figure 2H - Relationship TAPC and study group
+
+### Current version
+
+```{r}
+fig2h <- figuredata %>%
+  filter(!is.na(TAPC_score)) %>%
+  ggplot(aes(x = as.integer(study_group), y = TAPC_score)) +
+  geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
+  #p value in stat_cor comes from `cor.test`
+  ggpubr::stat_cor(method = "kendall",
+                   aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~"))) +
+  scale_color_manual(values = study_colors) +
+  scale_x_continuous(breaks = seq(1,4,1), labels= levels(figuredata$study_group)) +
+  xlab("Study group") + ylab("TAPC score")
+
+fig2h
+```
+
+### Save output
+
+```{r}
+figureDir = file.path(here("figures"))
+dir.create(figureDir, showWarnings = F)
+pdf(file = here(params$fig2h), width = 10, height = 7)
+fig2h
+dev.off()
+```
+
+### Alternatives
+
+#### Box plots
+
+```{r}
+figuredata %>%
+  filter(!is.na(TAPC_score)) %>%
+  ggplot(aes(x = study_group, y = TAPC_score)) +
+  geom_jitter(aes(color = study_group), height = 0.15) +
+  geom_boxplot(alpha = 0) +
+  scale_color_manual(values = study_colors) +
+  stat_compare_means(method = "wilcox.test", comparisons = list(
+    c("PP-BCpw", "PP-BCdl"),
+    c("PP-BCpw", "Pr-BC"),
+    c("PP-BCpw", "NP-BC")
+  )) +
+  xlab("Study group") + ylab("TAPC score")
+```
+
+PPBCpw vs rest, which is significant, but doesn't look it.
+
+```{r}
+figuredata %>%
+  filter(!is.na(TAPC_score)) %>%
+  mutate(inv_vs_rest = 
+           if_else(study_group == "PP-BCpw", "PP-BCpw", "rest"),
+         .after = study_group) %>%
+  ggplot(aes(x = inv_vs_rest, y = TAPC_score)) +
+  geom_jitter(aes(color = study_group)) +
+  geom_boxplot(alpha = 0) +
+  #ggboxplot(., x = "inv_vs_rest", y = "TAPC_score") + #Not better
+  #geom_dotplot(binaxis = "y", stackdir = "center", position = "dodge")
+  scale_color_manual(values = study_colors) +
+  stat_compare_means(method = "wilcox.test", comparisons = list(
+    c("PP-BCpw", "rest")
+  ))
+```
+
+#### Bar plots
+
+```{r}
+figuredata %>%
+  filter(!is.na(TAPC_score)) %>%
+  mutate(TAPC_score = as.factor(TAPC_score)) %>%
+  group_by(study_group, TAPC_score) %>% count() %>%
+  mutate(label_ypos=cumsum(n)) %>%
+  ggplot(aes(x = study_group, y=n, fill = TAPC_score)) +
+  geom_bar(stat = "identity") +
+  #geom_text(aes(y=label_ypos, label=n), vjust=1.6, 
+  #          color="white", size=3.5) +
+  scale_fill_viridis_d(option="B", direction=-1)
+
+```
+
+```{r}
+figuredata %>%
+  filter(!is.na(TAPC_score)) %>%
+  mutate(TAPC_score = as.factor(TAPC_score)) %>%
+  group_by(study_group, TAPC_score) %>% count() %>%
+  ggbarplot(., "study_group", "n",
+            fill = "TAPC_score", color = "TAPC_score", palette = "Paired",
+            label = TRUE, lab.col = "white", lab.pos = "in"
+            )
+```
+
+#### Chi sq residuals
+
+```{r}
+chi <- figuredata %>%
+  filter(!is.na(TAPC_score)) %>%
+  group_by(TAPC_score, study_group) %>% count() %>%
+  pivot_wider(names_from = "study_group", values_from = "n", values_fill = 0) %>%
+  column_to_rownames("TAPC_score") %>%
+  chisq.test()
+corrplot::corrplot(chi$residuals, is.cor = FALSE)
+```
+
+#### ggcorrplot
+
+```{r}
+model.matrix(~0+., select(figuredata, study_group, TAPC)) %>%
+  cor(use="pairwise.complete.obs") %>% 
+  ggcorrplot(show.diag = F, type="lower", lab=TRUE, lab_size=2)
+```
+
+## Fig 2i - KM TAPC
+
+```{r}
+figuredata %>%
+  filter(!is.na(TAPC)) %>%
+  group_by(TAPC, study_group) %>% count() %>%
+  pivot_wider(names_from = TAPC, values_from = n, values_fill = 0)
+```
+
+Due to power issues, omit lac. High/low is around the median density.
+
+```{r}
+TAPC_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
+  
+event_type <- match.arg(event_type)
+  
+  df <- df %>% 
+    filter(
+      study_group %in% c("PP-BCpw", "Pr-BC", "NP-BC"),
+      !is.na(TAPC)
+    )
+  
+  df <- df[,c("TAPC", "study_group", "sample_name", "time_OS_months", "death",
+              "time_DRS_months", "distant_recurrence")]
+  
+  if(returndata){return(df)}
+  
+  if(event_type == "OS"){
+    df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+      as.data.frame()
+    y <- "Overall survival"
+    fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + TAPC, data = df)
+  } else {
+    df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+      as.data.frame()
+    y <- "Distant recurrence"
+    fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + TAPC, data = df)
+  }
+  
+  ggsurvplot(
+    fit, data = df,
+    xlab = "Months", 
+    ylab = paste(y,"probability"),
+    #title = paste(y, cell, "stratified by median density:", signif(med, 2)),
+    palette = study_colors[names(study_colors) %in% unique(df$study_group)],
+    ggtheme = theme_bw(),
+    pval = T,
+    facet.by = "TAPC",
+    legend.title="Study group:"
+  )
+}
+
+fig2i <- TAPC_km(figuredata, event_type = "OS", returndata = F)
+fig2i
+```
+
+### Risk table
+
+```{r, fig.height=7, fig.width=12}
+tapc_risktable <- function(ggkm, text.size = 8){
+  ggplot(ggkm$data, aes(time, study_group)) + 
+    ggrepel::geom_text_repel(aes(label = n.risk)) +
+    facet_wrap(~TAPC, 3) + theme_bw() + 
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          strip.background = element_rect(fill="white", size = 1),
+          axis.text.x = element_text(color="black", size = text.size+2),
+          axis.text.y = element_text(color="black", size = text.size),
+          axis.title = element_text(color="black", size = text.size+4),
+          strip.text = element_text(color="black", size = text.size))+
+    ggtitle("Risk Tables") +
+    xlab("Time") + ylab("")
+}
+
+rt_fig2i <- tapc_risktable(fig2i)
+rt_fig2i
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$fig2i), width = 12, height = 7)
+fig2i
+rt_fig2i
+dev.off()
+```
+
+Also save risk table as csv.
+
+```{r}
+write_csv(fig2i$data, here(params$rt_fig2i))
+```
+
+## Fig 2K - Boxplot CD38
+
+Using intratumoral CD38.
+
+```{r}
+fig2k <- figuredata %>%
+  rename(CD38 = TI_CD38_total) %>%
+  filter(!is.na(CD38)) %>%
+  ggplot(aes(x = factor(study_group,
+                        levels = c("NP-BC", "Pr-BC", "PP-BCdl","PP-BCpw")),
+             y = CD38, color = study_group)) +
+  geom_point(position = position_jitter(height = 0), shape = 15) +
+  geom_boxplot(alpha = 0) +
+  scale_color_manual(values = study_colors) +
+  xlab("Study group") + 
+  stat_compare_means(method = "wilcox.test",
+                     comparisons = list(c("PP-BCpw", "NP-BC"))) +
+  stat_compare_means(label.y = 65) +
+  ggtitle("CD38+ density by study group")
+
+fig2k
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$fig2k), width = 12, height = 7)
+fig2k
+dev.off()
+```
+
+## Fig 2L - KM CD38
+
+Due to power issues, omit lac and prbc. High/low is around the median density.
+
+```{r}
+figuredata %>%
+  rename(CD38 = TI_CD38) %>%
+  filter(!is.na(CD38)) %>%
+  group_by(CD38, study_group) %>% count() %>%
+  pivot_wider(names_from = CD38, values_from = n, values_fill = 0)
+```
+
+
+```{r}
+CD38_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
+  
+event_type <- match.arg(event_type)
+  
+  df <- df %>%
+    rename(CD38 = TI_CD38) %>%
+    filter(
+      study_group %in% c("PP-BCpw", "NP-BC"),
+      !is.na(CD38)
+    )
+  
+  df <- df[,c("CD38", "study_group", "sample_name", "time_OS_months", "death",
+              "time_DRS_months", "distant_recurrence")]
+  
+  if(returndata){return(df)}
+  
+  if(event_type == "OS"){
+    df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+      as.data.frame()
+    y <- "Overall survival"
+    fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + CD38, data = df)
+  } else {
+    df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+      as.data.frame()
+    y <- "Distant recurrence"
+    fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + CD38, data = df)
+  }
+  
+  ggsurvplot(
+    fit, data = df,
+    xlab = "Months", 
+    ylab = paste(y,"probability"),
+    #title = paste(y, cell, "stratified by median density:", signif(med, 2)),
+    palette = study_colors[names(study_colors) %in% unique(df$study_group)],
+    ggtheme = theme_bw(),
+    pval = T,
+    facet.by = "CD38",
+    legend.title="Study group:"
+  )
+}
+
+fig2l <- CD38_km(figuredata, event_type = "OS", returndata = F)
+fig2l
+```
+
+### Risk table
+
+```{r, fig.height=7, fig.width=12}
+cd38_risktable <- function(ggkm, text.size = 8){
+  ggplot(ggkm$data, aes(time, study_group)) + 
+    ggrepel::geom_text_repel(aes(label = n.risk)) +
+    facet_wrap(~CD38, 3) + theme_bw() + 
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          strip.background = element_rect(fill="white", size = 1),
+          axis.text.x = element_text(color="black", size = text.size+2),
+          axis.text.y = element_text(color="black", size = text.size),
+          axis.title = element_text(color="black", size = text.size+4),
+          strip.text = element_text(color="black", size = text.size))+
+    ggtitle("Risk Tables") +
+    xlab("Time") + ylab("")
+}
+
+rt_fig2l <- cd38_risktable(fig2l)
+rt_fig2l
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$fig2l), width = 12, height = 7)
+fig2l
+rt_fig2l
+dev.off()
+```
+
+Also save risk table as csv.
+
+```{r}
+write_csv(fig2l$data, here(params$rt_fig2l))
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```

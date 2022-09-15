@@ -1,7 +1,7 @@
 #### Figure 1 ####
 
 1a - DEG heatmap PPBC-pw vs rest is produced in reports/rnaseq/11_clustering_involution.Rmd
-1b - Boxplot IG cluster by study group is produced in reports/figures/01_IG_clusters.Rmd
+1b - Boxplot IG cluster by study group is produced in reports/figures/IG_clusters.Rmd
 1c - Online STRING by Hanne
 1d - Barplot IG clusters is produced in reports/rnaseq/11_clustering_involution.Rmd
 1e - Kaplan Meier IG curves is produced in reports/rnaseq/11_clustering_involution.Rmd
@@ -9,13 +9,15 @@
 #### Figure 2 ####
 
 2a - HALO image
-2b - reports/figures/02_spatial_figures.Rmd
-2c - reports/figures/02_spatial_figures.Rmd
+2b - reports/figures/spatial_figures.Rmd
+2c - reports/figures/spatial_figures.Rmd
 2d - HALO image
-2e - reports/figures/02_spatial_figures.Rmd WIP
-2f - reports/figures/02_spatial_figures.Rmd
-2h - reports/figures/02_spatial_figures.Rmd
-
+2e - reports/figures/spatial_figures.Rmd WIP
+2f - reports/figures/spatial_figures.Rmd
+2h - reports/figures/CD38_TAPC.Rmd
+2i - reports/figures/CD38_TAPC.Rmd
+2k - reports/figures/CD38_TAPC.Rmd
+2l - reports/figures/CD38_TAPC.Rmd
 
 #### To do####
 

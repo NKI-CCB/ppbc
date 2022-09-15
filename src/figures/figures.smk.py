@@ -73,6 +73,26 @@ rule spatial_figures:
     " --fig2e {output.fig2e}"
     " --fig2f {output.fig2f}"
     " --rt_fig2f {output.rt_fig2f}"
-    
+
+rule stainings:
+  input:
+    figuredata="data/figures/00_figuredata.Rds",
+    rmd="reports/figures/CD38_TAPC.Rmd",
+    script="src/utils/rmarkdown.R"
+  output:
+    report="reports/figures/CD38_TAPC.pdf",
+    fig2h="figures/Fig2h_TAPC_PPBC_cor.pdf",
+    fig2i="figures/Fig2i_TAPC_KM.pdf",
+    rt_fig2i="figures/Fig2i_risktable.csv",
+    fig2k="figures/Fig2k_CD38_boxplot.pdf",
+    fig2l="figures/Fig2l_CD38_KM.pdf",
+    rt_fig2l="figures/Fig2l_risktable.csv"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.report}"
+    " --figuredata {input.figuredata}"
+    " --fig2h {output.fig2h}"
+    " --fig2i {output.fig2i}"
+    " --rt_fig2i {output.rt_fig2i}"
+
 #vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
 #cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",

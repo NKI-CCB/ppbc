@@ -5,6 +5,7 @@ For spatial analyses, insufficient power for prbc and ppbc lac.
 For spatial visualizations of density etc box plots, include all 4 groups but only do statistical test between ppbcinv and nulliparous
 Survival analyses (OS, DRS) in RNAseq data either exclude lac or use one vs rest
 For survival (OS, DRS) analyses in spatial data, only include ppbc inv and nulliparous
+TAPC figures are dichtomized into TAPC low (0, 1) and TAPC high (2, 3) because of how TAPC works.
 
 #### Figure 1 ####
 
@@ -23,3 +24,7 @@ The Kaplan-Meiers in the code you provided don't match the ones in the manuscrip
 2C - P-values have changed but not much and the graph looks mostly the same.
 2E - The p-value remains significant, but same comment about test labels as 2B.
 2F - P-values have changed but not much and the graph looks mostly the same.
+2H - I agree this figure doesn't look very nice, but all the alternatives I tried were no better. It's a tough one to visualize. For now I reproduced as is.
+2K - The p-value remains significant, but same comment about test labels as 2B.
+2L - P-value changes a bit but no significant changes.
+
