@@ -56,7 +56,7 @@ rule spatial_figures:
     fig2b="figures/Fig2b_CD20_density_boxplot.pdf",
     fig2c="figures/Fig2c_CD20_density_km.pdf",
     rt_fig2c="figures/Fig2c_risktable.csv",
-    #fig2e="figures/Fig2e_CD20_l_boxplot.pdf", #WIP
+    fig2e="figures/Fig2e_CD20_l_boxplot.pdf",
     fig2f="figures/Fig2f_Cd20_l_km.pdf",
     rt_fig2f="figures/Fig2f_risktable.csv"
   shell:
@@ -70,7 +70,7 @@ rule spatial_figures:
     " --fig2b {output.fig2b}"
     " --fig2c {output.fig2c}"
     " --rt_fig2c {output.rt_fig2c}"
-    #" --fig2e {output.fig2e}" #WIP
+    " --fig2e {output.fig2e}"
     " --fig2f {output.fig2f}"
     " --rt_fig2f {output.rt_fig2f}"
     

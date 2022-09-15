@@ -16,8 +16,10 @@ For survival (OS, DRS) analyses in spatial data, only include ppbc inv and nulli
 
 #### Figure 2 ####
 
+The Kaplan-Meiers in the code you provided don't match the ones in the manuscript - or at least, I couldn't find them in the indicated location. The indicated figures in the "final edits" notebook were not subsetted to just NPBC and PPBCpw. Additionally, that notebook for me does not run at all: it crashes during group_walk().
+
 2A - Unchanged
 2B - P-value has changed to be no longer significant, and test label was misleading or incorrect (says Wilcoxon, was KW according to code). Density is now log10 tranformed with a pseudocount of 1 for visualization.
 2C - P-values have changed but not much and the graph looks mostly the same.
-2E - I'm ambivalent about whether showing the delta estimate this way is a good idea, but ok.
+2E - The p-value remains significant, but same comment about test labels as 2B.
 2F - P-values have changed but not much and the graph looks mostly the same.

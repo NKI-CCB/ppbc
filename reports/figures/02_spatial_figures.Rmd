@@ -106,7 +106,7 @@ outcomedata <- sampledata %>%
 stopifnot(nrow(filter(outcomedata, duplicated(sample_ID))) == 0)
 ```
 
-## Figure 2B
+## Figure 2B - CD20 density boxplot
 
 ```{r}
 fig2b <- density %>%
@@ -136,13 +136,13 @@ fig2b
 dev.off()
 ```
 
-## Figure 2C
+## Figure 2C - CD20 density KM
 
 Due to power issues, only use PP-BCpw and NP-BC. High/low is around the median density.
 
 ```{r}
 density_km <- function(df, cell, event_type = c("OS", "DRS"), returndata = F){
-
+  
   stopifnot(cell %in% df$cell_type)
   
   event_type <- match.arg(event_type)
@@ -176,7 +176,7 @@ density_km <- function(df, cell, event_type = c("OS", "DRS"), returndata = F){
     y <- "Distant recurrence"
     fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + density, data = df)
   }
-
+  
   ggsurvplot(
     fit, data = df,
     xlab = "Months", 
@@ -187,7 +187,7 @@ density_km <- function(df, cell, event_type = c("OS", "DRS"), returndata = F){
     pval = T,
     facet.by = "density",
     legend.title="Study group:"
-    )
+  )
 }
 
 fig2c <- density_km(density, cell = "CD20+", event_type = "OS", returndata = F)
@@ -231,16 +231,61 @@ Also save risk table as csv.
 write_csv(fig2c$data, here(params$rt_fig2c))
 ```
 
-## Figure 2E
+## Figure 2E - CD20 delta L boxplot
 
-## Figure 2F
+```{r}
+lstat_boxplot <-  function(df, cell, outcome=outcomedata, rad=params$radius,
+                           pseudocount = 0.01, returndata = F) {
+  
+  stopifnot(class(rad)=="numeric")  
+  stopifnot(cell %in% df$cell_type)
+  
+  df <- df %>%
+    left_join(., outcome, by="sample_ID") %>%
+    filter(
+      cell_type %in% cell,
+      radius == rad,
+      !is.na(delta_estimate)
+    )
+  
+  if(returndata==T){return(df)}
+  
+  df %>%
+    ggplot(aes(x = factor(study_group,
+                          levels = c("PP-BCpw", "NP-BC", "Pr-BC", "PP-BCdl")),
+               y = log10(delta_estimate + pseudocount), color = study_group)) +
+    geom_point(position = position_jitter(height = 0), shape = 15) +
+    geom_boxplot(alpha = 0) +
+    scale_color_manual(values = study_colors) +
+    xlab("Study group") + #ylab("CD20+ multiplex IF density") +
+    stat_compare_means(method = "wilcox.test",
+                       comparisons = list(c("PP-BCpw", "NP-BC"))) +
+    stat_compare_means() +
+    ggtitle("CD20+ density by study group")
+  
+}
+
+fig2e <- lstat_boxplot(l, cell = "CD20+")
+fig2e
+```
+### Save output
+
+```{r}
+figureDir = file.path(here("figures"))
+dir.create(figureDir, showWarnings = F)
+pdf(file = here(params$fig2e), width = 10, height = 7)
+fig2e
+dev.off()
+```
+
+## Figure 2F - CD20 delta L KM
 
 Due to power issues, only use PP-BCpw and NP-BC. Stratification is around the median delta L estimate.
 
 ```{r}
 lstat_km <- function(df, cell, outcome=outcomedata, rad=params$radius,
-                       event_type = c("OS", "DRS"), returndata = F){
-
+                     event_type = c("OS", "DRS"), returndata = F){
+  
   stopifnot(class(rad)=="numeric")  
   stopifnot(cell %in% df$cell_type)
   
@@ -259,7 +304,7 @@ lstat_km <- function(df, cell, outcome=outcomedata, rad=params$radius,
   #print(med)
   
   df$delta_l <- factor(ifelse(df$delta_estimate > med, "high", "low"),
-                      levels = c("low", "high"))
+                       levels = c("low", "high"))
   df <- df %>% relocate(delta_l, .after = delta_estimate)
   
   if(returndata){return(df)}
@@ -275,7 +320,7 @@ lstat_km <- function(df, cell, outcome=outcomedata, rad=params$radius,
     y <- "Distant recurrence"
     fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + delta_l, data = df)
   }
-
+  
   ggsurvplot(
     fit, data = df,
     xlab = "Months", 
@@ -286,7 +331,7 @@ lstat_km <- function(df, cell, outcome=outcomedata, rad=params$radius,
     pval = T,
     facet.by = "delta_l",
     legend.title="Study group:"
-    )
+  )
 }
 
 fig2f <- lstat_km(l, cell = "CD20+", event_type = "OS", returndata = F)
