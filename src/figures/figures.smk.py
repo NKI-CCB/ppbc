@@ -7,10 +7,10 @@ rule aggregate_results:
     cluster_results="results/rnaseq/clustering/11_inv_clusters.xlsx", #for column clusters
     read_patient_data="src/utils/read_patient_data.R",
     quantile_categories="src/figures/quantile_categories.R",
-    rmd="reports/figures/00_aggregate_results.Rmd",
+    rmd="reports/figures/aggregate_results.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    html="reports/figures/00_aggregate_results.html",
+    html="reports/figures/aggregate_results.html",
     figuredata="data/figures/00_figuredata.Rds"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
@@ -28,10 +28,10 @@ rule ig_clusters:
     dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
     bx_annot="data/rnaseq/processed/bx_annot.Rds",
     figuredata="data/figures/00_figuredata.Rds",
-    rmd="reports/figures/01_IG_clusters.Rmd",
+    rmd="reports/figures/IG_clusters.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    report="reports/figures/01_IG_clusters.pdf",
+    report="reports/figures/IG_clusters.pdf",
     fig1b="figures/Fig1b_ig_boxplot.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
@@ -49,10 +49,10 @@ rule spatial_figures:
     spatstat_l="data/vectra/processed/11_spatstat_l.Rds",
     spatstat_lcross_immune="data/vectra/processed/11_spatstat_lcross_immune.Rds",
     spatstat_lcross_panck="data/vectra/processed/11_spatstat_lcross_panck.Rds",
-    rmd="reports/figures/02_spatial_figures.Rmd",
+    rmd="reports/figures/spatial_figures.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    report="reports/figures/02_spatial_figures.pdf",
+    report="reports/figures/spatial_figures.pdf",
     fig2b="figures/Fig2b_CD20_density_boxplot.pdf",
     fig2c="figures/Fig2c_CD20_density_km.pdf",
     rt_fig2c="figures/Fig2c_risktable.csv",
