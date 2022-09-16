@@ -94,5 +94,18 @@ rule stainings:
     " --fig2i {output.fig2i}"
     " --rt_fig2i {output.rt_fig2i}"
 
+rule isotypes:
+  input:
+    figuredata="data/figures/00_figuredata.Rds",
+    rmd="reports/figures/isotypes.Rmd",
+    script="src/utils/rmarkdown.R"
+  output:
+    fig3a="figures/Fig3a_boxplot_isotypes.pdf",
+    report="reports/figures/isotypes.pdf"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.report}"
+    " --figuredata {input.figuredata}"
+    " --fig3a {input.fig3a}"
+    
 #vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
 #cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",

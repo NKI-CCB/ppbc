@@ -19,27 +19,13 @@
 2k - reports/figures/CD38_TAPC.Rmd
 2l - reports/figures/CD38_TAPC.Rmd
 
+#### Figure 3 ####
+
+3A - reports/figures/isotypes.Rmd
+
 #### To do####
 
-Figure 2
-# correlation TAPC - study_group
-## overall
-### all cases
-I.	Code Hanne: 01_TAPC_scoring.Rmd
-# OS - plasma count
-#### KM by plasma score - without PPBCDL
-J.	IHC image
-K.	Code Hanne: 02_CD38_infiltration.Rmd
-# ANOVA CD38 ALL intensity
-## tumor
-### Visualization
-L.	Code Hanne: 02_CD38_infiltration.Rmd
-# OS - CD38 count
-## Tumor
-### stratified CD38 – only PPBCpw and npbc
-
 Figure 3
-A.	Code Kat: 18b_antibody_isotypes.Rmd
 B.	Code Hanne: 11_IGheavy_subtypes.Rmd
 ## Kaplan-meier
 ### IgA - without lactation group

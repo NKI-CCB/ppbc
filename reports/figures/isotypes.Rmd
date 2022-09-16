@@ -1,0 +1,81 @@
+---
+title: "Isotype figures"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    toc: yes
+    df_print: tibble
+    highlight: kate
+params:
+    figuredata: "data/figures/00_figuredata.Rds"
+    fig3a: "figures/Fig3a_boxplot_isotypes.pdf"
+---
+
+## Dependencies
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(ggpubr)
+library(survival)
+library(survminer)
+library(ggrepel)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+
+theme_set(theme_bw())
+```
+
+## Load data
+
+```{r}
+figuredata <- readRDS(here(params$figuredata))
+```
+
+## Figure 3A - Boxplot Ig expression
+
+```{r, fig.height=6, fig.width=8}
+fig3a <- figuredata %>%
+  select(study_group, IgA:IgM) %>%
+  pivot_longer(cols = c(IgA, IgD, IgG, IgM),
+               names_to = "isotype", values_to = "normCount") %>%
+  filter(!is.na(normCount)) %>%
+  ggplot(aes(x = study_group, y = normCount)) +
+  geom_jitter(aes(color = isotype), shape = 15, height = 0, width = 0.2) +
+  geom_boxplot(alpha = 0) +
+  facet_wrap(~isotype, scale = "free_y") +
+  scale_colour_discrete() +
+  stat_compare_means(method = "wilcox.test",
+                     comparisons = list(c("PP-BCpw", "PP-BCdl"),
+                                        c("PP-BCpw", "Pr-BC"),
+                                        c("PP-BCpw", "NP-BC"))) +
+  stat_compare_means() +
+  #theme(text = element_text(size=18)) +
+  ylab("Normalized Expression Levels") +
+  xlab("Study group")
+
+fig3a
+```
+
+### Save output
+
+```{r}
+figureDir <- file.path(here("figures"))
+dir.create(figureDir, showWarnings = F)
+pdf(file = here(params$fig3a), width = 12, height = 8)
+fig3a
+dev.off()
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```
+

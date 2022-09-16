@@ -28,3 +28,6 @@ The Kaplan-Meiers in the code you provided don't match the ones in the manuscrip
 2K - The p-value remains significant, but same comment about test labels as 2B.
 2L - P-value changes a bit but no significant changes.
 
+#### Figure 3 ####
+
+3A - Almost identical to the previous version,
