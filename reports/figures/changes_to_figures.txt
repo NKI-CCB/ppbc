@@ -37,4 +37,5 @@ The Kaplan-Meiers in the code you provided don't match the ones in the manuscrip
 
 #### Figure 4 ####
 
-4A- Appears identical, aside from the order of the groups
+4A - Appears identical, aside from the order of the groups
+4B - Very slight changes to P values (rounding)

@@ -29,13 +29,11 @@
 #### Figure 4 ####
 
 4A - reports/figures/CD38_TAPC_TILs.Rmd
+4b - reports/figures/ciberfigs.Rmd
 
 #### To do ####
 
 Figure 4
-## Visualization
-B.	Code Hanne: 07_ANOVA_Kruskal.Rmd
-# CD8 in study group
 ## Visualization
 C.	Code Hanne: 10_Cox_regression_Cibersort.Rmd
 # CD8+ cells - Median

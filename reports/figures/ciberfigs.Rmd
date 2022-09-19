@@ -1,0 +1,86 @@
+---
+title: "Cibersort Figures"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    toc: yes
+    df_print: tibble
+    highlight: kate
+params:
+    figuredata: "data/figures/00_figuredata.Rds"
+    fig4b: "figures/Fig4b_cibersort_CD8_boxplot.pdf"
+---
+
+## Dependencies
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(ggpubr)
+library(survival)
+library(survminer)
+library(ggrepel)
+library(ggcorrplot)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+
+theme_set(theme_bw())
+```
+
+## Load data
+
+```{r}
+figuredata <- readRDS(here(params$figuredata))
+
+head(figuredata)
+```
+
+## Colors
+
+```{r}
+study_colors <- c("NP-BC"="#521262", "Pr-BC"="#AA96DA",
+                  "PP-BCdl"="#112D4E", "PP-BCpw"="#46CDCF")
+```
+
+## Figure 4B - Cibersort CD8 boxplot
+
+```{r}
+fig4b <- figuredata %>%
+  filter(!is.na(CD8_fraction)) %>%
+  ggplot(aes(x = study_group, y = CD8_fraction)) +
+  geom_jitter(aes(color = study_group), height = 0, width = 0.15) +
+  geom_boxplot(alpha = 0) +
+  scale_color_manual(values = study_colors) +
+  stat_compare_means(method = "wilcox.test", comparisons = list(
+    c("PP-BCpw", "Pr-BC"),
+    c("PP-BCpw", "NP-BC")
+  )) +
+  stat_compare_means(label.y = 0.2) +
+  xlab("Study group") + ylab("Relative CibersortX Fraction") +
+  labs(color = "Study group")
+
+fig4b
+```
+
+```{r}
+figureDir <- file.path(here("figures"))
+dir.create(figureDir, showWarnings = F)
+pdf(file = here(params$fig4b), width = 10, height = 7)
+fig4b
+dev.off()
+```
+
+## Fig 4C
+CD8_ID = tertile, CD8_cat = median
+
+## Session info
+
+```{r}
+sessionInfo()
+```

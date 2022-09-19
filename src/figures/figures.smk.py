@@ -115,5 +115,18 @@ rule isotypes:
     " --rt_fig3bc {output.rt_fig3bc}"
     " --fig3d {output.fig3d}"
     
+rule ciberfigs:
+  input:
+    figuredata="data/figures/00_figuredata.Rds",
+    rmd="reports/figures/ciberfigs.Rmd",
+    script="src/utils/rmarkdown.R"
+  output:
+    fig4b="figures/Fig4b_cibersort_CD8_boxplot.pdf",
+    report="reports/figures/ciberfigs.pdf"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.report}"
+    " --figuredata {input.figuredata}"
+    " --fig4b {output.fig4b}"
+    
 #vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
 #cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",
