@@ -22,6 +22,7 @@
 #### Figure 3 ####
 
 3A - reports/figures/isotypes.Rmd
+3B - reports/figures/isotypes.Rmd
 
 #### To do####
 

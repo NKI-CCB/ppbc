@@ -10,6 +10,8 @@ output:
 params:
     figuredata: "data/figures/00_figuredata.Rds"
     fig3a: "figures/Fig3a_boxplot_isotypes.pdf"
+    fig3b: "figures/Fig3b_km_isotypes.pdf"
+    rt_fig3b: "figures/Fig3b_risktable.csv"
 ---
 
 ## Dependencies
@@ -36,6 +38,12 @@ theme_set(theme_bw())
 
 ```{r}
 figuredata <- readRDS(here(params$figuredata))
+```
+
+## Colors
+
+```{r}
+study_colors <- c("NP-BC"="#521262", "Pr-BC"="#AA96DA", "PP-BCdl"="#112D4E", "PP-BCpw"="#46CDCF")
 ```
 
 ## Figure 3A - Boxplot Ig expression
@@ -71,6 +79,117 @@ dir.create(figureDir, showWarnings = F)
 pdf(file = here(params$fig3a), width = 12, height = 8)
 fig3a
 dev.off()
+```
+
+## Fig 3B - IG expression KMs
+
+IG expression level is split around the median. Exclude lac from RNAseq analyses due to lack of samples.
+
+```{r}
+ig_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
+  
+  event_type <- match.arg(event_type)
+  
+  df <- df %>%
+    filter(
+      study_group %in% c("PP-BCpw", "Pr-BC", "NP-BC")
+    )
+  
+  df <- df %>%
+    select(study_group, IgA_rank:IgM_rank,
+           death, time_OS_months,
+           distant_recurrence, time_DRS_months) %>%
+    pivot_longer(cols = c(IgA_rank:IgM_rank), names_to = "isotype",
+                 values_to = "rank") %>%
+    mutate(isotype = str_remove(isotype, "_rank")) %>%
+    mutate(isotype_group = paste(isotype, rank)) %>%
+    filter(!is.na(rank)) %>%
+    droplevels()
+  
+  if(returndata){return(df)}
+  
+  # There are a lot of facets, we can either make the chart very large, or
+  # Use a for loop to plot the isotypes separately
+
+  plt <- list()
+
+  for(ig in c("IgA", "IgD", "IgM", "IgG")){
+    
+    dfi <- df[df$isotype == ig,]
+
+    if(event_type == "OS"){
+      dfi <- dfi %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+        as.data.frame()
+      y <- "Overall survival"
+      fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + isotype_group, data = dfi)
+    } else {
+      dfi <- dfi %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+        as.data.frame()
+      y <- "Distant recurrence"
+      fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + isotype_group, data = dfi)
+    }
+    #return(fit)
+    plt[[length(plt)+1]] <- ggsurvplot(
+      fit, data = dfi,
+      xlab = "Months", 
+      ylab = paste(y,"probability"),
+      palette = study_colors[names(study_colors) %in% unique(dfi$study_group)],
+      ggtheme = theme_bw(),
+      pval = T,
+      facet.by = "isotype_group",
+      legend.title="Study group:"
+    )
+  }
+   
+  names(plt) <-  c("IgA", "IgD", "IgM", "IgG")
+  plt
+}
+
+fig3b <- ig_km(figuredata, event_type = "OS", returndata = F)
+
+fig3b
+```
+
+### Risk table
+
+```{r, fig.height=7, fig.width=12}
+risktable <- function(ggkm, response, text.size = 8){
+  ggplot(ggkm$data, aes(time, study_group)) + 
+    ggrepel::geom_text_repel(aes(label = n.risk)) +
+    facet_wrap(as.formula(paste("~", response))) + theme_bw() + 
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          strip.background = element_rect(fill="white", size = 1),
+          axis.text.x = element_text(color="black", size = text.size+2),
+          axis.text.y = element_text(color="black", size = text.size),
+          axis.title = element_text(color="black", size = text.size+4),
+          strip.text = element_text(color="black", size = text.size))+
+    ggtitle("Risk Tables") +
+    xlab("Time") + ylab("")
+}
+
+rt_fig3b <- lapply(names(fig3b), function(x){
+  risktable(fig3b[[x]], response = "isotype_group")
+}) %>% set_names(names(fig3b))
+rt_fig3b
+```
+
+### Save output
+
+```{r}
+figureDir <- file.path(here("figures"))
+dir.create(figureDir, showWarnings = F)
+pdf(file = here(params$fig3b), width = 12, height = 8)
+fig3b
+rt_fig3b
+dev.off()
+```
+
+Also save risk table as csv.
+
+```{r}
+write_csv(bind_rows(lapply(fig3b, function(x){x$data}), .id = "isotype"),
+          here(params$rt_fig3b))
 ```
 
 ## Session info

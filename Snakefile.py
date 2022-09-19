@@ -105,7 +105,8 @@ rule all:
     "figures/Fig2i_TAPC_KM.pdf",
     "figures/Fig2k_CD38_boxplot.pdf",
     "figures/Fig2l_CD38_KM.pdf",
-    "figures/Fig3a_boxplot_isotypes.pdf"
+    "figures/Fig3a_boxplot_isotypes.pdf",
+    "figures/Fig3b_km_isotypes.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)

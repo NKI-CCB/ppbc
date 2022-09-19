@@ -30,4 +30,5 @@ The Kaplan-Meiers in the code you provided don't match the ones in the manuscrip
 
 #### Figure 3 ####
 
-3A - Almost identical to the previous version,
+3A - Almost identical to the previous version
+3B - P values have changed, just barely no longer significant (i.e. p = 0.052)
