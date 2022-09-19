@@ -10,8 +10,9 @@ output:
 params:
     figuredata: "data/figures/00_figuredata.Rds"
     fig3a: "figures/Fig3a_boxplot_isotypes.pdf"
-    fig3b: "figures/Fig3b_km_isotypes.pdf"
-    rt_fig3b: "figures/Fig3b_risktable.csv"
+    fig3bc: "figures/Fig3bc_km_isotypes.pdf"
+    rt_fig3bc: "figures/Fig3bc_risktable.csv"
+    fig3d: "figures/Fig3d_cor_Ig_TAPC.pdf"
 ---
 
 ## Dependencies
@@ -26,6 +27,7 @@ library(tidyverse)
 library(ggpubr)
 library(survival)
 library(survminer)
+library(RColorBrewer)
 library(ggrepel)
 library(conflicted)
 
@@ -81,9 +83,9 @@ fig3a
 dev.off()
 ```
 
-## Fig 3B - IG expression KMs
+## Fig 3BC - IG expression KMs
 
-IG expression level is split around the median. Exclude lac from RNAseq analyses due to lack of samples.
+Combintation figures 3B and 3C. IG expression level is split around the median. Exclude lac from RNAseq analyses due to lack of samples.
 
 ```{r}
 ig_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
@@ -177,8 +179,6 @@ rt_fig3b
 ### Save output
 
 ```{r}
-figureDir <- file.path(here("figures"))
-dir.create(figureDir, showWarnings = F)
 pdf(file = here(params$fig3b), width = 12, height = 8)
 fig3b
 rt_fig3b
@@ -190,6 +190,53 @@ Also save risk table as csv.
 ```{r}
 write_csv(bind_rows(lapply(fig3b, function(x){x$data}), .id = "isotype"),
           here(params$rt_fig3b))
+```
+
+## Fig 3D - Correlation IgA/IgG and TAPC in PP-BCpw
+
+```{r}
+fig3d <- 
+  list(
+    IgA = figuredata %>%
+      filter(study_group == "PP-BCpw") %>%
+      filter(!is.na(TAPC_score)) %>%
+      ggplot(aes(x=TAPC_score, y = IgA)) +
+      geom_jitter(aes(color = as.factor(TAPC_score)), height = 0, width = 0.15) +
+      geom_boxplot(alpha = 0, aes(group = TAPC_score), color = "darkgray"#, linetype="dashed"
+      ) +
+      geom_smooth(method = "lm", formula = y ~ x, linetype="dashed") +
+      ggpubr::stat_cor(method = "kendall", label.y = 3.5, label.x = -0.2,
+                       aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~"))) +
+      ggtitle("Kendall's correlation IgA and TAPC in PP-BCpw") +
+      xlab("TAPC score") + ylab("Normalized IgA expression") +
+      labs(color = "TAPC score") +
+      scale_color_brewer(palette = "Spectral"),
+    
+    IgD = figuredata %>%
+      filter(study_group == "PP-BCpw") %>%
+      filter(!is.na(TAPC_score)) %>%
+      ggplot(aes(x=TAPC_score, y = IgG)) +
+      geom_jitter(aes(color = as.factor(TAPC_score)), height = 0, width = 0.15) +
+      geom_boxplot(alpha = 0, aes(group = TAPC_score), color = "darkgray"#, linetype="dashed"
+      ) +
+      geom_smooth(method = "lm", formula = y ~ x, linetype="dashed") +
+      ggpubr::stat_cor(method = "kendall", #label.y = 3.5, label.x = -0.2,
+                       aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~"))) +
+      ggtitle("Kendall's correlation IgG and TAPC in PP-BCpw") +
+      xlab("TAPC score") + ylab("Normalized IgG expression") +
+      labs(color = "TAPC score") +
+      scale_color_brewer(palette = "Spectral")
+  )
+
+fig3d
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$fig3d), width = 12, height = 8)
+fig3d
+dev.off()
 ```
 
 ## Session info

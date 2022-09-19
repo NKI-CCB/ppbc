@@ -23,21 +23,10 @@
 
 3A - reports/figures/isotypes.Rmd
 3B - reports/figures/isotypes.Rmd
+3C - reports/figures/isotypes.Rmd
+3D - reports/figures/isotypes.Rmd
 
-#### To do####
-
-Figure 3
-B.	Code Hanne: 11_IGheavy_subtypes.Rmd
-## Kaplan-meier
-### IgA - without lactation group
-### IgD - without lactation group
-### IgG - without lactation group
-Note. To draw this data, I used your igSurv file, generated in 18b_antibody_isotypes.Rmd
-C.	Code Hanne: 03_correlation_analyses.Rmd
-# correlation IgA/IgG – TAPC
-## PPBC-inv
-### IgA
-### IgG
+#### To do ####
 
 Figure 4
 A.	Code Hanne: 07_ANOVA_Kruskal.Rmd

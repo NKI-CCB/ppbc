@@ -73,25 +73,25 @@ interaction_cox = [
 
 rule all:
   input:
-    # RNAseq rules
-    "reports/rnaseq/08_diffex_onevsrest.html",
-    "reports/rnaseq/09_diffex_time_involution.html",
-    "reports/rnaseq/09b_diffex_time_breastfeeding.html",
-    expand("reports/rnaseq/14_subgroup_diffex_{comp}.html",
-      comp=["ppbcpw_vs_npbc","ppbcpw_vs_prbc","ppbcpw_vs_rest"]),
-    "reports/rnaseq/10_CibersortX.pdf",
-    "reports/rnaseq/11_clustering_involution.html",
-    expand("reports/rnaseq/12_{cox}.html", cox=genewise_cox+interaction_cox),
-    "results/rnaseq/TRUST/TRUST_results.xlsx",
-    "reports/rnaseq/15b_antibody_isotypes.html",
-    "reports/rnaseq/16_gene_unity_setup.html",
-    # Spatial rules
-    "reports/spatial/05_report_cell_types.html",
-    "reports/spatial/07_kruskal_density.html",
-    "reports/spatial/08_inv_time_density.html",
-    expand("reports/spatial/09_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
-    "reports/spatial/10_ig_clusters_cd20.html",
-    "reports/spatial/12_spatstat_overview.html", #Temp disable due to long runtime
+    # # RNAseq rules
+    # "reports/rnaseq/08_diffex_onevsrest.html",
+    # "reports/rnaseq/09_diffex_time_involution.html",
+    # "reports/rnaseq/09b_diffex_time_breastfeeding.html",
+    # expand("reports/rnaseq/14_subgroup_diffex_{comp}.html",
+    #   comp=["ppbcpw_vs_npbc","ppbcpw_vs_prbc","ppbcpw_vs_rest"]),
+    # "reports/rnaseq/10_CibersortX.pdf",
+    # "reports/rnaseq/11_clustering_involution.html",
+    # expand("reports/rnaseq/12_{cox}.html", cox=genewise_cox+interaction_cox),
+    # "results/rnaseq/TRUST/TRUST_results.xlsx",
+    # "reports/rnaseq/15b_antibody_isotypes.html",
+    # "reports/rnaseq/16_gene_unity_setup.html",
+    # # Spatial rules
+    # "reports/spatial/05_report_cell_types.html",
+    # "reports/spatial/07_kruskal_density.html",
+    # "reports/spatial/08_inv_time_density.html",
+    # expand("reports/spatial/09_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
+    # "reports/spatial/10_ig_clusters_cd20.html",
+    # "reports/spatial/12_spatstat_overview.html",
     #Figures
     "data/figures/00_figuredata.Rds",
     "figures/Fig1a_DEG_heatmap.pdf",
@@ -106,7 +106,8 @@ rule all:
     "figures/Fig2k_CD38_boxplot.pdf",
     "figures/Fig2l_CD38_KM.pdf",
     "figures/Fig3a_boxplot_isotypes.pdf",
-    "figures/Fig3b_km_isotypes.pdf"
+    "figures/Fig3bc_km_isotypes.pdf",
+    "figures/Fig3d_cor_Ig_TAPC.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)

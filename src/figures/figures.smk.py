@@ -101,15 +101,17 @@ rule isotypes:
     script="src/utils/rmarkdown.R"
   output:
     fig3a="figures/Fig3a_boxplot_isotypes.pdf",
-    fig3b="figures/Fig3b_km_isotypes.pdf",
-    rt_fig3b="figures/Fig3b_risktable.csv",
+    fig3bc="figures/Fig3bc_km_isotypes.pdf",
+    rt_fig3bc="figures/Fig3bc_risktable.csv",
+    fig3d="figures/Fig3d_cor_Ig_TAPC.pdf",
     report="reports/figures/isotypes.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
     " --fig3a {output.fig3a}"
-    " --fig3b {output.fig3b}"
-    " --rt_fig3b {output.rt_fig3b}"
+    " --fig3bc {output.fig3bc}"
+    " --rt_fig3bc {output.rt_fig3bc}"
+    " --fig3d {output.fig3d}"
     
 #vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
 #cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",
