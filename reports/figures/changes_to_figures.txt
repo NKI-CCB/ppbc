@@ -6,6 +6,7 @@ For spatial visualizations of density etc box plots, include all 4 groups but on
 Survival analyses (OS, DRS) in RNAseq data either exclude lac or use one vs rest
 For survival (OS, DRS) analyses in spatial data, only include ppbc inv and nulliparous
 TAPC figures are dichtomized into TAPC low (0, 1) and TAPC high (2, 3) because of how TAPC works.
+Study groups are ordered in figures using factor levels in the analysis, i.e. chronological PPBC (nulliparous, pregnant, lactating, involuting)
 
 #### Figure 1 ####
 
@@ -33,3 +34,7 @@ The Kaplan-Meiers in the code you provided don't match the ones in the manuscrip
 3A - Almost identical to the previous version
 3B and C - P values have changed, just barely no longer significant (i.e. p = 0.052)
 3D - P values are identical. I changed the aesthetics to both make it look nicer and make it clear what is being visualized.
+
+#### Figure 4 ####
+
+4A- Appears identical, aside from the order of the groups

@@ -15,6 +15,7 @@ params:
     fig2k: "figures/Fig2k_CD38_boxplot.pdf"
     fig2l: "figures/Fig2l_CD38_KM.pdf"
     rt_fig2l: "figures/Fig2l_risktable.csv"
+    fig4a: "figures/Fig4a_TIL_boxplot.pdf"
 ---
 
 ## Dependencies
@@ -49,7 +50,6 @@ head(figuredata)
 ## Colors
 
 ```{r}
-#figuredata$study_group <- factor(figuredata$study_group, ordered = T)
 study_colors <- c("NP-BC"="#521262", "Pr-BC"="#AA96DA", "PP-BCdl"="#112D4E", "PP-BCpw"="#46CDCF")
 ```
 
@@ -385,6 +385,36 @@ Also save risk table as csv.
 
 ```{r}
 write_csv(fig2l$data, here(params$rt_fig2l))
+```
+
+## Fig 4A - TIL% boxplot
+
+Include lac for visualization but exclude it from statistical tests.
+
+```{r}
+fig4a <- figuredata %>%
+  filter(!is.na(TILpercent)) %>%
+  ggplot(aes(x = study_group, y = TILpercent)) +
+  geom_jitter(aes(color = study_group), height = 0.15) +
+  geom_boxplot(alpha = 0) +
+  scale_color_manual(values = study_colors) +
+  stat_compare_means(method = "wilcox.test", comparisons = list(
+    c("PP-BCpw", "Pr-BC"),
+    c("PP-BCpw", "NP-BC")
+  )) +
+  stat_compare_means(label.y = 100) +
+  xlab("Study group") + ylab("TIL %") +
+  labs(color = "Study group")
+
+fig4a
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$fig4a), width = 12, height = 7)
+fig4a
+dev.off()
 ```
 
 ## Session info

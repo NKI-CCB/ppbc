@@ -77,22 +77,24 @@ rule spatial_figures:
 rule stainings:
   input:
     figuredata="data/figures/00_figuredata.Rds",
-    rmd="reports/figures/CD38_TAPC.Rmd",
+    rmd="reports/figures/CD38_TAPC_TILs.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    report="reports/figures/CD38_TAPC.pdf",
+    report="reports/figures/CD38_TAPC_TILs.pdf",
     fig2h="figures/Fig2h_TAPC_PPBC_cor.pdf",
     fig2i="figures/Fig2i_TAPC_KM.pdf",
     rt_fig2i="figures/Fig2i_risktable.csv",
     fig2k="figures/Fig2k_CD38_boxplot.pdf",
     fig2l="figures/Fig2l_CD38_KM.pdf",
-    rt_fig2l="figures/Fig2l_risktable.csv"
+    rt_fig2l="figures/Fig2l_risktable.csv",
+    fig4a="figures/Fig4a_TIL_boxplot.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
     " --fig2h {output.fig2h}"
     " --fig2i {output.fig2i}"
     " --rt_fig2i {output.rt_fig2i}"
+    " --fig4a {output.fig4a}"
 
 rule isotypes:
   input:
