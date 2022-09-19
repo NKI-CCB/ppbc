@@ -395,7 +395,7 @@ Include lac for visualization but exclude it from statistical tests.
 fig4a <- figuredata %>%
   filter(!is.na(TILpercent)) %>%
   ggplot(aes(x = study_group, y = TILpercent)) +
-  geom_jitter(aes(color = study_group), height = 0.15) +
+  geom_jitter(aes(color = study_group), height=0, width = 0.15) +
   geom_boxplot(alpha = 0) +
   scale_color_manual(values = study_colors) +
   stat_compare_means(method = "wilcox.test", comparisons = list(
