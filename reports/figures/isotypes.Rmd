@@ -154,7 +154,7 @@ fig3b
 
 ### Risk table
 
-```{r, fig.height=7, fig.width=12}
+```{r, fig.height=6, fig.width=9}
 risktable <- function(ggkm, response, text.size = 8){
   ggplot(ggkm$data, aes(time, study_group)) + 
     ggrepel::geom_text_repel(aes(label = n.risk)) +
@@ -179,7 +179,7 @@ rt_fig3b
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig3b), width = 12, height = 8)
+pdf(file = here(params$fig3b), width = 9, height = 6)
 fig3b
 rt_fig3b
 dev.off()
