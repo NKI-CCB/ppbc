@@ -197,10 +197,10 @@ fig2c
 ### Risk table
 
 ```{r, fig.height=7, fig.width=12}
-density_risktable <- function(ggkm, text.size = 8){
+risktable <- function(ggkm, response, text.size = 8){
   ggplot(ggkm$data, aes(time, study_group)) + 
     ggrepel::geom_text_repel(aes(label = n.risk)) +
-    facet_wrap(~density, 3) + theme_bw() + 
+    facet_wrap(as.formula(paste("~", response))) + theme_bw() + 
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
           strip.background = element_rect(fill="white", size = 1),
@@ -212,7 +212,7 @@ density_risktable <- function(ggkm, text.size = 8){
     xlab("Time") + ylab("")
 }
 
-rt_fig2c <- density_risktable(fig2c)
+rt_fig2c <- risktable(fig2c, response = "density")
 rt_fig2c
 ```
 
@@ -342,22 +342,7 @@ fig2f
 ### Risk table
 
 ```{r, fig.height=7, fig.width=12}
-l_risktable <- function(ggkm, text.size = 8){
-  ggplot(ggkm$data, aes(time, study_group)) + 
-    ggrepel::geom_text_repel(aes(label = n.risk)) +
-    facet_wrap(~delta_l, 3) + theme_bw() + 
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white", size = 1),
-          axis.text.x = element_text(color="black", size = text.size+2),
-          axis.text.y = element_text(color="black", size = text.size),
-          axis.title = element_text(color="black", size = text.size+4),
-          strip.text = element_text(color="black", size = text.size))+
-    ggtitle("Risk Tables") +
-    xlab("Time") + ylab("")
-}
-
-rt_fig2f <- l_risktable(fig2f)
+rt_fig2f <- risktable(fig2f, response = "delta_l")
 rt_fig2c
 ```
 

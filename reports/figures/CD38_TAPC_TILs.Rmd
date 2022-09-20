@@ -226,10 +226,10 @@ fig2i
 ### Risk table
 
 ```{r, fig.height=7, fig.width=12}
-tapc_risktable <- function(ggkm, text.size = 8){
+risktable <- function(ggkm, response, text.size = 8){
   ggplot(ggkm$data, aes(time, study_group)) + 
     ggrepel::geom_text_repel(aes(label = n.risk)) +
-    facet_wrap(~TAPC, 3) + theme_bw() + 
+    facet_wrap(as.formula(paste("~", response))) + theme_bw() + 
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
           strip.background = element_rect(fill="white", size = 1),
@@ -241,7 +241,7 @@ tapc_risktable <- function(ggkm, text.size = 8){
     xlab("Time") + ylab("")
 }
 
-rt_fig2i <- tapc_risktable(fig2i)
+rt_fig2i <- risktable(fig2i, response = "TAPC")
 rt_fig2i
 ```
 
@@ -353,22 +353,7 @@ fig2l
 ### Risk table
 
 ```{r, fig.height=7, fig.width=12}
-cd38_risktable <- function(ggkm, text.size = 8){
-  ggplot(ggkm$data, aes(time, study_group)) + 
-    ggrepel::geom_text_repel(aes(label = n.risk)) +
-    facet_wrap(~CD38, 3) + theme_bw() + 
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white", size = 1),
-          axis.text.x = element_text(color="black", size = text.size+2),
-          axis.text.y = element_text(color="black", size = text.size),
-          axis.title = element_text(color="black", size = text.size+4),
-          strip.text = element_text(color="black", size = text.size))+
-    ggtitle("Risk Tables") +
-    xlab("Time") + ylab("")
-}
-
-rt_fig2l <- cd38_risktable(fig2l)
+rt_fig2l <- risktable(fig2l, response = "CD38")
 rt_fig2l
 ```
 
