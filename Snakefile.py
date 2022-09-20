@@ -111,7 +111,7 @@ rule all:
     "figures/Fig4a_TIL_boxplot.pdf",
     "figures/Fig4b_cibersort_CD8_boxplot.pdf",
     "figures/Fig4c_cibersort_CD8_km.pdf",
-    "figures/Fig4d_CD8_density_boxplot.pdf"
+    "figures/Fig4d_CD8_density_boxplot_km.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)

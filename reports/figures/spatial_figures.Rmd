@@ -21,7 +21,7 @@ params:
     fig2e: "figures/Fig2e_CD20_l_boxplot.pdf"
     fig2f: "figures/Fig2f_Cd20_l_km.pdf"
     rt_fig2f: "figures/Fig2f_risktable.csv"
-    fig4d: "figures/Fig4d_CD8_density_boxplot.pdf"
+    fig4d: "figures/Fig4d_CD8_density_boxplot_KM.pdf"
 ---
 
 ## Dependencies
@@ -344,7 +344,7 @@ fig2f
 
 ```{r, fig.height=7, fig.width=12}
 rt_fig2f <- risktable(fig2f, response = "delta_l")
-rt_fig2c
+rt_fig2f
 ```
 
 ### Save output
@@ -362,7 +362,9 @@ Also save risk table as csv.
 write_csv(fig2f$data, here(params$rt_fig2f))
 ```
 
-## Figure 4D - CD8 density boxplot
+## Figure 4D - CD8 density boxplot and KM
+
+### Boxplot
 
 ```{r}
 fig4d <- density %>%
@@ -382,12 +384,34 @@ fig4d <- density %>%
 fig4d
 ```
 
+### Kaplan-Meier
+
+```{r}
+fig4d2 <- density_km(density, cell = "CD3+CD8+", event_type = "OS", returndata = F)
+fig4d2
+```
+
+### Risk table 
+
+```{r, fig.height=7, fig.width=12}
+rt_fig4d2 <- risktable(fig4d2, response = "density")
+rt_fig4d2
+```
+
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig4d), width = 10, height = 7)
+pdf(file = here(params$fig4d), width = 12, height = 7)
 fig4d
+fig4d2
+rt_fig4d2
 dev.off()
+```
+
+Also save risk table as csv.
+
+```{r}
+write_csv(fig4d2$data, here(params$rt_fig4d))
 ```
 
 ## Session info

@@ -59,7 +59,7 @@ rule spatial_figures:
     fig2e="figures/Fig2e_CD20_l_boxplot.pdf",
     fig2f="figures/Fig2f_Cd20_l_km.pdf",
     rt_fig2f="figures/Fig2f_risktable.csv",
-    fig4d="figures/Fig4d_CD8_density_boxplot.pdf"
+    fig4d="figures/Fig4d_CD8_density_boxplot_KM.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
