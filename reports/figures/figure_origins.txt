@@ -36,14 +36,9 @@
 4F - reports/figures/spatial_figures.Rmd
 4G - reports/figures/spatial_figures.Rmd
 4H - reports/figures/spatial_figures.Rmd
+4I - reports/figures/spatial_figures.Rmd
 
 #### To do ####
-
-## OS 
-### Kaplan-Meier
-#### KM high vs low
-H.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
-I.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
 
 Supplementary Figures 
 

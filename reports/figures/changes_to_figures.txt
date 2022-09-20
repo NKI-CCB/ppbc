@@ -51,3 +51,4 @@ The Kaplan-Meiers in the code you provided don't match the ones in the manuscrip
 4F - Same as 4E
 4G - Same as 4E
 4H - Lac looks different in box plot, but stat test is only between other groups so it doesn't matter. KM - same comment as 4E.
+4I - Lac and Prbc looks different in box plot, but stat test is only between other groups so it doesn't matter. KM - same comment as 4E.
