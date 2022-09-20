@@ -10,6 +10,8 @@ output:
 params:
     figuredata: "data/figures/00_figuredata.Rds"
     fig4b: "figures/Fig4b_cibersort_CD8_boxplot.pdf"
+    fig4c: "figures/Fig4c_cibersort_CD8_km.pdf"
+    rt_fig4c: "figures/Fig4c_risktable.csv"
 ---
 
 ## Dependencies
@@ -77,7 +79,101 @@ dev.off()
 ```
 
 ## Fig 4C
-CD8_ID = tertile, CD8_cat = median
+
+CD8_cat = median
+
+```{r}
+figuredata %>%
+  filter(!is.na(CD8_cat)) %>%
+  group_by(CD8_cat, study_group) %>% count() %>%
+  pivot_wider(names_from = CD8_cat, values_from = n, values_fill = 0)
+```
+
+Due to power issues, omit lac. High/low is around the median density.
+
+```{r}
+CD8_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
+  
+event_type <- match.arg(event_type)
+  
+  df <- df %>% 
+    dplyr::filter(
+      study_group %in% c("PP-BCpw", "Pr-BC", "NP-BC"),
+      !is.na(CD8_cat)
+    ) %>%
+    #The CD8 category is also CD3 pos, see the spatial pipeline
+    rename(CD8_CD3 = CD8_cat)
+  
+  df <- df[,c("CD8_CD3", "study_group", "sample_name", "time_OS_months", "death",
+              "time_DRS_months", "distant_recurrence")]
+  
+  if(returndata){return(df)}
+  
+  if(event_type == "OS"){
+    df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+      as.data.frame()
+    y <- "Overall survival"
+    fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + CD8_CD3, data = df)
+  } else {
+    df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+      as.data.frame()
+    y <- "Distant recurrence"
+    fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + CD8_CD3, data = df)
+  }
+  
+  ggsurvplot(
+    fit, data = df,
+    xlab = "Months", 
+    ylab = paste(y,"probability"),
+    #title = paste(y, cell, "stratified by median density:", signif(med, 2)),
+    palette = study_colors[names(study_colors) %in% unique(df$study_group)],
+    ggtheme = theme_bw(),
+    pval = T,
+    facet.by = "CD8_CD3",
+    legend.title="Study group:"
+  )
+}
+
+fig4c <- CD8_km(figuredata, event_type = "OS", returndata = F)
+fig4c
+```
+
+### Risk table
+
+```{r, fig.height=7, fig.width=12}
+risktable <- function(ggkm, response, text.size = 8){
+  ggplot(ggkm$data, aes(time, study_group)) + 
+    ggrepel::geom_text_repel(aes(label = n.risk)) +
+    facet_wrap(as.formula(paste("~", response))) + theme_bw() + 
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          strip.background = element_rect(fill="white", size = 1),
+          axis.text.x = element_text(color="black", size = text.size+2),
+          axis.text.y = element_text(color="black", size = text.size),
+          axis.title = element_text(color="black", size = text.size+4),
+          strip.text = element_text(color="black", size = text.size))+
+    ggtitle("Risk Tables") +
+    xlab("Time") + ylab("")
+}
+
+rt_fig4c <- risktable(fig4c, response = "CD8_CD3")
+rt_fig4c
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$fig4c), width = 12, height = 7)
+fig4c
+rt_fig4c
+dev.off()
+```
+
+Also save risk table as csv.
+
+```{r}
+write_csv(fig4c$data, here(params$rt_fig4c))
+```
 
 ## Session info
 

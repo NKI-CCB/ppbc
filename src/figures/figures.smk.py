@@ -122,11 +122,15 @@ rule ciberfigs:
     script="src/utils/rmarkdown.R"
   output:
     fig4b="figures/Fig4b_cibersort_CD8_boxplot.pdf",
+    fig4c="figures/Fig4c_cibersort_CD8_km.pdf",
+    rt_fig4c="figures/Fig4c_risktable.csv",
     report="reports/figures/ciberfigs.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
     " --fig4b {output.fig4b}"
+    " --fig4c {output.fig4c}"
+    " --rt_fig4c {output.rt_fig4c}"
     
 #vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
 #cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",
