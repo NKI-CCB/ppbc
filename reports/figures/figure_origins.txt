@@ -35,6 +35,7 @@
 4E - reports/figures/spatial_figures.Rmd
 4F - reports/figures/spatial_figures.Rmd
 4G - reports/figures/spatial_figures.Rmd
+4H - reports/figures/spatial_figures.Rmd
 
 #### To do ####
 

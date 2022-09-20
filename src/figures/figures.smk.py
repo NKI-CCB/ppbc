@@ -66,7 +66,9 @@ rule spatial_figures:
     fig4f="figures/Fig4f_CD8_PanCk_lcross_boxplot_km.pdf",
     rt_fig4f="figures/Fig4f_risktable.csv",
     fig4g="figures/Fig4g_CD8_CD4_lcross_boxplot_km.pdf",
-    rt_fig4g="figures/Fig4g_risktable.csv"
+    rt_fig4g="figures/Fig4g_risktable.csv",
+    fig4h="figures/Fig4h_CD20_CD8_lcross_boxplot_km.pdf",
+    rt_fig4h="figures/Fig4h_risktable.csv"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
@@ -89,6 +91,8 @@ rule spatial_figures:
     " --rt_fig4f {output.rt_fig4f}"
     " --fig4g {output.fig4g}"
     " --rt_fig4g {output.rt_fig4g}"
+    " --fig4h {output.fig4h}"
+    " --rt_fig4h {output.rt_fig4h}"
 
 rule stainings:
   input:
