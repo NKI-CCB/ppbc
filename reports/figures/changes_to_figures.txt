@@ -49,3 +49,4 @@ The Kaplan-Meiers in the code you provided don't match the ones in the manuscrip
 4D - Density is now log10 tranformed with a pseudocount of 1 for visualization. KM looks mostly the same, p values with non significant changes.
 4E - Plot looks somewhat different but the interpretation is the same.
 4F - Same as 4E
+4G - Same as 4E

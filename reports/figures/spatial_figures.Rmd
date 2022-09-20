@@ -27,6 +27,8 @@ params:
     rt_fig4e: "figures/Fig4e_risktable.csv"
     fig4f: "figures/Fig4f_CD8_PanCk_lcross_boxplot_km.pdf"
     rt_fig4f: "figures/Fig4f_risktable.csv"
+    fig4g: "figures/Fig4g_CD8_CD4_lcross_boxplot_km.pdf"
+    rt_fig4g: "figures/Fig4g_risktable.csv"
 ---
 
 ## Dependencies
@@ -594,6 +596,47 @@ Also save risk table as csv.
 
 ```{r}
 write_csv(fig4f2$data, here(params$rt_fig4f))
+```
+
+## Figure 4G - CD3+CD8+ <-> CD3+CD8- L cross boxplot and KM
+
+### Boxplot
+
+```{r}
+fig4g <- lcross_boxplot(lximmune, cell.1 = "CD3+CD8+", cell.2 = "CD3+CD8-",
+                        label.y = 0.15, returndata=F)
+fig4g
+```
+
+### Kaplan-meier
+
+```{r}
+fig4g2 <- lcross_km(lximmune, cell.1 = "CD3+CD8+", cell.2 = "CD3+CD8-",
+                    event_type = "OS", returndata = F)
+fig4g2
+```
+
+### Risk table 
+
+```{r, fig.height=7, fig.width=12}
+rt_fig4g2 <- risktable(fig4g2, response = "delta_l")
+rt_fig4g2
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$fig4g), width = 12, height = 7)
+fig4g
+fig4g2
+rt_fig4g2
+dev.off()
+```
+
+Also save risk table as csv.
+
+```{r}
+write_csv(fig4g2$data, here(params$rt_fig4g))
 ```
 
 ## Session info
