@@ -109,8 +109,7 @@ figuredata <- figuredata %>%
 ```{r}
 igbp <- figuredata %>%
   filter(!is.na(igClusterScore)) %>%
-  ggplot(aes(x = factor(study_group,
-                        levels=c("PP-BCpw", "NP-BC", "Pr-BC", "PP-BCdl")),
+  ggplot(aes(x = study_group,
              y = igClusterScore)) +
   geom_boxplot(aes(fill = study_group),
                outlier.shape = NA) +

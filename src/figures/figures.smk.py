@@ -22,16 +22,16 @@ rule aggregate_results:
     " --read_patient_data {input.read_patient_data}"
     " --quantile_categories {input.quantile_categories}"
     
-rule ig_clusters:
+rule ig_clusters_km:
   input:
     cluster_results="results/rnaseq/clustering/11_inv_clusters.xlsx", #for row clusters
     dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
     bx_annot="data/rnaseq/processed/bx_annot.Rds",
     figuredata="data/figures/00_figuredata.Rds",
-    rmd="reports/figures/IG_clusters.Rmd",
+    rmd="reports/figures/IG_clusters_km.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    report="reports/figures/IG_clusters.pdf",
+    report="reports/figures/IG_clusters_km.pdf",
     fig1b="figures/Fig1b_ig_boxplot.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
