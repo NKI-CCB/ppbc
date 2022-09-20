@@ -21,6 +21,7 @@ params:
     fig2e: "figures/Fig2e_CD20_l_boxplot.pdf"
     fig2f: "figures/Fig2f_Cd20_l_km.pdf"
     rt_fig2f: "figures/Fig2f_risktable.csv"
+    fig4d: "figures/Fig4d_CD8_density_boxplot.pdf"
 ---
 
 ## Dependencies
@@ -359,6 +360,34 @@ Also save risk table as csv.
 
 ```{r}
 write_csv(fig2f$data, here(params$rt_fig2f))
+```
+
+## Figure 4D - CD8 density boxplot
+
+```{r}
+fig4d <- density %>%
+  filter(cell_type == "CD3+CD8+" & classifier_label == "Total") %>%
+  ggplot(aes(x = factor(study_group,
+                        levels = c("NP-BC", "Pr-BC", "PP-BCdl","PP-BCpw")),
+             y = log10(density + 1), color = study_group)) +
+  geom_point(position = position_jitter(height = 0), shape = 15) +
+  geom_boxplot(alpha = 0) +
+  scale_color_manual(values = study_colors) +
+  xlab("Study group") + #ylab("CD20+ multiplex IF density") +
+  stat_compare_means(method = "wilcox.test",
+                     comparisons = list(c("PP-BCpw", "NP-BC"))) +
+  stat_compare_means(label.y = 3.7) +
+  ggtitle("CD3+CD8+ density by study group")
+
+fig4d
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$fig4d), width = 10, height = 7)
+fig4d
+dev.off()
 ```
 
 ## Session info

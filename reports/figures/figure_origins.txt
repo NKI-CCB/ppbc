@@ -12,7 +12,7 @@
 2b - reports/figures/spatial_figures.Rmd
 2c - reports/figures/spatial_figures.Rmd
 2d - HALO image
-2e - reports/figures/spatial_figures.Rmd WIP
+2e - reports/figures/spatial_figures.Rmd
 2f - reports/figures/spatial_figures.Rmd
 2h - reports/figures/CD38_TAPC_TILs.Rmd
 2i - reports/figures/CD38_TAPC_TILs.Rmd
@@ -31,7 +31,7 @@
 4A - reports/figures/CD38_TAPC_TILs.Rmd
 4B - reports/figures/ciberfigs.Rmd
 4C - reports/figures/ciberfigs.Rmd
-
+4D - reports/figures/spatial_figures.Rmd
 
 #### To do ####
 

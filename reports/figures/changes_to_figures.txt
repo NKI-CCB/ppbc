@@ -1,12 +1,18 @@
 #### General ####
 
-RNAseq has enough power for prbc but not ppbc-lac. Ppbc-lac is only included in 1 vs rest comparisons and non quantitative visualizations.
-For spatial analyses, insufficient power for prbc and ppbc lac.
-For spatial visualizations of density etc box plots, include all 4 groups but only do statistical test between ppbcinv and nulliparous
-Survival analyses (OS, DRS) in RNAseq data either exclude lac or use one vs rest
-For survival (OS, DRS) analyses in spatial data, only include ppbc inv and nulliparous
-TAPC figures are dichtomized into TAPC low (0, 1) and TAPC high (2, 3) because of how TAPC works.
-Study groups are ordered in figures using factor levels in the analysis, i.e. chronological PPBC (nulliparous, pregnant, lactating, involuting)
+- RNAseq has enough power for prbc but not ppbc-lac. Ppbc-lac is only included in 1 vs rest comparisons and non quantitative visualizations.
+- For spatial analyses, insufficient power for prbc and ppbc lac.
+- For spatial visualizations of density etc box plots, include all 4 groups but only do statistical test between ppbcinv and nulliparous
+- Density plots are now represented as log10(density + 1) for visualization. The log scale handles the outliers much better. The pseudocount is to avoid taking the log of zero.
+- Survival analyses (OS, DRS) in RNAseq data either exclude lac or use one vs rest
+- For survival (OS, DRS) analyses in spatial data, only include ppbc inv and nulliparous
+- Study groups are ordered in figures using factor levels in the analysis, i.e. chronological PPBC (nulliparous, pregnant, lactating, involuting)
+- We received the comment that Kaplan-Meiers should include a risk table, but there are enough events that these are hard to format nicely. 
+- I included a rough risk table with each KM for recordkeeping, and exported the data as csv if we decide to include it. It is not intended to use the rough risk tables in the main manuscript.
+
+#### Possible future edits ####
+
+- We discussed TAPC figures are dichotomized into TAPC low (0, 1) and TAPC high (2, 3) because of how TAPC works, but I didn't implement it due to lack of time.
 
 #### Figure 1 ####
 
@@ -14,7 +20,7 @@ Study groups are ordered in figures using factor levels in the analysis, i.e. ch
 1B - Previously used FPKM and row scaling to create the IG metagene scores, neither are which are easily rationalized. Now it uses DESeq2's median ratio method and log10 transformation. There were also outliers removed without mentioning that; these are now included. The statistical test for PPBCdl was removed due to lack of samples.
 1C - unchanged
 1D - unchanged 
-1E - Now includes a rough risk table and exports the risk table data for potentially better formatting.
+1E - The p value is not exactly the same but it doesn't change the intepretation.
 
 #### Figure 2 ####
 
@@ -40,3 +46,4 @@ The Kaplan-Meiers in the code you provided don't match the ones in the manuscrip
 4A - Appears identical, aside from the order of the groups
 4B - Very slight changes to P values (rounding)
 4C - Non significant changes to P values
+4D - Density is now log10 tranformed with a pseudocount of 1 for visualization.
