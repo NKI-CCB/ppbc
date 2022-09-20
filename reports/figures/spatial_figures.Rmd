@@ -179,11 +179,13 @@ density_km <- function(df, cell, event_type = c("OS", "DRS"), returndata = F){
   
   if(event_type == "OS"){
     df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+      filter(time_OS_months > 20 | reason_death == "BC") %>%
       as.data.frame()
     y <- "Overall survival"
     fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + density, data = df)
   } else {
     df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+      filter(time_DRS_months > 20 | reason_death == "BC") %>%
       as.data.frame()
     y <- "Distant recurrence"
     fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + density, data = df)
@@ -198,7 +200,7 @@ density_km <- function(df, cell, event_type = c("OS", "DRS"), returndata = F){
     ggtheme = theme_bw(),
     pval = T,
     facet.by = "density",
-    legend.title="Study group:"
+    legend.title="Study group"
   )
 }
 
@@ -325,11 +327,13 @@ lstat_km <- function(df, cell, outcome=outcomedata, rad=params$radius,
   
   if(event_type == "OS"){
     df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+      filter(time_OS_months > 20 | reason_death == "BC") %>%
       as.data.frame()
     y <- "Overall survival"
     fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + delta_l, data = df)
   } else {
     df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+      filter(time_DRS_months > 20 | reason_death == "BC") %>%
       as.data.frame()
     y <- "Distant recurrence"
     fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + delta_l, data = df)
@@ -344,7 +348,7 @@ lstat_km <- function(df, cell, outcome=outcomedata, rad=params$radius,
     ggtheme = theme_bw(),
     pval = T,
     facet.by = "delta_l",
-    legend.title="Study group:"
+    legend.title="Study group"
   )
 }
 
@@ -552,11 +556,13 @@ lcross_km <- function(df, cell.1, cell.2, outcome=outcomedata, rad=params$radius
   
   if(event_type == "OS"){
     df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+      filter(time_OS_months > 20 | reason_death == "BC") %>%
       as.data.frame()
     y <- "Overall survival"
     fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + delta_l, data = df)
   } else {
     df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+      filter(time_DRS_months > 20 | reason_death == "BC") %>%
       as.data.frame()
     y <- "Distant recurrence"
     fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + delta_l, data = df)
@@ -571,7 +577,7 @@ lcross_km <- function(df, cell.1, cell.2, outcome=outcomedata, rad=params$radius
     ggtheme = theme_bw(),
     pval = T,
     facet.by = "delta_l",
-    legend.title="Study group:"
+    legend.title="Study group"
   )
 }
 

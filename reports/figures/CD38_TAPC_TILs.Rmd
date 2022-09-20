@@ -190,17 +190,19 @@ event_type <- match.arg(event_type)
     )
   
   df <- df[,c("TAPC", "study_group", "sample_name", "time_OS_months", "death",
-              "time_DRS_months", "distant_recurrence")]
+              "reason_death", "time_DRS_months", "distant_recurrence")]
   
   if(returndata){return(df)}
   
   if(event_type == "OS"){
     df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+      filter(time_OS_months > 20 | reason_death == "BC") %>%
       as.data.frame()
     y <- "Overall survival"
     fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + TAPC, data = df)
   } else {
     df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+      filter(time_DRS_months > 20 | reason_death == "BC") %>%
       as.data.frame()
     y <- "Distant recurrence"
     fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + TAPC, data = df)
@@ -317,17 +319,19 @@ event_type <- match.arg(event_type)
     )
   
   df <- df[,c("CD38", "study_group", "sample_name", "time_OS_months", "death",
-              "time_DRS_months", "distant_recurrence")]
+              "reason_death", "time_DRS_months", "distant_recurrence")]
   
   if(returndata){return(df)}
   
   if(event_type == "OS"){
     df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+      filter(time_OS_months > 20 | reason_death == "BC") %>%
       as.data.frame()
     y <- "Overall survival"
     fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + CD38, data = df)
   } else {
     df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+      filter(time_DRS_months > 20 | reason_death == "BC") %>%
       as.data.frame()
     y <- "Distant recurrence"
     fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + CD38, data = df)

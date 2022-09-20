@@ -100,7 +100,8 @@ ig_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
   df <- df %>%
     select(study_group, IgA_rank:IgM_rank,
            death, time_OS_months,
-           distant_recurrence, time_DRS_months) %>%
+           distant_recurrence, time_DRS_months,
+           reason_death) %>%
     pivot_longer(cols = c(IgA_rank:IgM_rank), names_to = "isotype",
                  values_to = "rank") %>%
     mutate(isotype = str_remove(isotype, "_rank")) %>%
@@ -121,11 +122,13 @@ ig_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
 
     if(event_type == "OS"){
       dfi <- dfi %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+        filter(time_OS_months > 20 | reason_death == "BC") %>%
         as.data.frame()
       y <- "Overall survival"
       fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + isotype_group, data = dfi)
     } else {
       dfi <- dfi %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+        filter(time_DRS_months > 20 | reason_death == "BC") %>%
         as.data.frame()
       y <- "Distant recurrence"
       fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + isotype_group, data = dfi)
