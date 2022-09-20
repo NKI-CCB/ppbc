@@ -21,7 +21,12 @@ params:
     fig2e: "figures/Fig2e_CD20_l_boxplot.pdf"
     fig2f: "figures/Fig2f_Cd20_l_km.pdf"
     rt_fig2f: "figures/Fig2f_risktable.csv"
-    fig4d: "figures/Fig4d_CD8_density_boxplot_KM.pdf"
+    fig4d: "figures/Fig4d_CD8_density_boxplot_km.pdf"
+    rt_fig4d: "figures/Fig4d_risktable.csv"
+    fig4e: "figures/Fig4e_CD8_l_boxplot_km.pdf"
+    rt_fig4e: "figures/Fig4e_risktable.csv"
+    fig4f: "figures/Fig4f_CD8_PanCk_lcross_boxplot_km.pdf"
+    rt_fig4f: "figures/Fig4f_risktable.csv"
 ---
 
 ## Dependencies
@@ -236,7 +241,7 @@ write_csv(fig2c$data, here(params$rt_fig2c))
 
 ```{r}
 lstat_boxplot <-  function(df, cell, outcome=outcomedata, rad=params$radius,
-                           pseudocount = 0.01, returndata = F) {
+                           returndata = F, ...) {
   
   stopifnot(class(rad)=="numeric")  
   stopifnot(cell %in% df$cell_type)
@@ -254,20 +259,21 @@ lstat_boxplot <-  function(df, cell, outcome=outcomedata, rad=params$radius,
   df %>%
     ggplot(aes(x = factor(study_group,
                           levels = c("NP-BC", "Pr-BC", "PP-BCdl","PP-BCpw")),
-               y = log10(delta_estimate + pseudocount), color = study_group)) +
+               y = delta_estimate, color = study_group)) +
     geom_point(position = position_jitter(height = 0), shape = 15) +
     geom_boxplot(alpha = 0) +
     scale_color_manual(values = study_colors) +
     xlab("Study group") + #ylab("CD20+ multiplex IF density") +
     stat_compare_means(method = "wilcox.test",
                        comparisons = list(c("PP-BCpw", "NP-BC"))) +
-    stat_compare_means() +
-    ggtitle("CD20+ density by study group") +
-    ylab(paste("Log10 delta estimate +", pseudocount))
+    stat_compare_means(...) +
+    ggtitle(paste(cell, "clustering by study group")) +
+    ylab(paste0("Delta estimate for ", cell)) +
+    labs(color = "study group")
   
 }
 
-fig2e <- lstat_boxplot(l, cell = "CD20+")
+fig2e <- lstat_boxplot(l, cell = "CD20+", label.y = 1)
 fig2e
 ```
 ### Save output
@@ -412,6 +418,182 @@ Also save risk table as csv.
 
 ```{r}
 write_csv(fig4d2$data, here(params$rt_fig4d))
+```
+
+## Figure 4E - CD8+ delta L boxplot and KM
+
+### Boxplot
+
+```{r}
+fig4e <- lstat_boxplot(l, cell = "CD3+CD8+", label.y = 0.25)
+fig4e
+```
+
+### Kaplan-Meier
+
+```{r}
+fig4e2 <- lstat_km(l, cell = "CD3+CD8+", event_type = "OS", returndata = F)
+fig4e2
+```
+
+### Risk table 
+
+```{r, fig.height=7, fig.width=12}
+rt_fig4e2 <- risktable(fig4e2, response = "delta_l")
+rt_fig4e2
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$fig4e), width = 12, height = 7)
+fig4e
+fig4e2
+rt_fig4e2
+dev.off()
+```
+
+Also save risk table as csv.
+
+```{r}
+write_csv(fig4e2$data, here(params$rt_fig4e))
+```
+
+## Figure 4F - CD3+CD8+ <-> PanCK L cross boxplot and KM
+
+### Boxplot
+
+```{r}
+lcross_boxplot <-  function(df, cell.1, cell.2, outcome=outcomedata,
+                            rad=params$radius, returndata = F, ...) {
+  
+  stopifnot(class(rad)=="numeric")  
+  stopifnot(cell.1 %in% df$cell_type1)
+  stopifnot(cell.2 %in% df$cell_type2)
+  
+  df <- df %>%
+    left_join(., outcome, by="sample_ID") %>%
+    filter(
+      cell_type1 %in% cell.1,
+      cell_type2 %in% cell.2,
+      radius == rad,
+      !is.na(delta_estimate)
+    ) %>%
+    mutate(cell = paste(cell_type1, cell_type2, sep=" <-> "), .before = cell_type1)
+  
+  cell <- unique(df$cell)
+  stopifnot(length(cell)==1)
+  
+  if(returndata==T){return(df)}
+  
+  df %>%
+    filter(!is.na(delta_estimate)) %>%
+    ggplot(aes(x = factor(study_group,
+                          levels = c("NP-BC", "Pr-BC", "PP-BCdl","PP-BCpw")),
+               y = delta_estimate, color = study_group)) +
+    geom_point(position = position_jitter(height = 0), shape = 15) +
+    geom_boxplot(alpha = 0) +
+    scale_color_manual(values = study_colors) +
+    xlab("Study group") + #ylab("CD20+ multiplex IF density") +
+    stat_compare_means(method = "wilcox.test",
+                       comparisons = list(c("PP-BCpw", "NP-BC"))) +
+    stat_compare_means(...) +
+    ggtitle(paste(cell, "clustering by study group")) +
+    ylab(paste0(paste0("Delta estimate for ", cell))) +
+    labs(color = "study group")
+  
+}
+
+fig4f <- lcross_boxplot(lximmune, cell.1 = "CD3+CD8+", cell.2 = "PanCK+",
+                        label.y = 0.01, returndata=F)
+fig4f
+```
+
+### Kaplan-meier
+
+```{r}
+lcross_km <- function(df, cell.1, cell.2, outcome=outcomedata, rad=params$radius,
+                     event_type = c("OS", "DRS"), returndata = F){
+  
+  stopifnot(class(rad)=="numeric")  
+  stopifnot(cell.1 %in% df$cell_type1)
+  stopifnot(cell.2 %in% df$cell_type2)
+  
+  event_type <- match.arg(event_type)
+  
+  df <- df %>%
+    left_join(., outcome, by="sample_ID") %>%
+    filter(
+      study_group %in% c("PP-BCpw", "NP-BC"),
+      cell_type1 %in% cell.1,
+      cell_type2 %in% cell.2,
+      radius == rad,
+      !is.na(delta_estimate)
+    ) %>%
+    mutate(cell = paste(cell_type1, cell_type2, sep=" <-> "), .before = cell_type1)
+  
+  cell <- unique(df$cell)
+  stopifnot(length(cell)==1)
+  
+  med <- median(df$delta_estimate)
+  #print(med)
+  
+  df$delta_l <- factor(ifelse(df$delta_estimate > med, "high", "low"),
+                       levels = c("low", "high"))
+  df <- df %>% relocate(delta_l, .after = delta_estimate)
+  
+  if(returndata){return(df)}
+  
+  if(event_type == "OS"){
+    df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
+      as.data.frame()
+    y <- "Overall survival"
+    fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + delta_l, data = df)
+  } else {
+    df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+      as.data.frame()
+    y <- "Distant recurrence"
+    fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + delta_l, data = df)
+  }
+  
+  ggsurvplot(
+    fit, data = df,
+    xlab = "Months", 
+    ylab = paste(y,"probability"),
+    title = paste(y, cell, "stratified by median delta L:", signif(med, 2)),
+    palette = study_colors[names(study_colors) %in% unique(df$study_group)],
+    ggtheme = theme_bw(),
+    pval = T,
+    facet.by = "delta_l",
+    legend.title="Study group:"
+  )
+}
+
+fig4f2 <- lcross_km(lximmune, cell.1 = "CD3+CD8+", cell.2 = "PanCK+", event_type = "OS", returndata = F)
+fig4f2
+```
+
+### Risk table 
+
+```{r, fig.height=7, fig.width=12}
+rt_fig4f2 <- risktable(fig4f2, response = "delta_l")
+rt_fig4f2
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$fig4f), width = 12, height = 7)
+fig4f
+fig4f2
+rt_fig4f2
+dev.off()
+```
+
+Also save risk table as csv.
+
+```{r}
+write_csv(fig4f2$data, here(params$rt_fig4f))
 ```
 
 ## Session info

@@ -59,7 +59,12 @@ rule spatial_figures:
     fig2e="figures/Fig2e_CD20_l_boxplot.pdf",
     fig2f="figures/Fig2f_Cd20_l_km.pdf",
     rt_fig2f="figures/Fig2f_risktable.csv",
-    fig4d="figures/Fig4d_CD8_density_boxplot_KM.pdf"
+    fig4d="figures/Fig4d_CD8_density_boxplot_km.pdf",
+    rt_fig4d="figures/Fig4d_risktable.csv",
+    fig4e="figures/Fig4e_CD8_l_boxplot_km.pdf",
+    rt_fig4e="figures/Fig4e_risktable.csv",
+    fig4f="figures/Fig4f_CD8_PanCk_lcross_boxplot_km.pdf",
+    rt_fig4f="figures/Fig4f_risktable.csv"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
@@ -75,6 +80,11 @@ rule spatial_figures:
     " --fig2f {output.fig2f}"
     " --rt_fig2f {output.rt_fig2f}"
     " --fig4d {output.fig4d}"
+    " --rt_fig4d {output.rt_fig4d}"
+    " --fig4e {output.fig4e}"
+    " --rt_fig4e {output.rt_fig4e}"
+    " --fig4f {output.fig4f}"
+    " --rt_fig4f {output.rt_fig4f}"
 
 rule stainings:
   input:

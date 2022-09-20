@@ -32,16 +32,14 @@
 4B - reports/figures/ciberfigs.Rmd
 4C - reports/figures/ciberfigs.Rmd
 4D - reports/figures/spatial_figures.Rmd
+4E - reports/figures/spatial_figures.Rmd
+4F - reports/figures/spatial_figures.Rmd
 
 #### To do ####
-
 
 ## OS 
 ### Kaplan-Meier
 #### KM high vs low
-D.	Code Kat: 07_cox_density.Rmd and Code Hanne: 07_cox_density_withoutCD27
-E.	Code Kat: 07_cox_density.Rmd and Code Hanne: 07_cox_density_withoutCD27
-F.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
 G.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
 H.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
 I.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
