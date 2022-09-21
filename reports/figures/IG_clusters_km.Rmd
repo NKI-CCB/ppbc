@@ -163,14 +163,8 @@ univariate_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
   event_type <- match.arg(event_type)
   
   df <- df %>%
-    filter(!is.na(PAM50)) %>%
     filter(!is.na(year_diagnosis)) %>%
-    filter(!is.na(grade)) %>%
     filter(!is.na(stage)) %>%
-    filter(!is.na(surgery)) %>%
-    filter(!is.na(RT)) %>%
-    filter(!is.na(HT)) %>%
-    filter(!is.na(CT)) %>%
     filter(!is.na(herceptin)) %>%
     filter(!is.na(death), !is.na(time_OS_months)) %>%
     filter(!is.na(distant_recurrence), !is.na(time_DRS_months))
@@ -237,19 +231,12 @@ multivariate_km <- function(df, event_type = c("OS", "DRS"),
   event_type <- match.arg(event_type)
   
   df <- df %>%
-    filter(!is.na(PAM50)) %>%
-    filter(!is.na(year_diagnosis)) %>%
-    filter(!is.na(grade)) %>%
+    filter(!is.na(clin_subtype)) %>%
     filter(!is.na(stage)) %>%
-    filter(!is.na(surgery)) %>%
-    filter(!is.na(RT)) %>%
-    filter(!is.na(HT)) %>%
-    filter(!is.na(CT)) %>%
-    filter(!is.na(herceptin)) %>%
     filter(!is.na(death), !is.na(time_OS_months)) %>%
     filter(!is.na(distant_recurrence), !is.na(time_DRS_months))
   
-  df <- df[,c("study_group", "sample_name", "stage", "grade", "PAM50",
+  df <- df[,c("study_group", "sample_name", "stage", "grade", "clin_subtype",
               "time_OS_months", "death","reason_death",
               "time_DRS_months", "distant_recurrence") ]
   
@@ -264,16 +251,16 @@ multivariate_km <- function(df, event_type = c("OS", "DRS"),
     # The graph requires stratification according to Hanne
     study_strata <- coxph(
       Surv(time=time_OS_months,
-           event=death) ~ stage + PAM50 + strata(study_group), data = df
+           event=death) ~ stage + clin_subtype + strata(study_group), data = df
       )
     
     fitvsNPBC <- coxph(
-      Surv(time=time_OS_months, event=death) ~ stage + PAM50 + study_group,
+      Surv(time=time_OS_months, event=death) ~ stage + clin_subtype + study_group,
       data = as.data.frame(mutate(df, study_group = relevel(study_group, ref = "NP-BC")))
       )
     
     fitvsPRBC <- coxph(
-      Surv(time=time_OS_months, event=death) ~ stage + PAM50 + study_group,
+      Surv(time=time_OS_months, event=death) ~ stage + clin_subtype + study_group,
       data = as.data.frame(mutate(df, study_group = relevel(study_group, ref = "Pr-BC")))
       )
     
@@ -284,17 +271,17 @@ multivariate_km <- function(df, event_type = c("OS", "DRS"),
     y <- "Distant recurrence"
     
     fitvsNPBC <- coxph(
-      Surv(time=time_DRS_months, event=distant_recurrence) ~ stage + PAM50 + study_group,
+      Surv(time=time_DRS_months, event=distant_recurrence) ~ stage + clin_subtype + study_group,
       data = as.data.frame(mutate(df, study_group = relevel(study_group, ref = "NP-BC")))
       )
     
     fitvsPRBC <- coxph(
-      Surv(time=time_DRS_months, event=distant_recurrence) ~ stage + PAM50 + study_group,
+      Surv(time=time_DRS_months, event=distant_recurrence) ~ stage + clin_subtype + study_group,
       data = as.data.frame(mutate(df, study_group = relevel(study_group, ref = "Pr-BC")))
       )
     
     study_strata <- coxph(
-      Surv(time=time_DRS_months, event=distant_recurrence) ~ stage + PAM50 + strata(study_group),
+      Surv(time=time_DRS_months, event=distant_recurrence) ~ stage + clin_subtype + strata(study_group),
       data = df
       )
   }

@@ -55,9 +55,9 @@ The Kaplan-Meiers in the code you provided don't match the ones in the manuscrip
 
 #### Sup Fig 2 ####
 
-2A - I have three more samples than you do in the risk table, in spite of using an identical filter. These are likely the extra three samples with a different directory path. It matter some for the p value. Are you sure you want to filter for clinical covariates you aren't using?
+2A - Removed filtering for clinical factors that aren't covariates. 
 2B - Same as 2A.
-2C and 2D - Lot of questions here.
-    1. I thought we agreed not to use the ggadjustedcurves balancing methods in the paper? They effectively resample the data in order to create balanced subgroups. I'm not sure it behaves in an intuitive way based on my testing. If you are going to use it, you need to describe it in the legends. 
-    2. I could not find the HR ratios or p values in your code and could not reproduce them precisely. I used the p value related to the coefficient in coxph(). An anova full vs reduced is better, but we're in a hurry.
-    3. Why do you not use the rest of the clinical covariates?
+2C - Same as 2A, and stage is incorporated as factor instead of an integer.
+2D - Same as 2C.
+
+
