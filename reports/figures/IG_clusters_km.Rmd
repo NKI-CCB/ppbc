@@ -203,14 +203,16 @@ univariate_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
   )
 }
 
-supfig2a <- univariate_km(figuredata, event_type = "OS", returndata = F)
+supfig2a <- univariate_km(figuredata, event_type = "OS", returndata = F) +
+  ggtitle("Univariate OS")
 supfig2a
 ```
 
 ### 2B Univariate DRS
 
 ```{r, fig.width=6.5, fig.height=5}
-supfig2b <- univariate_km(figuredata, event_type = "DRS", returndata = F)
+supfig2b <- univariate_km(figuredata, event_type = "DRS", returndata = F) +
+  ggtitle("Univariate DRS")
 supfig2b
 ```
 
@@ -224,6 +226,7 @@ For p values I used the coefficient for PPBCpw in the Cox regression model with 
 
 ```{r}
 multivariate_km <- function(df, event_type = c("OS", "DRS"),
+                            stage_as_integer = F,
                             npbc_label_x=50, npbc_label_y=0.4,
                             prbc_label_x=50, prbc_label_y=0.5,
                             returndata = F, returncox=F){
@@ -236,7 +239,19 @@ multivariate_km <- function(df, event_type = c("OS", "DRS"),
     filter(!is.na(death), !is.na(time_OS_months)) %>%
     filter(!is.na(distant_recurrence), !is.na(time_DRS_months))
   
-  df <- df[,c("study_group", "sample_name", "stage", "grade", "clin_subtype",
+  if(stage_as_integer){
+    df <- df %>%
+      mutate(stage_factor = stage, .after= stage) %>%
+      mutate(stage = case_when(
+        stage == "stage I" ~ 1,
+        stage == "stage II" ~ 2,
+        stage == "stage III" ~ 3,
+        stage == "stage IV" ~ 4
+      ))
+  }
+  
+  df <- df[,c("study_group", "sample_name", "stage", #"stage_factor",
+              "grade", "clin_subtype",
               "time_OS_months", "death","reason_death",
               "time_DRS_months", "distant_recurrence") ]
   
@@ -321,14 +336,18 @@ multivariate_km <- function(df, event_type = c("OS", "DRS"),
     )
 }
 
-supfig2c <- multivariate_km(figuredata, event_type = "OS", returndata = F)
+supfig2c <- multivariate_km(figuredata, event_type = "OS",
+                            stage_as_integer = F, returndata = F) +
+  ggtitle("Multivariate OS")
 supfig2c
 ```
 
 ### 2D Multivariate DRS
 
 ```{r}
-supfig2d <- multivariate_km(figuredata, event_type = "DRS", returndata = F, returncox = F)
+supfig2d <- multivariate_km(figuredata, event_type = "DRS",
+                            stage_as_integer=F, returndata = F, returncox = F) +
+  ggtitle("Multivariate DRS")
 supfig2d
 ```
 
