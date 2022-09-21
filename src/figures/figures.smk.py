@@ -32,7 +32,8 @@ rule ig_clusters_km:
     script="src/utils/rmarkdown.R"
   output:
     report="reports/figures/IG_clusters_km.pdf",
-    fig1b="figures/Fig1b_ig_boxplot.pdf"
+    fig1b="figures/Fig1b_ig_boxplot.pdf",
+    supfig2="figures/supfigs/Supfig2_studygroup_km.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --cluster_results {input.cluster_results}"
@@ -40,6 +41,7 @@ rule ig_clusters_km:
     " --bx_annot {input.bx_annot}"
     " --figuredata {input.figuredata}"
     " --fig1b {output.fig1b}"
+    " --supfig2 {output.supfig2}"
 
 rule spatial_figures:
   input:

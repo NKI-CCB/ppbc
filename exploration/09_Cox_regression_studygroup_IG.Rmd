@@ -168,7 +168,7 @@ ggsurvplot(fit_SG_OS_all, data = MCP_Data, pval = TRUE, legend = "top", legend.l
 ggsurvplot(fit_SG_OS_nolac, data = MCP_Final_withoutLAC, pval = TRUE, legend = "top", legend.labs = c("ppbcpw", "prbc", "npbc"), legend.title = "study group", title = "OS - Univariate Analysis", palette = c("#46CDCF","#AA96DA", "#521262"))
 ```
 
-
+# Sup Fig 2A
 
 ```{r, fig.width=6.5, fig.height=5}
 MCP_OS_univariate <- ggsurvplot(fit_SG_OS, data = MCP_Final,

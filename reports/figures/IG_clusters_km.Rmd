@@ -13,6 +13,7 @@ params:
     bx_annot: "data/rnaseq/processed/bx_annot.Rds"
     figuredata: "data/figures/00_figuredata.Rds"
     fig1b: "figures/Fig1b_ig_boxplot.pdf"
+    supfig2: "figures/supfigs/Supfig2_studygroup_km.pdf"
 ---
 
 ## Dependencies
@@ -25,7 +26,10 @@ knitr::opts_chunk$set(echo = TRUE)
 library(here)
 library(DESeq2)
 library(tidyverse)
+library(broom)
 library(ggpubr)
+library(survival)
+library(survminer)
 
 theme_set(theme_bw())
 ```
@@ -67,6 +71,15 @@ Aggregated data for figures.
 figuredata <- readRDS(here(params$figuredata))
 ```
 
+## Colors
+
+```{r}
+#Be sure these are in the same order as the factor level
+levels(figuredata$study_group)
+study_colors <- c("NP-BC"="#521262", "Pr-BC"="#aa96da",
+                  "PP-BCdl"="#282c75", "PP-BCpw"="#46cdcf")
+```
+
 ## Immune cluster
 
 Cluster 3 is dominated by IG gnes.
@@ -104,7 +117,7 @@ figuredata <- figuredata %>%
             by = "sample_name")
 ```
 
-## Boxplot Figure 1B
+## Figure 1B - Boxplot IG signature
 
 ```{r}
 igbp <- figuredata %>%
@@ -115,8 +128,7 @@ igbp <- figuredata %>%
                outlier.shape = NA) +
   geom_point(position = position_jitter(), shape = 15) +
   scale_y_log10() +
-  scale_fill_manual(values = c("NP-BC"="#521262", "PP-BCdl"="#282c75",
-                               "PP-BCpw"="#46cdcf", "Pr-BC"="#aa96da")) +
+  scale_fill_manual(values = study_colors) +
   xlab("Study group") + ylab("Log10 sum of normalized counts within IG cluster") +
   ggtitle("Relationship between IG gene signature expression and patient group") +
   stat_compare_means(method = "wilcox.test", comparisons = list(
@@ -129,11 +141,220 @@ igbp <- figuredata %>%
 igbp
 ```
 
+### Save output
+
 ```{r}
-figureDir = file.path(here("figures"))
+figureDir <- file.path(here("figures"))
 dir.create(figureDir, showWarnings = F)
 pdf(file = here(params$fig1b), width = 10, height = 7)
 igbp
+dev.off()
+```
+
+## Sup Fig 2 - Kaplan Meier study group
+
+In addition to the usual filters for follow up and reason for death, also filter on whether PAM50 and clinical covariates available. OS time and DRS time are applied to both OS and DRS regressions. We do this for both univariate and multivariate analyses so that both analyses have the same number of samples.
+
+### 2A Univariate OS
+
+```{r, fig.width=6.5, fig.height=5}
+univariate_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
+  
+  event_type <- match.arg(event_type)
+  
+  df <- df %>%
+    filter(!is.na(PAM50)) %>%
+    filter(!is.na(year_diagnosis)) %>%
+    filter(!is.na(grade)) %>%
+    filter(!is.na(stage)) %>%
+    filter(!is.na(surgery)) %>%
+    filter(!is.na(RT)) %>%
+    filter(!is.na(HT)) %>%
+    filter(!is.na(CT)) %>%
+    filter(!is.na(herceptin)) %>%
+    filter(!is.na(death), !is.na(time_OS_months)) %>%
+    filter(!is.na(distant_recurrence), !is.na(time_DRS_months))
+  
+  df <- df[,c("study_group", "sample_name", "time_OS_months", "death",
+              "time_DRS_months", "distant_recurrence", "reason_death", "PAM50")]
+  
+  if(returndata){return(df)}
+  
+  if(event_type == "OS"){
+    df <- df %>%
+      filter(time_OS_months > 20 | reason_death == "BC") %>%
+      as.data.frame()
+    y <- "Overall survival"
+    fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group, data = df)
+  } else {
+    df <- df %>% filter(time_DRS_months > 20 | reason_death == "BC") %>%
+      as.data.frame()
+    y <- "Distant recurrence"
+    fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group, data = df)
+  }
+  #return(fit)
+  
+  ggsurvplot(
+    fit, data = df,
+    xlab = "Months", 
+    ylab = paste(y,"probability"),
+    palette = study_colors,
+    ggtheme = theme_bw(),
+    pval = T,
+    legend.labs = names(study_colors),
+    legend.title="Study group",
+    risk.table = T,
+    risk.table.height = 0.25,
+    cumevents = F, cumcensor = F
+  )
+}
+
+supfig2a <- univariate_km(figuredata, event_type = "OS", returndata = F)
+supfig2a
+```
+
+### 2B Univariate DRS
+
+```{r, fig.width=6.5, fig.height=5}
+supfig2b <- univariate_km(figuredata, event_type = "DRS", returndata = F)
+supfig2b
+```
+
+### 2C Multivariate OS
+
+This is an adaptation of Hanne has chosen `ggadjustedcurves` with `method=conditional` to draw these plots. The manual states:
+
+For method = "conditional" a separate survival curve is plotted for each level of a grouping variable selected by variable argument. If this argument is not specified, then it will be extracted from the strata component of fit object. Subpopulations are balanced in a following way: (1) the data is replicated as many times as many subpopulations are considered (say k), (2) for each row in original data a set of k copies are created and for every copy a different value of a grouping variable is assigned, this will create a new dataset balanced in terms of grouping variables, (3) expected survival is calculated for each subpopulation based on the new artificial dataset. Here the model fit is not refitted.
+
+For p values I used the coefficient for PPBCpw in the Cox regression model with these covariates.
+
+```{r}
+multivariate_km <- function(df, event_type = c("OS", "DRS"),
+                            npbc_label_x=50, npbc_label_y=0.4,
+                            prbc_label_x=50, prbc_label_y=0.5,
+                            returndata = F, returncox=F){
+  
+  event_type <- match.arg(event_type)
+  
+  df <- df %>%
+    filter(!is.na(PAM50)) %>%
+    filter(!is.na(year_diagnosis)) %>%
+    filter(!is.na(grade)) %>%
+    filter(!is.na(stage)) %>%
+    filter(!is.na(surgery)) %>%
+    filter(!is.na(RT)) %>%
+    filter(!is.na(HT)) %>%
+    filter(!is.na(CT)) %>%
+    filter(!is.na(herceptin)) %>%
+    filter(!is.na(death), !is.na(time_OS_months)) %>%
+    filter(!is.na(distant_recurrence), !is.na(time_DRS_months))
+  
+  df <- df[,c("study_group", "sample_name", "stage", "grade", "PAM50",
+              "time_OS_months", "death","reason_death",
+              "time_DRS_months", "distant_recurrence") ]
+  
+  if(returndata){return(df)}
+  
+  if(event_type == "OS"){
+    df <- df %>%
+      filter(time_OS_months > 20 | reason_death == "BC") %>%
+      as.data.frame()
+    y <- "Overall survival"
+    
+    # The graph requires stratification according to Hanne
+    study_strata <- coxph(
+      Surv(time=time_OS_months,
+           event=death) ~ stage + PAM50 + strata(study_group), data = df
+      )
+    
+    fitvsNPBC <- coxph(
+      Surv(time=time_OS_months, event=death) ~ stage + PAM50 + study_group,
+      data = as.data.frame(mutate(df, study_group = relevel(study_group, ref = "NP-BC")))
+      )
+    
+    fitvsPRBC <- coxph(
+      Surv(time=time_OS_months, event=death) ~ stage + PAM50 + study_group,
+      data = as.data.frame(mutate(df, study_group = relevel(study_group, ref = "Pr-BC")))
+      )
+    
+  } else {
+    
+    df <- df %>% filter(time_DRS_months > 20 | reason_death == "BC") %>%
+      as.data.frame()
+    y <- "Distant recurrence"
+    
+    fitvsNPBC <- coxph(
+      Surv(time=time_DRS_months, event=distant_recurrence) ~ stage + PAM50 + study_group,
+      data = as.data.frame(mutate(df, study_group = relevel(study_group, ref = "NP-BC")))
+      )
+    
+    fitvsPRBC <- coxph(
+      Surv(time=time_DRS_months, event=distant_recurrence) ~ stage + PAM50 + study_group,
+      data = as.data.frame(mutate(df, study_group = relevel(study_group, ref = "Pr-BC")))
+      )
+    
+    study_strata <- coxph(
+      Surv(time=time_DRS_months, event=distant_recurrence) ~ stage + PAM50 + strata(study_group),
+      data = df
+      )
+  }
+  
+  #Extract HR and p value from Cox regression without strata
+  refNPBC <- broom::tidy(fitvsNPBC, conf.int = T) %>%
+    mutate(HR = exp(estimate),.after=estimate) %>%
+    filter(str_detect(term,"PP-BCpw"))
+  stopifnot(nrow(refNPBC) == 1)
+  #return(refNPBC)
+  
+  refPRBC <- broom::tidy(fitvsPRBC, conf.int = T) %>%
+    mutate(HR = exp(estimate),.after=estimate) %>%
+    filter(str_detect(term,"PP-BCpw"))
+  stopifnot(nrow(refPRBC) == 1)
+  
+  if(returncox){return(list(fitvsNPBC,fitvsPRBC))}
+  
+  ggadjustedcurves(study_strata, data=as.data.frame(df),
+                   method="conditional",
+                   legend.title="Study group",
+                   variable="study_group",
+                   palette = study_colors,
+                   legend.labs = names(study_colors),
+                   ylab = paste(y,"probability"),
+                   xlab = "Months", ggtheme = theme_bw()
+  ) +
+    annotate("text", x=prbc_label_x, y=prbc_label_y,
+             label= paste0("PP-BCpw vs PR-BC: ",
+                           "HR=",signif(refPRBC$HR, 2),
+                           ", p=",signif(refPRBC$p.value, 2))
+    ) +
+    annotate("text", x=npbc_label_x, y=npbc_label_y,
+             label= paste0("PP-BCpw vs NP-BC: ",
+                           "HR=",signif(refNPBC$HR, 2),
+                           ", p=",signif(refNPBC$p.value, 2))
+    )
+}
+
+supfig2c <- multivariate_km(figuredata, event_type = "OS", returndata = F)
+supfig2c
+```
+
+### 2D Multivariate DRS
+
+```{r}
+supfig2d <- multivariate_km(figuredata, event_type = "DRS", returndata = F, returncox = F)
+supfig2d
+```
+
+### Save output
+
+```{r}
+supFigDir <- file.path(here("figures/supfigs"))
+dir.create(supFigDir, showWarnings = F)
+pdf(file = here(params$supfig2), width = 10, height = 7)
+print(supfig2a, newpage = FALSE) #Removes blank first page
+supfig2b
+supfig2c
+supfig2d
 dev.off()
 ```
 
