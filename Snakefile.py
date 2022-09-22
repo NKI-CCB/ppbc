@@ -92,7 +92,7 @@ rule all:
     # expand("reports/spatial/09_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
     # "reports/spatial/10_ig_clusters_cd20.html",
     # "reports/spatial/12_spatstat_overview.html",
-    #Figures
+    # Figures
     "data/figures/00_figuredata.Rds",
     "figures/Fig1a_DEG_heatmap.pdf",
     "figures/Fig1b_ig_boxplot.pdf",
@@ -117,8 +117,13 @@ rule all:
     "figures/Fig4g_CD8_CD4_lcross_boxplot_km.pdf",
     "figures/Fig4h_CD20_CD8_lcross_boxplot_km.pdf",
     "figures/Fig4i_CD20_CD4_lcross_boxplot_km.pdf",
+    # Sup Figs
     "figures/supfigs/Supfig2_studygroup_km.pdf",
-    "figures/supfigs/Supfig3_pca_rnaseq.pdf"
+    "figures/supfigs/Supfig3_pca_rnaseq.pdf",
+    "figures/supfigs/Supfig4a_volc_inv_rest.pdf",
+    "figures/supfigs/Supfig4b_volc_inv_nonprbc.pdf",
+    "figures/supfigs/Supfig4c_volc_inv_prbc.pdf",
+    "figures/supfigs/Supfig4d_volc_inv_lac.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)

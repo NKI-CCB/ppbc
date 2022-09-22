@@ -928,6 +928,22 @@ openxlsx::write.xlsx(resdf, file = here("results", "rnaseq", "diffex", "07_pairw
 rm(resdf)
 ```
 
+## Volcano plot sig hits
+
+```{r}
+volclist <- lapply(reslist, function(x) x$volcano_plot)
+names(volclist) <- names(volclist) %>% str_replace("rep", "volc")
+
+for (i in 1:length(volclist)){
+  pdf(here("results", "rnaseq", "diffex",
+           paste0(names(volclist)[i],".pdf")), width = 10, height = 8)
+  print(volclist[[i]])
+  dev.off()
+}
+
+rm(volclist)
+```
+
 ## Pathway results
 
 Fisher's exact pathway analyses

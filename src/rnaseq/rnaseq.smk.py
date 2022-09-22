@@ -424,6 +424,7 @@ rule pairwise_report:
   output:
     all_genes="results/rnaseq/diffex/07_pairwise_comparisons_allgenes.xlsx",
     sig_genes="results/rnaseq/diffex/07_pairwise_comparisons_sig_genes.xlsx",
+    volcano=expand("results/rnaseq/diffex/volc_{pw}.pdf", pw=paiwise_prefixes),
     pathways="results/rnaseq/diffex/07_pairwise_comparisons_pathways.xlsx",
     html="reports/rnaseq/07_diffex_pairwise.html"
   shell:

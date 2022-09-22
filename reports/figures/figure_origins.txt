@@ -51,9 +51,16 @@
 3B - reports/rnaseq/05_batch_effects.Rmd
 3C - reports/rnaseq/05_batch_effects.Rmd
 
+#### Sup Fig S4 ####
+
+4A - reports/rnaseq/08_diffex_onevsrest.Rmd
+4B - reports/rnaseq/07_diffex_pairwise.Rmd
+4C - reports/rnaseq/07_diffex_pairwise.Rmd
+4D - reports/rnaseq/07_diffex_pairwise.Rmd
+
 #### To do ####
 
-Fig. S3. S4. S5. S6.
+Fig. S4. S5. S6.
 Code Kat
 
 Fig. S7. 
