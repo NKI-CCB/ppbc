@@ -1510,6 +1510,21 @@
         "plyr"
       ]
     },
+    "estimate": {
+      "Package": "estimate",
+      "Version": "1.0.13",
+      "Source": "GitHub",
+      "Repository": "R-Forge",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "estimate",
+      "RemoteUsername": "r-forge",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "abd60e4979c50a88407f7bfb9211687cb443abc6",
+      "RemoteSubdir": "pkg/estimate",
+      "Hash": "7fbe36740c8774065bdc359f534125cd",
+      "Requirements": []
+    },
     "evaluate": {
       "Package": "evaluate",
       "Version": "0.14",
@@ -1900,6 +1915,17 @@
         "beeswarm",
         "ggplot2",
         "vipor"
+      ]
+    },
+    "ggcorrplot": {
+      "Package": "ggcorrplot",
+      "Version": "0.1.3",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "5d6f67b947e0962cf93208f139acd475",
+      "Requirements": [
+        "ggplot2",
+        "reshape2"
       ]
     },
     "ggplot2": {
