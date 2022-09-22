@@ -160,16 +160,19 @@ rule ciberfigs:
     
 rule copy_figs:
   input:
+    rnaseq_pcas="results/rnaseq/dimensionality/pca_rnaseq.pdf",
     vp_inv_rest="results/rnaseq/diffex/volc_inv_rest.pdf",
     vp_inv_nonprbc="results/rnaseq/diffex/volc_inv_nonprbc.pdf",
     vp_inv_prbc="results/rnaseq/diffex/volc_inv_prbc.pdf",
     vp_inv_lac="results/rnaseq/diffex/volc_inv_nonprbc.pdf"
   output:
+    rnaseq_pcas="figures/supfigs/Supfig3_pca_rnaseq.pdf",
     vp_inv_rest="figures/supfigs/Supfig4a_volc_inv_rest.pdf",
     vp_inv_nonprbc="figures/supfigs/Supfig4b_volc_inv_nonprbc.pdf",
     vp_inv_prbc="figures/supfigs/Supfig4c_volc_inv_prbc.pdf",
     vp_inv_lac="figures/supfigs/Supfig4d_volc_inv_lac.pdf"
   shell:
+    "cp -v {input.rnaseq_pcas} {output.rnaseq_pcas}"
     "cp -v {input.vp_inv_rest} {output.vp_inv_rest}"
     "cp -v {input.vp_inv_nonprbc} {output.vp_inv_nonpbrc}"
     "cp -v {input.vp_inv_prbc} {output.vp_inv_prbc}"

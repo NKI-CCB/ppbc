@@ -291,14 +291,14 @@ rule batch_effects:
     metadata="data/rnaseq/metadata/05_sample_annot_filtered.csv",
     dds="data/rnaseq/interim/05_dds_PAM50_batch.Rds",
     html="reports/rnaseq/05_batch_effects.html",
-    supfig3="figures/supfigs/Supfig3_pca_rnaseq.pdf"
+    pcas="results/rnaseq/dimensionality/pca_rnaseq.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --dds {input.dds}"
     " --gx_annot {input.gx_annot}"
     " --cp {input.cp}"
     " --sampledata {input.sampledata}"
-    " --supfig3 {output.supfig3}"
+    " --pcas {output.pcas}"
 
 #### Differential expression ####
 
@@ -424,7 +424,7 @@ rule pairwise_report:
   output:
     all_genes="results/rnaseq/diffex/07_pairwise_comparisons_allgenes.xlsx",
     sig_genes="results/rnaseq/diffex/07_pairwise_comparisons_sig_genes.xlsx",
-    volcano=expand("results/rnaseq/diffex/volc_{pw}.pdf", pw=paiwise_prefixes),
+    volcano=expand("results/rnaseq/diffex/volc_{pw}.pdf", pw=pairwise_prefixes),
     pathways="results/rnaseq/diffex/07_pairwise_comparisons_pathways.xlsx",
     html="reports/rnaseq/07_diffex_pairwise.html"
   shell:
