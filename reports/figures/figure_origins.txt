@@ -38,19 +38,20 @@
 4H - reports/figures/spatial_figures.Rmd
 4I - reports/figures/spatial_figures.Rmd
 
+#### Sup Fig S2 ####
+
+2A - reports/figures/IG_clusters_km.Rmd
+2B - reports/figures/IG_clusters_km.Rmd
+2C - reports/figures/IG_clusters_km.Rmd
+2D - reports/figures/IG_clusters_km.Rmd
+
+#### Sup Fig S3 ####
+
+3A - reports/rnaseq/05_batch_effects.Rmd
+3B - reports/rnaseq/05_batch_effects.Rmd
+3C - reports/rnaseq/05_batch_effects.Rmd
+
 #### To do ####
-
-Supplementary Figures 
-
-Fig. S1
-General outline – no code 
-
-Fig. S2.
-Code Hanne: 09_Cox_regression_study_group_IG.Rmd
-# study group
-## OS
-## DRS
-Note. I still need to remove PPBCdl from the visualizations (they have not been considered for p-values)
 
 Fig. S3. S4. S5. S6.
 Code Kat

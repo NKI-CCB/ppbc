@@ -14,6 +14,7 @@ params:
     gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
     cp: "data/rnaseq/interim/color_palettes.Rds"
     sampledata: "data/external/sample_data.tsv"
+    supfig3: "figures/supfigs/Supfig3_pca_rnaseq.pdf"
 ---
 
 In this notebook we examine and visualize the presence of a batch effect within the PPBC dataset.
@@ -439,9 +440,10 @@ for (i in 1:10){
 Plot the top PCs associated with batch
 
 ```{r}
-gg_pca(pca.df, "PC5", "PC6",
-       color.var = "batch",
-       title = "PCs significantly associated with batch")
+supfig3b <- gg_pca(pca.df, "PC5", "PC6",
+                   color.var = "batch",
+                   title = "PCs significantly associated with batch")
+supfig3b
 ```
 
 Compare with PCAs 1 and 2 for batch.
@@ -495,10 +497,12 @@ Only two principle components significantly associated with study group.
 Although they are significant, no obvious pattern is visible
 
 ```{r}
-gg_pca(pca.df, "PC10", "PC13",
-       color.var = "PPBC", shape.var="PPBC",
+supfig3c <- gg_pca(pca.df, "PC10", "PC13",
+       color.var = "PPBC",
        title = "PCs significantly associated with PPBC") +
-  scale_color_manual(values=cp$ppbc_colors)
+  scale_color_manual(values=cp$ppbc_colors[names(cp$ppbc_colors)!="rest"])
+
+supfig3c
 ```
 
 Compare with PCAs 1 and 2 for PPBC.
@@ -507,7 +511,7 @@ Compare with PCAs 1 and 2 for PPBC.
 gg_pca(pca.df, "PC1", "PC2",
        color.var = "PPBC",
        title = "PCA by PPBC") +
-  scale_color_manual(values=cp$ppbc_colors)
+  scale_color_manual(values=cp$ppbc_colors[names(cp$ppbc_colors)!="rest"])
 ```
 
 ### Without the lac group
@@ -557,7 +561,7 @@ print(paste("These are:", paste(sort(PC_study_nolac$PC), collapse = ", ")))
 gg_pca(pca.df.nl, "PC4", "PC13",
        color.var = "PPBC",
        title = "PCA by PPBC") +
-  scale_color_manual(values=cp$ppbc_colors)
+  scale_color_manual(values=cp$ppbc_colors[!names(cp$ppbc_colors) %in% c("rest", "lactating")])
 ```
 
 ## KW PC by PAM50
@@ -590,10 +594,11 @@ print(paste("Percent variance represented:", round(sum(percVar[percVar$PC %in% P
 The top 2 PCAs associated with PAM50 are PC1 and 2, so the "significant" plot is the same as the "first PCs" plot.
 
 ```{r}
-gg_pca(pca.df, "PC1", "PC2",
+supfig3a <- gg_pca(pca.df, "PC1", "PC2",
        color.var = "PAM50",
        title = "PCs significantly associated with Pam50") +
   scale_color_manual(values=cp$pam_colors)
+supfig3a
 ```
 
 ## KW PC by tumor purity
@@ -748,6 +753,17 @@ write.csv(as.data.frame(colData(dds)),
 saveRDS(dds, here("data","rnaseq", "interim", "05_dds_PAM50_batch.Rds"))
 ```
 
+## Figures
+
+```{r}
+supFigDir <- file.path(here("figures/supfigs"))
+dir.create(supFigDir, showWarnings = F)
+pdf(file = here(params$supfig3), width = 10, height = 7)
+supfig3a
+supfig3b
+supfig3c
+dev.off()
+```
 
 ## Session info
 

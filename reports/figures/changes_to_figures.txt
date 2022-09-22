@@ -60,4 +60,6 @@ The Kaplan-Meiers in the code you provided don't match the ones in the manuscrip
 2C - Same as 2A, and stage is incorporated as factor instead of an integer.
 2D - Same as 2C.
 
+#### Sup Fig 3 ####
 
+I made all three panels look "nicer" and removed the shape variable.

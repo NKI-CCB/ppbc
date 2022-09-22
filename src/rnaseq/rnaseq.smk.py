@@ -290,13 +290,15 @@ rule batch_effects:
   output:
     metadata="data/rnaseq/metadata/05_sample_annot_filtered.csv",
     dds="data/rnaseq/interim/05_dds_PAM50_batch.Rds",
-    html="reports/rnaseq/05_batch_effects.html"
+    html="reports/rnaseq/05_batch_effects.html",
+    supfig3="figures/supfigs/Supfig3_pca_rnaseq.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --dds {input.dds}"
     " --gx_annot {input.gx_annot}"
     " --cp {input.cp}"
     " --sampledata {input.sampledata}"
+    " --supfig3 {output.supfig3}"
 
 #### Differential expression ####
 

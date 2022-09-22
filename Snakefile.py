@@ -57,19 +57,19 @@ include: "src/rnaseq/rnaseq.smk.py"
 include: "src/spatial/spatial.smk.py"
 include: "src/figures/figures.smk.py"
 
-genewise_cox =[
-  "multi_genewise_os", "uni_genewise_os",
-  "multi_genewise_drs", "uni_genewise_drs",
-  "inv_multi_genewise_os", "inv_uni_genewise_os",
-  "inv_multi_genewise_drs", "inv_uni_genewise_drs"
-  ]
-  
-interaction_cox = [
-  "uni_interaction_os",
-  "uni_interaction_drs",
-  "multi_interaction_os",
-  "multi_interaction_drs"
-]   
+# genewise_cox =[
+#   "multi_genewise_os", "uni_genewise_os",
+#   "multi_genewise_drs", "uni_genewise_drs",
+#   "inv_multi_genewise_os", "inv_uni_genewise_os",
+#   "inv_multi_genewise_drs", "inv_uni_genewise_drs"
+#   ]
+#   
+# interaction_cox = [
+#   "uni_interaction_os",
+#   "uni_interaction_drs",
+#   "multi_interaction_os",
+#   "multi_interaction_drs"
+# ]   
 
 rule all:
   input:
@@ -117,7 +117,8 @@ rule all:
     "figures/Fig4g_CD8_CD4_lcross_boxplot_km.pdf",
     "figures/Fig4h_CD20_CD8_lcross_boxplot_km.pdf",
     "figures/Fig4i_CD20_CD4_lcross_boxplot_km.pdf",
-    "figures/supfigs/Supfig2_studygroup_km.pdf"
+    "figures/supfigs/Supfig2_studygroup_km.pdf",
+    "figures/supfigs/Supfig3_pca_rnaseq.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)
