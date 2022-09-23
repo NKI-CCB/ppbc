@@ -757,7 +757,7 @@ saveRDS(dds, here("data","rnaseq", "interim", "05_dds_PAM50_batch.Rds"))
 
 ```{r}
 outDir <- file.path(here("results/rnaseq/dimensionality"))
-dir.create(supFigDir, showWarnings = F)
+dir.create(outDir, showWarnings = F)
 pdf(file = here(params$pcas), width = 10, height = 7)
 PCAa
 PCAb
