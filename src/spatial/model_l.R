@@ -10,6 +10,16 @@ options(warn = 2)
 pixel_size <- 0.0005 #mm
 unitname <- c('milimeter', 'milimeters')
 
+#' Wrapper around spatstat.core::Lest that returns a tibble.
+#'
+#' @description Computes `spatstat.core::Lcross` on `cells` for `radii`. No
+#'   correction is performed, this function is intended to be used in the `with_simulation` function
+#'   from ``src/spatial/model_spatstat.R`  which should correct for the observation window.
+#'
+#' @param cells       A spatstat::ppp object with cells in an observation window.
+#' @param radii       Radii to calculate L at, passed to the Lest function as the `r` argument.
+#' @return A tibble with a `measure` column with 'L', a `r` column with the radius,
+#' and an `estimate` column with the L  estimate.
 compute_L <- function(cells, radii, ...) {
   spatstat.core::Lest(cells, r=radii, correction='none') %>%
     as_tibble() %>%
@@ -19,6 +29,18 @@ compute_L <- function(cells, radii, ...) {
       estimate = un)
 }
 
+#' Calculate L of immune cells per immune cell type.
+#'
+#' @description Calculate the L based on distances between immune cells split by immune
+#'   cell type. The marks on `cells` should be cell types, all marks that are not 'PanCK+' or
+#'   'Other' are assumed to be immune cell types.
+#'
+#' @param cells       A spatstat::ppp object with cells in an observation window marked with
+#'   cell types.
+#' @param progress_bars A boolean to print progress bars to the terminal or not.
+#' @param nsim        The number of simulations to run.
+#' @return A tibble with results from `compute_L` adjusted for a null distribution that randomizes
+#'   all cells. The tibble contains rows for different immune cell types and radii.
 model_L <- function(cells, progress_bars, nsim=100) {
   cell_types <- levels(cells$marks)
   immune_cell_types <- setdiff(cell_types, c('PanCK+', 'Other'))
