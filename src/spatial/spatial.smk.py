@@ -408,7 +408,7 @@ rule cd20_clusters:
 rule model_l:
   "L measure of the immune cell types"
   input:
-    script="src/spatial/model_l.R",
+    script=ancient("src/spatial/model_l.R"), #Ancient prevents rerun due to documentation update
     objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
     annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
   output:
@@ -421,7 +421,7 @@ rule model_l:
 rule model_lcross_panck:
   "L cross measure between panCK and immune cell types"
   input:
-    script="src/spatial/model_lcross_panck.R",
+    script=ancient("src/spatial/model_lcross_panck.R"), #Ancient prevents rerun due to documentation update
     objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
     annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
   output:
@@ -433,7 +433,7 @@ rule model_lcross_panck:
 rule model_lcross_immune:
   "L cross measure between immune cell types"
   input:
-    script="src/spatial/model_lcross_immune_cells.R",
+    script=ancient("src/spatial/model_lcross_immune_cells.R"), #Ancient prevents rerun due to documentation update
     objects="data/vectra/processed/objects/{t_number}_{panel}_{batch}.Rds",
     annotation="data/vectra/interim/annotations/{t_number}_{panel}_{batch}_tumor.wkb",
   output:
