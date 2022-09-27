@@ -172,11 +172,14 @@ rule copy_figs:
     vp_inv_prbc="figures/supfigs/Supfig4c_volc_inv_prbc.pdf",
     vp_inv_lac="figures/supfigs/Supfig4d_volc_inv_lac.pdf"
   shell:
-    "cp -v {input.rnaseq_pcas} {output.rnaseq_pcas}"
-    "cp -v {input.vp_inv_rest} {output.vp_inv_rest}"
-    "cp -v {input.vp_inv_nonprbc} {output.vp_inv_nonpbrc}"
-    "cp -v {input.vp_inv_prbc} {output.vp_inv_prbc}"
-    "cp -v {input.vp_inv_lac} {output.vp_inv_lac}"
+    """
+    cp -v {input.rnaseq_pcas} {output.rnaseq_pcas}
+    cp -v {input.vp_inv_rest} {output.vp_inv_rest}
+    cp -v {input.vp_inv_nonprbc} {output.vp_inv_nonprbc}
+    cp -v {input.vp_inv_prbc} {output.vp_inv_prbc}
+    cp -v {input.vp_inv_lac} {output.vp_inv_lac}
+    """
+    
     
 #vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
 #cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",
