@@ -63,3 +63,7 @@ The Kaplan-Meiers in the code you provided don't match the ones in the manuscrip
 #### Sup Fig 3 ####
 
 I made all three panels look "nicer" and removed the shape variable.
+
+#### Sup Figs 4,5 ####
+
+Appear unchanged

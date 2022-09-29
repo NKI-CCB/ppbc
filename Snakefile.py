@@ -123,7 +123,9 @@ rule all:
     "figures/supfigs/Supfig4a_volc_inv_rest.pdf",
     "figures/supfigs/Supfig4b_volc_inv_nonprbc.pdf",
     "figures/supfigs/Supfig4c_volc_inv_prbc.pdf",
-    "figures/supfigs/Supfig4d_volc_inv_lac.pdf"
+    "figures/supfigs/Supfig4d_volc_inv_lac.pdf",
+    "figures/supfigs/Supfig5a_volc_involution_duration.pdf",
+    "figures/supfigs/Supfig5b_volc_breastfeeding_duration.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)

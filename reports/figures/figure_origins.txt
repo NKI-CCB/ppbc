@@ -58,9 +58,14 @@
 4C - reports/rnaseq/07_diffex_pairwise.Rmd
 4D - reports/rnaseq/07_diffex_pairwise.Rmd
 
+#### Sup Fig S5 ####
+
+5A -reports/rnaseq/09_diffex_time_involution.Rmd
+5B - reports/rnaseq/09b_diffex_time_breastfeeding.Rmd
+
 #### To do ####
 
-Fig. S4. S5. S6.
+Fig. S6.
 Code Kat
 
 Fig. S7. 
