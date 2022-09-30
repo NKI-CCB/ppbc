@@ -64,6 +64,16 @@ The Kaplan-Meiers in the code you provided don't match the ones in the manuscrip
 
 I made all three panels look "nicer" and removed the shape variable.
 
-#### Sup Figs 4, 5, 6 ####
+#### Sup Figs 4, 5 ####
 
 No change
+
+#### Sup Fig 6 ####
+
+Slight shifts in significance
+
+#### Sup Fig 7 ####
+
+7A - Minor change to legend (highlighted milk genes in their own color)
+7B - I really don't understand what you did here. What is your rationale for removing the outliers, and why are you using fpkm? Regardless, I got a higher R and significant p value whether I used fpkm, cpm, or VST normalized counts. Stick to cpm or VST: the transcript length normalization in fpkm is unnecessary and outdated. Cpm is intuitive, or choose VST bceause it matches the heatmap. I exported the cpm version.
+7c - As above, except at least the p value is (barely) non significant.

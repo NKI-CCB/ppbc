@@ -70,14 +70,13 @@
 6C - reports/rnaseq/14_subgroup_diffex_by_comparison.Rmd
 6D - reports/rnaseq/14_subgroup_diffex_by_comparison.Rmd
 
-#### To do ####
+#### Sup Fig S7 ####
 
-Fig. S7. 
-A.	Code Kat
-B.	Code Hanne: 04_correlation_IGmilksignature.Rmd
-# Correlation
-## overall
-## PPBC-inv
+7A - reports/rnaseq/08b_ig_milk_genes.Rmd
+7B - reports/rnaseq/08b_ig_milk_genes.Rmd
+7C - reports/rnaseq/08b_ig_milk_genes.Rmd
+
+#### To do ####
 
 Fig. S8. 
 Code Kat 

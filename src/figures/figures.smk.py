@@ -170,7 +170,10 @@ rule copy_figs:
     vp_sub_invrest_basal="results/rnaseq/diffex/14_volc_ppbcpw_vs_rest_subgroup_Basal.pdf",
     vp_sub_invrest_her2="results/rnaseq/diffex/14_volc_ppbcpw_vs_rest_subgroup_Her2.pdf",
     vp_sub_invrest_lumA="results/rnaseq/diffex/14_volc_ppbcpw_vs_rest_subgroup_LumA.pdf",
-    vp_sub_invrest_lumB="results/rnaseq/diffex/14_volc_ppbcpw_vs_rest_subgroup_LumB.pdf"
+    vp_sub_invrest_lumB="results/rnaseq/diffex/14_volc_ppbcpw_vs_rest_subgroup_LumB.pdf",
+    milk_heatmap="results/rnaseq/diffex/milk_vs_IG_genes.pdf",
+    cor_ig_milk_all="results/rnaseq/diffex/cor_ig_milk_all.pdf",
+    cor_ig_milk_inv="results/rnaseq/diffex/cor_ig_milk_inv.pdf"
   output:
     rnaseq_pcas="figures/supfigs/Supfig3_pca_rnaseq.pdf",
     vp_inv_rest="figures/supfigs/Supfig4a_volc_inv_rest.pdf",
@@ -182,7 +185,10 @@ rule copy_figs:
     vp_sub_invrest_basal="figures/supfigs/Supfig6d_volc_ppbcpw_vs_rest_subgroup_Basal.pdf",
     vp_sub_invrest_her2="figures/supfigs/Supfig6c_volc_ppbcpw_vs_rest_subgroup_Her2.pdf",
     vp_sub_invrest_lumA="figures/supfigs/Supfig6a_volc_ppbcpw_vs_rest_subgroup_LumA.pdf",
-    vp_sub_invrest_lumB="figures/supfigs/Supfig6b_volc_ppbcpw_vs_rest_subgroup_LumB.pdf"
+    vp_sub_invrest_lumB="figures/supfigs/Supfig6b_volc_ppbcpw_vs_rest_subgroup_LumB.pdf",
+    milk_heatmap="figures/supfigs/Supfig7a_milk_vs_IG_genes.pdf",
+    cor_ig_milk_all="figures/supfigs/Supfig7b_cor_ig_milk_all.pdf",
+    cor_ig_milk_inv="figures/supfigs/Supfig7c_cor_ig_milk_inv.pdf"
   shell:
     """
     cp -v {input.rnaseq_pcas} {output.rnaseq_pcas}
@@ -196,6 +202,9 @@ rule copy_figs:
     cp -v {input.vp_sub_invrest_her2} {output.vp_sub_invrest_her2}
     cp -v {input.vp_sub_invrest_lumA} {output.vp_sub_invrest_lumA}
     cp -v {input.vp_sub_invrest_lumB} {output.vp_sub_invrest_lumB}
+    cp -v {input.milk_heatmap} {output.milk_heatmap}
+    cp -v {input.cor_ig_milk_all} {output.cor_ig_milk_all}
+    cp -v {input.cor_ig_milk_inv} {output.cor_ig_milk_inv}
     """
     
     

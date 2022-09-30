@@ -77,8 +77,8 @@ rule all:
     # "reports/rnaseq/08_diffex_onevsrest.html",
     # "reports/rnaseq/09_diffex_time_involution.html",
     # "reports/rnaseq/09b_diffex_time_breastfeeding.html",
-    expand("reports/rnaseq/14_subgroup_diffex_{comp}.html",
-      comp=["ppbcpw_vs_npbc","ppbcpw_vs_prbc","ppbcpw_vs_rest"]),
+    # expand("reports/rnaseq/14_subgroup_diffex_{comp}.html",
+    #   comp=["ppbcpw_vs_npbc","ppbcpw_vs_prbc","ppbcpw_vs_rest"]),
     # "reports/rnaseq/10_CibersortX.pdf",
     # "reports/rnaseq/11_clustering_involution.html",
     # expand("reports/rnaseq/12_{cox}.html", cox=genewise_cox+interaction_cox),
@@ -129,7 +129,10 @@ rule all:
     "figures/supfigs/Supfig6d_volc_ppbcpw_vs_rest_subgroup_Basal.pdf",
     "figures/supfigs/Supfig6c_volc_ppbcpw_vs_rest_subgroup_Her2.pdf",
     "figures/supfigs/Supfig6a_volc_ppbcpw_vs_rest_subgroup_LumA.pdf",
-    "figures/supfigs/Supfig6b_volc_ppbcpw_vs_rest_subgroup_LumB.pdf"
+    "figures/supfigs/Supfig6b_volc_ppbcpw_vs_rest_subgroup_LumB.pdf",
+    "figures/supfigs/Supfig7a_milk_vs_IG_genes.pdf",
+    "figures/supfigs/Supfig7b_cor_ig_milk_all.pdf",
+    "figures/supfigs/Supfig7c_cor_ig_milk_inv.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)
