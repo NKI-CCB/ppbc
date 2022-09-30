@@ -33,7 +33,8 @@ rule ig_clusters_km:
   output:
     report="reports/figures/IG_clusters_km.pdf",
     fig1b="figures/Fig1b_ig_boxplot.pdf",
-    supfig2="figures/supfigs/Supfig2_studygroup_km.pdf"
+    supfig2="figures/supfigs/Supfig2_studygroup_km.pdf",
+    supfig8="figures/supfigs/Supfig8_igSig_km_forest.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --cluster_results {input.cluster_results}"
@@ -42,6 +43,7 @@ rule ig_clusters_km:
     " --figuredata {input.figuredata}"
     " --fig1b {output.fig1b}"
     " --supfig2 {output.supfig2}"
+    " --supfig8 {output.supfig8}"
 
 rule spatial_figures:
   input:

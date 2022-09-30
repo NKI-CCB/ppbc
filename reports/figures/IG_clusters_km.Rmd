@@ -14,6 +14,7 @@ params:
     figuredata: "data/figures/00_figuredata.Rds"
     fig1b: "figures/Fig1b_ig_boxplot.pdf"
     supfig2: "figures/supfigs/Supfig2_studygroup_km_forest.pdf"
+    supfig8: "figures/supfigs/Supfig8_igSig_km_forest.pdf"
 ---
 
 ## Dependencies
@@ -78,6 +79,8 @@ figuredata <- readRDS(here(params$figuredata))
 levels(figuredata$study_group)
 study_colors <- c("NP-BC"="#521262", "Pr-BC"="#aa96da",
                   "PP-BCdl"="#282c75", "PP-BCpw"="#46cdcf")
+levels(figuredata$IG_col_cluster)
+tertile_colors <- c("low"="#ffb600", "medium"="#ff7900","high"="#a10702")
 ```
 
 ## Immune cluster
@@ -225,7 +228,6 @@ supfig2b
 
 Using all samples with OS follow up > 20 months and complete covariate data (stage, ciln subtype, treatment).
 
-
 ```{r}
 multivariate_km <- function(df, event_type = c("OS", "DRS"),
                             reflevel, exclude_lac = F,
@@ -307,6 +309,163 @@ print(supfig2a, newpage = FALSE) #Removes blank first page
 supfig2b
 supfig2c
 supfig2d
+dev.off()
+```
+
+## Sup Fig 8 - KM and forest IG signatures
+
+### 8A OS KM IG sig
+
+```{r, fig.width=6.5, fig.height=5}
+univariate_ig <- function(df, event_type = c("OS", "DRS"),
+                          colors = tertile_colors, exclude_lac = F, returndata = F){
+  
+  event_type <- match.arg(event_type)
+  
+  if(exclude_lac){
+    df <- df %>% filter(study_group != "PP-BCdl")
+  }
+  
+  # Filter clinical covariates
+  df <- df %>%
+    filter(!is.na(IG_col_cluster)) %>%
+    filter(!is.na(year_diagnosis)) %>%
+    filter(!is.na(stage)) %>%
+    filter(!is.na(herceptin)) %>%
+    filter(!is.na(death), !is.na(time_OS_months)) %>%
+    filter(!is.na(distant_recurrence), !is.na(time_DRS_months))
+  
+  if(returndata){return(df)}
+  
+  if(event_type == "OS"){
+    df <- df %>%
+      filter(time_OS_months > 20 | reason_death == "BC") %>%
+      as.data.frame()
+    y <- "Overall survival"
+    fit <- survfit(Surv(time=time_OS_months, event=death) ~ IG_col_cluster,
+                   data = df)
+  } else {
+    df <- df %>% filter(time_DRS_months > 20 | reason_death == "BC") %>%
+      as.data.frame()
+    y <- "Distant recurrence"
+    fit <- survfit(Surv(time=time_DRS_months,
+                        event=distant_recurrence) ~ IG_col_cluster,
+                   data = df)
+  }
+  #return(fit)
+  colors <- colors[names(colors) %in% unique(df$IG_col_cluster)]
+  
+  ggsurvplot(
+    fit, data = df,
+    xlab = "Months", 
+    ylab = paste(y,"probability"),
+    palette = colors,
+    ggtheme = theme_bw(),
+    pval = T,
+    legend.labs = names(colors),
+    legend.title="Ig signatures",
+    risk.table = T,
+    risk.table.height = 0.25,
+    cumevents = F, cumcensor = F
+  )
+}
+
+supfig8a <- univariate_ig(figuredata, exclude_lac=F, event_type = "OS", returndata = F) +
+  ggtitle("Univariate OS: Ig signatures")
+supfig8a
+```
+
+### 8B DRS KM IG sig
+
+```{r, fig.width=6.5, fig.height=5}
+supfig8b <- univariate_ig(figuredata, exclude_lac=F, event_type = "DRS", returndata = F) +
+  ggtitle("Univariate DRS: Ig signatures")
+supfig8b
+```
+
+### 8C Multivariate OS Forest plot
+
+Using all RNA samples with OS follow up > 20 months and complete covariate data (stage, clin subtype, treatment). Because it's RNA, use PAM50 instead of clin subtype.
+
+```{r}
+multivariate_ig <- function(df, event_type = c("OS", "DRS"),
+                            colors = tertile_colors,
+                            reflevel, exclude_lac = F,
+                            returndata = F, returncox=F){
+  
+  event_type <- match.arg(event_type)
+  
+  if(exclude_lac){
+    df <- df %>% filter(study_group != "PP-BCdl")
+  }
+  
+  # Filter clinical covariates
+  df <- df %>%
+    filter(!is.na(PAM50)) %>%
+    filter(!is.na(stage)) %>%
+    filter(!is.na(death), !is.na(time_OS_months)) %>%
+    filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
+    droplevels()
+
+  if(returndata){return(df)}
+  
+  if(event_type == "OS"){
+    df <- df %>%
+      filter(time_OS_months > 20 | reason_death == "BC") %>%
+      as.data.frame()
+    
+    y <- "Overall survival"
+    
+    fit <- coxph(
+      Surv(time=time_OS_months, event=death) ~ stage + PAM50 + IG_col_cluster 
+        + HT + RT + CT + herceptin
+      ,
+      data = as.data.frame(mutate(df, IG_col_cluster = relevel(IG_col_cluster, ref = reflevel)))
+      )
+
+  } else {
+    
+    df <- df %>% filter(time_DRS_months > 20 | reason_death == "BC") %>%
+      as.data.frame()
+    y <- "Distant recurrence"
+    
+    fit <- coxph(
+      Surv(time=time_DRS_months, event=distant_recurrence) ~ stage + PAM50 + IG_col_cluster 
+      + HT + RT + CT + herceptin
+      ,
+      data = as.data.frame(mutate(df, IG_col_cluster = relevel(IG_col_cluster, ref = reflevel)))
+      )
+    
+  }
+  
+  if(returncox){return(fit)}
+  
+  colors <- colors[names(colors) %in% unique(df$IG_col_cluster)]
+  
+  ggforest(fit,data=df,main=ifelse(event_type == "OS",
+                                   "HR: Multivariate overall survival",
+                                   "HR: Multivariate distant recurrence"))
+}
+
+supfig8c <- multivariate_ig(figuredata, reflevel = "high", event_type = "OS", returndata = F) 
+supfig8c
+```
+
+### 8D Multivariate DRS Forest plot
+
+```{r}
+supfig8d <- multivariate_ig(figuredata, reflevel = "high", event_type = "DRS", returndata = F) 
+supfig8d
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$supfig8), width = 10, height = 7)
+print(supfig8a, newpage = FALSE) #Removes blank first page
+supfig8b
+supfig8c
+supfig8d
 dev.off()
 ```
 

@@ -76,13 +76,14 @@
 7B - reports/rnaseq/08b_ig_milk_genes.Rmd
 7C - reports/rnaseq/08b_ig_milk_genes.Rmd
 
-#### To do ####
+#### Sup Fig S8 ####
 
-Fig. S8. 
-Code Kat 
-Reproduced in 09_Cox_regression_study_group_IG.Rmd 
-# IG cluster
-# OS / DR
+8A - reports/figures/IG_clusters_km.Rmd
+8B - reports/figures/IG_clusters_km.Rmd
+8C - reports/figures/IG_clusters_km.Rmd
+8D - reports/figures/IG_clusters_km.Rmd
+
+#### To do ####
 
 Fig. S9. 
 Code Kat & reproduced in Code Hanne: 09_Cox_regression_study_group_IG.Rmd
