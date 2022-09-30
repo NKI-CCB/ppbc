@@ -166,7 +166,11 @@ rule copy_figs:
     vp_inv_prbc="results/rnaseq/diffex/volc_inv_prbc.pdf",
     vp_inv_lac="results/rnaseq/diffex/volc_inv_nonprbc.pdf",
     vp_duration_inv="results/rnaseq/diffex/09_volcano_involution_duration.pdf",
-    vp_duration_bf="results/rnaseq/diffex/09b_volcano_breastfeeding_duration.pdf"
+    vp_duration_bf="results/rnaseq/diffex/09b_volcano_breastfeeding_duration.pdf",
+    vp_sub_invrest_basal="results/rnaseq/diffex/14_volc_ppbcpw_vs_rest_subgroup_Basal.pdf",
+    vp_sub_invrest_her2="results/rnaseq/diffex/14_volc_ppbcpw_vs_rest_subgroup_Her2.pdf",
+    vp_sub_invrest_lumA="results/rnaseq/diffex/14_volc_ppbcpw_vs_rest_subgroup_LumA.pdf",
+    vp_sub_invrest_lumB="results/rnaseq/diffex/14_volc_ppbcpw_vs_rest_subgroup_LumB.pdf"
   output:
     rnaseq_pcas="figures/supfigs/Supfig3_pca_rnaseq.pdf",
     vp_inv_rest="figures/supfigs/Supfig4a_volc_inv_rest.pdf",
@@ -174,7 +178,11 @@ rule copy_figs:
     vp_inv_prbc="figures/supfigs/Supfig4c_volc_inv_prbc.pdf",
     vp_inv_lac="figures/supfigs/Supfig4d_volc_inv_lac.pdf",
     vp_duration_inv="figures/supfigs/Supfig5a_volc_involution_duration.pdf",
-    vp_duration_bf="figures/supfigs/Supfig5b_volc_breastfeeding_duration.pdf"
+    vp_duration_bf="figures/supfigs/Supfig5b_volc_breastfeeding_duration.pdf",
+    vp_sub_invrest_basal="figures/supfigs/Supfig6d_volc_ppbcpw_vs_rest_subgroup_Basal.pdf",
+    vp_sub_invrest_her2="figures/supfigs/Supfig6c_volc_ppbcpw_vs_rest_subgroup_Her2.pdf",
+    vp_sub_invrest_lumA="figures/supfigs/Supfig6a_volc_ppbcpw_vs_rest_subgroup_LumA.pdf",
+    vp_sub_invrest_lumB="figures/supfigs/Supfig6b_volc_ppbcpw_vs_rest_subgroup_LumB.pdf"
   shell:
     """
     cp -v {input.rnaseq_pcas} {output.rnaseq_pcas}
@@ -184,6 +192,10 @@ rule copy_figs:
     cp -v {input.vp_inv_lac} {output.vp_inv_lac}
     cp -v {input.vp_duration_inv} {output.vp_duration_inv}
     cp -v {input.vp_duration_bf} {output.vp_duration_bf}
+    cp -v {input.vp_sub_invrest_basal} {output.vp_sub_invrest_basal}
+    cp -v {input.vp_sub_invrest_her2} {output.vp_sub_invrest_her2}
+    cp -v {input.vp_sub_invrest_lumA} {output.vp_sub_invrest_lumA}
+    cp -v {input.vp_sub_invrest_lumB} {output.vp_sub_invrest_lumB}
     """
     
     

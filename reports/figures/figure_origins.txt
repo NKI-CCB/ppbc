@@ -63,10 +63,14 @@
 5A -reports/rnaseq/09_diffex_time_involution.Rmd
 5B - reports/rnaseq/09b_diffex_time_breastfeeding.Rmd
 
-#### To do ####
+#### Sup Fig S6 ####
 
-Fig. S6.
-Code Kat
+6A - reports/rnaseq/14_subgroup_diffex_by_comparison.Rmd
+6B - reports/rnaseq/14_subgroup_diffex_by_comparison.Rmd
+6C - reports/rnaseq/14_subgroup_diffex_by_comparison.Rmd
+6D - reports/rnaseq/14_subgroup_diffex_by_comparison.Rmd
+
+#### To do ####
 
 Fig. S7. 
 A.	Code Kat

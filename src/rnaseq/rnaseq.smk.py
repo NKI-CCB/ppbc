@@ -557,7 +557,12 @@ rule report_subgroup_comp:
   output:
     allgenes="results/rnaseq/diffex/14_subgroup_diffex_{comp}_allgenes.xlsx",
     siggenes="results/rnaseq/diffex/14_subgroup_diffex_{comp}_sig_genes.xlsx",
-    html="reports/rnaseq/14_subgroup_diffex_{comp}.html"
+    html="reports/rnaseq/14_subgroup_diffex_{comp}.html",
+    # Snakemake complains if not all output files have the same wildcard
+    vp_basal="results/rnaseq/diffex/14_volc_{comp}_subgroup_Basal.pdf",
+    vp_her2="results/rnaseq/diffex/14_volc_{comp}_subgroup_Her2.pdf",
+    vp_lumA="results/rnaseq/diffex/14_volc_{comp}_subgroup_LumA.pdf",
+    vp_lumB="results/rnaseq/diffex/14_volc_{comp}_subgroup_LumB.pdf"
   shell:
      "Rscript {input.script} {input.rmd} $PWD/{output.html}"
      " --comparison {wildcards.comp}"

@@ -1181,6 +1181,8 @@ if(nrow(pathways[[cur]])>0){
 
 # Save data
 
+## Significant genes
+
 Save the significant genes and results from each comparison.
 
 ```{r}
@@ -1201,6 +1203,18 @@ resdf$thresholds = tibble(metric = c("padj", "l2fc"),
 f2 = paste0("14_subgroup_diffex_", params$comparison, "_sig_genes.xlsx")
 write.xlsx(resdf, file = here(resDir, f2))
 rm(resdf)
+```
+
+## Volcano plots
+
+```{r}
+for (plt in names(volcano_plots)){
+  pdf(here("results", "rnaseq", "diffex",
+           paste0("14_volc_", params$comparison, "_subgroup_", plt,".pdf")),
+      width = 10, height = 8)
+  print(volcano_plots[[plt]])
+  dev.off()
+}
 ```
 
 ```{r}
