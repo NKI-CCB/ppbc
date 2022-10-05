@@ -87,19 +87,12 @@
 
 reports/rnaseq/11_clustering_involution.Rmd
 
+#### Sup Fig S10 ####
+
+10A. reports/rnaseq/11_clustering_involution.Rmd
+10B. reports/rnaseq/11_clustering_involution.Rmd
+
 #### To do ####
-
-# IG cluster
-## DR
-### Kaplan-Meier
-#### KM high vs low
-
-Fig. S10. 
-Code Kat & reproduced in Code Hanne: 09_Cox_regression_study_group_IG.Rmd
-# IG cluster
-## OS / DR
-### Kaplan-Meier
-#### KM by PAM50
 
 Fig. S11.
 Code Kat 

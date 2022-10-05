@@ -87,3 +87,7 @@ Slight shifts in significance
 #### Sup Fig 9 ####
 
 P value in lowest panel is no longer quite significant.
+
+#### Sup Fig 10 ####
+
+Minor changes to p values

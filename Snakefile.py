@@ -97,6 +97,7 @@ rule all:
     "figures/Fig1a_DEG_heatmap.pdf",
     "figures/Fig1b_ig_boxplot.pdf",
     "figures/Fig1d_IG_cluster_barplot.pdf",
+    "figures/Fig1e_IG_cluster_PPBC_KM_OS.pdf",
     "figures/Fig2b_CD20_density_boxplot.pdf",
     "figures/Fig2c_CD20_density_km.pdf",
     "figures/Fig2e_CD20_l_boxplot.pdf",
@@ -134,7 +135,9 @@ rule all:
     "figures/supfigs/Supfig7b_cor_ig_milk_all.pdf",
     "figures/supfigs/Supfig7c_cor_ig_milk_inv.pdf",
     "figures/supfigs/Supfig8_igSig_km_forest.pdf",
-    "figures/supfigs/Supfig9_IG_cluster_KM_DRS.pdf"
+    "figures/supfigs/Supfig9_IG_cluster_PPBC_KM_DRS.pdf",
+    "figures/supfigs/Supfig10a_IG_cluster_PAM50_KM_OS.pdf",
+    "figures/supfigs/Supfig10b_IG_cluster_PAM50_KM_DRS.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)

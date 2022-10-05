@@ -19,10 +19,14 @@ params:
   sp: "data/rnaseq/interim/survival_colors.Rds"
   DEGhm: "figures/Fig1a_DEG_heatmap.pdf"
   IGbarplot: "figures/Fig1d_IG_cluster_barplot.pdf"
-  IGkaplanOS: "figures/Fig1e_IG_cluster_KM.pdf"
-  rtIGkaplanOS: "figures/Fig1e_risktable.csv"
-  IGkaplanDRS: "figures/supfigs/Supfig9_IG_cluster_KM_DRS.pdf"
-  rtIGkaplanDRS: "figures/supfigs/Fig1e_risktable.csv"
+  IG_kaplan_PPBC_OS: "figures/Fig1e_IG_cluster_PPBC_KM_OS.pdf"
+  rtIG_kaplan_PPBC_OS: "figures/Fig1e_risktable.csv"
+  IG_kaplan_PPBC_DRS: "figures/supfigs/Supfig9_IG_cluster_PPBC_KM_DRS.pdf"
+  rtIG_kaplan_PPBC_DRS: "figures/supfigs/Supfig9_risktable.csv"
+  IG_kaplan_PAM50_OS: "figures/supfigs/Supfig10a_IG_cluster_PAM50_KM_OS.pdf"
+  rtIG_kaplan_PAM50_OS: "figures/supfigs/Supfig10a_risktable.csv"
+  IG_kaplan_PAM50_DRS: "figures/supfigs/Supfig10b_IG_cluster_PAM50_KM_DRS.pdf"
+  rtIG_kaplan_PAM50_DRS: "figures/supfigs/Supfig10b_risktable.csv"
 ---
 
 ```{r, message=F}
@@ -750,8 +754,45 @@ ggsurvplot(
     palette = cp$tertile_colors,
     ggtheme = theme_bw(),
     facet.by = "PAM50")
+```
 
+### Sup fig 10A: KM IG clusters, faceted by PAM50
 
+Remove lactation from survival curves for publication due to lack of power.
+
+```{r}
+nolacsurv <- droplevels(as.data.frame(filter(surv, study_group != "ppbcdl")))
+
+IG_kaplan_PAM50_OS <- ggsurvplot(
+    fit = survfit(Surv(time=time_OS_months, event=death) ~ PAM50 + IG,
+                  data = nolacsurv), 
+    xlab = "Months", 
+    ylab = "Overall survival probability",
+    title = "OS - IG cluster by PAM50 (ppbcdl excluded)",
+    pval = T, 
+    facet.by = "PAM50",
+    #legend.labs = names(cp$tertile_colors),
+    legend.title="IG cluster",
+    palette =  cp$tertile_colors,
+    ggtheme = theme_bw(),
+    risk.table = T)
+
+IG_kaplan_PAM50_OS
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$IG_kaplan_PAM50_OS),
+    width = 12, height = 7)
+IG_kaplan_PAM50_OS
+dev.off()
+```
+
+Save risk table data separately.
+
+```{r}
+write_csv(IG_kaplan_PAM50_OS$data, here(params$rtIG_kaplan_PAM50_OS))
 ```
 
 ### KM IG clusters, facet by study group
@@ -777,19 +818,19 @@ Remove lactation from survival curves for publication due to lack of power.
 ```{r, fig.width=8}
 nolacsurv <- droplevels(as.data.frame(filter(surv, study_group != "ppbcdl")))
 
-ig_kmOS <- ggsurvplot(
+IG_kaplan_PPBC_OS <- ggsurvplot(
     fit = survfit(Surv(time=time_OS_months, event=death) ~ study_group + IG,
                   data = nolacsurv), 
     xlab = "Months", 
     ylab = "Overall survival probability",
-    title = "Study group by IG cluster",
+    title = "Study group by IG cluster (ppbcdl excluded)",
     pval = T, 
     facet.by = "IG",
     palette = study_colors[!names(study_colors) %in% c("ppbcdl", "rest")],
     ggtheme = theme_bw(),
     risk.table = T)
 
-ig_kmOS
+IG_kaplan_PPBC_OS
 ```
 
 Risk table is hard to plot legibly.
@@ -813,24 +854,24 @@ risktable <- function(ggkm, response, text.size = 8, ...){
     xlab("Time") + ylab("")
 }
 
-rt_ig_kmOS <- risktable(ig_kmOS, response = "IG", nrow=3)
-rt_ig_kmOS
+rtIG_kaplan_PPBC_OS <- risktable(IG_kaplan_PPBC_OS, response = "IG", nrow=3)
+rtIG_kaplan_PPBC_OS
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$IGkaplanOS),
+pdf(file = here(params$IG_kaplan_PPBC_OS),
     width = 12, height = 7)
-ig_kmOS
-rt_ig_kmOS
+IG_kaplan_PPBC_OS
+rtIG_kaplan_PPBC_OS
 dev.off()
 ```
 
 Save risk table data separately.
 
 ```{r}
-write_csv(ig_kmOS$data, here(params$rtIGkaplanOS))
+write_csv(IG_kaplan_PPBC_OS$data, here(params$rtIG_kaplan_PPBC_OS))
 ```
 
 ### Multivariate Cox
@@ -869,43 +910,28 @@ ggsurvplot(
     ggtheme = theme_bw())
 ```
 
-### KM DRS IG clusters, facet by study group
+### Sup fig 10B: KM DRS IG clusters, facet by PAM50
 
-```{r, fig.width=10}
-ggsurvplot(
-    fit = survfit(Surv(time_DRS_months, event=distant_recurrence) ~ PPBC + IG, data = surv), 
-    xlab = "Months", 
-    ylab = "DRS probability",
-    title = "DRS - IG clusters by PPBC",
-    pval = T,
-    facet.by = "PPBC",
-    palette = cp$tertile_colors,
-    ggtheme = theme_bw()
-)
-```
+Remove lactation from survival curves for publication due to lack of power.
 
-### Sup Figure S9: KM DRS study group, faceted by IG cluster
-
-```{r, fig.width=10}
+```{r}
 nolacsurv <- droplevels(as.data.frame(filter(surv, study_group != "ppbcdl")))
 
-IGkaplanDRS <- ggsurvplot(
-    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + IG,
+IG_kaplan_PAM50_DRS <- ggsurvplot(
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ PAM50 + IG,
                   data = nolacsurv), 
     xlab = "Months", 
     ylab = "DRS probability",
-    title = "DRS - PPBC by IG cluster",
-    pval = T, facet.by = "IG",
-    palette = study_colors[!names(study_colors) %in% c("ppbcdl", "rest")],
-    ggtheme = theme_bw())
+    title = "DRS - IG cluster by PAM50 (ppbcdl excluded)",
+    pval = T, 
+    facet.by = "PAM50",
+    #legend.labs = names(cp$tertile_colors),
+    legend.title="IG cluster",
+    palette =  cp$tertile_colors,
+    ggtheme = theme_bw(),
+    risk.table = T)
 
-IGkaplanDRS
-```
-### Risk table
-
-```{r, fig.height=7, fig.width=12}
-rtIGkaplanDRS <- risktable(IGkaplanDRS, response = "IG", nrow=3)
-rtIGkaplanDRS
+IG_kaplan_PAM50_DRS
 ```
 
 ### Save output
@@ -913,16 +939,56 @@ rtIGkaplanDRS
 ```{r}
 supFigDir <- file.path(here("figures/supfigs"))
 dir.create(supFigDir, showWarnings = F)
-pdf(file = here(params$IGkaplanDRS),width = 12, height = 7)
-IGkaplanDRS
-rtIGkaplanDRS
+pdf(file = here(params$IG_kaplan_PAM50_DRS),width = 12, height = 7)
+IG_kaplan_PAM50_DRS
 dev.off()
 ```
 
 Save risk table data separately.
 
 ```{r}
-write_csv(IGkaplanDRS$data, here(params$rtIGkaplanDRS))
+write_csv(IG_kaplan_PAM50_DRS$data, here(params$rtIG_kaplan_PAM50_DRS))
+```
+
+### Sup Figure S9: KM DRS study group, faceted by IG cluster
+
+```{r, fig.width=10}
+nolacsurv <- droplevels(as.data.frame(filter(surv, study_group != "ppbcdl")))
+
+IG_kaplan_PPBC_DRS <- ggsurvplot(
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + IG,
+                  data = nolacsurv), 
+    xlab = "Months", 
+    ylab = "DRS probability",
+    title = "DRS - PPBC by IG cluster (ppbcdl excluded)",
+    pval = T, facet.by = "IG",
+    palette = study_colors[!names(study_colors) %in% c("ppbcdl", "rest")],
+    ggtheme = theme_bw())
+
+IG_kaplan_PPBC_DRS
+```
+### Risk table
+
+```{r, fig.height=7, fig.width=12}
+rtIG_kaplan_PPBC_DRS <- risktable(IG_kaplan_PPBC_DRS, response = "IG", nrow=3)
+rtIG_kaplan_PPBC_DRS
+```
+
+### Save output
+
+```{r}
+supFigDir <- file.path(here("figures/supfigs"))
+dir.create(supFigDir, showWarnings = F)
+pdf(file = here(params$IG_kaplan_PPBC_DRS),width = 12, height = 7)
+IG_kaplan_PPBC_DRS
+rtIG_kaplan_PPBC_DRS
+dev.off()
+```
+
+Save risk table data separately.
+
+```{r}
+write_csv(IG_kaplan_PPBC_DRS$data, here(params$rtIG_kaplan_PPBC_DRS))
 ```
 
 ### Multivariate Cox DRS
