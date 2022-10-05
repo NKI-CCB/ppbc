@@ -845,40 +845,6 @@ coxph(
 summary(ig_cox)
 ```
 
-#### Balanced curves IG clusters
-
-Here we have to avoid using strata for both HT and PAM50 or we end up with groups that are too small to balance.
-Since ER status is the main factor here, use strata for HT.
-
-```{r}
-coxph(
-  Surv(time=time_OS_months,
-       event=death) ~ age_at_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + IG + study_group,
-  data = surv) %>%
-
-ggadjustedcurves(., variable = "IG", palette = cp$tertile_colors,
-                 ggtheme = theme_bw(),
-                 data = as.data.frame(surv), method="conditional") +
-  ggtitle("IG cluster survival curve adjusted for clinical covariates: Balanced")
-
-```
-
-#### Stratified curves IG clusters
-
-Applying stratification to IG cluster shows a curve balanced for everything BUT IG cluster.
-
-```{r}
-coxph(
-  Surv(time=time_OS_months,
-       event=death) ~ age_at_diagnosis + year_diagnosis + grade + stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy + herceptin + PAM50 + strata(IG) + study_group,
-  data = surv) %>%
-  ggadjustedcurves(., variable = "IG", data = as.data.frame(surv), method="conditional",
-                   palette = cp$tertile_colors,
-                 ggtheme = theme_bw()) +
-  ggtitle("IG cluster survival curve adjusted for clinical covariates: Stratifed")
-
-```
-
 ## Distant recurrence free survival
 
 ### Univariate
@@ -970,41 +936,6 @@ ig_drs = coxph(
   data = surv)
 
 summary(ig_drs)
-```
-
-#### DRS Balanced curves IG clusters
-
-As before, if we stratify both HT and PAM50, the groups become too small.
-We stratify HT as it best encodes ER status.
-
-```{r}
-coxph(
-  Surv(time=time_DRS_months,
-       event=distant_recurrence) ~ age_at_diagnosis + year_diagnosis + grade +
-    stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy +
-    herceptin + PAM50 + IG + PPBC,
-  data = surv) %>%
-ggadjustedcurves(., variable = "IG", data = as.data.frame(surv), method="conditional",     
-                 palette = cp$tertile_colors,
-    ggtheme = theme_bw()) +
-  ggtitle("IG cluster DRS curve adjusted for clinical covariates: Balanced")
-
-```
-
-#### DRS Stratified curves IG clusters
-
-```{r}
-coxph(
-  Surv(time=time_DRS_months,
-       event=distant_recurrence) ~ age_at_diagnosis + year_diagnosis + grade +
-    stage + surgery + radiotherapy + strata(hormonetherapy) + chemotherapy +
-    herceptin + PAM50 + strata(IG) + PPBC,
-  data = surv) %>%
-  ggadjustedcurves(., variable = "IG", data = as.data.frame(surv), method="conditional", 
-                   palette = cp$tertile_colors,
-    ggtheme = theme_bw()) +
-  ggtitle("IG cluster DRS curve adjusted for clinical covariates: Stratifed")
-
 ```
 
 # Session info
