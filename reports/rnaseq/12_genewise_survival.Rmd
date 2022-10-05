@@ -9,7 +9,7 @@ output:
     highlight: kate
     canon: true
 params:
-  survival_results: "data/rnaseq/processed/12_uni_interaction_drs.Rds"
+  survival_results: "data/rnaseq/processed/12_uni_genewise_drs.Rds"
   dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
   gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
   tools: "src/rnaseq/enrichment-analysis-functions.R"
@@ -594,10 +594,15 @@ Using a quantile-based color scale to prevent outliers from bleaching the heatma
 
 ```{r, fig.height=8, fig.width=7}
 #Define column annotation
-ann_df = coxdata[, c("PPBC", "death")]
+ann_df = coxdata[, c("PPBC", str_replace(event, " ", "_"))]
 
-#Sort by survival
-ann_df = ann_df[order(ann_df$death),]
+# Recode event as factor
+ann_df[,str_replace(event, " ", "_")] <- factor(
+  ann_df[,str_replace(event, " ", "_")],
+  levels = c(0,1))
+
+#Sort by event
+ann_df = ann_df[order(ann_df[,str_replace(event, " ", "_")]),]
 
 #Subset geneEx to genes below threshold
 if(nrow(filter(res, fdr <= !!pthresh)) < 5){
@@ -624,18 +629,22 @@ quantile_breaks <- function(xs, n = 10) {
 
 mat_breaks <- quantile_breaks(mat, n = 11)
 
+anncols <- list(PPBC = ppbc_colors[-5], event = death_cols)
 
+names(anncols)[2] <- ifelse(event == "distant recurrence",
+                            "distant_recurrence", "death")
 
-pheatmap::pheatmap(mat, show_colnames = F,fontsize_row = 7,
-                   scale="row", annotation_col = ann_df,
-                   cluster_cols = T, drop_levels = T,
-                   breaks =  mat_breaks,
-                   color = colorRampPalette(rev(brewer.pal(n = 11,
-                                                           name = "RdYlBu")))(length(mat_breaks) - 1),
-                   annotation_colors = list(PPBC = ppbc_colors[-5],
-                                            death = death_cols), #sp$overall_survival white is too light
-                   main = ttext
-) 
+surv_hm <- pheatmap::pheatmap(
+  mat, show_colnames = F,fontsize_row = 7,
+  scale="row", annotation_col = ann_df,
+  cluster_cols = T, drop_levels = T,
+  breaks =  mat_breaks,
+  color = colorRampPalette(rev(brewer.pal(n = 11, name = "RdYlBu")))(length(mat_breaks) - 1),
+  annotation_colors = anncols,
+  main = paste0(ttext,"\nTMMlog2 counts (pseudocount = 2)")
+)
+
+surv_hm
 ```
 
 Alternative visualization without column clustering
@@ -645,10 +654,10 @@ pheatmap::pheatmap(mat, show_colnames = F, fontsize_row = 7,
                    scale="row", annotation_col = ann_df,
                    cluster_cols = F, drop_levels = T,
                    breaks =  mat_breaks,
-                   color = colorRampPalette(rev(brewer.pal(n = 11,
-                                                           name = "RdYlBu")))(length(mat_breaks) - 1),
-                   annotation_colors = list(PPBC = ppbc_colors[-5],
-                                            death = death_cols), #sp$overall_survival white is too light
+                   color = colorRampPalette(
+                     rev(brewer.pal(n = 11,
+                                    name = "RdYlBu")))(length(mat_breaks) - 1),
+                   annotation_colors = anncols, 
                    main = ttext
 ) 
 ```
@@ -696,6 +705,8 @@ res %>%
 
 # Save data
 
+Results
+
 ```{r}
 res = res %>%
   mutate(analysis = analysis_type)
@@ -705,6 +716,16 @@ dir.create(resdir, showWarnings = F)
 
 write_csv(res, here(resdir, str_replace(basename(params$survival_results),"Rds", "csv")))
 ```
+
+Heatmap
+
+```{r}
+pdf(file = here(resdir, paste0(str_replace(basename(params$survival_results),".Rds", "_heatmap"), ".pdf")),
+    width = 10, height = 10)
+surv_hm
+dev.off()
+```
+
 
 # Session info
 

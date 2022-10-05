@@ -859,7 +859,8 @@ rule report_genewise_survival:
     ovr="results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx"
   output:
     html="reports/rnaseq/12_{cox}.html",
-    csv="results/rnaseq/survival/12_{cox}.csv"
+    csv="results/rnaseq/survival/12_{cox}.csv",
+    heatmap="results/rnaseq/survival/12_{cox}_heatmap.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
     " --survival_results {input.survival_results}"
