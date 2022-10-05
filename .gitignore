@@ -39,6 +39,7 @@ reports/*.tar.xy
 reports/rnaseq/gene_reports/
 figures/*.pdf
 figures/*.csv
+figures/supfigs/
 *scratch*
 spatial_example_code/
 *hugo_fpkm.txt
