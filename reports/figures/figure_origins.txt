@@ -83,10 +83,12 @@
 8C - reports/figures/IG_clusters_km.Rmd
 8D - reports/figures/IG_clusters_km.Rmd
 
+#### Sup Fig S9 ####
+
+reports/rnaseq/11_clustering_involution.Rmd
+
 #### To do ####
 
-Fig. S9. 
-Code Kat & reproduced in Code Hanne: 09_Cox_regression_study_group_IG.Rmd
 # IG cluster
 ## DR
 ### Kaplan-Meier

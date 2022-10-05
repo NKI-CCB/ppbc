@@ -5,7 +5,7 @@ date: "`r Sys.Date()`"
 output: 
   html_document:
     toc: yes
-    toc_float: yes
+    toc_float: no
     df_print: paged
     highlight: kate
     canon: true
@@ -17,10 +17,12 @@ params:
   tools: "src/rnaseq/deseq_report_functions.R"
   cp: "data/rnaseq/interim/color_palettes.Rds"
   sp: "data/rnaseq/interim/survival_colors.Rds"
-  fig1a: "figures/Fig1a_DEG_heatmap.pdf"
-  fig1d: "figures/Fig1d_IG_cluster_barplot.pdf"
-  fig1e: "figures/Fig1e_IG_cluster_KM.pdf"
-  risktable1e: "figures/Fig1e_risktable.csv"
+  DEGhm: "figures/Fig1a_DEG_heatmap.pdf"
+  IGbarplot: "figures/Fig1d_IG_cluster_barplot.pdf"
+  IGkaplanOS: "figures/Fig1e_IG_cluster_KM.pdf"
+  rtIGkaplanOS: "figures/Fig1e_risktable.csv"
+  IGkaplanDRS: "figures/supfigs/Supfig9_IG_cluster_KM_DRS.pdf"
+  rtIGkaplanDRS: "figures/supfigs/Fig1e_risktable.csv"
 ---
 
 ```{r, message=F}
@@ -213,7 +215,7 @@ inv.hm
 dev.off()
 ```
 
-# Figure 1A
+## Figure 1A : Heatmap PPBCpw vs rest
 
 Slight tweaks for manuscript figure. Show all non-ppbcpw as "rest", but `deseq_heatmap` does not set the colors properly with `inv_vs_rest`. This is because of some kind of very weird bug in ComplexHeamtap that prevents color hexes from being recognized...sometimes. It is not possible to perfectly match the colors, but it's close. This figure is otherwise identical to the one that shows all groups
 
@@ -240,7 +242,7 @@ fig.hm
 ```{r}
 figureDir = file.path(here("figures"))
 dir.create(figureDir, showWarnings = F)
-pdf(file = here(params$fig1a), width = 10, height = 10)
+pdf(file = here(params$DEGhm), width = 10, height = 10)
 fig.hm
 dev.off()
 ```
@@ -336,7 +338,7 @@ names(IG_expression_colors) = c("low", "medium", "high")
 color_grid(IG_expression_colors)
 ```
 
-# Figure 1D
+## Figure 1D - Barplot IG clusters
 
 ```{r, fig.width=8}
 study_ig = col_clust %>% ggplot(aes(x = IG_col_cluster, fill=study_group)) + geom_bar(position = "fill") +
@@ -358,7 +360,7 @@ clust_ig
 ```
 
 ```{r}
-pdf(file = here(params$fig1d),
+pdf(file = here(params$IGbarplot),
     width = 10, height = 7)
 study_ig
 dev.off()
@@ -755,7 +757,6 @@ ggsurvplot(
 ### KM IG clusters, facet by study group
 
 ```{r, fig.width=8}
-#No longer works
 sg_ig <-  ggsurvplot(
     fit = survfit(Surv(time=time_OS_months, event=death) ~ PPBC + IG, data = surv), 
     xlab = "Months", 
@@ -769,16 +770,14 @@ sg_ig <-  ggsurvplot(
 sg_ig
 ```
 
-### KM study group, faceted by IG cluster
-
-# Figure 1E
+### Figure 1E: KM study group, faceted by IG cluster
 
 Remove lactation from survival curves for publication due to lack of power.
 
 ```{r, fig.width=8}
-nolacsurv <- as.data.frame(droplevels(filter(surv, study_group != "ppbcdl")))
+nolacsurv <- droplevels(as.data.frame(filter(surv, study_group != "ppbcdl")))
 
-ig_km <- ggsurvplot(
+ig_kmOS <- ggsurvplot(
     fit = survfit(Surv(time=time_OS_months, event=death) ~ study_group + IG,
                   data = nolacsurv), 
     xlab = "Months", 
@@ -786,49 +785,52 @@ ig_km <- ggsurvplot(
     title = "Study group by IG cluster",
     pval = T, 
     facet.by = "IG",
-    palette = study_colors[!names(ppbc_colors) %in% c("ppbcdl", "rest")],
+    palette = study_colors[!names(study_colors) %in% c("ppbcdl", "rest")],
     ggtheme = theme_bw(),
     risk.table = T)
 
-ig_km
+ig_kmOS
 ```
 
-Risk table is extremely hard to plot legibly.
+Risk table is hard to plot legibly.
 
-```{r, fig.height=7, fig.width=15}
-text.size <- 8
+### Risk table
 
-rt_ig_km <- ggplot(ig_km$data, aes(time, study_group)) + 
-  #geom_text(aes(label = n.risk), position=position_jitter(width = 0, height = 0.1)) +
-  ggrepel::geom_text_repel(aes(label = n.risk)) +
-  facet_wrap(~IG, 3) + theme_bw() + 
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        strip.background = element_rect(fill="white", size = 1),
-        axis.text.x = element_text(color="black", size = text.size+2),
-        axis.text.y = element_text(color="black", size = text.size),
-        axis.title = element_text(color="black", size = text.size+4),
-        strip.text = element_text(color="black", size = text.size))+
-  #scale_y_discrete(limits=c("2","1"), labels=c("2" = "sex=2", "1" = "sex=1")) +
-  ggtitle("Risk Tables") +
-  xlab("Time") + ylab("")
-rt_ig_km
+```{r, fig.height=7, fig.width=12}
+risktable <- function(ggkm, response, text.size = 8, ...){
+  ggplot(ggkm$data, aes(time, study_group)) + 
+    ggrepel::geom_text_repel(aes(label = n.risk)) +
+    facet_wrap(as.formula(paste("~", response)), ...) +
+    theme_bw() + 
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          strip.background = element_rect(fill="white", size = 1),
+          axis.text.x = element_text(color="black", size = text.size+2),
+          axis.text.y = element_text(color="black", size = text.size),
+          axis.title = element_text(color="black", size = text.size+4),
+          strip.text = element_text(color="black", size = text.size))+
+    ggtitle("Risk Tables") +
+    xlab("Time") + ylab("")
+}
+
+rt_ig_kmOS <- risktable(ig_kmOS, response = "IG", nrow=3)
+rt_ig_kmOS
 ```
 
-Save output
+### Save output
 
 ```{r}
-pdf(file = here(params$fig1e),
+pdf(file = here(params$IGkaplanOS),
     width = 12, height = 7)
-ig_km
-rt_ig_km
+ig_kmOS
+rt_ig_kmOS
 dev.off()
 ```
 
 Save risk table data separately.
 
 ```{r}
-write_csv(ig_km$data, here(params$risktable1e))
+write_csv(ig_kmOS$data, here(params$rtIGkaplanOS))
 ```
 
 ### Multivariate Cox
@@ -916,17 +918,45 @@ ggsurvplot(
 )
 ```
 
-### KM DRS study group, faceted by IG cluster
+### Sup Figure S9: KM DRS study group, faceted by IG cluster
 
 ```{r, fig.width=10}
-ggsurvplot(
-    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ PPBC + IG, data = surv), 
+nolacsurv <- droplevels(as.data.frame(filter(surv, study_group != "ppbcdl")))
+
+IGkaplanDRS <- ggsurvplot(
+    fit = survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + IG,
+                  data = nolacsurv), 
     xlab = "Months", 
     ylab = "DRS probability",
     title = "DRS - PPBC by IG cluster",
     pval = T, facet.by = "IG",
-    palette = ppbc_colors,
+    palette = study_colors[!names(study_colors) %in% c("ppbcdl", "rest")],
     ggtheme = theme_bw())
+
+IGkaplanDRS
+```
+### Risk table
+
+```{r, fig.height=7, fig.width=12}
+rtIGkaplanDRS <- risktable(IGkaplanDRS, response = "IG", nrow=3)
+rtIGkaplanDRS
+```
+
+### Save output
+
+```{r}
+supFigDir <- file.path(here("figures/supfigs"))
+dir.create(supFigDir, showWarnings = F)
+pdf(file = here(params$IGkaplanDRS),width = 12, height = 7)
+IGkaplanDRS
+rtIGkaplanDRS
+dev.off()
+```
+
+Save risk table data separately.
+
+```{r}
+write_csv(IGkaplanDRS$data, here(params$rtIGkaplanDRS))
 ```
 
 ### Multivariate Cox DRS

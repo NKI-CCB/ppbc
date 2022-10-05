@@ -83,3 +83,7 @@ Slight shifts in significance
 8A and 8B - Slight shifts in p value
 8C - Is now a forest plot. IG cluster is no longer significant when including treatment covariates.
 8D - Is now a forest plot. IG clust low is significant vs high, but medium vs high is not significant. There are too few samples with stage IV to estimate the HR, which results in an automatic labelling as "reference" - this should be changed in Illustrator.
+
+#### Sup Fig 9 ####
+
+P value in lowest panel is no longer quite significant.

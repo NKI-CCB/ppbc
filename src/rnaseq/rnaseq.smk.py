@@ -730,13 +730,15 @@ rule inv_clustering:
     coxdata="data/rnaseq/interim/04_survdata.Rds"
   output:
     cluster_heatmap="results/rnaseq/clustering/11_hm_clust_DEG_inv_vs_rest.pdf",
-    fig1a="figures/Fig1a_DEG_heatmap.pdf",
-    fig1d="figures/Fig1d_IG_cluster_barplot.pdf",
-    fig1e="figures/Fig1e_IG_cluster_KM.pdf",
-    risktable1e="figures/Fig1e_risktable.csv",
+    DEGhm="figures/Fig1a_DEG_heatmap.pdf",
+    IGbarplot="figures/Fig1d_IG_cluster_barplot.pdf",
+    IGkaplanOS="figures/Fig1e_IG_cluster_KM.pdf",
+    rtIGkaplanOS="figures/Fig1e_risktable.csv",
     cluster_barplot="results/rnaseq/clustering/11_barplots_ig_clusters.pdf",
     cluster_results="results/rnaseq/clustering/11_inv_clusters.xlsx",
     cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",
+    IGkaplanDRS="figures/supfigs/Supfig9_IG_cluster_KM_DRS.pdf",
+    rtIGkaplanDRS="figures/supfigs/Supfig9_risktable.csv",
     html="reports/rnaseq/11_clustering_involution.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
@@ -747,10 +749,12 @@ rule inv_clustering:
     " --vsd {input.vsd}"
     " --tools {input.tools}"
     " --coxdata '{input.coxdata}'"
-    " --fig1a '{output.fig1a}'"
-    " --fig1d '{output.fig1d}'"
-    " --fig1e '{output.fig1e}'"
-    " --risktable1e '{output.risktable1e}'"
+    " --DEGhm '{output.DEGhm}'"
+    " --IGbarplot '{output.IGbarplot}'"
+    " --IGkaplanOS '{output.IGkaplanOS}'"
+    " --rtIGkaplanOS '{output.rtIGkaplanOS}'"
+    " --IGkaplanDRS '{output.IGkaplanDRS}'"
+    " --rtIGkaplanDRS '{output.rtIGkaplanDRS}'"
 
 #### Survival analyses based on gene expression ####
 
