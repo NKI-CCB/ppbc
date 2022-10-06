@@ -17,6 +17,7 @@ params:
   cp: "data/rnaseq/interim/color_palettes.Rds"
   sp: "data/rnaseq/interim/survival_colors.Rds"
   coxdata: "data/rnaseq/interim/04_survdata.Rds"
+  rel_hm: "results/rnaseq/cibersortX/cibersort_relative_heatmap.pdf"
 ---
 
 Visualizations and statistical test on CibersortX deconvolution of immune cells between PPBC study groups.
@@ -285,31 +286,37 @@ Row-scaled. Exclude Tregs since there's hardly anything there.
 set.seed(1)
 
 #Matrix from df
-hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%column_to_rownames("Mixture") %>% as.matrix %>% t()
+hmat = ciber_input %>% select(-`P-value`, -Correlation, -RMSE) %>%
+  column_to_rownames("Mixture") %>% as.matrix %>% t()
 hmat = rowScales(hmat)
 
-hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
-        column_title = "Overview CibersortX, k-means clustering",
-        heatmap_legend_param = list(title="Row-scaled relative fraction", legend_direction = "horizontal"),
-        column_km = 3, row_km = 3, column_km_repeats = 10, row_km_repeats = 10)
+rel_hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",],
+                 top_annotation = colTop, show_column_names = F,
+                 column_title = "Overview CibersortX, k-means clustering (exclude Tregs)",
+                 heatmap_legend_param = list(title="Row-scaled relative fraction",
+                                             legend_direction = "horizontal"),
+                 column_km = 3, row_km = 3, column_km_repeats = 10, row_km_repeats = 10)
 
-draw(hm,  heatmap_legend_side = "bottom")
+draw(rel_hm,  heatmap_legend_side = "bottom")
 ```
 
 ```{r, fig.width=12}
 set.seed(1)
 
 #Matrix from df
-hmat = abs_ciber_input %>% select(-`P-value`, -Correlation, -RMSE, -`Absolute score (sig.score)`) %>%
+hmat = abs_ciber_input %>%
+  select(-`P-value`, -Correlation, -RMSE, -`Absolute score (sig.score)`) %>%
   column_to_rownames("Mixture") %>% as.matrix %>% t()
 hmat = rowScales(hmat)
 
-hm = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",], top_annotation = colTop, show_column_names = F,
-        column_title = "Overview CibersortX, k-means clustering",
-        heatmap_legend_param = list(title="Row-scaled absolute fraction", legend_direction = "horizontal"),
-        column_km = 3, row_km = 3, column_km_repeats = 10, row_km_repeats = 10)
+hm_abs = Heatmap(hmat[rownames(hmat)!="T cells regulatory (Tregs)",],
+                 top_annotation = colTop, show_column_names = F,
+                 column_title = "Overview CibersortX, k-means clustering (exclude Tregs)",
+                 heatmap_legend_param = list(title="Row-scaled absolute fraction",
+                                             legend_direction = "horizontal"),
+                 column_km = 3, row_km = 3, column_km_repeats = 10, row_km_repeats = 10)
 
-draw(hm,  heatmap_legend_side = "bottom")
+draw(hm_abs,  heatmap_legend_side = "bottom")
 ```
 
 ```{r, include=F}
@@ -2218,6 +2225,13 @@ coxph(
 ```{r}
 saveRDS(ciberdf, here("data/rnaseq/processed/10_ciberdf.Rds"))
 saveRDS(abs_ciberdf, here("data/rnaseq/processed/10_abs_ciberdf.Rds"))
+```
+
+```{r}
+pdf(file = here(params$rel_hm),
+    width = 10, height = 10)
+rel_hm
+dev.off()
 ```
 
 # Session info

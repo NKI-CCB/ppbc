@@ -138,7 +138,8 @@ rule all:
     "figures/supfigs/Supfig9_IG_cluster_PPBC_KM_DRS.pdf",
     "figures/supfigs/Supfig10a_IG_cluster_PAM50_KM_OS.pdf",
     "figures/supfigs/Supfig10b_IG_cluster_PAM50_KM_DRS.pdf",
-    "figures/supfigs/Supfig11a_uni_genewise_drs_heatmap.pdf"
+    "figures/supfigs/Supfig11a_uni_genewise_drs_heatmap.pdf",
+    "figures/supfigs/SupFig12a_cibersort_relative_heatmap.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)

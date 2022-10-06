@@ -693,7 +693,8 @@ rule cibersortX:
   output:
     pdf="reports/rnaseq/10_CibersortX.pdf",
     ciberdf="data/rnaseq/processed/10_ciberdf.Rds",
-    abs_ciberdf="data/rnaseq/processed/10_abs_ciberdf.Rds"
+    abs_ciberdf="data/rnaseq/processed/10_abs_ciberdf.Rds",
+    rel_hm="figures/supfigs/SupFig12a_cibersort_relative_heatmap.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
     " --ciber_input '{input.ciber_input}'"
@@ -703,6 +704,7 @@ rule cibersortX:
     " --metadata '{input.metadata}'"
     " --cp '{input.cp}'"
     " --sp '{input.sp}'"
+    " --rel_hm '{output.rel_hm}'"
 
 #### Clustering of PPBCpw DEGs ####
 
