@@ -594,15 +594,16 @@ Using a quantile-based color scale to prevent outliers from bleaching the heatma
 
 ```{r, fig.height=8, fig.width=7}
 #Define column annotation
-ann_df = coxdata[, c("PPBC", str_replace(event, " ", "_"))]
+if(event == "overall survival"){hm_event <- "death"}
+if(event == "distant recurrence"){hm_event <- "distant_recurrence"}
+
+ann_df = coxdata[, c("PPBC", hm_event)]
 
 # Recode event as factor
-ann_df[,str_replace(event, " ", "_")] <- factor(
-  ann_df[,str_replace(event, " ", "_")],
-  levels = c(0,1))
+ann_df[,hm_event] <- factor(ann_df[,hm_event],levels = c(0,1))
 
 #Sort by event
-ann_df = ann_df[order(ann_df[,str_replace(event, " ", "_")]),]
+ann_df = ann_df[order(ann_df[,hm_event]),]
 
 #Subset geneEx to genes below threshold
 if(nrow(filter(res, fdr <= !!pthresh)) < 5){
@@ -725,7 +726,6 @@ pdf(file = here(resdir, paste0(str_replace(basename(params$survival_results),".R
 surv_hm
 dev.off()
 ```
-
 
 # Session info
 
