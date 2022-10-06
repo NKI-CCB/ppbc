@@ -160,6 +160,20 @@ rule ciberfigs:
     " --fig4c {output.fig4c}"
     " --rt_fig4c {output.rt_fig4c}"
     
+rule figure_genes:
+  input:
+    aggdata="data/rnaseq/processed/16_gene_report_environment.RData",
+    bx_annot="data/rnaseq/processed/bx_annot.Rds",
+    dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
+    rmd="reports/rnaseq/17_gene_report_template.Rmd",
+    script="src/rnaseq/batch_gene_reports.R",
+    genes="reports/figures/figure_genes.txt"
+  # output:
+  #   directory("reports/rnaseq/figure_genes")
+  shell:
+    "Rscript {input.script}"
+    " --genes {input.genes}"    
+    
 rule copy_figs:
   input:
     rnaseq_pcas="results/rnaseq/dimensionality/pca_rnaseq.pdf",
