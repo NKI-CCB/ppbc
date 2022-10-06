@@ -92,11 +92,16 @@ reports/rnaseq/11_clustering_involution.Rmd
 10A. reports/rnaseq/11_clustering_involution.Rmd
 10B. reports/rnaseq/11_clustering_involution.Rmd
 
-#### To do ####
+#### Sup Fig S11 ####
 
-Fig. S11.
-Code Kat 
-Note. I made these using your 17_gene_report_template.Rmd
+11A: reports/rnaseq/12_genewise_survival.Rmd
+11B panels: 17_gene_report_template.Rmd using rule figure_genes and reports/figures/figure_genes.txt
+
+#### Sup Fig S12 ####
+
+12A: reports/rnaseq/10_CibersortX.Rmd
+
+#### To do ####
 
 Fig. S12.
 A.	Code Kat

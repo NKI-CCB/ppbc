@@ -2,14 +2,12 @@
 author: "Kat Moore"
 date: "`r Sys.Date()`"
 output: 
-  html_document:
+  pdf_document:
     toc: true
-    toc_float: true
     toc_depth: 4
     fig_width: 7
     fig_height: 6
-    df_print: paged
-    canon: true
+    df_print: tibble
 params:
   env: "data/rnaseq/processed/16_gene_report_environment.RData"
   gene:

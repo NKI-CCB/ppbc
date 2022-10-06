@@ -91,3 +91,12 @@ P value in lowest panel is no longer quite significant.
 #### Sup Fig 10 ####
 
 Minor changes to p values
+
+#### Sup Fig 11 ####
+
+11A - Heatmap now shows DRS instead of OS (since it's the DRS genes)
+11B - Minor changes to gene panels, did not look at all of them
+
+#### Sup Fig 12 ####
+
+12A - Minor changes to p values

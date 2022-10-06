@@ -939,10 +939,14 @@ rule gene_reports:
     rmd="reports/rnaseq/17_gene_report_template.Rmd",
     script="src/rnaseq/batch_gene_reports.R",
     genes=ancient("reports/rnaseq/genes_to_report.txt")
+  params:
+    outdir="reports/rnaseq/gene_reports"
   #output:
   #  directory("reports/rnaseq/gene_reports")
   shell:
     "Rscript {input.script}"
+    " --genes {input.genes}"
+    " --outdir {params.outdir}"
 
 #### BCR and antibody isotype analyses ####
 

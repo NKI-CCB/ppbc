@@ -149,16 +149,18 @@ rule ciberfigs:
     rmd="reports/figures/ciberfigs.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    fig4b="figures/Fig4b_cibersort_CD8_boxplot.pdf",
-    fig4c="figures/Fig4c_cibersort_CD8_km.pdf",
-    rt_fig4c="figures/Fig4c_risktable.csv",
+    boxplot_cd8="figures/Fig4b_cibersort_CD8_boxplot.pdf",
+    km_cd8="figures/Fig4c_cibersort_CD8_km.pdf",
+    rt_km_cd8="figures/Fig4c_risktable.csv",
+    boxplot_b_subtypes="figures/supfigs/Supfig12b_boxplot_cibersort_B_subtypes.pdf",
     report="reports/figures/ciberfigs.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
-    " --fig4b {output.fig4b}"
-    " --fig4c {output.fig4c}"
-    " --rt_fig4c {output.rt_fig4c}"
+    " --boxplot_cd8 {output.boxplot_cd8}"
+    " --km_cd8 {output.km_cd8}"
+    " --rt_km_cd8 {output.rt_km_cd8}"
+    " --boxplot_b_subtypes {output.boxplot_b_subtypes}"
     
 rule figure_genes:
   input:
@@ -167,12 +169,15 @@ rule figure_genes:
     dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
     rmd="reports/rnaseq/17_gene_report_template.Rmd",
     script="src/rnaseq/batch_gene_reports.R",
-    genes="reports/figures/figure_genes.txt"
+    genes="reports/figures/figure_genes.txt",
+  params:
+    outdir="figures/figure_genes"
   # output:
   #   directory("reports/rnaseq/figure_genes")
   shell:
     "Rscript {input.script}"
-    " --genes {input.genes}"    
+    " --genes {input.genes}"
+    " --outdir {params.outdir}"
     
 rule copy_figs:
   input:
