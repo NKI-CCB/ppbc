@@ -27,6 +27,9 @@ params:
     boxplot_CD20_CD4_lcross_km_OS: "figures/Fig4i_CD20_CD4_lcross_boxplot_km_OS.pdf"
     km_CD20_density_DRS: "figures/supfigs/Supfig13a_CD20_density_km_DRS.pdf"
     km_CD20_l_DRS: "figures/supfigs/Supfig13b_CD20_l_km_DRS.pdf"
+    boxplot_CD20_Panck_lcross: "figures/supfigs/Supfig14a_CD20_Panck_lcross_boxplot.pdf"
+    km_CD20_Panck_lcross_km_OS: "figures/supfigs/Supfig14b_CD20_Panck_lcross_km_OS.pdf"
+    km_CD20_Panck_lcross_km_DRS: "figures/supfigs/Supfig14c_CD20_Panck_lcross_km_DRS.pdf"
 ---
 
 ## Dependencies
@@ -478,7 +481,7 @@ lcross_boxplot <-  function(df, cell.1, cell.2, outcome=outcomedata,
 }
 
 boxplot_CD8_Panck_lcross <- lcross_boxplot(lximmune, cell.1 = "CD3+CD8+", cell.2 = "PanCK+",
-                        label.y = 0.01, returndata=F)
+                                           label.y = 0.01, returndata=F)
 boxplot_CD8_Panck_lcross
 ```
 
@@ -486,7 +489,7 @@ boxplot_CD8_Panck_lcross
 
 ```{r}
 lcross_km <- function(df, cell.1, cell.2, outcome=outcomedata, rad=params$radius,
-                     event_type = c("OS", "DRS"), returndata = F){
+                      event_type = c("OS", "DRS"), returndata = F){
   
   stopifnot(class(rad)=="numeric")  
   stopifnot(cell.1 %in% df$cell_type1)
@@ -576,7 +579,7 @@ dev.off()
 
 ```{r}
 boxplot_CD8_CD4_lcross <- lcross_boxplot(lximmune, cell.1 = "CD3+CD8+", cell.2 = "CD3+CD8-",
-                        label.y = 0.15, returndata=F)
+                                         label.y = 0.15, returndata=F)
 boxplot_CD8_CD4_lcross
 ```
 
@@ -584,7 +587,7 @@ boxplot_CD8_CD4_lcross
 
 ```{r}
 km_CD8_CD4_lcross_OS <- lcross_km(lximmune, cell.1 = "CD3+CD8+", cell.2 = "CD3+CD8-",
-                    event_type = "OS", returndata = F)
+                                  event_type = "OS", returndata = F)
 km_CD8_CD4_lcross_OS
 ```
 
@@ -612,7 +615,7 @@ dev.off()
 
 ```{r}
 boxplot_CD20_CD8_lcross <- lcross_boxplot(lximmune, cell.1 = "CD20+", cell.2 = "CD3+CD8+",
-                        label.y = 0.126, returndata=F)
+                                          label.y = 0.126, returndata=F)
 boxplot_CD20_CD8_lcross
 ```
 
@@ -620,7 +623,7 @@ boxplot_CD20_CD8_lcross
 
 ```{r}
 km_CD20_CD8_lcross_OS <- lcross_km(lximmune, cell.1 = "CD20+", cell.2 = "CD3+CD8+",
-                    event_type = "OS", returndata = F)
+                                   event_type = "OS", returndata = F)
 km_CD20_CD8_lcross_OS
 ```
 
@@ -648,7 +651,7 @@ dev.off()
 
 ```{r}
 boxplot_CD20_CD4_lcross <- lcross_boxplot(lximmune, cell.1 = "CD20+", cell.2 = "CD3+CD8-",
-                        label.y = 0.22, returndata=F)
+                                          label.y = 0.22, returndata=F)
 boxplot_CD20_CD4_lcross
 ```
 
@@ -656,7 +659,7 @@ boxplot_CD20_CD4_lcross
 
 ```{r}
 km_CD20_CD4_lcross_OS <- lcross_km(lximmune, cell.1 = "CD20+", cell.2 = "CD3+CD8-",
-                    event_type = "OS", returndata = F)
+                                   event_type = "OS", returndata = F)
 km_CD20_CD4_lcross_OS
 ```
 
@@ -723,6 +726,72 @@ rt_km_CD20_l_DRS
 pdf(file = here(params$km_CD20_l_DRS), width = 12, height = 7)
 km_CD20_l_DRS
 rt_km_CD20_l_DRS
+dev.off()
+```
+
+## Sup fig 14A- Boxplot CD20 <-> Panck L cross
+
+```{r}
+boxplot_CD20_Panck_lcross <- lcross_boxplot(lximmune, cell.1 = "CD20+", cell.2 = "PanCK+",
+                                            label.y = 0.06, returndata=F)
+boxplot_CD20_Panck_lcross
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$boxplot_CD20_Panck_lcross), width = 12, height = 7)
+boxplot_CD20_Panck_lcross
+dev.off()
+```
+
+## Sup fig 14B - KM OS CD20+ <-> Panck L cross
+
+```{r}
+km_CD20_Panck_lcross_km_OS <- lcross_km(lximmune, cell.1 = "CD20+", cell.2 = "PanCK+",
+                                  event_type = "OS", returndata = F)
+km_CD20_Panck_lcross_km_OS
+```
+
+### Risk table 
+
+```{r}
+rt_km_CD20_Panck_lcross_km_OS <- faceted_risktable(km_CD20_Panck_lcross_km_OS, faceted.by = "delta_l") +
+  ggtitle("Risk table for delta L: OS CD20+ <-> Panck L cross")
+rt_km_CD20_Panck_lcross_km_OS
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$km_CD20_Panck_lcross_km_OS), width = 12, height = 7)
+km_CD20_Panck_lcross_km_OS
+rt_km_CD20_Panck_lcross_km_OS
+dev.off()
+```
+
+## Sup fig 14C - KM DRS CD20+ <-> Panck L cross
+
+```{r}
+km_CD20_Panck_lcross_km_DRS <- lcross_km(lximmune, cell.1 = "CD20+", cell.2 = "PanCK+",
+                                         event_type = "DRS", returndata = F)
+km_CD20_Panck_lcross_km_DRS
+```
+
+### Risk table 
+
+```{r}
+rt_km_CD20_Panck_lcross_km_DRS <- faceted_risktable(km_CD20_Panck_lcross_km_DRS, faceted.by = "delta_l") +
+  ggtitle("Risk table for delta L: DRS CD20+ <-> Panck L cross")
+rt_km_CD20_Panck_lcross_km_DRS
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$km_CD20_Panck_lcross_km_DRS), width = 12, height = 7)
+km_CD20_Panck_lcross_km_DRS
+rt_km_CD20_Panck_lcross_km_DRS
 dev.off()
 ```
 

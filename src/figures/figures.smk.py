@@ -69,7 +69,10 @@ rule spatial_figures:
     boxplot_CD20_CD8_lcross_km_OS="figures/Fig4h_CD20_CD8_lcross_boxplot_km_OS.pdf",
     boxplot_CD20_CD4_lcross_km_OS="figures/Fig4i_CD20_CD4_lcross_boxplot_km_OS.pdf",
     km_CD20_density_DRS="figures/supfigs/Supfig13a_CD20_density_km_DRS.pdf",
-    km_CD20_l_DRS="figures/supfigs/Supfig13b_CD20_l_km_DRS.pdf"
+    km_CD20_l_DRS="figures/supfigs/Supfig13b_CD20_l_km_DRS.pdf",
+    boxplot_CD20_Panck_lcross="figures/supfigs/Supfig14a_CD20_Panck_lcross_boxplot.pdf",
+    km_CD20_Panck_lcross_km_OS="figures/supfigs/Supfig14b_CD20_Panck_lcross_km_OS.pdf",
+    km_CD20_Panck_lcross_km_DRS="figures/supfigs/Supfig14c_CD20_Panck_lcross_km_DRS.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
@@ -90,6 +93,9 @@ rule spatial_figures:
     " --boxplot_CD20_CD4_lcross_km_OS {output.boxplot_CD20_CD4_lcross_km_OS}"
     " --km_CD20_density_DRS {output.km_CD20_density_DRS}"
     " --km_CD20_l_DRS {output.km_CD20_l_DRS}"
+    " --boxplot_CD20_Panck_lcross {output.boxplot_CD20_Panck_lcross}"
+    " --km_CD20_Panck_lcross_km_OS {output.km_CD20_Panck_lcross_km_OS}"
+    " --km_CD20_Panck_lcross_km_DRS {output.km_CD20_Panck_lcross_km_DRS}"
 
 rule stainings:
   input:
@@ -106,7 +112,8 @@ rule stainings:
     km_CD38_OS="figures/Fig2l_CD38_KM_OS.pdf",
     boxplot_TIL="figures/Fig4a_TIL_boxplot.pdf",
     km_TAPC_DRS="figures/supfigs/Supfig13c_TAPC_KM_DRS.pdf",
-    km_CD38_DRS="figures/supfigs/Supfig13d_CD38_KM_DRS.pdf"
+    km_CD38_DRS="figures/supfigs/Supfig13d_CD38_KM_DRS.pdf",
+    TAPC_CD38_cor="figures/supfigs/Supfig16_TAPC_CD38_cor.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
@@ -117,6 +124,7 @@ rule stainings:
     " --boxplot_TIL {output.boxplot_TIL}"
     " --km_TAPC_DRS {output.km_TAPC_DRS}"
     " --km_CD38_DRS {output.km_CD38_DRS}"
+    " --TAPC_CD38_cor {output.TAPC_CD38_cor}"
 
 rule isotypes:
   input:

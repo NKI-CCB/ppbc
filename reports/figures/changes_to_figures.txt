@@ -109,3 +109,19 @@ Minor changes to p values
 13B - Minor changes to p values
 13C - First panel looks pretty different, but the conclusion doesn't change
 
+#### Sup Fig 14 ####
+
+14A - I am confused about which p value you're showing. Wilcoxon is pairwise, KW is between all groups. In any case, the comparison between PPBCpw and NPBC is not significant.
+14B - Slight changes in p values.
+14C - Slight changes in p values.
+
+#### Sup Fig 15 ####
+
+NA
+
+#### Sup Fig 16 ####
+
+16A - Added rsquared. Stats change a bit, nothing important.
+16 - Same
+
+

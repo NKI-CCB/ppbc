@@ -111,13 +111,21 @@ reports/rnaseq/11_clustering_involution.Rmd
 13C - reports/figures/CD38_TAPC_TILs.Rmd
 13D - reports/figures/CD38_TAPC_TILs.Rmd
 
+#### Sup Fig S14 ####
+
+14A - reports/figures/spatial_figures.Rmd
+14B - reports/figures/spatial_figures.Rmd
+14C - reports/figures/spatial_figures.Rmd
+
+#### Sup Fig S15 ####
+
+Image Prof Floris
+
+#### Sup Fig S16 ####
+
+reports/figures/CD38_TAPC_TILs.Rmd
+
 #### To do ####
-
-Fig. S14. 
-Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
-
-Fig. S15. 
-Image provided by Prof. Floris
 
 Fig. S16.
 Code Hanne: 03_correlation_analyses.Rmd

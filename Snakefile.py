@@ -147,7 +147,11 @@ rule all:
     "figures/supfigs/Supfig13a_CD20_density_km_DRS.pdf",
     "figures/supfigs/Supfig13b_CD20_l_km_DRS.pdf",
     "figures/supfigs/Supfig13c_TAPC_KM_DRS.pdf",
-    "figures/supfigs/Supfig13d_CD38_KM_DRS.pdf"
+    "figures/supfigs/Supfig13d_CD38_KM_DRS.pdf",
+    "figures/supfigs/Supfig14a_CD20_Panck_lcross_boxplot.pdf",
+    "figures/supfigs/Supfig14b_CD20_Panck_lcross_km_OS.pdf",
+    "figures/supfigs/Supfig14c_CD20_Panck_lcross_km_DRS.pdf",
+    "figures/supfigs/Supfig16_TAPC_CD38_cor.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)

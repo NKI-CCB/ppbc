@@ -17,6 +17,7 @@ params:
     boxplot_TIL: "figures/Fig4a_TIL_boxplot.pdf"
     km_TAPC_DRS: "figures/supfigs/Supfig13c_TAPC_KM_DRS.pdf"
     km_CD38_DRS: "figures/supfigs/Supfig13d_CD38_KM_DRS.pdf"
+    TAPC_CD38_cor: "figures/supfigs/Supfig16_TAPC_CD38_cor.pdf"
 ---
 
 ## Dependencies
@@ -269,6 +270,52 @@ rt_km_CD38_DRS
 pdf(file = here(params$km_CD38_DRS), width = 12, height = 7)
 km_CD38_DRS
 rt_km_CD38_DRS
+dev.off()
+```
+
+## Sup Fig 16- Correlation TAPC and CD38
+
+```{r}
+TAPC_CD38_cor_all <- figuredata %>%
+  filter(!is.na(TAPC_score) & !is.na(TI_CD38_total)) %>%
+  ggplot(aes(x = TAPC_score, y = TI_CD38_total)) +
+  geom_jitter(aes(color = study_group), height = 1, width = 0.2, shape = 15) +
+  scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
+  geom_smooth(method = "lm", formula = y ~ x) +
+      ggpubr::stat_cor(method = "kendall", #label.y = 3.5, label.x = -0.2,
+                       aes(label = paste(..rr.label.., ..r.label.., ..p.label..,
+                                         sep = "~`,`~"))) +
+  ylab("% CD38 positive cells") +
+  xlab("TAPC score") + labs(color = "Study group") +
+  ggtitle("Kendall correlation between TAPC and CD38 in all samples")
+
+TAPC_CD38_cor_all
+```
+
+```{r}
+TAPC_CD38_cor_inv <- figuredata %>%
+  filter(study_group == "PP-BCpw") %>%
+  filter(!is.na(TAPC_score) & !is.na(TI_CD38_total)) %>%
+  ggplot(aes(x = TAPC_score, y = TI_CD38_total)) +
+  geom_jitter(aes(color = study_group), height = 1, width = 0.2, shape = 15) +
+  scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
+  geom_smooth(method = "lm", formula = y ~ x) +
+      ggpubr::stat_cor(method = "kendall", #label.y = 3.5, label.x = -0.2,
+                       aes(label = paste(..rr.label.., ..r.label.., ..p.label..,
+                                         sep = "~`,`~"))) +
+  ylab("% CD38 positive cells") +
+  xlab("TAPC score") + labs(color = "Study group") +
+  ggtitle("Kendall correlation between TAPC and CD38 in PP-BCpw")
+
+TAPC_CD38_cor_inv
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$TAPC_CD38_cor), width = 12, height = 7)
+TAPC_CD38_cor_all
+TAPC_CD38_cor_inv
 dev.off()
 ```
 
