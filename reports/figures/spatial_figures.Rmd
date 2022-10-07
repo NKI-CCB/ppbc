@@ -15,16 +15,16 @@ params:
     spatstat_l: "data/vectra/processed/11_spatstat_l.Rds"
     spatstat_lcross_immune: "data/vectra/processed/11_spatstat_lcross_immune.Rds"
     spatstat_lcross_panck: "data/vectra/processed/11_spatstat_lcross_panck.Rds"
-    fig2b: "figures/Fig2b_CD20_density_boxplot.pdf"
-    fig2c: "figures/Fig2c_CD20_density_km.pdf"
-    fig2e: "figures/Fig2e_CD20_l_boxplot.pdf"
-    fig2f: "figures/Fig2f_Cd20_l_km.pdf"
-    fig4d: "figures/Fig4d_CD8_density_boxplot_km.pdf"
-    fig4e: "figures/Fig4e_CD8_l_boxplot_km.pdf"
-    fig4f: "figures/Fig4f_CD8_PanCk_lcross_boxplot_km.pdf"
-    fig4g: "figures/Fig4g_CD8_CD4_lcross_boxplot_km.pdf"
-    fig4h: "figures/Fig4h_CD20_CD8_lcross_boxplot_km.pdf"
-    fig4i: "figures/Fig4i_CD20_CD4_lcross_boxplot_km.pdf"
+    boxplot_CD20_density: "figures/Fig2b_CD20_density_boxplot.pdf"
+    km_CD20_density_OS: "figures/Fig2c_CD20_density_km_OS.pdf"
+    boxplot_CD20_lstat: "figures/Fig2e_CD20_l_boxplot.pdf"
+    km_CD20_lstat_OS: "figures/Fig2f_Cd20_l_km_OS.pdf"
+    boxplot_CD8_density_km_OS: "figures/Fig4d_CD8_density_boxplot_km_OS.pdf"
+    boxplot_CD8_l_km_OS: "figures/Fig4e_CD8_l_boxplot_km_OS.pdf"
+    boxplot_CD8_PancK_lcross_km_OS: "figures/Fig4f_CD8_PanCk_lcross_boxplot_km_OS.pdf"
+    boxplot_CD8_CD4_lcross_km_OS: "figures/Fig4g_CD8_CD4_lcross_boxplot_km_OS.pdf"
+    boxplot_CD20_CD8_lcross_km_OS: "figures/Fig4h_CD20_CD8_lcross_boxplot_km_OS.pdf"
+    boxplot_CD20_CD4_lcross_km_OS: "figures/Fig4i_CD20_CD4_lcross_boxplot_km_OS.pdf"
 ---
 
 ## Dependencies
@@ -33,7 +33,7 @@ params:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, message=F}
+```{r}
 library(here)
 library(tidyverse)
 library(ggpubr)
@@ -117,7 +117,7 @@ stopifnot(nrow(filter(outcomedata, duplicated(sample_ID))) == 0)
 ## Figure 2B - CD20 density boxplot
 
 ```{r}
-fig2b <- density %>%
+boxplot_CD20_density <- density %>%
   filter(cell_type == "CD20+" & classifier_label == "Total") %>%
   ggplot(aes(x = factor(study_group,
                         levels = c("NP-BC", "Pr-BC", "PP-BCdl","PP-BCpw")),
@@ -131,7 +131,7 @@ fig2b <- density %>%
   stat_compare_means(label.y = 3.7) +
   ggtitle("CD20+ density by study group")
 
-fig2b
+boxplot_CD20_density
 ```
 
 ### Save output
@@ -139,12 +139,12 @@ fig2b
 ```{r}
 figureDir = file.path(here("figures"))
 dir.create(figureDir, showWarnings = F)
-pdf(file = here(params$fig2b), width = 10, height = 7)
-fig2b
+pdf(file = here(params$boxplot_CD20_density), width = 10, height = 7)
+boxplot_CD20_density
 dev.off()
 ```
 
-## Figure 2C - CD20 density KM
+## Figure 2C - CD20 density KM OS
 
 Due to power issues, only use PP-BCpw and NP-BC. High/low is around the median density.
 
@@ -200,24 +200,24 @@ density_km <- function(df, cell, event_type = c("OS", "DRS"), returndata = F){
   )
 }
 
-fig2c <- density_km(density, cell = "CD20+", event_type = "OS", returndata = F)
-fig2c
+km_CD20_density_OS <- density_km(density, cell = "CD20+", event_type = "OS", returndata = F)
+km_CD20_density_OS
 ```
 
 ### Risk table
 
 ```{r}
-rt_fig2c <- faceted_risktable(fig2c, faceted.by = "density") +
+rt_km_CD20_density_OS <- faceted_risktable(km_CD20_density_OS, faceted.by = "density") +
   ggtitle("Risk table for CD20+ density")
-rt_fig2c
+rt_km_CD20_density_OS
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig2c), width = 12, height = 7)
-fig2c
-rt_fig2c
+pdf(file = here(params$km_CD20_density_OS), width = 12, height = 7)
+km_CD20_density_OS
+rt_km_CD20_density_OS
 dev.off()
 ```
 
@@ -257,16 +257,16 @@ lstat_boxplot <-  function(df, cell, outcome=outcomedata, rad=params$radius,
   
 }
 
-fig2e <- lstat_boxplot(l, cell = "CD20+", label.y = 1)
-fig2e
+boxplot_CD20_lstat <- lstat_boxplot(l, cell = "CD20+", label.y = 1)
+boxplot_CD20_lstat
 ```
 ### Save output
 
 ```{r}
 figureDir = file.path(here("figures"))
 dir.create(figureDir, showWarnings = F)
-pdf(file = here(params$fig2e), width = 10, height = 7)
-fig2e
+pdf(file = here(params$boxplot_CD20_lstat), width = 10, height = 7)
+boxplot_CD20_lstat
 dev.off()
 ```
 
@@ -328,24 +328,24 @@ lstat_km <- function(df, cell, outcome=outcomedata, rad=params$radius,
   )
 }
 
-fig2f <- lstat_km(l, cell = "CD20+", event_type = "OS", returndata = F)
-fig2f
+km_CD20_lstat_OS <- lstat_km(l, cell = "CD20+", event_type = "OS", returndata = F)
+km_CD20_lstat_OS
 ```
 
 ### Risk table
 
 ```{r}
-rt_fig2f <- faceted_risktable(fig2f, faceted.by = "delta_l") +
+rt_km_CD20_lstat_OS <- faceted_risktable(km_CD20_lstat_OS, faceted.by = "delta_l") +
   ggtitle("Risk table for delta L: CD20+")
-rt_fig2f
+rt_km_CD20_lstat_OS
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig2f), width = 12, height = 7)
-fig2f
-rt_fig2f
+pdf(file = here(params$km_CD20_lstat_OS), width = 12, height = 7)
+km_CD20_lstat_OS
+rt_km_CD20_lstat_OS
 dev.off()
 ```
 
@@ -354,7 +354,7 @@ dev.off()
 ### Boxplot
 
 ```{r}
-fig4d <- density %>%
+boxplot_CD8_density <- density %>%
   filter(cell_type == "CD3+CD8+" & classifier_label == "Total") %>%
   ggplot(aes(x = factor(study_group,
                         levels = c("NP-BC", "Pr-BC", "PP-BCdl","PP-BCpw")),
@@ -368,31 +368,31 @@ fig4d <- density %>%
   stat_compare_means(label.y = 3.7) +
   ggtitle("CD3+CD8+ density by study group")
 
-fig4d
+boxplot_CD8_density
 ```
 
 ### Kaplan-Meier
 
 ```{r}
-fig4d2 <- density_km(density, cell = "CD3+CD8+", event_type = "OS", returndata = F)
-fig4d2
+km_CD8_density_OS <- density_km(density, cell = "CD3+CD8+", event_type = "OS", returndata = F)
+km_CD8_density_OS
 ```
 
 ### Risk table 
 
 ```{r}
-rt_fig4d2 <- faceted_risktable(fig4d2, faceted.by = "density") +
+rt_km_CD8_density_OS <- faceted_risktable(km_CD8_density_OS, faceted.by = "density") +
   ggtitle("Risk table for CD3+CD8+ density")
-rt_fig4d2
+rt_km_CD8_density_OS
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig4d), width = 12, height = 7)
-fig4d
-fig4d2
-rt_fig4d2
+pdf(file = here(params$boxplot_CD8_density_km_OS), width = 12, height = 7)
+boxplot_CD8_density
+km_CD8_density_OS
+rt_km_CD8_density_OS
 dev.off()
 ```
 
@@ -401,32 +401,32 @@ dev.off()
 ### Boxplot
 
 ```{r}
-fig4e <- lstat_boxplot(l, cell = "CD3+CD8+", label.y = 0.25)
-fig4e
+boxplot_CD8_l <- lstat_boxplot(l, cell = "CD3+CD8+", label.y = 0.25)
+boxplot_CD8_l
 ```
 
 ### Kaplan-Meier
 
 ```{r}
-fig4e2 <- lstat_km(l, cell = "CD3+CD8+", event_type = "OS", returndata = F)
-fig4e2
+km_CD8_l_OS <- lstat_km(l, cell = "CD3+CD8+", event_type = "OS", returndata = F)
+km_CD8_l_OS
 ```
 
 ### Risk table 
 
 ```{r}
-rt_fig4e2 <- faceted_risktable(fig4e2, faceted.by = "delta_l") +
+rt_km_CD8_l_OS <- faceted_risktable(km_CD8_l_OS, faceted.by = "delta_l") +
   ggtitle("Risk table for CD3+CD8+ delta L")
-rt_fig4e2
+rt_km_CD8_l_OS
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig4e), width = 12, height = 7)
-fig4e
-fig4e2
-rt_fig4e2
+pdf(file = here(params$boxplot_CD8_l_km_OS), width = 12, height = 7)
+boxplot_CD8_l
+km_CD8_l_OS
+rt_km_CD8_l_OS
 dev.off()
 ```
 
@@ -475,9 +475,9 @@ lcross_boxplot <-  function(df, cell.1, cell.2, outcome=outcomedata,
   
 }
 
-fig4f <- lcross_boxplot(lximmune, cell.1 = "CD3+CD8+", cell.2 = "PanCK+",
+boxplot_CD8_Panck_lcross <- lcross_boxplot(lximmune, cell.1 = "CD3+CD8+", cell.2 = "PanCK+",
                         label.y = 0.01, returndata=F)
-fig4f
+boxplot_CD8_Panck_lcross
 ```
 
 ### Kaplan-meier
@@ -542,25 +542,29 @@ lcross_km <- function(df, cell.1, cell.2, outcome=outcomedata, rad=params$radius
   )
 }
 
-fig4f2 <- lcross_km(lximmune, cell.1 = "CD3+CD8+", cell.2 = "PanCK+", event_type = "OS", returndata = F)
-fig4f2
+km_CD8_Panck_lcross_OS <- lcross_km(
+  lximmune, cell.1 = "CD3+CD8+", cell.2 = "PanCK+",
+  event_type = "OS", returndata = F
+)
+
+km_CD8_Panck_lcross_OS
 ```
 
 ### Risk table 
 
 ```{r}
-rt_fig4f2 <- faceted_risktable(fig4f2, faceted.by = "delta_l") +
+rt_km_CD8_Panck_lcross_OS <- faceted_risktable(km_CD8_Panck_lcross_OS, faceted.by = "delta_l") +
   ggtitle("Risk table for delta L: CD3+CD8+ <-> PanCK+")
-rt_fig4f2
+rt_km_CD8_Panck_lcross_OS
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig4f), width = 12, height = 7)
-fig4f
-fig4f2
-rt_fig4f2
+pdf(file = here(params$boxplot_CD8_PancK_lcross_km_OS), width = 12, height = 7)
+boxplot_CD8_Panck_lcross
+km_CD8_Panck_lcross_OS
+rt_km_CD8_Panck_lcross_OS
 dev.off()
 ```
 
@@ -569,34 +573,34 @@ dev.off()
 ### Boxplot
 
 ```{r}
-fig4g <- lcross_boxplot(lximmune, cell.1 = "CD3+CD8+", cell.2 = "CD3+CD8-",
+boxplot_CD8_CD4_lcross <- lcross_boxplot(lximmune, cell.1 = "CD3+CD8+", cell.2 = "CD3+CD8-",
                         label.y = 0.15, returndata=F)
-fig4g
+boxplot_CD8_CD4_lcross
 ```
 
 ### Kaplan-meier
 
 ```{r}
-fig4g2 <- lcross_km(lximmune, cell.1 = "CD3+CD8+", cell.2 = "CD3+CD8-",
+km_CD8_CD4_lcross_OS <- lcross_km(lximmune, cell.1 = "CD3+CD8+", cell.2 = "CD3+CD8-",
                     event_type = "OS", returndata = F)
-fig4g2
+km_CD8_CD4_lcross_OS
 ```
 
 ### Risk table 
 
 ```{r}
-rt_fig4g2 <- faceted_risktable(fig4g2, faceted.by = "delta_l") +
+rt_km_CD8_CD4_lcross_OS <- faceted_risktable(km_CD8_CD4_lcross_OS, faceted.by = "delta_l") +
   ggtitle("Risk table for delta L: CD3+CD8+ <-> CD3+CD8-")
-rt_fig4g2
+rt_km_CD8_CD4_lcross_OS
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig4g), width = 12, height = 7)
-fig4g
-fig4g2
-rt_fig4g2
+pdf(file = here(params$boxplot_CD8_CD4_lcross_km_OS), width = 12, height = 7)
+boxplot_CD8_CD4_lcross
+km_CD8_CD4_lcross_OS
+rt_km_CD8_CD4_lcross_OS
 dev.off()
 ```
 
@@ -605,34 +609,34 @@ dev.off()
 ### Boxplot
 
 ```{r}
-fig4h <- lcross_boxplot(lximmune, cell.1 = "CD20+", cell.2 = "CD3+CD8+",
+boxplot_CD20_CD8_lcross <- lcross_boxplot(lximmune, cell.1 = "CD20+", cell.2 = "CD3+CD8+",
                         label.y = 0.126, returndata=F)
-fig4h
+boxplot_CD20_CD8_lcross
 ```
 
 ### Kaplan-meier
 
 ```{r}
-fig4h2 <- lcross_km(lximmune, cell.1 = "CD20+", cell.2 = "CD3+CD8+",
+km_CD20_CD8_lcross_OS <- lcross_km(lximmune, cell.1 = "CD20+", cell.2 = "CD3+CD8+",
                     event_type = "OS", returndata = F)
-fig4h2
+km_CD20_CD8_lcross_OS
 ```
 
 ### Risk table 
 
 ```{r}
-rt_fig4h2 <- faceted_risktable(fig4h2, faceted.by =  "delta_l") +
+rt_km_CD20_CD8_lcross_OS <- faceted_risktable(km_CD20_CD8_lcross_OS, faceted.by =  "delta_l") +
   ggtitle("Risk table for delta L: CD20+ <-> CD3+CD8+")
-rt_fig4h2
+rt_km_CD20_CD8_lcross_OS
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig4h), width = 12, height = 7)
-fig4h
-fig4h2
-rt_fig4h2
+pdf(file = here(params$boxplot_CD20_CD8_lcross_km_OS), width = 12, height = 7)
+boxplot_CD20_CD8_lcross
+km_CD20_CD8_lcross_OS
+rt_km_CD20_CD8_lcross_OS
 dev.off()
 ```
 
@@ -641,34 +645,34 @@ dev.off()
 ### Boxplot
 
 ```{r}
-fig4i <- lcross_boxplot(lximmune, cell.1 = "CD20+", cell.2 = "CD3+CD8-",
+boxplot_CD20_CD4_lcross <- lcross_boxplot(lximmune, cell.1 = "CD20+", cell.2 = "CD3+CD8-",
                         label.y = 0.22, returndata=F)
-fig4i
+boxplot_CD20_CD4_lcross
 ```
 
 ### Kaplan-meier
 
 ```{r}
-fig4i2 <- lcross_km(lximmune, cell.1 = "CD20+", cell.2 = "CD3+CD8-",
+km_CD20_CD4_lcross_OS <- lcross_km(lximmune, cell.1 = "CD20+", cell.2 = "CD3+CD8-",
                     event_type = "OS", returndata = F)
-fig4i2
+km_CD20_CD4_lcross_OS
 ```
 
 ### Risk table 
 
 ```{r}
-rt_fig4i2 <- faceted_risktable(fig4i2, faceted.by =  "delta_l") +
+rt_km_CD20_CD4_lcross_OS <- faceted_risktable(km_CD20_CD4_lcross_OS, faceted.by =  "delta_l") +
   ggtitle("Risk table for delta L CD20+ <-> CD3+CD8-")
-rt_fig4i2
+rt_km_CD20_CD4_lcross_OS
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig4i), width = 12, height = 7)
-fig4i
-fig4i2
-rt_fig4i2
+pdf(file = here(params$boxplot_CD20_CD4_lcross_km_OS), width = 12, height = 7)
+boxplot_CD20_CD4_lcross
+km_CD20_CD4_lcross_OS
+rt_km_CD20_CD4_lcross_OS
 dev.off()
 ```
 

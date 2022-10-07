@@ -58,16 +58,16 @@ rule spatial_figures:
     script="src/utils/rmarkdown.R"
   output:
     report="reports/figures/spatial_figures.pdf",
-    fig2b="figures/Fig2b_CD20_density_boxplot.pdf",
-    fig2c="figures/Fig2c_CD20_density_km.pdf",
-    fig2e="figures/Fig2e_CD20_l_boxplot.pdf",
-    fig2f="figures/Fig2f_Cd20_l_km.pdf",
-    fig4d="figures/Fig4d_CD8_density_boxplot_km.pdf",
-    fig4e="figures/Fig4e_CD8_l_boxplot_km.pdf",
-    fig4f="figures/Fig4f_CD8_PanCk_lcross_boxplot_km.pdf",
-    fig4g="figures/Fig4g_CD8_CD4_lcross_boxplot_km.pdf",
-    fig4h="figures/Fig4h_CD20_CD8_lcross_boxplot_km.pdf",
-    fig4i="figures/Fig4i_CD20_CD4_lcross_boxplot_km.pdf"
+    boxplot_CD20_density="figures/Fig2b_CD20_density_boxplot.pdf",
+    km_CD20_density_OS="figures/Fig2c_CD20_density_km_OS.pdf",
+    boxplot_CD20_lstat="figures/Fig2e_CD20_l_boxplot.pdf",
+    km_CD20_lstat_OS="figures/Fig2f_Cd20_l_km_OS.pdf",
+    boxplot_CD8_density_km_OS="figures/Fig4d_CD8_density_boxplot_km_OS.pdf",
+    boxplot_CD8_l_km_OS="figures/Fig4e_CD8_l_boxplot_km_OS.pdf",
+    boxplot_CD8_PancK_lcross_km_OS="figures/Fig4f_CD8_PanCk_lcross_boxplot_km_OS.pdf",
+    boxplot_CD8_CD4_lcross_km_OS="figures/Fig4g_CD8_CD4_lcross_boxplot_km_OS.pdf",
+    boxplot_CD20_CD8_lcross_km_OS="figures/Fig4h_CD20_CD8_lcross_boxplot_km_OS.pdf",
+    boxplot_CD20_CD4_lcross_km_OS="figures/Fig4i_CD20_CD4_lcross_boxplot_km_OS.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
@@ -76,16 +76,16 @@ rule spatial_figures:
     " --spatstat_l {input.spatstat_l}"
     " --spatstat_lcross_immune {input.spatstat_lcross_immune}"
     " --spatstat_lcross_panck {input.spatstat_lcross_panck}"
-    " --fig2b {output.fig2b}"
-    " --fig2c {output.fig2c}"
-    " --fig2e {output.fig2e}"
-    " --fig2f {output.fig2f}"
-    " --fig4d {output.fig4d}"
-    " --fig4e {output.fig4e}"
-    " --fig4f {output.fig4f}"
-    " --fig4g {output.fig4g}"
-    " --fig4h {output.fig4h}"
-    " --fig4i {output.fig4i}"
+    " --boxplot_CD20_density {output.boxplot_CD20_density}"
+    " --km_CD20_density_OS {output.km_CD20_density_OS}"
+    " --boxplot_CD20_lstat {output.boxplot_CD20_lstat}"
+    " --km_CD20_lstat_OS {output.km_CD20_lstat_OS}"
+    " --boxplot_CD8_density_km_OS {output.boxplot_CD8_density_km_OS}"
+    " --boxplot_CD8_l_km_OS {output.boxplot_CD8_l_km_OS}"
+    " --boxplot_CD8_PancK_lcross_km_OS {output.boxplot_CD8_PancK_lcross_km_OS}"
+    " --boxplot_CD8_CD4_lcross_km_OS {output.boxplot_CD8_CD4_lcross_km_OS}"
+    " --boxplot_CD20_CD8_lcross_km_OS {output.boxplot_CD20_CD8_lcross_km_OS}"
+    " --boxplot_CD20_CD4_lcross_km_OS {output.boxplot_CD20_CD4_lcross_km_OS}"
 
 rule stainings:
   input:
