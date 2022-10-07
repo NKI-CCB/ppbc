@@ -108,18 +108,10 @@ reports/rnaseq/11_clustering_involution.Rmd
 
 13A - reports/figures/spatial_figures.Rmd
 13B - reports/figures/spatial_figures.Rmd
-
+13C - reports/figures/CD38_TAPC_TILs.Rmd
+13D - reports/figures/CD38_TAPC_TILs.Rmd
 
 #### To do ####
-
-Fig. S13. 
-C.	Code Hanne: 01_TAPC_scoring.Rmd
-# DRS - plasma count
-#### KM by plasma score - without PPBCDL
-D.	Code Hanne: 02_CD38_infiltration.Rmd
-# DRS - CD38 count
-## Tumor
-### stratified CD38 – only PPBCpw and npbc
 
 Fig. S14. 
 Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd

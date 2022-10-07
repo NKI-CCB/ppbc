@@ -107,3 +107,5 @@ Minor changes to p values
 
 13A - Minor changes to p values
 13B - Minor changes to p values
+13C - First panel looks pretty different, but the conclusion doesn't change
+

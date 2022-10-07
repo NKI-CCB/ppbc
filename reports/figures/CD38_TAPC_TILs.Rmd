@@ -212,6 +212,66 @@ boxplot_TIL
 dev.off()
 ```
 
+## Sup Fig 13C- KM TAPC DRS
+
+```{r}
+km_TAPC_DRS <- km(
+  figuredata, covariate = "TAPC", event_type = "DRS",
+  study_groups = c("PP-BCpw", "Pr-BC", "NP-BC"),
+  surv_formula=as.formula("Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + TAPC"),
+  returndata = F, returnfit = F
+)
+
+km_TAPC_DRS
+```
+
+### Risk table
+
+```{r}
+rt_km_TAPC_DRS <- faceted_risktable(km_TAPC_DRS, faceted.by = "TAPC") +
+  ggtitle("Risk table for TAPC DRS")
+rt_km_TAPC_DRS
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$km_TAPC_DRS), width = 12, height = 7)
+km_TAPC_DRS
+rt_km_TAPC_DRS
+dev.off()
+```    
+    
+## Sup Fig 13D- KM CD38 DRS
+
+```{r}
+km_CD38_DRS <- km(
+  rename(figuredata, CD38 = TI_CD38), covariate = "CD38", event_type = "DRS",
+  study_groups = c("PP-BCpw", "NP-BC"),
+  surv_formula=as.formula("Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + CD38"),
+  returndata = F, returnfit = F
+)
+
+km_CD38_DRS
+```
+
+### Risk table
+
+```{r}
+rt_km_CD38_DRS <-faceted_risktable(km_CD38_DRS, faceted.by = "CD38") +
+  ggtitle("Risk table for CD38 DRS")
+rt_km_CD38_DRS
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$km_CD38_DRS), width = 12, height = 7)
+km_CD38_DRS
+rt_km_CD38_DRS
+dev.off()
+```
+
 ## Session info
 
 ```{r}

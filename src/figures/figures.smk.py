@@ -105,14 +105,14 @@ rule stainings:
     boxplot_CD38="figures/Fig2k_CD38_boxplot.pdf",
     km_CD38_OS="figures/Fig2l_CD38_KM_OS.pdf",
     boxplot_TIL="figures/Fig4a_TIL_boxplot.pdf",
-    km_TAPC_DRS="figures/supfigs/Supfig13c_TAPC_KM_DRS.pdf"
+    km_TAPC_DRS="figures/supfigs/Supfig13c_TAPC_KM_DRS.pdf",
     km_CD38_DRS="figures/supfigs/Supfig13d_CD38_KM_DRS.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
     " --TAPC_PPBC_cor {output.TAPC_PPBC_cor}"
     " --km_TAPC_OS {output.km_TAPC_OS}"
-    " --boxplot_CD38 {output.boxplot_CD38}
+    " --boxplot_CD38 {output.boxplot_CD38}"
     " --km_CD38_OS {output.km_CD38_OS}"
     " --boxplot_TIL {output.boxplot_TIL}"
     " --km_TAPC_DRS {output.km_TAPC_DRS}"
