@@ -12,6 +12,8 @@ params:
     boxplot_cd8: "figures/Fig4b_cibersort_CD8_boxplot.pdf"
     km_cd8: "figures/Fig4c_cibersort_CD8_km.pdf"
     boxplot_b_subtypes: "figures/supfigs/Supfig12b_boxplot_cibersort_B_subtypes.pdf"
+    km_plasmaB: "figures/supfigs/Supfig12c_kaplan_cibersort_plasmaB_OS_DRS.pdf"
+    km_memoryB: "figures/supfigs/Supfig12d_kaplan_cibersort_memoryB_OS_DRS.pdf"
 ---
 
 ## Dependencies
@@ -205,6 +207,113 @@ supFigDir <- file.path(here("figures/supfigs"))
 dir.create(figureDir, showWarnings = F)
 pdf(file = here(params$boxplot_b_subtypes), width = 10, height = 7)
 boxplot_b_subtypes
+dev.off()
+```
+
+## Cibersort Plasma B OS and DRS
+
+### Overall survival
+
+```{r}
+km_plasmaB_OS <- ciber_km(
+  rename(figuredata, plasma_B = Plasma_cat), cell_type = "plasma_B", event_type = "OS",
+  surv_formula=as.formula("Surv(time=time_OS_months, event=death) ~ study_group + plasma_B"),
+  returndata = F, returnfit = F
+)
+
+km_plasmaB_OS
+```
+
+### OS Risk table
+
+```{r}
+rt_km_plasmaB_OS <- faceted_risktable(km_plasmaB_OS, faceted.by = "plasma_B") +
+  ggtitle("Risk table for OS plasma B")
+rt_km_plasmaB_OS
+```
+
+### Distant recurrence
+
+```{r}
+km_plasmaB_DRS <- ciber_km(
+  rename(figuredata, plasma_B = Plasma_cat), cell_type = "plasma_B", event_type = "DRS",
+  surv_formula=as.formula("Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + plasma_B"),
+  returndata = F, returnfit = F
+)
+
+km_plasmaB_DRS
+```
+
+### DRS Risk table
+
+```{r}
+rt_km_plasmaB_DRS <- faceted_risktable(km_plasmaB_DRS, faceted.by = "plasma_B") +
+  ggtitle("Risk table for DRS plasma B")
+rt_km_plasmaB_DRS
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$km_plasmaB), width = 12, height = 7)
+km_plasmaB_OS
+rt_km_plasmaB_OS
+km_plasmaB_DRS
+rt_km_plasmaB_DRS
+dev.off()
+```
+
+
+## Cibersort Memory B OS and DRS
+
+### Overall survival
+
+```{r}
+km_memoryB_OS <- ciber_km(
+  rename(figuredata, memory_B = memory_B_cat), cell_type = "memory_B", event_type = "OS",
+  surv_formula=as.formula("Surv(time=time_OS_months, event=death) ~ study_group + memory_B"),
+  returndata = F, returnfit = F
+)
+
+km_memoryB_OS
+```
+
+### OS Risk table
+
+```{r}
+rt_km_memoryB_OS <- faceted_risktable(km_memoryB_OS, faceted.by = "memory_B") +
+  ggtitle("Risk table for OS memory B")
+rt_km_memoryB_OS
+```
+
+### Distant recurrence
+
+```{r}
+km_memoryB_DRS <- ciber_km(
+  rename(figuredata, memory_B = Plasma_cat), cell_type = "memory_B", event_type = "DRS",
+  surv_formula=as.formula("Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + memory_B"),
+  returndata = F, returnfit = F
+)
+
+km_memoryB_DRS
+```
+
+### DRS Risk table
+
+```{r}
+rt_km_memoryB_DRS <- faceted_risktable(km_memoryB_DRS, faceted.by = "memory_B") +
+  ggtitle("Risk table for DRS memory B")
+rt_km_memoryB_DRS
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$km_memoryB), width = 12, height = 7)
+km_memoryB_OS
+rt_km_memoryB_OS
+km_memoryB_DRS
+rt_km_memoryB_DRS
 dev.off()
 ```
 

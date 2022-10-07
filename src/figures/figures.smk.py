@@ -135,6 +135,8 @@ rule ciberfigs:
     boxplot_cd8="figures/Fig4b_cibersort_CD8_boxplot.pdf",
     km_cd8="figures/Fig4c_cibersort_CD8_km.pdf",
     boxplot_b_subtypes="figures/supfigs/Supfig12b_boxplot_cibersort_B_subtypes.pdf",
+    km_plasmaB="figures/supfigs/Supfig12c_kaplan_cibersort_plasmaB_OS_DRS.pdf",
+    km_memoryB="figures/supfigs/Supfig12d_kaplan_cibersort_memoryB_OS_DRS.pdf",
     report="reports/figures/ciberfigs.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
@@ -142,6 +144,8 @@ rule ciberfigs:
     " --boxplot_cd8 {output.boxplot_cd8}"
     " --km_cd8 {output.km_cd8}"
     " --boxplot_b_subtypes {output.boxplot_b_subtypes}"
+    " --km_plasmaB {output.km_plasmaB}"
+    " --km_memoryB {output.km_memoryB}"
     
 rule figure_genes:
   input:
