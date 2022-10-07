@@ -17,22 +17,14 @@ params:
     spatstat_lcross_panck: "data/vectra/processed/11_spatstat_lcross_panck.Rds"
     fig2b: "figures/Fig2b_CD20_density_boxplot.pdf"
     fig2c: "figures/Fig2c_CD20_density_km.pdf"
-    rt_fig2c: "figures/Fig2c_risktable.csv"
     fig2e: "figures/Fig2e_CD20_l_boxplot.pdf"
     fig2f: "figures/Fig2f_Cd20_l_km.pdf"
-    rt_fig2f: "figures/Fig2f_risktable.csv"
     fig4d: "figures/Fig4d_CD8_density_boxplot_km.pdf"
-    rt_fig4d: "figures/Fig4d_risktable.csv"
     fig4e: "figures/Fig4e_CD8_l_boxplot_km.pdf"
-    rt_fig4e: "figures/Fig4e_risktable.csv"
     fig4f: "figures/Fig4f_CD8_PanCk_lcross_boxplot_km.pdf"
-    rt_fig4f: "figures/Fig4f_risktable.csv"
     fig4g: "figures/Fig4g_CD8_CD4_lcross_boxplot_km.pdf"
-    rt_fig4g: "figures/Fig4g_risktable.csv"
     fig4h: "figures/Fig4h_CD20_CD8_lcross_boxplot_km.pdf"
-    rt_fig4h: "figures/Fig4h_risktable.csv"
     fig4i: "figures/Fig4i_CD20_CD4_lcross_boxplot_km.pdf"
-    rt_fig4i: "figures/Fig4i_risktable.csv"
 ---
 
 ## Dependencies
@@ -53,6 +45,10 @@ library(conflicted)
 conflict_prefer("filter", "dplyr")
 
 theme_set(theme_bw())
+```
+
+```{r}
+source(here("src/figures/faceted_risktable.R"))
 ```
 
 ## Load data
@@ -210,23 +206,9 @@ fig2c
 
 ### Risk table
 
-```{r, fig.height=7, fig.width=12}
-risktable <- function(ggkm, response, text.size = 8){
-  ggplot(ggkm$data, aes(time, study_group)) + 
-    ggrepel::geom_text_repel(aes(label = n.risk)) +
-    facet_wrap(as.formula(paste("~", response))) + theme_bw() + 
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white", size = 1),
-          axis.text.x = element_text(color="black", size = text.size+2),
-          axis.text.y = element_text(color="black", size = text.size),
-          axis.title = element_text(color="black", size = text.size+4),
-          strip.text = element_text(color="black", size = text.size))+
-    ggtitle("Risk Tables") +
-    xlab("Time") + ylab("")
-}
-
-rt_fig2c <- risktable(fig2c, response = "density")
+```{r}
+rt_fig2c <- faceted_risktable(fig2c, faceted.by = "density") +
+  ggtitle("Risk table for CD20+ density")
 rt_fig2c
 ```
 
@@ -237,12 +219,6 @@ pdf(file = here(params$fig2c), width = 12, height = 7)
 fig2c
 rt_fig2c
 dev.off()
-```
-
-Also save risk table as csv.
-
-```{r}
-write_csv(fig2c$data, here(params$rt_fig2c))
 ```
 
 ## Figure 2E - CD20 delta L boxplot
@@ -358,8 +334,9 @@ fig2f
 
 ### Risk table
 
-```{r, fig.height=7, fig.width=12}
-rt_fig2f <- risktable(fig2f, response = "delta_l")
+```{r}
+rt_fig2f <- faceted_risktable(fig2f, faceted.by = "delta_l") +
+  ggtitle("Risk table for delta L: CD20+")
 rt_fig2f
 ```
 
@@ -370,12 +347,6 @@ pdf(file = here(params$fig2f), width = 12, height = 7)
 fig2f
 rt_fig2f
 dev.off()
-```
-
-Also save risk table as csv.
-
-```{r}
-write_csv(fig2f$data, here(params$rt_fig2f))
 ```
 
 ## Figure 4D - CD8 density boxplot and KM
@@ -409,8 +380,9 @@ fig4d2
 
 ### Risk table 
 
-```{r, fig.height=7, fig.width=12}
-rt_fig4d2 <- risktable(fig4d2, response = "density")
+```{r}
+rt_fig4d2 <- faceted_risktable(fig4d2, faceted.by = "density") +
+  ggtitle("Risk table for CD3+CD8+ density")
 rt_fig4d2
 ```
 
@@ -422,12 +394,6 @@ fig4d
 fig4d2
 rt_fig4d2
 dev.off()
-```
-
-Also save risk table as csv.
-
-```{r}
-write_csv(fig4d2$data, here(params$rt_fig4d))
 ```
 
 ## Figure 4E - CD8+ delta L boxplot and KM
@@ -448,8 +414,9 @@ fig4e2
 
 ### Risk table 
 
-```{r, fig.height=7, fig.width=12}
-rt_fig4e2 <- risktable(fig4e2, response = "delta_l")
+```{r}
+rt_fig4e2 <- faceted_risktable(fig4e2, faceted.by = "delta_l") +
+  ggtitle("Risk table for CD3+CD8+ delta L")
 rt_fig4e2
 ```
 
@@ -461,12 +428,6 @@ fig4e
 fig4e2
 rt_fig4e2
 dev.off()
-```
-
-Also save risk table as csv.
-
-```{r}
-write_csv(fig4e2$data, here(params$rt_fig4e))
 ```
 
 ## Figure 4F - CD3+CD8+ <-> PanCK L cross boxplot and KM
@@ -587,8 +548,9 @@ fig4f2
 
 ### Risk table 
 
-```{r, fig.height=7, fig.width=12}
-rt_fig4f2 <- risktable(fig4f2, response = "delta_l")
+```{r}
+rt_fig4f2 <- faceted_risktable(fig4f2, faceted.by = "delta_l") +
+  ggtitle("Risk table for delta L: CD3+CD8+ <-> PanCK+")
 rt_fig4f2
 ```
 
@@ -600,12 +562,6 @@ fig4f
 fig4f2
 rt_fig4f2
 dev.off()
-```
-
-Also save risk table as csv.
-
-```{r}
-write_csv(fig4f2$data, here(params$rt_fig4f))
 ```
 
 ## Figure 4G - CD3+CD8+ <-> CD3+CD8- L cross boxplot and KM
@@ -628,8 +584,9 @@ fig4g2
 
 ### Risk table 
 
-```{r, fig.height=7, fig.width=12}
-rt_fig4g2 <- risktable(fig4g2, response = "delta_l")
+```{r}
+rt_fig4g2 <- faceted_risktable(fig4g2, faceted.by = "delta_l") +
+  ggtitle("Risk table for delta L: CD3+CD8+ <-> CD3+CD8-")
 rt_fig4g2
 ```
 
@@ -641,12 +598,6 @@ fig4g
 fig4g2
 rt_fig4g2
 dev.off()
-```
-
-Also save risk table as csv.
-
-```{r}
-write_csv(fig4g2$data, here(params$rt_fig4g))
 ```
 
 ## Figure 4H - CD20+ <-> CD3+CD8+ L cross boxplot and KM
@@ -669,8 +620,9 @@ fig4h2
 
 ### Risk table 
 
-```{r, fig.height=7, fig.width=12}
-rt_fig4h2 <- risktable(fig4h2, response = "delta_l")
+```{r}
+rt_fig4h2 <- faceted_risktable(fig4h2, faceted.by =  "delta_l") +
+  ggtitle("Risk table for delta L: CD20+ <-> CD3+CD8+")
 rt_fig4h2
 ```
 
@@ -682,12 +634,6 @@ fig4h
 fig4h2
 rt_fig4h2
 dev.off()
-```
-
-Also save risk table as csv.
-
-```{r}
-write_csv(fig4h2$data, here(params$rt_fig4h))
 ```
 
 ## Figure 4I - CD20+ <-> CD3+CD8- L cross boxplot and KM
@@ -710,8 +656,9 @@ fig4i2
 
 ### Risk table 
 
-```{r, fig.height=7, fig.width=12}
-rt_fig4i2 <- risktable(fig4i2, response = "delta_l")
+```{r}
+rt_fig4i2 <- faceted_risktable(fig4i2, faceted.by =  "delta_l") +
+  ggtitle("Risk table for delta L CD20+ <-> CD3+CD8-")
 rt_fig4i2
 ```
 
@@ -723,12 +670,6 @@ fig4i
 fig4i2
 rt_fig4i2
 dev.off()
-```
-
-Also save risk table as csv.
-
-```{r}
-write_csv(fig4i2$data, here(params$rt_fig4i))
 ```
 
 ## Session info

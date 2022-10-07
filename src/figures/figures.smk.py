@@ -53,28 +53,21 @@ rule spatial_figures:
     spatstat_l="data/vectra/processed/11_spatstat_l.Rds",
     spatstat_lcross_immune="data/vectra/processed/11_spatstat_lcross_immune.Rds",
     spatstat_lcross_panck="data/vectra/processed/11_spatstat_lcross_panck.Rds",
+    lib="src/figures/faceted_risktable.R",
     rmd="reports/figures/spatial_figures.Rmd",
     script="src/utils/rmarkdown.R"
   output:
     report="reports/figures/spatial_figures.pdf",
     fig2b="figures/Fig2b_CD20_density_boxplot.pdf",
     fig2c="figures/Fig2c_CD20_density_km.pdf",
-    rt_fig2c="figures/Fig2c_risktable.csv",
     fig2e="figures/Fig2e_CD20_l_boxplot.pdf",
     fig2f="figures/Fig2f_Cd20_l_km.pdf",
-    rt_fig2f="figures/Fig2f_risktable.csv",
     fig4d="figures/Fig4d_CD8_density_boxplot_km.pdf",
-    rt_fig4d="figures/Fig4d_risktable.csv",
     fig4e="figures/Fig4e_CD8_l_boxplot_km.pdf",
-    rt_fig4e="figures/Fig4e_risktable.csv",
     fig4f="figures/Fig4f_CD8_PanCk_lcross_boxplot_km.pdf",
-    rt_fig4f="figures/Fig4f_risktable.csv",
     fig4g="figures/Fig4g_CD8_CD4_lcross_boxplot_km.pdf",
-    rt_fig4g="figures/Fig4g_risktable.csv",
     fig4h="figures/Fig4h_CD20_CD8_lcross_boxplot_km.pdf",
-    rt_fig4h="figures/Fig4h_risktable.csv",
-    fig4i="figures/Fig4i_CD20_CD4_lcross_boxplot_km.pdf",
-    rt_fig4i="figures/Fig4i_risktable.csv"
+    fig4i="figures/Fig4i_CD20_CD4_lcross_boxplot_km.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
@@ -85,54 +78,44 @@ rule spatial_figures:
     " --spatstat_lcross_panck {input.spatstat_lcross_panck}"
     " --fig2b {output.fig2b}"
     " --fig2c {output.fig2c}"
-    " --rt_fig2c {output.rt_fig2c}"
     " --fig2e {output.fig2e}"
     " --fig2f {output.fig2f}"
-    " --rt_fig2f {output.rt_fig2f}"
     " --fig4d {output.fig4d}"
-    " --rt_fig4d {output.rt_fig4d}"
     " --fig4e {output.fig4e}"
-    " --rt_fig4e {output.rt_fig4e}"
     " --fig4f {output.fig4f}"
-    " --rt_fig4f {output.rt_fig4f}"
     " --fig4g {output.fig4g}"
-    " --rt_fig4g {output.rt_fig4g}"
     " --fig4h {output.fig4h}"
-    " --rt_fig4h {output.rt_fig4h}"
     " --fig4i {output.fig4i}"
-    " --rt_fig4i {output.rt_fig4i}"
 
 rule stainings:
   input:
     figuredata="data/figures/00_figuredata.Rds",
     rmd="reports/figures/CD38_TAPC_TILs.Rmd",
+    lib="src/figures/faceted_risktable.R",
     script="src/utils/rmarkdown.R"
   output:
     report="reports/figures/CD38_TAPC_TILs.pdf",
     fig2h="figures/Fig2h_TAPC_PPBC_cor.pdf",
     fig2i="figures/Fig2i_TAPC_KM.pdf",
-    rt_fig2i="figures/Fig2i_risktable.csv",
     fig2k="figures/Fig2k_CD38_boxplot.pdf",
     fig2l="figures/Fig2l_CD38_KM.pdf",
-    rt_fig2l="figures/Fig2l_risktable.csv",
     fig4a="figures/Fig4a_TIL_boxplot.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
     " --fig2h {output.fig2h}"
     " --fig2i {output.fig2i}"
-    " --rt_fig2i {output.rt_fig2i}"
     " --fig4a {output.fig4a}"
 
 rule isotypes:
   input:
     figuredata="data/figures/00_figuredata.Rds",
     rmd="reports/figures/isotypes.Rmd",
+    lib="src/figures/faceted_risktable.R",
     script="src/utils/rmarkdown.R"
   output:
     fig3a="figures/Fig3a_boxplot_isotypes.pdf",
     fig3bc="figures/Fig3bc_km_isotypes.pdf",
-    rt_fig3bc="figures/Fig3bc_risktable.csv",
     fig3d="figures/Fig3d_cor_Ig_TAPC.pdf",
     report="reports/figures/isotypes.pdf"
   shell:
@@ -140,18 +123,17 @@ rule isotypes:
     " --figuredata {input.figuredata}"
     " --fig3a {output.fig3a}"
     " --fig3bc {output.fig3bc}"
-    " --rt_fig3bc {output.rt_fig3bc}"
     " --fig3d {output.fig3d}"
     
 rule ciberfigs:
   input:
     figuredata="data/figures/00_figuredata.Rds",
     rmd="reports/figures/ciberfigs.Rmd",
+    lib="src/figures/faceted_risktable.R",
     script="src/utils/rmarkdown.R"
   output:
     boxplot_cd8="figures/Fig4b_cibersort_CD8_boxplot.pdf",
     km_cd8="figures/Fig4c_cibersort_CD8_km.pdf",
-    rt_km_cd8="figures/Fig4c_risktable.csv",
     boxplot_b_subtypes="figures/supfigs/Supfig12b_boxplot_cibersort_B_subtypes.pdf",
     report="reports/figures/ciberfigs.pdf"
   shell:
@@ -159,7 +141,6 @@ rule ciberfigs:
     " --figuredata {input.figuredata}"
     " --boxplot_cd8 {output.boxplot_cd8}"
     " --km_cd8 {output.km_cd8}"
-    " --rt_km_cd8 {output.rt_km_cd8}"
     " --boxplot_b_subtypes {output.boxplot_b_subtypes}"
     
 rule figure_genes:

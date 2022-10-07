@@ -11,7 +11,6 @@ params:
     figuredata: "data/figures/00_figuredata.Rds"
     fig3a: "figures/Fig3a_boxplot_isotypes.pdf"
     fig3bc: "figures/Fig3bc_km_isotypes.pdf"
-    rt_fig3bc: "figures/Fig3bc_risktable.csv"
     fig3d: "figures/Fig3d_cor_Ig_TAPC.pdf"
 ---
 
@@ -34,6 +33,10 @@ library(conflicted)
 conflict_prefer("filter", "dplyr")
 
 theme_set(theme_bw())
+```
+
+```{r}
+source(here("src/figures/faceted_risktable.R"))
 ```
 
 ## Load data
@@ -157,24 +160,10 @@ fig3b
 
 ### Risk table
 
-```{r, fig.height=6, fig.width=9}
-risktable <- function(ggkm, response, text.size = 8){
-  ggplot(ggkm$data, aes(time, study_group)) + 
-    ggrepel::geom_text_repel(aes(label = n.risk)) +
-    facet_wrap(as.formula(paste("~", response))) + theme_bw() + 
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white", size = 1),
-          axis.text.x = element_text(color="black", size = text.size+2),
-          axis.text.y = element_text(color="black", size = text.size),
-          axis.title = element_text(color="black", size = text.size+4),
-          strip.text = element_text(color="black", size = text.size))+
-    ggtitle("Risk Tables") +
-    xlab("Time") + ylab("")
-}
-
+```{r}
 rt_fig3b <- lapply(names(fig3b), function(x){
-  risktable(fig3b[[x]], response = "isotype_group")
+  faceted_risktable(fig3b[[x]], faceted.by = "isotype_group") +
+    ggtitle(paste("Risk table for", x))
 }) %>% set_names(names(fig3b))
 rt_fig3b
 ```
@@ -186,13 +175,6 @@ pdf(file = here(params$fig3b), width = 9, height = 6)
 fig3b
 rt_fig3b
 dev.off()
-```
-
-Also save risk table as csv.
-
-```{r}
-write_csv(bind_rows(lapply(fig3b, function(x){x$data}), .id = "isotype"),
-          here(params$rt_fig3b))
 ```
 
 ## Fig 3D - Correlation IgA/IgG and TAPC in PP-BCpw

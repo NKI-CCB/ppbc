@@ -11,10 +11,8 @@ params:
     figuredata: "data/figures/00_figuredata.Rds"
     fig2h: "figures/Fig2h_TAPC_PPBC_cor.pdf"
     fig2i: "figures/Fig2i_TAPC_KM.pdf"
-    rt_fig2i: "figures/Fig2i_risktable.csv"
     fig2k: "figures/Fig2k_CD38_boxplot.pdf"
     fig2l: "figures/Fig2l_CD38_KM.pdf"
-    rt_fig2l: "figures/Fig2l_risktable.csv"
     fig4a: "figures/Fig4a_TIL_boxplot.pdf"
 ---
 
@@ -37,6 +35,10 @@ library(conflicted)
 conflict_prefer("filter", "dplyr")
 
 theme_set(theme_bw())
+```
+
+```{r}
+source(here("src/figures/faceted_risktable.R"))
 ```
 
 ## Load data
@@ -227,23 +229,8 @@ fig2i
 
 ### Risk table
 
-```{r, fig.height=7, fig.width=12}
-risktable <- function(ggkm, response, text.size = 8){
-  ggplot(ggkm$data, aes(time, study_group)) + 
-    ggrepel::geom_text_repel(aes(label = n.risk)) +
-    facet_wrap(as.formula(paste("~", response))) + theme_bw() + 
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white", size = 1),
-          axis.text.x = element_text(color="black", size = text.size+2),
-          axis.text.y = element_text(color="black", size = text.size),
-          axis.title = element_text(color="black", size = text.size+4),
-          strip.text = element_text(color="black", size = text.size))+
-    ggtitle("Risk Tables") +
-    xlab("Time") + ylab("")
-}
-
-rt_fig2i <- risktable(fig2i, response = "TAPC")
+```{r}
+rt_fig2i <-faceted_risktable(fig2i, faceted.by = "TAPC")
 rt_fig2i
 ```
 
@@ -254,12 +241,6 @@ pdf(file = here(params$fig2i), width = 12, height = 7)
 fig2i
 rt_fig2i
 dev.off()
-```
-
-Also save risk table as csv.
-
-```{r}
-write_csv(fig2i$data, here(params$rt_fig2i))
 ```
 
 ## Fig 2K - Boxplot CD38
@@ -356,8 +337,8 @@ fig2l
 
 ### Risk table
 
-```{r, fig.height=7, fig.width=12}
-rt_fig2l <- risktable(fig2l, response = "CD38")
+```{r}
+rt_fig2l <-faceted_risktable(fig2l, faceted.by = "CD38")
 rt_fig2l
 ```
 
@@ -368,12 +349,6 @@ pdf(file = here(params$fig2l), width = 12, height = 7)
 fig2l
 rt_fig2l
 dev.off()
-```
-
-Also save risk table as csv.
-
-```{r}
-write_csv(fig2l$data, here(params$rt_fig2l))
 ```
 
 ## Fig 4A - TIL% boxplot

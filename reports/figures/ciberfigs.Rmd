@@ -11,7 +11,6 @@ params:
     figuredata: "data/figures/00_figuredata.Rds"
     boxplot_cd8: "figures/Fig4b_cibersort_CD8_boxplot.pdf"
     km_cd8: "figures/Fig4c_cibersort_CD8_km.pdf"
-    rt_km_cd8: "figures/Fig4c_risktable.csv"
     boxplot_b_subtypes: "figures/supfigs/Supfig12b_boxplot_cibersort_B_subtypes.pdf"
 ---
 
@@ -36,6 +35,10 @@ conflict_prefer("count", "dplyr")
 conflict_prefer("rename", "dplyr")
 
 theme_set(theme_bw())
+```
+
+```{r}
+source(here("src/figures/faceted_risktable.R"))
 ```
 
 ## Load data
@@ -85,7 +88,6 @@ dev.off()
 
 ## KM CD8 Cibersort
 
-
 ```{r}
 figuredata %>%
   filter(!is.na(CD8_cat)) %>%
@@ -95,74 +97,71 @@ figuredata %>%
 
 Due to power issues, omit lac. High/low is around the median density.
 
+Filtering for this and other KMs is either `time_OS_months > 20 | reason_death == "BC"` or `time_DRS_months > 20 | reason_death == "BC"`, depending on the formula.
+
 ```{r}
-CD8_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
+ciber_km <- function(df, cell_type, surv_formula, event_type = c("OS", "DRS"),
+                     omit_lac = T, returndata = F, returnfit = F){
   
-event_type <- match.arg(event_type)
+  df <- df[!is.na(df[,cell_type]),]
   
-  df <- df %>% 
-    dplyr::filter(
-      study_group %in% c("PP-BCpw", "Pr-BC", "NP-BC"),
-      !is.na(CD8_cat)
-    ) %>%
-    #The CD8 category is also CD3 pos, see the spatial pipeline
-    rename(CD8_CD3 = CD8_cat)
+  if(omit_lac){
+    df <- df %>% dplyr::filter(study_group %in% c("PP-BCpw", "Pr-BC", "NP-BC"))
+  }
   
-  df <- df[,c("CD8_CD3", "study_group", "sample_name", "time_OS_months", "death",
-              "reason_death", "time_DRS_months", "distant_recurrence")]
+  # For debugging or manual exploration of relevant columns
+  if(returndata){
+    return(df[,c(cell_type, "study_group", "sample_name", "time_OS_months", "death",
+                 "reason_death", "time_DRS_months", "distant_recurrence")])
+  }
   
-  if(returndata){return(df)}
-  
+  # Perform filtering depending on time variable
   if(event_type == "OS"){
     df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
       filter(time_OS_months > 20 | reason_death == "BC") %>%
       as.data.frame()
     y <- "Overall survival"
-    fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + CD8_CD3, data = df)
+    #fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + CD8_CD3, data = df)
   } else {
     df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
       filter(time_DRS_months > 20 | reason_death == "BC") %>%
       as.data.frame()
     y <- "Distant recurrence"
-    fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + CD8_CD3, data = df)
+    #fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + CD8_CD3, data = df)
   }
+  
+  # This is a weird workaround to avoid "object of type 'symbol' is not subsettable" errors
+  # Which would occur if you used fit <- survfit(surv_formula, data = df)
+  # See https://github.com/kassambara/survminer/issues/252
+  fit <- do.call(survfit, args = list(formula = surv_formula, data = df))
+  if(returnfit){return(fit)}
   
   ggsurvplot(
     fit, data = df,
     xlab = "Months", 
     ylab = paste(y,"probability"),
-    #title = paste(y, cell, "stratified by median density:", signif(med, 2)),
+    title = paste(y, cell_type, "stratified by median Cibersort fraction"),
     palette = study_colors[names(study_colors) %in% unique(df$study_group)],
     ggtheme = theme_bw(),
     pval = T,
-    facet.by = "CD8_CD3",
+    facet.by = cell_type,
     legend.title="Study group:"
   )
 }
 
-km_cd8 <- CD8_km(figuredata, event_type = "OS", returndata = F)
+km_cd8 <- ciber_km(
+  rename(figuredata, CD8_CD3 = CD8_cat), cell_type = "CD8_CD3", event_type = "OS",
+  surv_formula=as.formula("Surv(time=time_OS_months, event=death) ~ study_group + CD8_CD3"),
+  returndata = F, returnfit = F
+)
+
 km_cd8
 ```
 
 ### Risk table
 
-```{r, fig.height=7, fig.width=12}
-risktable <- function(ggkm, response, text.size = 8){
-  ggplot(ggkm$data, aes(time, study_group)) + 
-    ggrepel::geom_text_repel(aes(label = n.risk)) +
-    facet_wrap(as.formula(paste("~", response))) + theme_bw() + 
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white", size = 1),
-          axis.text.x = element_text(color="black", size = text.size+2),
-          axis.text.y = element_text(color="black", size = text.size),
-          axis.title = element_text(color="black", size = text.size+4),
-          strip.text = element_text(color="black", size = text.size))+
-    ggtitle("Risk Tables") +
-    xlab("Time") + ylab("")
-}
-
-rt_km_cd8 <- risktable(km_cd8, response = "CD8_CD3")
+```{r}
+rt_km_cd8 <- faceted_risktable(km_cd8, faceted.by = "CD8_CD3")
 rt_km_cd8
 ```
 
@@ -173,12 +172,6 @@ pdf(file = here(params$km_cd8), width = 12, height = 7)
 km_cd8
 rt_km_cd8
 dev.off()
-```
-
-Also save risk table as csv.
-
-```{r}
-write_csv(km_cd8$data, here(params$rt_km_cd8))
 ```
 
 ## Boxplot B cell subtypes
