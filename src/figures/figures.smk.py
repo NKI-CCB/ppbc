@@ -53,7 +53,7 @@ rule spatial_figures:
     spatstat_l="data/vectra/processed/11_spatstat_l.Rds",
     spatstat_lcross_immune="data/vectra/processed/11_spatstat_lcross_immune.Rds",
     spatstat_lcross_panck="data/vectra/processed/11_spatstat_lcross_panck.Rds",
-    lib="src/figures/faceted_risktable.R",
+    rt="src/figures/faceted_risktable.R",
     rmd="reports/figures/spatial_figures.Rmd",
     script="src/utils/rmarkdown.R"
   output:
@@ -95,27 +95,34 @@ rule stainings:
   input:
     figuredata="data/figures/00_figuredata.Rds",
     rmd="reports/figures/CD38_TAPC_TILs.Rmd",
-    lib="src/figures/faceted_risktable.R",
+    rt="src/figures/faceted_risktable.R",
+    study_km="src/figures/study_km.R",
     script="src/utils/rmarkdown.R"
   output:
     report="reports/figures/CD38_TAPC_TILs.pdf",
-    fig2h="figures/Fig2h_TAPC_PPBC_cor.pdf",
-    fig2i="figures/Fig2i_TAPC_KM.pdf",
-    fig2k="figures/Fig2k_CD38_boxplot.pdf",
-    fig2l="figures/Fig2l_CD38_KM.pdf",
-    fig4a="figures/Fig4a_TIL_boxplot.pdf"
+    TAPC_PPBC_cor="figures/Fig2h_TAPC_PPBC_cor.pdf",
+    km_TAPC_OS="figures/Fig2i_TAPC_KM_OS.pdf",
+    boxplot_CD38="figures/Fig2k_CD38_boxplot.pdf",
+    km_CD38_OS="figures/Fig2l_CD38_KM_OS.pdf",
+    boxplot_TIL="figures/Fig4a_TIL_boxplot.pdf",
+    km_TAPC_DRS="figures/supfigs/Supfig13c_TAPC_KM_DRS.pdf"
+    km_CD38_DRS="figures/supfigs/Supfig13d_CD38_KM_DRS.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
-    " --fig2h {output.fig2h}"
-    " --fig2i {output.fig2i}"
-    " --fig4a {output.fig4a}"
+    " --TAPC_PPBC_cor {output.TAPC_PPBC_cor}"
+    " --km_TAPC_OS {output.km_TAPC_OS}"
+    " --boxplot_CD38 {output.boxplot_CD38}
+    " --km_CD38_OS {output.km_CD38_OS}"
+    " --boxplot_TIL {output.boxplot_TIL}"
+    " --km_TAPC_DRS {output.km_TAPC_DRS}"
+    " --km_CD38_DRS {output.km_CD38_DRS}"
 
 rule isotypes:
   input:
     figuredata="data/figures/00_figuredata.Rds",
     rmd="reports/figures/isotypes.Rmd",
-    lib="src/figures/faceted_risktable.R",
+    rt="src/figures/faceted_risktable.R",
     script="src/utils/rmarkdown.R"
   output:
     fig3a="figures/Fig3a_boxplot_isotypes.pdf",
@@ -133,7 +140,7 @@ rule ciberfigs:
   input:
     figuredata="data/figures/00_figuredata.Rds",
     rmd="reports/figures/ciberfigs.Rmd",
-    lib="src/figures/faceted_risktable.R",
+    rt="src/figures/faceted_risktable.R",
     script="src/utils/rmarkdown.R"
   output:
     boxplot_cd8="figures/Fig4b_cibersort_CD8_boxplot.pdf",

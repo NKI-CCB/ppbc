@@ -40,6 +40,7 @@ theme_set(theme_bw())
 ```
 
 ```{r}
+source(here("src/figures/study_km.R"))
 source(here("src/figures/faceted_risktable.R"))
 ```
 
@@ -58,7 +59,7 @@ study_colors <- c("NP-BC"="#521262", "Pr-BC"="#AA96DA",
                   "PP-BCdl"="#112D4E", "PP-BCpw"="#46CDCF")
 ```
 
-## Cibersort CD8 boxplot
+## Fig 4B: Cibersort CD8 boxplot
 
 ```{r}
 boxplot_cd8 <- figuredata %>%
@@ -88,77 +89,26 @@ boxplot_cd8
 dev.off()
 ```
 
-## KM CD8 Cibersort
-
-```{r}
-figuredata %>%
-  filter(!is.na(CD8_cat)) %>%
-  group_by(CD8_cat, study_group) %>% count() %>%
-  pivot_wider(names_from = CD8_cat, values_from = n, values_fill = 0)
-```
+## Fig 4C: KM CD8 Cibersort
 
 Due to power issues, omit lac. High/low is around the median density.
 
 Filtering for this and other KMs is either `time_OS_months > 20 | reason_death == "BC"` or `time_DRS_months > 20 | reason_death == "BC"`, depending on the formula.
 
 ```{r}
-ciber_km <- function(df, cell_type, surv_formula, event_type = c("OS", "DRS"),
-                     omit_lac = T, returndata = F, returnfit = F){
-  
-  df <- df[!is.na(df[,cell_type]),]
-  
-  if(omit_lac){
-    df <- df %>% dplyr::filter(study_group %in% c("PP-BCpw", "Pr-BC", "NP-BC"))
-  }
-  
-  # For debugging or manual exploration of relevant columns
-  if(returndata){
-    return(df[,c(cell_type, "study_group", "sample_name", "time_OS_months", "death",
-                 "reason_death", "time_DRS_months", "distant_recurrence")])
-  }
-  
-  # Perform filtering depending on time variable
-  if(event_type == "OS"){
-    df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
-      filter(time_OS_months > 20 | reason_death == "BC") %>%
-      as.data.frame()
-    y <- "Overall survival"
-    #fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + CD8_CD3, data = df)
-  } else {
-    df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
-      filter(time_DRS_months > 20 | reason_death == "BC") %>%
-      as.data.frame()
-    y <- "Distant recurrence"
-    #fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + CD8_CD3, data = df)
-  }
-  
-  # This is a weird workaround to avoid "object of type 'symbol' is not subsettable" errors
-  # Which would occur if you used fit <- survfit(surv_formula, data = df)
-  # See https://github.com/kassambara/survminer/issues/252
-  fit <- do.call(survfit, args = list(formula = surv_formula, data = df))
-  if(returnfit){return(fit)}
-  
-  ggsurvplot(
-    fit, data = df,
-    xlab = "Months", 
-    ylab = paste(y,"probability"),
-    title = paste(y, cell_type, "stratified by median Cibersort fraction"),
-    palette = study_colors[names(study_colors) %in% unique(df$study_group)],
-    ggtheme = theme_bw(),
-    pval = T,
-    facet.by = cell_type,
-    legend.title="Study group:"
-  )
-}
-
-km_cd8 <- ciber_km(
-  rename(figuredata, CD8_CD3 = CD8_cat), cell_type = "CD8_CD3", event_type = "OS",
+km_cd8 <- km(
+  rename(figuredata, CD8_CD3 = CD8_cat), covariate = "CD8_CD3", event_type = "OS",
+  study_groups=c("PP-BCpw", "Pr-BC", "NP-BC"),
   surv_formula=as.formula("Surv(time=time_OS_months, event=death) ~ study_group + CD8_CD3"),
   returndata = F, returnfit = F
 )
 
+km_cd8 <- km_cd8 +
+  ggtitle(paste(km_cd8$plot$title, "Cibersort"))
+
 km_cd8
 ```
+
 
 ### Risk table
 
@@ -176,7 +126,7 @@ rt_km_cd8
 dev.off()
 ```
 
-## Boxplot B cell subtypes
+## Sup fig 12B: Boxplot B cell subtypes
 
 ```{r, fig.height=5, fig.width=8}
 boxplot_b_subtypes <- figuredata %>%
@@ -210,16 +160,20 @@ boxplot_b_subtypes
 dev.off()
 ```
 
-## Cibersort Plasma B OS and DRS
+## Sup fig 12C: Cibersort Plasma B OS and DRS
 
 ### Overall survival
 
 ```{r}
-km_plasmaB_OS <- ciber_km(
-  rename(figuredata, plasma_B = Plasma_cat), cell_type = "plasma_B", event_type = "OS",
+km_plasmaB_OS <- km(
+  rename(figuredata, plasma_B = Plasma_cat), covariate = "plasma_B", event_type = "OS",
+  study_groups=c("PP-BCpw", "Pr-BC", "NP-BC"),
   surv_formula=as.formula("Surv(time=time_OS_months, event=death) ~ study_group + plasma_B"),
   returndata = F, returnfit = F
-)
+) 
+
+km_plasmaB_OS <- km_plasmaB_OS +
+  ggtitle(paste(km_plasmaB_OS$plot$title, "Cibersort"))
 
 km_plasmaB_OS
 ```
@@ -235,11 +189,15 @@ rt_km_plasmaB_OS
 ### Distant recurrence
 
 ```{r}
-km_plasmaB_DRS <- ciber_km(
-  rename(figuredata, plasma_B = Plasma_cat), cell_type = "plasma_B", event_type = "DRS",
+km_plasmaB_DRS <- km(
+  rename(figuredata, plasma_B = Plasma_cat), covariate = "plasma_B", event_type = "DRS",
+  study_groups=c("PP-BCpw", "Pr-BC", "NP-BC"),
   surv_formula=as.formula("Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + plasma_B"),
   returndata = F, returnfit = F
 )
+
+km_plasmaB_DRS <- km_plasmaB_DRS +
+  ggtitle(paste(km_plasmaB_DRS$plot$title, "Cibersort"))
 
 km_plasmaB_DRS
 ```
@@ -264,16 +222,20 @@ dev.off()
 ```
 
 
-## Cibersort Memory B OS and DRS
+## Sup fig 12D: Cibersort Memory B OS and DRS
 
 ### Overall survival
 
 ```{r}
-km_memoryB_OS <- ciber_km(
-  rename(figuredata, memory_B = memory_B_cat), cell_type = "memory_B", event_type = "OS",
+km_memoryB_OS <- km(
+  rename(figuredata, memory_B = memory_B_cat), covariate = "memory_B", event_type = "OS",
+  study_groups=c("PP-BCpw", "Pr-BC", "NP-BC"),
   surv_formula=as.formula("Surv(time=time_OS_months, event=death) ~ study_group + memory_B"),
   returndata = F, returnfit = F
 )
+
+km_memoryB_OS <- km_memoryB_OS +
+  ggtitle(paste(km_memoryB_OS$plot$title, "Cibersort"))
 
 km_memoryB_OS
 ```
@@ -289,11 +251,15 @@ rt_km_memoryB_OS
 ### Distant recurrence
 
 ```{r}
-km_memoryB_DRS <- ciber_km(
-  rename(figuredata, memory_B = Plasma_cat), cell_type = "memory_B", event_type = "DRS",
+km_memoryB_DRS <- km(
+  rename(figuredata, memory_B = Plasma_cat), covariate = "memory_B", event_type = "DRS",
+  study_groups=c("PP-BCpw", "Pr-BC", "NP-BC"),
   surv_formula=as.formula("Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + memory_B"),
   returndata = F, returnfit = F
 )
+
+km_memoryB_DRS <- km_memoryB_DRS +
+  ggtitle(paste(km_memoryB_DRS$plot$title, "Cibersort"))
 
 km_memoryB_DRS
 ```

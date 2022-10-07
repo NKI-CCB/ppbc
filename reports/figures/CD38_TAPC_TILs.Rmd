@@ -1,5 +1,5 @@
 ---
-title: "CD38 and TAPC"
+title: "Stainings: CD38, TILs, and TAPC"
 author: "Kat Moore"
 date: "`r Sys.Date()`"
 output: 
@@ -9,11 +9,14 @@ output:
     highlight: kate
 params:
     figuredata: "data/figures/00_figuredata.Rds"
-    fig2h: "figures/Fig2h_TAPC_PPBC_cor.pdf"
-    fig2i: "figures/Fig2i_TAPC_KM.pdf"
-    fig2k: "figures/Fig2k_CD38_boxplot.pdf"
-    fig2l: "figures/Fig2l_CD38_KM.pdf"
-    fig4a: "figures/Fig4a_TIL_boxplot.pdf"
+    study_km: "src/figures/study_km.R"
+    TAPC_PPBC_cor: "figures/Fig2h_TAPC_PPBC_cor.pdf"
+    km_TAPC_OS: "figures/Fig2i_TAPC_KM_OS.pdf"
+    boxplot_CD38: "figures/Fig2k_CD38_boxplot.pdf"
+    km_CD38_OS: "figures/Fig2l_CD38_KM_OS.pdf"
+    boxplot_TIL: "figures/Fig4a_TIL_boxplot.pdf"
+    km_TAPC_DRS: "figures/supfigs/Supfig13c_TAPC_KM_DRS.pdf"
+    km_CD38_DRS: "figures/supfigs/Supfig13d_CD38_KM_DRS.pdf"
 ---
 
 ## Dependencies
@@ -39,6 +42,7 @@ theme_set(theme_bw())
 
 ```{r}
 source(here("src/figures/faceted_risktable.R"))
+source(here("src/figures/study_km.R"))
 ```
 
 ## Load data
@@ -60,7 +64,7 @@ study_colors <- c("NP-BC"="#521262", "Pr-BC"="#AA96DA", "PP-BCdl"="#112D4E", "PP
 ### Current version
 
 ```{r}
-fig2h <- figuredata %>%
+TAPC_PPBC_cor <- figuredata %>%
   filter(!is.na(TAPC_score)) %>%
   ggplot(aes(x = as.integer(study_group), y = TAPC_score)) +
   geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
@@ -71,7 +75,7 @@ fig2h <- figuredata %>%
   scale_x_continuous(breaks = seq(1,4,1), labels= levels(figuredata$study_group)) +
   xlab("Study group") + ylab("TAPC score")
 
-fig2h
+TAPC_PPBC_cor
 ```
 
 ### Save output
@@ -79,82 +83,40 @@ fig2h
 ```{r}
 figureDir = file.path(here("figures"))
 dir.create(figureDir, showWarnings = F)
-pdf(file = here(params$fig2h), width = 10, height = 7)
-fig2h
+pdf(file = here(params$TAPC_PPBC_cor), width = 10, height = 7)
+TAPC_PPBC_cor
 dev.off()
 ```
 
-## Fig 2i - KM TAPC
-
-```{r}
-figuredata %>%
-  filter(!is.na(TAPC)) %>%
-  group_by(TAPC, study_group) %>% count() %>%
-  pivot_wider(names_from = TAPC, values_from = n, values_fill = 0)
-```
+## Fig 2i - KM TAPC OS
 
 Due to power issues, omit lac. High/low is around the median density.
 
 ```{r}
-TAPC_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
-  
-event_type <- match.arg(event_type)
-  
-  df <- df %>% 
-    filter(
-      study_group %in% c("PP-BCpw", "Pr-BC", "NP-BC"),
-      !is.na(TAPC)
-    )
-  
-  df <- df[,c("TAPC", "study_group", "sample_name", "time_OS_months", "death",
-              "reason_death", "time_DRS_months", "distant_recurrence")]
-  
-  if(returndata){return(df)}
-  
-  if(event_type == "OS"){
-    df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
-      filter(time_OS_months > 20 | reason_death == "BC") %>%
-      as.data.frame()
-    y <- "Overall survival"
-    fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + TAPC, data = df)
-  } else {
-    df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
-      filter(time_DRS_months > 20 | reason_death == "BC") %>%
-      as.data.frame()
-    y <- "Distant recurrence"
-    fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + TAPC, data = df)
-  }
-  
-  ggsurvplot(
-    fit, data = df,
-    xlab = "Months", 
-    ylab = paste(y,"probability"),
-    #title = paste(y, cell, "stratified by median density:", signif(med, 2)),
-    palette = study_colors[names(study_colors) %in% unique(df$study_group)],
-    ggtheme = theme_bw(),
-    pval = T,
-    facet.by = "TAPC",
-    legend.title="Study group:"
-  )
-}
+km_TAPC_OS <- km(
+  figuredata, covariate = "TAPC", event_type = "OS",
+  study_groups = c("PP-BCpw", "Pr-BC", "NP-BC"),
+  surv_formula=as.formula("Surv(time=time_OS_months, event=death) ~ study_group + TAPC"),
+  returndata = F, returnfit = F
+)
 
-fig2i <- TAPC_km(figuredata, event_type = "OS", returndata = F)
-fig2i
+km_TAPC_OS
 ```
 
 ### Risk table
 
 ```{r}
-rt_fig2i <-faceted_risktable(fig2i, faceted.by = "TAPC")
-rt_fig2i
+rt_km_TAPC_OS <-faceted_risktable(km_TAPC_OS, faceted.by = "TAPC") +
+  ggtitle("Risk table for TAPC OS")
+rt_km_TAPC_OS
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig2i), width = 12, height = 7)
-fig2i
-rt_fig2i
+pdf(file = here(params$km_TAPC_OS), width = 12, height = 7)
+km_TAPC_OS
+rt_km_TAPC_OS
 dev.off()
 ```
 
@@ -163,7 +125,7 @@ dev.off()
 Using intratumoral CD38.
 
 ```{r}
-fig2k <- figuredata %>%
+boxplot_CD38 <- figuredata %>%
   rename(CD38 = TI_CD38_total) %>%
   filter(!is.na(CD38)) %>%
   ggplot(aes(x = factor(study_group,
@@ -178,91 +140,45 @@ fig2k <- figuredata %>%
   stat_compare_means(label.y = 65) +
   ggtitle("CD38+ density by study group")
 
-fig2k
+boxplot_CD38
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig2k), width = 12, height = 7)
-fig2k
+pdf(file = here(params$boxplot_CD38), width = 12, height = 7)
+boxplot_CD38
 dev.off()
 ```
 
-## Fig 2L - KM CD38
+## Fig 2L - KM CD38 OS
 
 Due to power issues, omit lac and prbc. High/low is around the median density.
 
 ```{r}
-figuredata %>%
-  rename(CD38 = TI_CD38) %>%
-  filter(!is.na(CD38)) %>%
-  group_by(CD38, study_group) %>% count() %>%
-  pivot_wider(names_from = CD38, values_from = n, values_fill = 0)
-```
+km_CD38_OS <- km(
+  rename(figuredata, CD38 = TI_CD38), covariate = "CD38", event_type = "OS",
+  study_groups = c("PP-BCpw", "NP-BC"),            
+  surv_formula=as.formula("Surv(time=time_OS_months, event=death) ~ study_group + CD38"),
+  returndata = F, returnfit = F
+)
 
-
-```{r}
-CD38_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
-  
-event_type <- match.arg(event_type)
-  
-  df <- df %>%
-    rename(CD38 = TI_CD38) %>%
-    filter(
-      study_group %in% c("PP-BCpw", "NP-BC"),
-      !is.na(CD38)
-    )
-  
-  df <- df[,c("CD38", "study_group", "sample_name", "time_OS_months", "death",
-              "reason_death", "time_DRS_months", "distant_recurrence")]
-  
-  if(returndata){return(df)}
-  
-  if(event_type == "OS"){
-    df <- df %>% filter(!is.na(death), !is.na(time_OS_months)) %>%
-      filter(time_OS_months > 20 | reason_death == "BC") %>%
-      as.data.frame()
-    y <- "Overall survival"
-    fit <- survfit(Surv(time=time_OS_months, event=death) ~ study_group + CD38, data = df)
-  } else {
-    df <- df %>% filter(!is.na(distant_recurrence), !is.na(time_DRS_months)) %>%
-      filter(time_DRS_months > 20 | reason_death == "BC") %>%
-      as.data.frame()
-    y <- "Distant recurrence"
-    fit <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + CD38, data = df)
-  }
-  
-  ggsurvplot(
-    fit, data = df,
-    xlab = "Months", 
-    ylab = paste(y,"probability"),
-    #title = paste(y, cell, "stratified by median density:", signif(med, 2)),
-    palette = study_colors[names(study_colors) %in% unique(df$study_group)],
-    ggtheme = theme_bw(),
-    pval = T,
-    facet.by = "CD38",
-    legend.title="Study group:"
-  )
-}
-
-fig2l <- CD38_km(figuredata, event_type = "OS", returndata = F)
-fig2l
+km_CD38_OS
 ```
 
 ### Risk table
 
 ```{r}
-rt_fig2l <-faceted_risktable(fig2l, faceted.by = "CD38")
-rt_fig2l
+rt_km_CD38_OS <- faceted_risktable(km_CD38_OS, faceted.by = "CD38")
+rt_km_CD38_OS
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig2l), width = 12, height = 7)
-fig2l
-rt_fig2l
+pdf(file = here(params$km_CD38_OS), width = 12, height = 7)
+km_CD38_OS
+rt_km_CD38_OS
 dev.off()
 ```
 
@@ -271,7 +187,7 @@ dev.off()
 Include lac for visualization but exclude it from statistical tests.
 
 ```{r}
-fig4a <- figuredata %>%
+boxplot_TIL <- figuredata %>%
   filter(!is.na(TILpercent)) %>%
   ggplot(aes(x = study_group, y = TILpercent)) +
   geom_jitter(aes(color = study_group), height=0, width = 0.15) +
@@ -285,14 +201,14 @@ fig4a <- figuredata %>%
   xlab("Study group") + ylab("TIL %") +
   labs(color = "Study group")
 
-fig4a
+boxplot_TIL
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig4a), width = 12, height = 7)
-fig4a
+pdf(file = here(params$boxplot_TIL), width = 12, height = 7)
+boxplot_TIL
 dev.off()
 ```
 

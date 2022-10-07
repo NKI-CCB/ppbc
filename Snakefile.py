@@ -103,9 +103,9 @@ rule all:
     "figures/Fig2e_CD20_l_boxplot.pdf",
     "figures/Fig2f_Cd20_l_km_OS.pdf",
     "figures/Fig2h_TAPC_PPBC_cor.pdf",
-    "figures/Fig2i_TAPC_KM.pdf",
+    "figures/Fig2i_TAPC_KM_OS.pdf",
     "figures/Fig2k_CD38_boxplot.pdf",
-    "figures/Fig2l_CD38_KM.pdf",
+    "figures/Fig2l_CD38_KM_OS.pdf",
     "figures/Fig3a_boxplot_isotypes.pdf",
     "figures/Fig3bc_km_isotypes.pdf",
     "figures/Fig3d_cor_Ig_TAPC.pdf",
@@ -145,7 +145,9 @@ rule all:
     "figures/supfigs/Supfig12c_kaplan_cibersort_plasmaB_OS_DRS.pdf",
     "figures/supfigs/Supfig12d_kaplan_cibersort_memoryB_OS_DRS.pdf",
     "figures/supfigs/Supfig13a_CD20_density_km_DRS.pdf",
-    "figures/supfigs/Supfig13b_CD20_l_km_DRS.pdf"
+    "figures/supfigs/Supfig13b_CD20_l_km_DRS.pdf",
+    "figures/supfigs/Supfig13c_TAPC_KM_DRS.pdf",
+    "figures/supfigs/Supfig13d_CD38_KM_DRS.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)
