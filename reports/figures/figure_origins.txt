@@ -107,12 +107,12 @@ reports/rnaseq/11_clustering_involution.Rmd
 #### Sup Fig S13 ####
 
 13A - reports/figures/spatial_figures.Rmd
+13B - reports/figures/spatial_figures.Rmd
 
 
 #### To do ####
 
 Fig. S13. 
-B.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
 C.	Code Hanne: 01_TAPC_scoring.Rmd
 # DRS - plasma count
 #### KM by plasma score - without PPBCDL
