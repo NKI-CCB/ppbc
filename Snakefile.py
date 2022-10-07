@@ -143,7 +143,8 @@ rule all:
     "figures/supfigs/SupFig12a_cibersort_relative_heatmap.pdf",
     "figures/supfigs/Supfig12b_boxplot_cibersort_B_subtypes.pdf",
     "figures/supfigs/Supfig12c_kaplan_cibersort_plasmaB_OS_DRS.pdf",
-    "figures/supfigs/Supfig12d_kaplan_cibersort_memoryB_OS_DRS.pdf"
+    "figures/supfigs/Supfig12d_kaplan_cibersort_memoryB_OS_DRS.pdf",
+    "figures/supfigs/Supfig13a_CD20_density_km_DRS.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)

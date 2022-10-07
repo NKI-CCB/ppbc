@@ -67,7 +67,8 @@ rule spatial_figures:
     boxplot_CD8_PancK_lcross_km_OS="figures/Fig4f_CD8_PanCk_lcross_boxplot_km_OS.pdf",
     boxplot_CD8_CD4_lcross_km_OS="figures/Fig4g_CD8_CD4_lcross_boxplot_km_OS.pdf",
     boxplot_CD20_CD8_lcross_km_OS="figures/Fig4h_CD20_CD8_lcross_boxplot_km_OS.pdf",
-    boxplot_CD20_CD4_lcross_km_OS="figures/Fig4i_CD20_CD4_lcross_boxplot_km_OS.pdf"
+    boxplot_CD20_CD4_lcross_km_OS="figures/Fig4i_CD20_CD4_lcross_boxplot_km_OS.pdf",
+    km_CD20_density_DRS="figures/supfigs/Supfig13a_CD20_density_km_DRS.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"

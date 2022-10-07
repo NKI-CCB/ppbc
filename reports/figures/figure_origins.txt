@@ -100,30 +100,18 @@ reports/rnaseq/11_clustering_involution.Rmd
 #### Sup Fig S12 ####
 
 12A: reports/rnaseq/10_CibersortX.Rmd
+12B: reports/figures/ciberfigs.Rmd
+12C: reports/figures/ciberfigs.Rmd
+12D: reports/figures/ciberfigs.Rmd
+
+#### Sup Fig S13 ####
+
+13A - reports/figures/spatial_figures.Rmd
+
 
 #### To do ####
 
-Fig. S12.
-A.	Code Kat
-B.	Code Hanne: 07_ANOVA_Kruskal.Rmd
-# Plasma fraction in study group
-# Memory B in study group
-# Naive B in study group
-C.	Code Hanne: 10_Cox_regression_Cibersort.Rmd
-# Plasma cells - based on median
-Plasma_cat --> BASED ON MEDIAN
-## OS / DRS
-### Kaplan-Meier
-#### KM high vs low
-D.	Code Hanne: 10_Cox_regression_Cibersort.Rmd
-# memoryB+ cells - median
-memoryB_ID --> BASED ON MEDIAN
-## OS / DRS
-### Kaplan-Meier
-#### KM high vs low
-
 Fig. S13. 
-A.	Code Kat: 07_cox_density.Rmd and Code Hanne: 07_cox_density_withoutCD27
 B.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
 C.	Code Hanne: 01_TAPC_scoring.Rmd
 # DRS - plasma count

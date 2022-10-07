@@ -25,6 +25,7 @@ params:
     boxplot_CD8_CD4_lcross_km_OS: "figures/Fig4g_CD8_CD4_lcross_boxplot_km_OS.pdf"
     boxplot_CD20_CD8_lcross_km_OS: "figures/Fig4h_CD20_CD8_lcross_boxplot_km_OS.pdf"
     boxplot_CD20_CD4_lcross_km_OS: "figures/Fig4i_CD20_CD4_lcross_boxplot_km_OS.pdf"
+    km_CD20_density_DRS: "figures/supfigs/Supfig13a_CD20_density_km_DRS.pdf"
 ---
 
 ## Dependencies
@@ -208,7 +209,7 @@ km_CD20_density_OS
 
 ```{r}
 rt_km_CD20_density_OS <- faceted_risktable(km_CD20_density_OS, faceted.by = "density") +
-  ggtitle("Risk table for CD20+ density")
+  ggtitle("Risk table for CD20+ density OS")
 rt_km_CD20_density_OS
 ```
 
@@ -336,7 +337,7 @@ km_CD20_lstat_OS
 
 ```{r}
 rt_km_CD20_lstat_OS <- faceted_risktable(km_CD20_lstat_OS, faceted.by = "delta_l") +
-  ggtitle("Risk table for delta L: CD20+")
+  ggtitle("Risk table for delta L: CD20+ OS")
 rt_km_CD20_lstat_OS
 ```
 
@@ -382,7 +383,7 @@ km_CD8_density_OS
 
 ```{r}
 rt_km_CD8_density_OS <- faceted_risktable(km_CD8_density_OS, faceted.by = "density") +
-  ggtitle("Risk table for CD3+CD8+ density")
+  ggtitle("Risk table for CD3+CD8+ density OS")
 rt_km_CD8_density_OS
 ```
 
@@ -416,7 +417,7 @@ km_CD8_l_OS
 
 ```{r}
 rt_km_CD8_l_OS <- faceted_risktable(km_CD8_l_OS, faceted.by = "delta_l") +
-  ggtitle("Risk table for CD3+CD8+ delta L")
+  ggtitle("Risk table for CD3+CD8+ delta L OS")
 rt_km_CD8_l_OS
 ```
 
@@ -554,7 +555,7 @@ km_CD8_Panck_lcross_OS
 
 ```{r}
 rt_km_CD8_Panck_lcross_OS <- faceted_risktable(km_CD8_Panck_lcross_OS, faceted.by = "delta_l") +
-  ggtitle("Risk table for delta L: CD3+CD8+ <-> PanCK+")
+  ggtitle("Risk table for delta L: CD3+CD8+ <-> PanCK+ OS")
 rt_km_CD8_Panck_lcross_OS
 ```
 
@@ -590,7 +591,7 @@ km_CD8_CD4_lcross_OS
 
 ```{r}
 rt_km_CD8_CD4_lcross_OS <- faceted_risktable(km_CD8_CD4_lcross_OS, faceted.by = "delta_l") +
-  ggtitle("Risk table for delta L: CD3+CD8+ <-> CD3+CD8-")
+  ggtitle("Risk table for delta L: CD3+CD8+ <-> CD3+CD8- OS")
 rt_km_CD8_CD4_lcross_OS
 ```
 
@@ -626,7 +627,7 @@ km_CD20_CD8_lcross_OS
 
 ```{r}
 rt_km_CD20_CD8_lcross_OS <- faceted_risktable(km_CD20_CD8_lcross_OS, faceted.by =  "delta_l") +
-  ggtitle("Risk table for delta L: CD20+ <-> CD3+CD8+")
+  ggtitle("Risk table for delta L: CD20+ <-> CD3+CD8+ OS")
 rt_km_CD20_CD8_lcross_OS
 ```
 
@@ -662,7 +663,7 @@ km_CD20_CD4_lcross_OS
 
 ```{r}
 rt_km_CD20_CD4_lcross_OS <- faceted_risktable(km_CD20_CD4_lcross_OS, faceted.by =  "delta_l") +
-  ggtitle("Risk table for delta L CD20+ <-> CD3+CD8-")
+  ggtitle("Risk table for delta L CD20+ <-> CD3+CD8- OS")
 rt_km_CD20_CD4_lcross_OS
 ```
 
@@ -673,6 +674,30 @@ pdf(file = here(params$boxplot_CD20_CD4_lcross_km_OS), width = 12, height = 7)
 boxplot_CD20_CD4_lcross
 km_CD20_CD4_lcross_OS
 rt_km_CD20_CD4_lcross_OS
+dev.off()
+```
+
+## Sup fig 13A - CD20 density DRS
+
+```{r}
+km_CD20_density_DRS <- density_km(density, cell = "CD20+", event_type = "DRS", returndata = F)
+km_CD20_density_DRS
+```
+
+### Risk table
+
+```{r}
+rt_km_CD20_density_DRS <- faceted_risktable(km_CD20_density_DRS, faceted.by = "density") +
+  ggtitle("Risk table for CD20+ density DRS")
+rt_km_CD20_density_DRS
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$km_CD20_density_DRS), width = 12, height = 7)
+km_CD20_density_DRS
+rt_km_CD20_density_DRS
 dev.off()
 ```
 

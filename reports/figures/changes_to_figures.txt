@@ -7,8 +7,7 @@
 - Survival analyses (OS, DRS) in RNAseq data either exclude lac or use one vs rest
 - For survival (OS, DRS) analyses in spatial data, only include ppbc inv and nulliparous
 - Study groups are ordered in figures using factor levels in the analysis, i.e. chronological PPBC (nulliparous, pregnant, lactating, involuting)
-- We received the comment that Kaplan-Meiers should include a risk table, but there are enough events that these are hard to format nicely. 
-- I included a rough risk table with each KM for recordkeeping, and exported the data as csv if we decide to include it. It is not intended to use the rough risk tables in the main manuscript.
+- We received the comment that Kaplan-Meiers should include a risk table. Each kaplan meier now includes a (faceted) risk plot. The faceted version is a custom function designed to look like the tables produced by ggsurvplot. 
 
 #### Possible future edits ####
 
@@ -100,3 +99,10 @@ Minor changes to p values
 #### Sup Fig 12 ####
 
 12A - Minor changes to p values
+12B - Minor changes
+12C - Minor changes
+12D - Minor changes
+
+#### Sup Fig 13 ####
+
+13A - Minor changes to p values
