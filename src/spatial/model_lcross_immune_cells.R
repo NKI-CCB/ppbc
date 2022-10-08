@@ -94,7 +94,7 @@ if (sys.nframe() == 0) {
   }
 
   args <- parse_args(commandArgs(T))
-
+  set.seed(123)
   cells <- read_cells(args$objects, args$annotation)
   res <- model_Lcross(cells, args$progress_bars)
   readr::write_tsv(res, args$output)
