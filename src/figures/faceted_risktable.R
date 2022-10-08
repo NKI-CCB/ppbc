@@ -10,7 +10,7 @@
 #' @export
 #'
 #' @examples
-faceted_risktable <- function(ggkm, br=seq(0,300,50), faceted.by,
+faceted_risktable <- function(ggkm, br=seq(0,300,50), faceted.by, curve.var="study_group",
                               text.size = 12, returndata = F,
                               colors = c("NP-BC"="#521262", "Pr-BC"="#AA96DA",
                                          "PP-BCdl"="#112D4E", "PP-BCpw"="#46CDCF")
@@ -39,13 +39,13 @@ faceted_risktable <- function(ggkm, br=seq(0,300,50), faceted.by,
     arrange(strata, Time)
   
   # Remove extraneous columns to plot a single unique value per interval and strata
-  df <- df[,c("Time","N.risk", faceted.by, "study_group", "strata")] %>%
+  df <- df[,c("Time","N.risk", faceted.by, curve.var, "strata")] %>%
     distinct()
   
   # Hacky way of filling in the zeros for strata with less follow up
   df <- df %>%
     pivot_wider(names_from = Time, values_from = N.risk, values_fill = 0) %>%
-    pivot_longer(cols = c(-study_group, -strata, -{{faceted.by}}),
+    pivot_longer(cols = c(-{{curve.var}}, -strata, -{{faceted.by}}),
                  names_to = "Time", values_to = "N.risk") %>%
     mutate(Time = as.numeric(Time))
   
@@ -56,7 +56,7 @@ faceted_risktable <- function(ggkm, br=seq(0,300,50), faceted.by,
   
   # Generate the plot itself
   df %>%  
-    ggplot(aes(x=Time, y=study_group, color = study_group)) + 
+    ggplot(aes(x=Time, y=get(curve.var), color = get(curve.var))) + 
     geom_text(aes(label = N.risk), show.legend = F) +
     facet_wrap(~response) + theme_bw() + 
     theme(panel.grid.major = element_blank(),
@@ -67,6 +67,7 @@ faceted_risktable <- function(ggkm, br=seq(0,300,50), faceted.by,
           axis.title = element_text(color="black", size = text.size),
           strip.text = element_text(color="black", size = text.size))+
     ggtitle(paste("Risk table for", faceted.by)) +
-    xlab("Time") + ylab("") +
+    xlab("Time") + ylab(str_replace_all(curve.var, "_", " ")) +
+    labs(str_replace_all(curve.var, "_", "")) +
     scale_color_manual(values = colors)
 }
