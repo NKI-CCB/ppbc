@@ -15,6 +15,7 @@ params:
   gx_annot: "data/rnaseq/metadata/01_gene_annot.tsv"
   coxdata: "data/rnaseq/interim/04_survdata.Rds"
   tools: "src/rnaseq/deseq_report_functions.R"
+  risktable: "src/figures/faceted_risktable.R"
   cp: "data/rnaseq/interim/color_palettes.Rds"
   sp: "data/rnaseq/interim/survival_colors.Rds"
   DEGhm: "figures/Fig1a_DEG_heatmap.pdf"
@@ -65,6 +66,7 @@ dds$study_group_orig <- dds$study_group
 
 ```{r}
 source(here(params$tools))
+source(here(params$risktable))
 ```
 
 Subset for just the involution samples.
@@ -780,19 +782,25 @@ IG_kaplan_PAM50_OS <- ggsurvplot(
 IG_kaplan_PAM50_OS
 ```
 
+### Risktable
+
+```{r}
+rt_IG_kaplan_PAM50_OS <- faceted_risktable(IG_kaplan_PAM50_OS,
+                                           faceted.by = "PAM50", curve.var = "IG")+
+  scale_color_manual(values =c(rep("black", 3))) + theme_bw() +
+  theme(axis.text.y = element_text(colour = cp$tertile_colors))
+rt_IG_kaplan_PAM50_OS
+```
+
+
 ### Save output
 
 ```{r}
 pdf(file = here(params$IG_kaplan_PAM50_OS),
     width = 12, height = 7)
 IG_kaplan_PAM50_OS
+rt_IG_kaplan_PAM50_OS
 dev.off()
-```
-
-Save risk table data separately.
-
-```{r}
-write_csv(IG_kaplan_PAM50_OS$data, here(params$rtIG_kaplan_PAM50_OS))
 ```
 
 ### KM IG clusters, facet by study group
@@ -833,28 +841,15 @@ IG_kaplan_PPBC_OS <- ggsurvplot(
 IG_kaplan_PPBC_OS
 ```
 
-Risk table is hard to plot legibly.
-
 ### Risk table
 
-```{r, fig.height=7, fig.width=12}
-risktable <- function(ggkm, response, text.size = 8, ...){
-  ggplot(ggkm$data, aes(time, study_group)) + 
-    ggrepel::geom_text_repel(aes(label = n.risk)) +
-    facet_wrap(as.formula(paste("~", response)), ...) +
-    theme_bw() + 
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_rect(fill="white", size = 1),
-          axis.text.x = element_text(color="black", size = text.size+2),
-          axis.text.y = element_text(color="black", size = text.size),
-          axis.title = element_text(color="black", size = text.size+4),
-          strip.text = element_text(color="black", size = text.size))+
-    ggtitle("Risk Tables") +
-    xlab("Time") + ylab("")
-}
-
-rtIG_kaplan_PPBC_OS <- risktable(IG_kaplan_PPBC_OS, response = "IG", nrow=3)
+```{r}
+rtIG_kaplan_PPBC_OS <- faceted_risktable(IG_kaplan_PPBC_OS, #colors = cp$study_colors
+                                         faceted.by = "IG",
+                                         curve.var = "study_group"
+                                         ) +
+  scale_color_manual(values =c(rep("black", 3))) + theme_bw() +
+  theme(axis.text.y = element_text(colour = c(npbc = "#521262", prbc="#AA96DA",ppbcpw="#46CDCF")))
 rtIG_kaplan_PPBC_OS
 ```
 
@@ -866,12 +861,6 @@ pdf(file = here(params$IG_kaplan_PPBC_OS),
 IG_kaplan_PPBC_OS
 rtIG_kaplan_PPBC_OS
 dev.off()
-```
-
-Save risk table data separately.
-
-```{r}
-write_csv(IG_kaplan_PPBC_OS$data, here(params$rtIG_kaplan_PPBC_OS))
 ```
 
 ### Multivariate Cox
@@ -934,6 +923,16 @@ IG_kaplan_PAM50_DRS <- ggsurvplot(
 IG_kaplan_PAM50_DRS
 ```
 
+### Risktable
+
+```{r}
+rt_IG_kaplan_PAM50_DRS <- faceted_risktable(IG_kaplan_PAM50_DRS,
+                                           faceted.by = "PAM50", curve.var = "IG")+
+  scale_color_manual(values =c(rep("black", 3))) + theme_bw() +
+  theme(axis.text.y = element_text(colour = cp$tertile_colors))
+rt_IG_kaplan_PAM50_DRS
+```
+
 ### Save output
 
 ```{r}
@@ -941,13 +940,8 @@ supFigDir <- file.path(here("figures/supfigs"))
 dir.create(supFigDir, showWarnings = F)
 pdf(file = here(params$IG_kaplan_PAM50_DRS),width = 12, height = 7)
 IG_kaplan_PAM50_DRS
+rt_IG_kaplan_PAM50_DRS
 dev.off()
-```
-
-Save risk table data separately.
-
-```{r}
-write_csv(IG_kaplan_PAM50_DRS$data, here(params$rtIG_kaplan_PAM50_DRS))
 ```
 
 ### Sup Figure S9: KM DRS study group, faceted by IG cluster
@@ -969,8 +963,13 @@ IG_kaplan_PPBC_DRS
 ```
 ### Risk table
 
-```{r, fig.height=7, fig.width=12}
-rtIG_kaplan_PPBC_DRS <- risktable(IG_kaplan_PPBC_DRS, response = "IG", nrow=3)
+```{r}
+rtIG_kaplan_PPBC_DRS <- faceted_risktable(IG_kaplan_PPBC_DRS, #colors = cp$study_colors
+                                         faceted.by = "IG",
+                                         curve.var = "study_group"
+                                         ) +
+  scale_color_manual(values =c(rep("black", 3))) + theme_bw() +
+  theme(axis.text.y = element_text(colour = c(npbc = "#521262", prbc="#AA96DA",ppbcpw="#46CDCF")))
 rtIG_kaplan_PPBC_DRS
 ```
 
@@ -983,12 +982,6 @@ pdf(file = here(params$IG_kaplan_PPBC_DRS),width = 12, height = 7)
 IG_kaplan_PPBC_DRS
 rtIG_kaplan_PPBC_DRS
 dev.off()
-```
-
-Save risk table data separately.
-
-```{r}
-write_csv(IG_kaplan_PPBC_DRS$data, here(params$rtIG_kaplan_PPBC_DRS))
 ```
 
 ### Multivariate Cox DRS

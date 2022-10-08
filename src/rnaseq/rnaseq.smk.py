@@ -729,22 +729,19 @@ rule inv_clustering:
     dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
     vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
     gx_annot="data/rnaseq/metadata/01_gene_annot.tsv",
-    coxdata="data/rnaseq/interim/04_survdata.Rds"
+    coxdata="data/rnaseq/interim/04_survdata.Rds",
+    risktable="src/figures/faceted_risktable.R"
   output:
     cluster_heatmap="results/rnaseq/clustering/11_hm_clust_DEG_inv_vs_rest.pdf",
     DEGhm="figures/Fig1a_DEG_heatmap.pdf",
     IGbarplot="figures/Fig1d_IG_cluster_barplot.pdf",
     IG_kaplan_PPBC_OS="figures/Fig1e_IG_cluster_PPBC_KM_OS.pdf",
-    rtIG_kaplan_PPBC_OS="figures/Fig1e_risktable.csv",
     cluster_barplot="results/rnaseq/clustering/11_barplots_ig_clusters.pdf",
     cluster_results="results/rnaseq/clustering/11_inv_clusters.xlsx",
     cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",
     IG_kaplan_PPBC_DRS="figures/supfigs/Supfig9_IG_cluster_PPBC_KM_DRS.pdf",
-    rtIG_kaplan_PPBC_DRS="figures/supfigs/Supfig9_risktable.csv",
     IG_kaplan_PAM50_OS="figures/supfigs/Supfig10a_IG_cluster_PAM50_KM_OS.pdf",
-    rtIG_kaplan_PAM50_OS="figures/supfigs/Supfig10a_risktable.csv",
     IG_kaplan_PAM50_DRS="figures/supfigs/Supfig10b_IG_cluster_PAM50_KM_DRS.pdf",
-    rtIG_kaplan_PAM50_DRS="figures/supfigs/Supfig10b_risktable.csv",
     html="reports/rnaseq/11_clustering_involution.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
@@ -755,17 +752,14 @@ rule inv_clustering:
     " --vsd {input.vsd}"
     " --tools {input.tools}"
     " --coxdata '{input.coxdata}'"
+    " --risktable '{input.risktable}'"
     " --DEGhm '{output.DEGhm}'"
     " --IGbarplot '{output.IGbarplot}'"
     " --IG_kaplan_PPBC_OS '{output.IG_kaplan_PPBC_OS}'"
-    " --rtIG_kaplan_PPBC_OS '{output.rtIG_kaplan_PPBC_OS}'"
     " --IG_kaplan_PPBC_DRS '{output.IG_kaplan_PPBC_DRS}'"
-    " --rtIG_kaplan_PPBC_DRS '{output.rtIG_kaplan_PPBC_DRS}'"
     " --IG_kaplan_PAM50_OS '{output.IG_kaplan_PAM50_OS}'"
-    " --rtIG_kaplan_PAM50_OS '{output.rtIG_kaplan_PAM50_OS}'"
     " --IG_kaplan_PAM50_DRS '{output.IG_kaplan_PAM50_DRS}'"
-    " --rtIG_kaplan_PAM50_DRS '{output.rtIG_kaplan_PAM50_DRS}'"
-
+    
 #### Survival analyses based on gene expression ####
 
 # Add gene expression as columns to clinical covariates  
