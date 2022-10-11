@@ -113,7 +113,8 @@ rule stainings:
     boxplot_TIL="figures/Fig4a_TIL_boxplot.pdf",
     km_TAPC_DRS="figures/supfigs/Supfig13c_TAPC_KM_DRS.pdf",
     km_CD38_DRS="figures/supfigs/Supfig13d_CD38_KM_DRS.pdf",
-    TAPC_CD38_cor="figures/supfigs/Supfig16_TAPC_CD38_cor.pdf"
+    TAPC_CD38_cor="figures/supfigs/Supfig16_TAPC_CD38_cor.pdf",
+    TAPC_iso_cor="figures/supfigs/Supfig19_TAPC_isotype_cor.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
@@ -125,6 +126,7 @@ rule stainings:
     " --km_TAPC_DRS {output.km_TAPC_DRS}"
     " --km_CD38_DRS {output.km_CD38_DRS}"
     " --TAPC_CD38_cor {output.TAPC_CD38_cor}"
+    " --TAPC_iso_cor {output.TAPC_iso_cor}"
 
 rule isotypes:
   input:
@@ -137,6 +139,7 @@ rule isotypes:
   output:
     boxplot_abs="figures/Fig3a_boxplot_isotypes.pdf",
     km_ig_os="figures/Fig3bc_km_isotypes.pdf",
+    km_ig_drs="figures/supfigs/Supfig18_km_isotypes_drs.pdf",
     cor_IG_TAPC="figures/Fig3d_cor_Ig_TAPC.pdf",
     cor_IgA_milk="figures/supfigs/Supfig17_cor_IgA_milk.pdf",
     report="reports/figures/isotypes.pdf"
@@ -148,6 +151,7 @@ rule isotypes:
     " --rt {input.rt}"
     " --boxplot_abs {output.boxplot_abs}"
     " --km_ig_os {output.km_ig_os}"
+    " --km_ig_drs {output.km_ig_drs}"
     " --cor_IG_TAPC {output.cor_IG_TAPC}"
     " --cor_IgA_milk {output.cor_IgA_milk}"
     

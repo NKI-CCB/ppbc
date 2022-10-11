@@ -18,6 +18,7 @@ params:
     km_TAPC_DRS: "figures/supfigs/Supfig13c_TAPC_KM_DRS.pdf"
     km_CD38_DRS: "figures/supfigs/Supfig13d_CD38_KM_DRS.pdf"
     TAPC_CD38_cor: "figures/supfigs/Supfig16_TAPC_CD38_cor.pdf"
+    TAPC_iso_cor: "figures/supfigs/Supfig19_TAPC_isotype_cor.pdf"
 ---
 
 ## Dependencies
@@ -37,7 +38,7 @@ library(ggcorrplot)
 library(conflicted)
 
 conflict_prefer("filter", "dplyr")
-
+conflict_prefer("rename", "dplyr")
 theme_set(theme_bw())
 ```
 
@@ -276,36 +277,37 @@ dev.off()
 ## Sup Fig 16- Correlation TAPC and CD38
 
 ```{r}
-TAPC_CD38_cor_all <- figuredata %>%
-  filter(!is.na(TAPC_score) & !is.na(TI_CD38_total)) %>%
-  ggplot(aes(x = TAPC_score, y = TI_CD38_total)) +
-  geom_jitter(aes(color = study_group), height = 1, width = 0.2, shape = 15) +
-  scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
-  geom_smooth(method = "lm", formula = y ~ x) +
-      ggpubr::stat_cor(method = "kendall", #label.y = 3.5, label.x = -0.2,
-                       aes(label = paste(..rr.label.., ..r.label.., ..p.label..,
-                                         sep = "~`,`~"))) +
-  ylab("% CD38 positive cells") +
-  xlab("TAPC score") + labs(color = "Study group") +
-  ggtitle("Kendall correlation between TAPC and CD38 in all samples")
+cor_plot <- function(df=figuredata, x, y, colorby, ...){
+  
+  df <- df[!is.na(df[,x]) & !is.na(df[,y]),]
 
+  df %>%
+    ggplot(aes(get(x), get(y))) +
+    geom_jitter(aes(color = get(colorby)), height = 1, width = 0.2, shape = 15) +
+    geom_smooth(method = "lm", formula = y ~ x) +
+    ggpubr::stat_cor(method = "kendall", #label.y = 3.5, label.x = -0.2,
+                     aes(label = paste(..rr.label.., ..r.label.., ..p.label..,
+                                       sep = "~`,`~"))) +
+    xlab(str_replace_all(x, "_", " ")) +
+    ylab(str_replace_all(y, "_", " ")) +
+    labs(color = str_replace_all(colorby, "_", " "))
+}
+
+TAPC_CD38_cor_all <- cor_plot(x="TAPC_score", y="TI_CD38_total", colorby = "study_group") +
+  scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
+  ggtitle("Kendall correlation between TAPC and CD38 in all samples") +
+  ylab("% CD38 positive intratumoral cells")
 TAPC_CD38_cor_all
 ```
 
 ```{r}
-TAPC_CD38_cor_inv <- figuredata %>%
-  filter(study_group == "PP-BCpw") %>%
-  filter(!is.na(TAPC_score) & !is.na(TI_CD38_total)) %>%
-  ggplot(aes(x = TAPC_score, y = TI_CD38_total)) +
-  geom_jitter(aes(color = study_group), height = 1, width = 0.2, shape = 15) +
+TAPC_CD38_cor_inv <- cor_plot(
+  df = filter(figuredata, study_group == "PP-BCpw"),
+  x="TAPC_score", y="TI_CD38_total", colorby = "study_group"
+) +
   scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
-  geom_smooth(method = "lm", formula = y ~ x) +
-      ggpubr::stat_cor(method = "kendall", #label.y = 3.5, label.x = -0.2,
-                       aes(label = paste(..rr.label.., ..r.label.., ..p.label..,
-                                         sep = "~`,`~"))) +
-  ylab("% CD38 positive cells") +
-  xlab("TAPC score") + labs(color = "Study group") +
-  ggtitle("Kendall correlation between TAPC and CD38 in PP-BCpw")
+  ggtitle("Kendall correlation between TAPC and CD38 in PP-BCpw") +
+  ylab("% CD38 positive intratumoral cells")
 
 TAPC_CD38_cor_inv
 ```
@@ -316,6 +318,38 @@ TAPC_CD38_cor_inv
 pdf(file = here(params$TAPC_CD38_cor), width = 12, height = 7)
 TAPC_CD38_cor_all
 TAPC_CD38_cor_inv
+dev.off()
+```
+
+## Sup fig 19 - Correlation TAPC and antibody isotypes
+
+```{r}
+TAPC_Ig_cor_all <- lapply(c("IgA", "IgG"), function(ig){
+  cor_plot(figuredata, x="TAPC_score", y=ig, colorby = "study_group") +
+    scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
+    ggtitle(paste("Kendall correlation between TAPC and", ig, "in all samples"))
+}) %>% set_names(c("IgA", "IgG"))
+
+TAPC_Ig_cor_all
+```
+
+```{r}
+TAPC_Ig_cor_group <- lapply(c("IgA", "IgG"), function(ig){
+  cor_plot(figuredata, x="TAPC_score", y=ig, colorby = "study_group") +
+    scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
+    ggtitle(paste("Kendall correlation between TAPC and", ig, "by study group")) +
+    facet_wrap(~study_group)
+}) %>% set_names(c("IgA", "IgG"))
+
+TAPC_Ig_cor_group
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$TAPC_iso_cor), width = 12, height = 7)
+TAPC_Ig_cor_all
+TAPC_Ig_cor_group
 dev.off()
 ```
 

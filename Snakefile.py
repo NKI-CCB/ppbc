@@ -153,7 +153,8 @@ rule all:
     "figures/supfigs/Supfig14c_CD20_Panck_lcross_km_DRS.pdf",
     "figures/supfigs/Supfig16_TAPC_CD38_cor.pdf",
     "figures/supfigs/Supfig17_cor_IgA_milk.pdf",
-    "figures/supfigs/Supfig18_km_isotypes_drs.pdf"
+    "figures/supfigs/Supfig18_km_isotypes_drs.pdf",
+    "figures/supfigs/Supfig19_TAPC_isotype_cor.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)
