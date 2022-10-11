@@ -147,3 +147,12 @@ Per Hanne's note, is now a KM for OS/DRS and clonotypes per kiloreads (cpk)
 #### Sup Fig 22 ####
 
 Is skipped pending review
+
+#### Sup Fig 23 ####
+
+Minor p val changes
+Panels B and C both show CD8+ clustering and are redundant, but look like high-low were mistakenly swapped. Panel C has been dropped.
+
+#### Sup Fig 24 ####
+
+Is skipped pending review

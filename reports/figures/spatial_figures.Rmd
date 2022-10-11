@@ -30,6 +30,7 @@ params:
     boxplot_CD20_Panck_lcross: "figures/supfigs/Supfig14a_CD20_Panck_lcross_boxplot.pdf"
     km_CD20_Panck_lcross_km_OS: "figures/supfigs/Supfig14b_CD20_Panck_lcross_km_OS.pdf"
     km_CD20_Panck_lcross_km_DRS: "figures/supfigs/Supfig14c_CD20_Panck_lcross_km_DRS.pdf"
+    misc_spatial_drs: "figures/supfigs/Supfig23b-g_misc_spatial_km_drs.pdf"
 ---
 
 ## Dependencies
@@ -792,6 +793,70 @@ rt_km_CD20_Panck_lcross_km_DRS
 pdf(file = here(params$km_CD20_Panck_lcross_km_DRS), width = 12, height = 7)
 km_CD20_Panck_lcross_km_DRS
 rt_km_CD20_Panck_lcross_km_DRS
+dev.off()
+```
+
+## Sup fig 23 - Misc spatial drs
+
+### KMs
+
+L stat:
+
+```{r}
+misc_km_drs <- list()
+
+misc_km_drs[[length(misc_km_drs)+1]] <- lstat_km(
+  l, cell = "CD3+CD8+", event_type = "DRS", returndata = F
+  )
+
+names(misc_km_drs) <- "CD3+CD8+"
+```
+
+L cross:
+
+```{r}
+drs_cross <- tibble(
+  cell1=c("CD3+CD8+","CD3+CD8+", "CD20+", "CD20+"),
+  cell2=c("CD3+CD8-", "PanCK+","CD3+CD8-","CD3+CD8+")
+)
+
+drs_cross
+```
+
+```{r}
+for(i in 1:nrow(drs_cross)){
+ misc_km_drs[[length(misc_km_drs)+1]] <- lcross_km(
+   lximmune, cell.1 = drs_cross$cell1[i], cell.2 = drs_cross$cell2[i],
+   event_type = "DRS", returndata = F
+ )
+ names(misc_km_drs)[length(misc_km_drs)] <- paste(drs_cross$cell1[i],
+                                                  drs_cross$cell2[i],
+                                                  sep = " <-> ")
+}
+```
+
+```{r}
+misc_km_drs
+```
+
+### Risk table 
+
+```{r}
+rt_misc_km_drs <- lapply(names(misc_km_drs), function(x){
+  faceted_risktable(misc_km_drs[[x]], faceted.by = "delta_l") +
+    ggtitle(paste("Risk table for delta L: DRS", x))
+}) %>%
+  set_names(paste("Risk table",names(misc_km_drs)))
+
+rt_misc_km_drs
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$misc_spatial_drs), width = 12, height = 7)
+misc_km_drs
+rt_misc_km_drs
 dev.off()
 ```
 

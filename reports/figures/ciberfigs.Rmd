@@ -14,6 +14,7 @@ params:
     boxplot_b_subtypes: "figures/supfigs/Supfig12b_boxplot_cibersort_B_subtypes.pdf"
     km_plasmaB: "figures/supfigs/Supfig12c_kaplan_cibersort_plasmaB_OS_DRS.pdf"
     km_memoryB: "figures/supfigs/Supfig12d_kaplan_cibersort_memoryB_OS_DRS.pdf"
+    km_cd8_DRS: "figures/supfigs/Supfig23A_cibersort_CD8_km_DRS.pdf"
 ---
 
 ## Dependencies
@@ -280,6 +281,38 @@ km_memoryB_OS
 rt_km_memoryB_OS
 km_memoryB_DRS
 rt_km_memoryB_DRS
+dev.off()
+```
+
+## Sup fig 23A: KM Cibersort CD8 DRS
+
+```{r}
+km_cd8_DRS <- km(
+  rename(figuredata, CD8_CD3 = CD8_cat), covariate = "CD8_CD3", event_type = "DRS",
+  study_groups=c("PP-BCpw", "Pr-BC", "NP-BC"),
+  surv_formula=as.formula("Surv(time=time_OS_months, event=death) ~ study_group + CD8_CD3"),
+  returndata = F, returnfit = F
+)
+
+km_cd8_DRS <- km_cd8_DRS +
+  ggtitle(paste(km_cd8_DRS$plot$title, "Cibersort"))
+
+km_cd8_DRS
+```
+
+### Risk table
+
+```{r}
+rt_km_cd8_DRS <- faceted_risktable(km_cd8_DRS, faceted.by = "CD8_CD3")
+rt_km_cd8_DRS
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$km_cd8_DRS), width = 12, height = 7)
+km_cd8_DRS
+rt_km_cd8_DRS
 dev.off()
 ```
 

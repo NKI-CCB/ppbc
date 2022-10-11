@@ -72,7 +72,8 @@ rule spatial_figures:
     km_CD20_l_DRS="figures/supfigs/Supfig13b_CD20_l_km_DRS.pdf",
     boxplot_CD20_Panck_lcross="figures/supfigs/Supfig14a_CD20_Panck_lcross_boxplot.pdf",
     km_CD20_Panck_lcross_km_OS="figures/supfigs/Supfig14b_CD20_Panck_lcross_km_OS.pdf",
-    km_CD20_Panck_lcross_km_DRS="figures/supfigs/Supfig14c_CD20_Panck_lcross_km_DRS.pdf"
+    km_CD20_Panck_lcross_km_DRS="figures/supfigs/Supfig14c_CD20_Panck_lcross_km_DRS.pdf",
+    misc_spatial_drs="figures/supfigs/Supfig23b-g_misc_spatial_km_drs.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
@@ -96,6 +97,7 @@ rule spatial_figures:
     " --boxplot_CD20_Panck_lcross {output.boxplot_CD20_Panck_lcross}"
     " --km_CD20_Panck_lcross_km_OS {output.km_CD20_Panck_lcross_km_OS}"
     " --km_CD20_Panck_lcross_km_DRS {output.km_CD20_Panck_lcross_km_DRS}"
+    " --misc_spatial_drs {output.misc_spatial_drs}"
 
 rule stainings:
   input:
@@ -169,6 +171,7 @@ rule ciberfigs:
     boxplot_b_subtypes="figures/supfigs/Supfig12b_boxplot_cibersort_B_subtypes.pdf",
     km_plasmaB="figures/supfigs/Supfig12c_kaplan_cibersort_plasmaB_OS_DRS.pdf",
     km_memoryB="figures/supfigs/Supfig12d_kaplan_cibersort_memoryB_OS_DRS.pdf",
+    km_cd8_DRS="figures/supfigs/Supfig23A_cibersort_CD8_km_DRS.pdf",
     report="reports/figures/ciberfigs.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
@@ -178,6 +181,7 @@ rule ciberfigs:
     " --boxplot_b_subtypes {output.boxplot_b_subtypes}"
     " --km_plasmaB {output.km_plasmaB}"
     " --km_memoryB {output.km_memoryB}"
+    " --km_cd8_DRS {output.km_cd8_DRS}"
     
 rule figure_genes:
   input:

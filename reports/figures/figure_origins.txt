@@ -149,22 +149,11 @@ Per Hanne's note, is now a KM for OS/DRS and clonotypes per kiloreads (cpk)
 
 Is skipped pending review
 
-#### To do ####
+#### Sup Fig 23 ####
 
-Fig. S23. 
-A.	Code Hanne: 10_Cox_regression_Cibersort.Rmd
-# CD8+ cells - Median
-CD8_ID --> Median
-## DR 
-### Kaplan-Meier
-#### KM high vs low
-B.	Code Kat: 07_cox_density.Rmd and Code Hanne: 07_cox_density_withoutCD27
-C.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
-D.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
-E.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
-F.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
-G.	Code Tycho with additional code Hanne: 11_spatstat_overview_final_HLedits.Rmd
+23A: reports/figures/ciberfigs.Rmd
+All other panels: reports/figures/spatial_figures.Rmd
 
-Fig. S24.
-Code Hanne: 05_exhaustion.Rmd
-But unsure if we’ll include this figure.
+#### Sup Fig 24 ####
+
+Is skipped pending review
