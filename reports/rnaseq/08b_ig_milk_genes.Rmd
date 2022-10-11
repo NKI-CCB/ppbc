@@ -235,20 +235,28 @@ tibble(sample_name = colnames(milk_IG_mat), milk_metagene, ig_metagene) %>%
 You could argue that although the heatmap is in VST space, it's more intuitive to use cpm. However, if you do so, you need to log transform with a pseudocount in order to visualize it.
 
 ```{r}
-# Normalize by size factors 
-dds <- estimateSizeFactors(dds)
-normat <- counts(dds, normalize=T)
-
-# Convert ensembl to gene symbol and summarize duplicate names
-normat <- rownames_to_column(as.data.frame(normat), "ensembl_gene_id")
-normat <- right_join(distinct(select(gx_annot, gene_name, ensembl_gene_id=gene_id)),
-                     normat, by = "ensembl_gene_id") %>%
+sizefactor_norm <- function(dds, annot=gx_annot){
+  # Normalize by size factors 
+  dds <- estimateSizeFactors(dds)
+  normat <- counts(dds, normalize=T)
+  
+  # Convert ensembl to gene symbol and summarize duplicate names
+  normat <- rownames_to_column(as.data.frame(normat), "ensembl_gene_id")
+  normat <- right_join(distinct(select(annot, gene_name, ensembl_gene_id=gene_id)),
+                       normat, by = "ensembl_gene_id") %>%
     select(-ensembl_gene_id)
-normat <- summarize_expression_duplicate_ids(normat, id_column = "gene_name", verbose = T)
+  normat <- summarize_expression_duplicate_ids(normat, id_column = "gene_name", verbose = T)
+  
+  # Log 10 transform with pseudocount
+  normat <- log10(normat+1)
+  
+  normat
+}
+normat <- sizefactor_norm(dds)
+```
 
-# Log 10 transform with pseudocount
-normat <- log10(normat+1)
 
+```{r}
 # Create milk and IG metagenes
 milk_metagene <- colSums(normat[rownames(normat) %in% milk_genes,])
 ig_metagene <- colSums(normat[rownames(normat) %in% IG_genes,])
@@ -297,6 +305,16 @@ ig_milk_cor_inv <- tibble(sample_name = names(milk_metagene_inv),
   labs(color = "Study group")
 
 ig_milk_cor_inv
+```
+
+## Save output
+
+Size factor normalized matrix
+
+```{r}
+saveRDS(normat, here("data/rnaseq/processed/08_sfnorm_genesymbol_countmatrix.Rds"))
+saveRDS(list(IG_genes=IG_genes, milk_genes=milk_genes),
+             here("data/rnaseq/processed/08_ig_and_milk_genes.Rds"))
 ```
 
 ```{r}
