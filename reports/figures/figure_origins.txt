@@ -127,29 +127,13 @@ reports/figures/CD38_TAPC_TILs.Rmd
 
 #### Sup Fig S17 ####
 
+reports/figures/isotypes.Rmd
+
+#### Sup Fig S18 ####
+
+reports/figures/isotypes.Rmd
+
 #### To do ####
-
-# correlation CD38 expression – TAPC
-## overall
-## PPBC-inv
-
-Fig. S17.
-Code Hanne: 04_correlation_IGmilksignature.Rmd
-# milk signature
-# correlation analysis IgA - Milk signature
-## overall
-## PPBC-inv
-##PrBC
-##NP-BC
-## PP-BCDL
-
-Fig. S18. 
-Code Hanne: 11_IGheavy_subtypes.Rmd
-## Kaplan-meier
-### IgA - without lactation group
-### IgD - without lactation group
-### IgG - without lactation group
-Note. To draw this data, I used your igSurv file, generated in 18b_antibody_isotypes.Rmd
 
 Fig. S19. 
 Code Hanne: 03_correlation_analyses.Rmd

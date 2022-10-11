@@ -136,7 +136,7 @@ rule isotypes:
     script="src/utils/rmarkdown.R"
   output:
     boxplot_abs="figures/Fig3a_boxplot_isotypes.pdf",
-    km_iso="figures/Fig3bc_km_isotypes.pdf",
+    km_ig_os="figures/Fig3bc_km_isotypes.pdf",
     cor_IG_TAPC="figures/Fig3d_cor_Ig_TAPC.pdf",
     cor_IgA_milk="figures/supfigs/Supfig17_cor_IgA_milk.pdf",
     report="reports/figures/isotypes.pdf"
@@ -147,7 +147,7 @@ rule isotypes:
     " --ig_milk_genes {input.ig_milk_genes}"
     " --rt {input.rt}"
     " --boxplot_abs {output.boxplot_abs}"
-    " --km_iso {output.km_iso}"
+    " --km_ig_os {output.km_ig_os}"
     " --cor_IG_TAPC {output.cor_IG_TAPC}"
     " --cor_IgA_milk {output.cor_IgA_milk}"
     

@@ -13,9 +13,10 @@ params:
     ig_milk_genes: "data/rnaseq/processed/08_ig_and_milk_genes.Rds"
     rt: "src/figures/faceted_risktable.R"
     boxplot_abs: "figures/Fig3a_boxplot_isotypes.pdf"
-    km_iso: "figures/Fig3bc_km_isotypes.pdf"
+    km_ig_os: "figures/Fig3bc_km_isotypes.pdf"
     cor_IG_TAPC: "figures/Fig3d_cor_Ig_TAPC.pdf"
     cor_IgA_milk: "figures/supfigs/Supfig17_cor_IgA_milk.pdf"
+    km_ig_drs: "figures/supfigs/Supfig18_km_isotypes_drs.pdf"
 ---
 
 ## Dependencies
@@ -167,27 +168,27 @@ ig_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
   plt
 }
 
-km_iso <- ig_km(figuredata, event_type = "OS", returndata = F)
+km_ig_os <- ig_km(figuredata, event_type = "OS", returndata = F)
 
-km_iso
+km_ig_os
 ```
 
 ### Risk table
 
 ```{r}
-rt_km_iso <- lapply(names(km_iso), function(x){
-  faceted_risktable(km_iso[[x]], faceted.by = "isotype_group") +
+rt_km_ig_os <- lapply(names(km_ig_os), function(x){
+  faceted_risktable(km_ig_os[[x]], faceted.by = "isotype_group") +
     ggtitle(paste("Risk table for", x))
-}) %>% set_names(names(km_iso))
-rt_km_iso
+}) %>% set_names(names(km_ig_os))
+rt_km_ig_os
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$km_iso), width = 9, height = 6)
-km_iso
-rt_km_iso
+pdf(file = here(params$km_ig_os), width = 9, height = 6)
+km_ig_os
+rt_km_ig_os
 dev.off()
 ```
 
@@ -250,6 +251,8 @@ milk_genes
 As previous figures, compute metagene for DE milk proteins and IgA on the basis of size factor. Use log transformation with a pseudocount for visualization.
 Note: there is also IgA expression in `figuredata`, but it's computed based on TMM. Size factor normalization is preferred here for consistency with previous figures related to IG expression.
 
+### All samples
+
 ```{r}
 # Create milk and IG metagenes
 milk_metagene <- colSums(normat[rownames(normat) %in% milk_genes,])
@@ -271,6 +274,8 @@ igA_milk_cor_all <- tibble(sample_name = colnames(normat), milk_metagene, IgA_no
 
 igA_milk_cor_all
 ```
+
+### By study group
 
 ```{r}
 igA_milk_cor_group <- tibble(sample_name = colnames(normat), milk_metagene, IgA_norm) %>%
@@ -297,6 +302,33 @@ igA_milk_cor_group
 pdf(file = here(params$cor_IgA_milk), width = 12, height = 8)
 igA_milk_cor_all
 igA_milk_cor_group
+dev.off()
+```
+
+## Sup fig 18: Ab isotype DRS
+
+```{r}
+km_ig_drs <- ig_km(figuredata, event_type = "DRS", returndata = F)
+
+km_ig_drs
+```
+
+### Risk table
+
+```{r}
+rt_km_ig_drs <- lapply(names(km_ig_drs), function(x){
+  faceted_risktable(km_ig_drs[[x]], faceted.by = "isotype_group") +
+    ggtitle(paste("Risk table for", x))
+}) %>% set_names(names(km_ig_drs))
+rt_km_ig_drs
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$km_ig_drs), width = 12, height = 8)
+km_ig_drs
+rt_km_ig_drs
 dev.off()
 ```
 
