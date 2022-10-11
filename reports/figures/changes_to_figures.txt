@@ -122,6 +122,8 @@ NA
 #### Sup Fig 16 ####
 
 16A - Added rsquared. Stats change a bit, nothing important.
-16 - Same
+16B - Same
 
+#### Sup Fig 17 ####
 
+All panels: correlation between IgA and milk proteins is now more significant, but not in a way that changes the interpretation.

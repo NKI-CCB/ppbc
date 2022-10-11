@@ -129,6 +129,8 @@ rule stainings:
 rule isotypes:
   input:
     figuredata="data/figures/00_figuredata.Rds",
+    normat="data/rnaseq/processed/08_sfnorm_genesymbol_countmatrix.Rds",
+    ig_milk_genes="data/rnaseq/processed/08_ig_and_milk_genes.Rds",
     rmd="reports/figures/isotypes.Rmd",
     rt="src/figures/faceted_risktable.R",
     script="src/utils/rmarkdown.R"
@@ -136,13 +138,18 @@ rule isotypes:
     boxplot_abs="figures/Fig3a_boxplot_isotypes.pdf",
     km_iso="figures/Fig3bc_km_isotypes.pdf",
     cor_IG_TAPC="figures/Fig3d_cor_Ig_TAPC.pdf",
+    cor_IgA_milk="figures/supfigs/Supfig17_cor_IgA_milk.pdf",
     report="reports/figures/isotypes.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
+    " --normat {input.normat}"
+    " --ig_milk_genes {input.ig_milk_genes}"
+    " --rt {input.rt}"
     " --boxplot_abs {output.boxplot_abs}"
     " --km_iso {output.km_iso}"
     " --cor_IG_TAPC {output.cor_IG_TAPC}"
+    " --cor_IgA_milk {output.cor_IgA_milk}"
     
 rule ciberfigs:
   input:

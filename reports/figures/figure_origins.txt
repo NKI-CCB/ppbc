@@ -125,10 +125,10 @@ Image Prof Floris
 
 reports/figures/CD38_TAPC_TILs.Rmd
 
+#### Sup Fig S17 ####
+
 #### To do ####
 
-Fig. S16.
-Code Hanne: 03_correlation_analyses.Rmd
 # correlation CD38 expression – TAPC
 ## overall
 ## PPBC-inv

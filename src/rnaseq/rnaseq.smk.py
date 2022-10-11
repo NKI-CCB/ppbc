@@ -503,6 +503,8 @@ rule ig_milk:
     script="src/utils/rmarkdown.R"
   output:
     milk_heatmap="results/rnaseq/diffex/milk_vs_IG_genes.pdf",
+    normat="data/rnaseq/processed/08_sfnorm_genesymbol_countmatrix.Rds",
+    ig_milk_genes="data/rnaseq/processed/08_ig_and_milk_genes.Rds",
     cor_ig_milk_all="results/rnaseq/diffex/cor_ig_milk_all.pdf",
     cor_ig_milk_inv="results/rnaseq/diffex/cor_ig_milk_inv.pdf",
     html="reports/rnaseq/08b_ig_milk_genes.html"
