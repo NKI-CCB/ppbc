@@ -41,21 +41,20 @@ old.clust <- readxl::read_excel(here(params$old_igclust), sheet = "col_clusters"
 ```
 
 ```{r}
-clust_summary <- full_join(select(clust, sample_name, clust.new = IG_col_cluster, study_group),
-          select(old.clust, sample_name, clust.old = IG_col_cluster),
-          by = "sample_name")  %>%
-  relocate(study_group, .after=sample_name)
+clust_summary <- full_join(select(clust, sample_name, clust.new = IG_col_cluster, study_group.new = study_group),
+          select(old.clust, sample_name, clust.old = IG_col_cluster, study_group.old = study_group),
+          by = "sample_name")
 
 clust_summary
 ```
 
 ```{r}
-table(clust_summary$study_group, clust_summary$clust.new) %>%
+table(clust_summary$study_group.new, clust_summary$clust.new) %>%
   addmargins()
 ```
 
 ```{r}
-table(clust_summary$study_group, clust_summary$clust.old) %>%
+table(clust_summary$study_group.new, clust_summary$clust.old) %>%
   addmargins()
 ```
 
@@ -94,9 +93,11 @@ sd.old %>%
 ```{r}
 sd.comp <- full_join(
   sd %>% select(sample_name, batch.new = batch, timeOS.new=time_OS_months, death.new=death,
-                DR.new = distant_recurrence, timeDR.new=time_DRS_months),
+                DR.new = distant_recurrence, timeDR.new=time_DRS_months, study_group.new=study_group,
+                PAM50.new=PAM50),
   sd.old %>% select(sample_name, batch.old=batch,timeOS.old = months_overall_survival,
-                  death.old=overall_survival, timeDR.old=months_to_drs, DR.old=distant_recurrence),
+                  death.old=overall_survival, timeDR.old=months_to_drs, DR.old=distant_recurrence,
+                  study_group.old=study_group, PAM50.old=PAM50),
   by="sample_name")
 ```
 
@@ -105,6 +106,16 @@ sd.comp[,order(colnames(sd.comp))] %>%
   relocate(sample_name,.before = everything())
 ```
 
+```{r}
+length(unique(sd$sample_name)) == length(unique(sd.old$sample_name))
+all(sort(sd$sample_name) == sort(sd.old$sample_name))
+```
+
+
+```{r}
+sd.comp %>%
+  dplyr::filter(PAM50.new != PAM50.old)
+```
 
 ```{r}
 sd.comp %>%
