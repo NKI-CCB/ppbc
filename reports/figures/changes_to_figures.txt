@@ -139,3 +139,11 @@ Slight shifts in statistics, nothing important
 #### Sup Fig 20 ####
 
 Slight shifts in statistics, nothing important
+
+#### Sup Fig 21 ####
+
+Per Hanne's note, is now a KM for OS/DRS and clonotypes per kiloreads (cpk)
+
+#### Sup Fig 22 ####
+
+Is skipped pending review

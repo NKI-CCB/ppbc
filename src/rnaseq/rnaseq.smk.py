@@ -977,6 +977,7 @@ rule trust_report:
     discarded="data/rnaseq/metadata/02_discarded_samples.csv",
     ihc_outliers="data/rnaseq/metadata/03_removed_pam50_outliers.csv",
     dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
+    cp="data/rnaseq/interim/color_palettes.Rds",
     rmd="reports/rnaseq/15_BCR_clonality.Rmd",
     script="src/utils/rmarkdown.R"
   params:
@@ -985,6 +986,7 @@ rule trust_report:
     alltrust="data/rnaseq/processed/15_alltrust.Rds",
     trustdata="data/rnaseq/processed/15_trustdata.Rds",
     trustexcel="results/rnaseq/TRUST/TRUST_results.xlsx",
+    km_cpk="figures/supfigs/Supfig21_clonality_km_OS_DRS.pdf",
     html="reports/rnaseq/15_BCR_clonality.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.html}"
@@ -996,6 +998,8 @@ rule trust_report:
     " --discarded {input.discarded}"
     " --ihc_outliers {input.ihc_outliers}"
     " --dds {input.dds}"
+    " --cp {input.cp}"
+    " --km_cpk {output.km_cpk}"
     
 rule antibody_isotypes:
   input:

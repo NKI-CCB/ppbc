@@ -141,16 +141,15 @@ reports/figures/CD38_TAPC_TILs.Rmd
 
 reports/figures/isotypes.Rmd
 
+#### Sup Fig 21 ####
+
+Per Hanne's note, is now a KM for OS/DRS and clonotypes per kiloreads (cpk)
+
+#### Sup Fig 22 ####
+
+Is skipped pending review
+
 #### To do ####
-
-
-Fig. S21. 
-This figure was made based on edits I made in your code 18_BCR_clonality.Rmd
-However, I think it does not really make much sense what I did. So I’m probably replacing this figure by your figure regarding overall clonal diversity (however I’ll wait for the edits as the TRUST analyses got changed) 
- 
-
-Fig. S22. 
-Code Hanne: 06_immune_landscapes.Rmd
 
 Fig. S23. 
 A.	Code Hanne: 10_Cox_regression_Cibersort.Rmd

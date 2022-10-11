@@ -18,6 +18,8 @@ params:
     discarded: "data/rnaseq/metadata/02_discarded_samples.csv"
     ihc_outliers: "data/rnaseq/metadata/03_removed_pam50_outliers.csv"
     dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
+    cp: "data/rnaseq/interim/color_palettes.Rds"
+    km_cpk: "figures/supfigs/Supfig21_clonality_km_OS_DRS.pdf"
 ---
 
 In this notebook, we process the output of the TRUST algorithm for analyzing BCR clonarity in PBBC.
@@ -40,6 +42,8 @@ From the TRUST4 readme:
 
 >Tcr Receptor Utilities for Solid Tissue (TRUST) is a computational tool to analyze TCR and BCR sequences using unselected RNA sequencing data, profiled from solid tissues, including tumors. TRUST4 performs de novo assembly on V, J, C genes including the hypervariable complementarity-determining region 3 (CDR3) and reports consensus of BCR/TCR sequences. TRUST4 then realigns the contigs to IMGT reference gene sequences to report the corresponding information. TRUST4 supports both single-end and paired-end sequencing data with any read length.
 
+# Dependencies
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -57,7 +61,12 @@ library(tidyverse)
 theme_set(theme_bw())
 ```
 
-#Sample metadata
+```{r}
+cp <- readRDS(here(params$cp))
+```
+
+
+# Sample metadata
 
 Sample metadata pre replicate merging:
 
@@ -773,40 +782,39 @@ survdata %>%
 
 Overall survival
 
-```{r}
-survfit(Surv(time=time_OS_months, event=death) ~ cpk_tertile, data = survdata) %>% 
+```{r, fig.height=6,fig.width=8}
+km_cpk_os <- survfit(Surv(time=time_OS_months, event=death) ~ cpk_tertile, data = survdata) %>% 
 ggsurvplot(fit = ., 
     xlab = "Months", 
     ylab = "Overall survival probability",
     title = paste0("Clonal diversity and survival"),
-    #palette = ppbc_colors,
-    #palette = "Dark2",
-    #linetype = "strata",
-    #conf.int = T,
+    palette = cp$tertile_colors,
+    legend.lab = c("low", "medium", "high"),
     pval = T,
     ggtheme = theme_bw(),
-    risk.table = F,
+    risk.table = T,
     cumevents = F, cumcensor = F,
     test.for.trend = F)
+
+km_cpk_os
 ```
 
 Distant recurrence
 
-```{r}
-survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ cpk_tertile, data = survdata) %>% 
-ggsurvplot(fit = ., 
-    xlab = "Months", 
-    ylab = "DRS probability",
-    title = paste0("Clonal diversity and DRS"),
-    #palette = ppbc_colors,
-    #palette = "Dark2",
-    #linetype = "strata",
-    #conf.int = T,
-    pval = T,
-    ggtheme = theme_bw(),
-    risk.table = F,
-    cumevents = F, cumcensor = F,
-    test.for.trend = F)
+```{r, fig.height=6,fig.width=8}
+km_cpk_drs <- survfit(Surv(time=time_DRS_months, event=distant_recurrence) ~ cpk_tertile, data = survdata) %>% 
+  ggsurvplot(fit = ., 
+             xlab = "Months", 
+             ylab = "DRS probability",
+             title = paste0("Clonal diversity and DRS"),
+             palette = cp$tertile_colors,
+             legend.lab = c("low", "medium", "high"),
+             pval = T,
+             ggtheme = theme_bw(),
+             risk.table = T,
+             cumevents = F, cumcensor = F,
+             test.for.trend = F)
+km_cpk_drs
 ```
 
 PPBC faceted plots:
@@ -899,6 +907,15 @@ openxlsx::write.xlsx(x = list(
   "clonotype_per_kb" = cpk_df
 ), file = file.path(resdir, "TRUST_results.xlsx")
 )
+```
+
+Kaplan-meiers:
+
+```{r}
+pdf(file = here(params$km_cpk), width = 10, height = 7)
+print(km_cpk_os,newpage=F) #Removes blank first page
+km_cpk_drs
+dev.off()
 ```
 
 ```{r}
