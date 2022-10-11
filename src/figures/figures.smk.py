@@ -133,16 +133,16 @@ rule isotypes:
     rt="src/figures/faceted_risktable.R",
     script="src/utils/rmarkdown.R"
   output:
-    fig3a="figures/Fig3a_boxplot_isotypes.pdf",
-    fig3bc="figures/Fig3bc_km_isotypes.pdf",
-    fig3d="figures/Fig3d_cor_Ig_TAPC.pdf",
+    boxplot_abs="figures/Fig3a_boxplot_isotypes.pdf",
+    km_iso="figures/Fig3bc_km_isotypes.pdf",
+    cor_IG_TAPC="figures/Fig3d_cor_Ig_TAPC.pdf",
     report="reports/figures/isotypes.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
-    " --fig3a {output.fig3a}"
-    " --fig3bc {output.fig3bc}"
-    " --fig3d {output.fig3d}"
+    " --boxplot_abs {output.boxplot_abs}"
+    " --km_iso {output.km_iso}"
+    " --cor_IG_TAPC {output.cor_IG_TAPC}"
     
 rule ciberfigs:
   input:

@@ -9,9 +9,9 @@ output:
     highlight: kate
 params:
     figuredata: "data/figures/00_figuredata.Rds"
-    fig3a: "figures/Fig3a_boxplot_isotypes.pdf"
-    fig3bc: "figures/Fig3bc_km_isotypes.pdf"
-    fig3d: "figures/Fig3d_cor_Ig_TAPC.pdf"
+    boxplot_abs: "figures/Fig3a_boxplot_isotypes.pdf"
+    km_iso: "figures/Fig3bc_km_isotypes.pdf"
+    cor_IG_TAPC: "figures/Fig3d_cor_Ig_TAPC.pdf"
 ---
 
 ## Dependencies
@@ -54,7 +54,7 @@ study_colors <- c("NP-BC"="#521262", "Pr-BC"="#AA96DA", "PP-BCdl"="#112D4E", "PP
 ## Figure 3A - Boxplot Ig expression
 
 ```{r, fig.height=6, fig.width=8}
-fig3a <- figuredata %>%
+boxplot_abs <- figuredata %>%
   select(study_group, IgA:IgM) %>%
   pivot_longer(cols = c(IgA, IgD, IgG, IgM),
                names_to = "isotype", values_to = "normCount") %>%
@@ -73,7 +73,7 @@ fig3a <- figuredata %>%
   ylab("Normalized Expression Levels") +
   xlab("Study group")
 
-fig3a
+boxplot_abs
 ```
 
 ### Save output
@@ -81,14 +81,14 @@ fig3a
 ```{r}
 figureDir <- file.path(here("figures"))
 dir.create(figureDir, showWarnings = F)
-pdf(file = here(params$fig3a), width = 12, height = 8)
-fig3a
+pdf(file = here(params$boxplot_abs), width = 12, height = 8)
+boxplot_abs
 dev.off()
 ```
 
 ## Fig 3BC - IG expression KMs
 
-Combintation figures 3B and 3C. IG expression level is split around the median. Exclude lac from RNAseq analyses due to lack of samples.
+IG expression level is split around the median. Exclude lac from RNAseq analyses due to lack of samples.
 
 ```{r}
 ig_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
@@ -153,34 +153,34 @@ ig_km <- function(df, event_type = c("OS", "DRS"), returndata = F){
   plt
 }
 
-fig3b <- ig_km(figuredata, event_type = "OS", returndata = F)
+km_iso <- ig_km(figuredata, event_type = "OS", returndata = F)
 
-fig3b
+km_iso
 ```
 
 ### Risk table
 
 ```{r}
-rt_fig3b <- lapply(names(fig3b), function(x){
-  faceted_risktable(fig3b[[x]], faceted.by = "isotype_group") +
+rt_km_iso <- lapply(names(km_iso), function(x){
+  faceted_risktable(km_iso[[x]], faceted.by = "isotype_group") +
     ggtitle(paste("Risk table for", x))
-}) %>% set_names(names(fig3b))
-rt_fig3b
+}) %>% set_names(names(km_iso))
+rt_km_iso
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig3b), width = 9, height = 6)
-fig3b
-rt_fig3b
+pdf(file = here(params$km_iso), width = 9, height = 6)
+km_iso
+rt_km_iso
 dev.off()
 ```
 
 ## Fig 3D - Correlation IgA/IgG and TAPC in PP-BCpw
 
 ```{r}
-fig3d <- 
+cor_IG_TAPC <- 
   list(
     IgA = figuredata %>%
       filter(study_group == "PP-BCpw") %>%
@@ -213,14 +213,14 @@ fig3d <-
       scale_color_brewer(palette = "Spectral")
   )
 
-fig3d
+cor_IG_TAPC
 ```
 
 ### Save output
 
 ```{r}
-pdf(file = here(params$fig3d), width = 12, height = 8)
-fig3d
+pdf(file = here(params$cor_IG_TAPC), width = 12, height = 8)
+cor_IG_TAPC
 dev.off()
 ```
 
