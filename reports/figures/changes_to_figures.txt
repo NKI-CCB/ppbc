@@ -1,5 +1,6 @@
 #### General ####
 
+- All tertiles, high-vs-low strata etc are made in R instead of in Excel
 - RNAseq has enough power for prbc but not ppbc-lac. Ppbc-lac is only included in 1 vs rest comparisons and non quantitative visualizations.
 - For spatial analyses, insufficient power for prbc and ppbc lac.
 - For spatial visualizations of density etc box plots, include all 4 groups but only do statistical test between ppbcinv and nulliparous
