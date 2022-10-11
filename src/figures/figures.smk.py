@@ -142,6 +142,7 @@ rule isotypes:
     km_ig_drs="figures/supfigs/Supfig18_km_isotypes_drs.pdf",
     cor_IG_TAPC="figures/Fig3d_cor_Ig_TAPC.pdf",
     cor_IgA_milk="figures/supfigs/Supfig17_cor_IgA_milk.pdf",
+    cor_IgA_IgG="figures/supfigs/Supfig20_cor_IgA_IgG.pdf",
     report="reports/figures/isotypes.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
@@ -154,6 +155,7 @@ rule isotypes:
     " --km_ig_drs {output.km_ig_drs}"
     " --cor_IG_TAPC {output.cor_IG_TAPC}"
     " --cor_IgA_milk {output.cor_IgA_milk}"
+    " --cor_IgA_IgG {output.cor_IgA_IgG}"
     
 rule ciberfigs:
   input:

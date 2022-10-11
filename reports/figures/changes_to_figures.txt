@@ -131,3 +131,11 @@ All panels: correlation between IgA and milk proteins is now more significant, b
 #### Sup Fig 18 ####
 
 Shifts in p value throughout, IgG high no longer significant
+
+#### Sup Fig 19 ####
+
+Slight shifts in statistics, nothing important
+
+#### Sup Fig 20 ####
+
+Slight shifts in statistics, nothing important

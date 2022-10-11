@@ -17,6 +17,7 @@ params:
     cor_IG_TAPC: "figures/Fig3d_cor_Ig_TAPC.pdf"
     cor_IgA_milk: "figures/supfigs/Supfig17_cor_IgA_milk.pdf"
     km_ig_drs: "figures/supfigs/Supfig18_km_isotypes_drs.pdf"
+    cor_IgA_IgG: "figures/supfigs/Supfig20_cor_IgA_IgG.pdf"
 ---
 
 ## Dependencies
@@ -329,6 +330,59 @@ rt_km_ig_drs
 pdf(file = here(params$km_ig_drs), width = 12, height = 8)
 km_ig_drs
 rt_km_ig_drs
+dev.off()
+```
+
+## Sup fig 20: Correlation IgA and IgG
+
+### All samples
+
+```{r}
+cor_plot <- function(df=figuredata, x, y, colorby, cormet="spearman", ...){
+  
+  df <- df[!is.na(df[,x]) & !is.na(df[,y]),]
+
+  df %>%
+    ggplot(aes(get(x), get(y))) +
+    geom_jitter(aes(color = get(colorby)), height = 1, width = 0.2, shape = 15) +
+    geom_smooth(method = "lm", formula = y ~ x) +
+    ggpubr::stat_cor(method = cormet, #label.y = 3.5, label.x = -0.2,
+                     aes(label = paste(..rr.label.., ..r.label.., ..p.label..,
+                                       sep = "~`,`~"))) +
+    xlab(str_replace_all(x, "_", " ")) +
+    ylab(str_replace_all(y, "_", " ")) +
+    labs(color = str_replace_all(colorby, "_", " "))
+}
+
+cor_IgA_IgG_all <- cor_plot(figuredata, x="IgA", y="IgG", colorby = "study_group") +
+  scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
+  ggtitle("Spearman correlation between IgA and IgG in all samples") +
+  xlab("TMM log2 IgA isotype expression")+
+  ylab("TMM log2 IgG isotype expression")
+cor_IgA_IgG_all
+```
+
+### PPBCpw
+
+```{r}
+cor_IgA_IgG_inv <- cor_plot(
+  filter(figuredata, study_group == "PP-BCpw"),
+  x="IgA", y="IgG", colorby = "study_group"
+) +
+  scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
+  ggtitle("Spearman correlation between IgA and IgG in all samples") +
+  xlab("TMM log2 IgA isotype expression")+
+  ylab("TMM log2 IgG isotype expression")
+
+cor_IgA_IgG_inv
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$cor_IgA_IgG), width = 12, height = 8)
+cor_IgA_IgG_all
+cor_IgA_IgG_inv
 dev.off()
 ```
 

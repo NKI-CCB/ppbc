@@ -133,18 +133,16 @@ reports/figures/isotypes.Rmd
 
 reports/figures/isotypes.Rmd
 
+#### Sup Fig S19 ####
+
+reports/figures/CD38_TAPC_TILs.Rmd
+
+#### Sup Fig S20 ####
+
+reports/figures/isotypes.Rmd
+
 #### To do ####
 
-Fig. S19. 
-Code Hanne: 03_correlation_analyses.Rmd
-# correlation IgA/IgG – TAPC
-## overall
-## PrBC
-## NPBC
-
-Fig. S20.
-Code Hanne: 03_correlation_analyses.Rmd
-# correlation IG expression - IgA-IgG
 
 Fig. S21. 
 This figure was made based on edits I made in your code 18_BCR_clonality.Rmd
