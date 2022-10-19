@@ -800,6 +800,13 @@ dev.off()
 
 ### KMs
 
+Density:
+
+```{r}
+km_CD8_density_DRS <- density_km(density, cell = "CD3+CD8+", event_type = "DRS", returndata = F)
+km_CD8_density_DRS
+```
+
 L stat:
 
 ```{r}
@@ -839,7 +846,15 @@ for(i in 1:nrow(drs_cross)){
 misc_km_drs
 ```
 
-### Risk table 
+### Risk table
+
+```{r}
+rt_km_CD8_density_DRS <- faceted_risktable(km_CD8_density_DRS,
+                                           faceted.by = "density") +
+  ggtitle("Risk table for CD3+CD8+ density DRS")
+rt_km_CD8_density_DRS
+```
+
 
 ```{r}
 rt_misc_km_drs <- lapply(names(misc_km_drs), function(x){
@@ -855,7 +870,9 @@ rt_misc_km_drs
 
 ```{r}
 pdf(file = here(params$misc_spatial_drs), width = 12, height = 7)
+km_CD8_density_DRS
 misc_km_drs
+rt_km_CD8_density_DRS
 rt_misc_km_drs
 dev.off()
 ```
