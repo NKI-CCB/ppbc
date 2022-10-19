@@ -5,19 +5,24 @@
 #' @param faceted.by Character, the response variable used with facet.by
 #' @param text.size Numeric, the size of the risk table text
 #' @param returndata Logical, whether to return the data plotted by the risk table
+#' @param returnMissing Logical, return a version of the data frame with missing intervals as NA (debug)
+#' @param colors Character, a named vector of colors for the values within the table with names matching curve.var
+#' (can be overwritten with scale_color_manual(values =c(rep("black", length(levels(curve.var))))) )
 #'
 #' @return A ggplot risktable with a layout comparable to ggkm
 #' @export
 #'
-#' @examples
+#' @examples faceted_risktable(IG_kaplan_PPBC_OS, faceted.by = "IG",curve.var = "study_group") +
+#' scale_color_manual(values =c(rep("black", 3))) + theme_bw() +
+#' theme(axis.text.y = element_text(colour = c(npbc = "#521262", prbc="#AA96DA",ppbcpw="#46CDCF")))
 faceted_risktable <- function(ggkm, br=seq(0,300,50), faceted.by, curve.var="study_group",
-                              text.size = 12, returndata = F,
+                              text.size = 12, returndata = F, returnMissing=F,
                               colors = c("NP-BC"="#521262", "Pr-BC"="#AA96DA",
                                          "PP-BCdl"="#112D4E", "PP-BCpw"="#46CDCF")
-                              ){
+){
   # Extract the table from the ggplot object
   df <- ggkm$data
-  
+
   # Treating zero as 1 allows us to generate breaks starting from 0 without NAs
   df <- df %>%
     mutate(time1=ifelse(time == 0,1,time))
@@ -38,19 +43,36 @@ faceted_risktable <- function(ggkm, br=seq(0,300,50), faceted.by, curve.var="stu
     select(time:N.risk, strata:time1) %>%
     arrange(strata, Time)
   
-  # Remove extraneous columns to plot a single unique value per interval and strata
-  df <- df[,c("Time","N.risk", faceted.by, curve.var, "strata")] %>%
+  # Set aside a key-value pairing of strata and plotting variables
+  plotvars <- df %>% ungroup() %>%
+    select(strata, {{faceted.by}}, {{curve.var}}) %>%
     distinct()
   
-  # Hacky way of filling in the zeros for strata with less follow up
+  # Remove extraneous columns to plot a single unique value per interval and strata
   df <- df %>%
-    pivot_wider(names_from = Time, values_from = N.risk, values_fill = 0) %>%
-    pivot_longer(cols = c(-{{curve.var}}, -strata, -{{faceted.by}}),
-                 names_to = "Time", values_to = "N.risk") %>%
-    mutate(Time = as.numeric(Time))
+    select(Time, N.risk, strata) %>%
+    distinct()
+  
+  # Fill in the time intervals with no events are omitted by cut() with NA
+  df <- df %>%
+    mutate(Time = as.factor(Time)) %>%
+    tidyr::complete(Time, strata) %>%
+    left_join(., plotvars, by = "strata") %>%
+    arrange(strata, Time) %>% distinct() %>%
+    mutate(Time = as.numeric(as.character(Time)))
+  if(returnMissing){return(df)}
+  
+  # Replace the NAs with 0 if empty due to lack of follow up
+  timeMax <- max(df$Time)
+  df <- df  %>%
+    mutate(N.risk = if_else(is.na(N.risk) & Time == timeMax, 0, N.risk)) %>%
+    arrange(strata, Time)
+  
+  # Replace NA with the next interval if an earlier interval was skipped due to lack of events
+  df$N.risk[is.na(df$N.risk)] <- df$N.risk[which(is.na(df$N.risk))+1]
   
   # Generate facet headings based on the facet group
-  df$response <- paste(faceted.by, df[,faceted.by,drop=T])
+  df$response <- df[,faceted.by,drop=T]
   
   if(returndata){return(df)}
   
