@@ -253,7 +253,7 @@ rt_km_memoryB_OS
 
 ```{r}
 km_memoryB_DRS <- km(
-  rename(figuredata, memory_B = Plasma_cat), covariate = "memory_B", event_type = "DRS",
+  rename(figuredata, memory_B = memory_B_cat), covariate = "memory_B", event_type = "DRS",
   study_groups=c("PP-BCpw", "Pr-BC", "NP-BC"),
   surv_formula=as.formula("Surv(time=time_DRS_months, event=distant_recurrence) ~ study_group + memory_B"),
   returndata = F, returnfit = F
