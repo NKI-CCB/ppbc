@@ -349,7 +349,8 @@ color_grid(IG_expression_colors)
 ```{r, fig.width=8}
 study_ig = col_clust %>% ggplot(aes(x = IG_col_cluster, fill=study_group)) + geom_bar(position = "fill") +
   scale_fill_manual(values=study_colors) +
-  ggtitle("Study group by IG expression cluster")
+  ggtitle("Study group by IG expression cluster") +
+  ylab("Fraction")
 
 
 clust_ig = col_clust %>% ggplot(aes(fill = factor(IG_col_cluster, levels=c("high", "medium","low")), x=study_group)) +
@@ -357,7 +358,8 @@ clust_ig = col_clust %>% ggplot(aes(fill = factor(IG_col_cluster, levels=c("high
   #scale_fill_brewer(type="div", palette = 9, direction = 1) +
   scale_fill_manual(values = IG_expression_colors) +
   ggtitle("Division of IG expression clusters by study group") +
-  labs(fill="IG_col_cluster")
+  labs(fill="IG_col_cluster") +
+  ylab("Fraction")
 
 
 study_ig
