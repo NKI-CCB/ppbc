@@ -1,0 +1,94 @@
+---
+title: "md5 checksum"
+output: html_document
+Author: Kat Moore
+date: "`r Sys.Date()`"
+html_document:
+    toc: yes
+    toc_float: no
+    df_print: paged
+    highlight: kate
+    canon: true
+params:
+  post_transfer: "data/external/ppbc_transfer_md5.yaml"
+  fastq: "data/rnaseq/fastq/fastq_md5.txt"
+  vectra_annotations: "data/vectra/raw/annotations/annotations_md5.txt"
+  vectra_objects: "data/vectra/raw/objects/objects_md5.txt"
+  vectra_summaries: "data/vectra/raw/summary/summary_md5.txt"
+---
+
+Check the file integrity after transferring the data to KU Leuven.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Dependencies
+
+```{r}
+library(yaml)
+library(here)
+library(tidyverse)
+```
+
+## Tranferred checksums
+
+Still waiting on the fastq checksums.
+
+```{r}
+post <- lapply(read_yaml(here(params$post_transfer))$files,function(x){
+    tibble(filename = x$originalFilename, md5 = x$md5Checksum)
+  }) %>% bind_rows()
+
+head(post)
+```
+
+## Checksums pre-transfer
+
+```{r}
+annot <- read_fwf(here(params$vectra_annotations), show_col_types = F) %>%
+  set_names(c("md5", "filename"))
+
+head(annot)
+```
+
+```{r}
+obj <- read_fwf(here(params$vectra_objects), show_col_types = F) %>%
+  set_names(c("md5", "filename"))
+
+head(obj)
+```
+
+```{r}
+summaries <- read_fwf(here(params$vectra_summaries), show_col_types = F) %>%
+  set_names(c("md5", "filename"))
+
+head(summaries)
+```
+
+```{r}
+fastq <- read_fwf(here(params$fastq), show_col_types = F) %>%
+  set_names(c("md5", "filename"))
+```
+
+
+```{r}
+pre <- bind_rows(summaries, annot, obj)
+```
+
+## Compare
+
+We're currently missing a lot of checksums from Leuven.
+
+```{r}
+comp <- full_join(rename(pre, md5_pre=md5), rename(post, md5_post=md5), by = "filename") %>%
+  relocate(filename, .before=everything())
+head(comp)
+```
+
+```{r}
+comp %>% filter(!is.na(md5_pre)) %>% filter(!is.na(md5_post)) %>%
+  filter(md5_pre != md5_post)
+```
+
+

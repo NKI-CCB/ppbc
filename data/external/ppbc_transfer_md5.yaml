@@ -1,0 +1,381 @@
+{
+ "files": [
+  {
+   "originalFilename": "T21-60330_MPIF26_batch2_annotations.xml",
+   "md5Checksum": "c671936b3c1dc08bd92f1cf9902ee8a2"
+  },
+  {
+   "originalFilename": "T21-60330_MPIF27_batch2_annotations.xml",
+   "md5Checksum": "9e786da6810dfcb55b7c0afcf84b1250"
+  },
+  {
+   "originalFilename": "T21-60330_MPIF27_batch2_summary_results.csv",
+   "md5Checksum": "2ae9f9ccbcfaaf234898aa43592c6a52"
+  },
+  {
+   "originalFilename": "T20-62453_MPIF27_batch6_object_results.csv",
+   "md5Checksum": "401ec4b8693aa7596dbabda802b682d9"
+  },
+  {
+   "originalFilename": "T20-62453_MPIF27_batch6_annotations.xml",
+   "md5Checksum": "d6662b37355b29bf214fd141e6499c65"
+  },
+  {
+   "originalFilename": "T20-62453_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "ee4335cf867e0f503973872f13cefdf9"
+  },
+  {
+   "originalFilename": "T20-62451_MPIF27_batch6_object_results.csv",
+   "md5Checksum": "8811529962a885557ee5a5e0d909a0fc"
+  },
+  {
+   "originalFilename": "T20-62451_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "851e6d1f047a368418aa7c057e89f8b6"
+  },
+  {
+   "originalFilename": "T20-62425_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "abe3e06076e681b89ccc23efc733f1a6"
+  },
+  {
+   "originalFilename": "T20-62424_MPIF27_batch6_annotations.xml",
+   "md5Checksum": "fa343e2dbb9327c8e117bc49e439c203"
+  },
+  {
+   "originalFilename": "T20-62424_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "1b19b3b9c5e32646c81f15a390b2e0c1"
+  },
+  {
+   "originalFilename": "T20-62423_MPIF27_batch6_annotations.xml",
+   "md5Checksum": "60b863e11a6f6c48ca38f29597168237"
+  },
+  {
+   "originalFilename": "T20-62423_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "e01632550b956c703c7b546858b10031"
+  },
+  {
+   "originalFilename": "T20-62422_MPIF27_batch6_annotations.xml",
+   "md5Checksum": "b67d6720fc867f42ad975e8c8a72a934"
+  },
+  {
+   "originalFilename": "T20-62422_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "63aecd4248e104b2db01c4fd6b43408b"
+  },
+  {
+   "originalFilename": "T20-62421_MPIF27_batch6_annotations.xml",
+   "md5Checksum": "69a056296fc38be4202c843b43299ca6"
+  },
+  {
+   "originalFilename": "T20-62421_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "9239eb82a825e7ec5aa8162c63aa4636"
+  },
+  {
+   "originalFilename": "T20-62420_MPIF27_batch6_annotations.xml",
+   "md5Checksum": "63a5ff11c996cfb5b2d5991ca8abddf7"
+  },
+  {
+   "originalFilename": "T20-62420_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "e077ede0edcc2852cd4c0c0a416cb2c6"
+  },
+  {
+   "originalFilename": "T20-62419_MPIF27_batch6_annotations.xml",
+   "md5Checksum": "21149e8bf0e0530a383c1aa588aa70ce"
+  },
+  {
+   "originalFilename": "T20-62419_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "da7f931a02f0dee00ab285e5bf4c1b9f"
+  },
+  {
+   "originalFilename": "T20-62417_MPIF27_batch6_annotations.xml",
+   "md5Checksum": "10183535d6201facf9d6ad74145808ec"
+  },
+  {
+   "originalFilename": "T20-62417_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "cd9ca53b7ae6e286752940d11fb874de"
+  },
+  {
+   "originalFilename": "T20-62415_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "e67806fdb09d9b74a3edd4417547af9b"
+  },
+  {
+   "originalFilename": "T20-62414_MPIF27_batch6_annotations.xml",
+   "md5Checksum": "fbe64495af59b90353e0dc4d7a862f90"
+  },
+  {
+   "originalFilename": "T20-62414_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "fa2bf20c144431744e729b6e3d5404f6"
+  },
+  {
+   "originalFilename": "T20-62413_MPIF27_batch6_annotations.xml",
+   "md5Checksum": "4f3a4c81e07cb33446ea39b091a67f41"
+  },
+  {
+   "originalFilename": "T20-62413_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "fc9673155a13a6cc74c9eeb45f606997"
+  },
+  {
+   "originalFilename": "T20-62411_MPIF27_batch6_annotations.xml",
+   "md5Checksum": "78872c75e76d917ef2b976e8f38cf6ea"
+  },
+  {
+   "originalFilename": "T20-62411_MPIF27_batch6_summary_results.csv",
+   "md5Checksum": "cb29ea0561e879434900a370e91ea3eb"
+  },
+  {
+   "originalFilename": "T20-62412_MPIF26_batch6_annotations.xml",
+   "md5Checksum": "2ed413687ea84e251b2ce9a02733af65"
+  },
+  {
+   "originalFilename": "T20-62412_MPIF26_batch6_summary_results.csv",
+   "md5Checksum": "7d85a9919f84aa1fbdb214d424802285"
+  },
+  {
+   "originalFilename": "T20-62453_MPIF26_batch6_summary_results.csv",
+   "md5Checksum": "f4a8ecacdf14084ee1fba92c4479abd1"
+  },
+  {
+   "originalFilename": "T20-62451_MPIF26_batch6_object_results.csv",
+   "md5Checksum": "1e59f81209aa5b25bdae0afbe3c71793"
+  },
+  {
+   "originalFilename": "T20-62425_MPIF26_batch6_annotations.xml",
+   "md5Checksum": "3f3c3eb94b9be2626d9c523f218b1cdd"
+  },
+  {
+   "originalFilename": "T20-62425_MPIF26_batch6_summary_results.csv",
+   "md5Checksum": "b1dc10acd05f7559a4fbfb5c9077ae92"
+  },
+  {
+   "originalFilename": "T20-62422_MPIF26_batch6_annotations.xml",
+   "md5Checksum": "386412e20848420bfebabc479cf688cb"
+  },
+  {
+   "originalFilename": "T20-62422_MPIF26_batch6_summary_results.csv",
+   "md5Checksum": "e2131b38a9ddf18ed13bfb18819cef71"
+  },
+  {
+   "originalFilename": "T20-62421_MPIF26_batch6_annotations.xml",
+   "md5Checksum": "7acba30b9ac4006860afb89b3b1929cc"
+  },
+  {
+   "originalFilename": "T20-62421_MPIF26_batch6_summary_results.csv",
+   "md5Checksum": "b6581662d96dcfa25d2c89f0c294062a"
+  },
+  {
+   "originalFilename": "T20-62420_MPIF26_batch6_summary_results.csv",
+   "md5Checksum": "35ff87cbc8d7437f50fd5dd2bf662845"
+  },
+  {
+   "originalFilename": "T20-62419_MPIF26_batch6_annotations.xml",
+   "md5Checksum": "0e760ebae613bac39568b817c29e9000"
+  },
+  {
+   "originalFilename": "T20-62419_MPIF26_batch6_summary_results.csv",
+   "md5Checksum": "c0940d101f5cab135007f14ec06e85f3"
+  },
+  {
+   "originalFilename": "T20-62417_MPIF26_batch6_summary_results.csv",
+   "md5Checksum": "74443b8896f564d2c5c1cafe1340af5a"
+  },
+  {
+   "originalFilename": "T20-62415_MPIF26_batch6_summary_results.csv",
+   "md5Checksum": "4e10ab1e2bb17dcee8e38443a68b9bb1"
+  },
+  {
+   "originalFilename": "T20-62413_MPIF26_batch6_annotations.xml",
+   "md5Checksum": "49ecfbfdaa4b227b0a9801ab9eccadc0"
+  },
+  {
+   "originalFilename": "T20-62413_MPIF26_batch6_summary_results.csv",
+   "md5Checksum": "8e47ba32e7e0f44a8b72e6bae96f7ad7"
+  },
+  {
+   "originalFilename": "T20-62411_MPIF26_batch6_annotations.xml",
+   "md5Checksum": "69279685465363b41f6be8db55f14256"
+  },
+  {
+   "originalFilename": "T20-62411_MPIF26_batch6_summary_results.csv",
+   "md5Checksum": "73b70970f3ac0dcc9d52528db06a4f70"
+  },
+  {
+   "originalFilename": "T20-62429_MPIF27_batch5_annotations.xml",
+   "md5Checksum": "a4b7eb736487503c1535dfb91b06484c"
+  },
+  {
+   "originalFilename": "T20-62429_MPIF27_batch5_summary_results.csv",
+   "md5Checksum": "0abf88a1c054f4140c11deca8ec47954"
+  },
+  {
+   "originalFilename": "T20-62441_MPIF26_batch5_object_results.csv",
+   "md5Checksum": "5a54253b9bd360787b30db3e30a5f8a3"
+  },
+  {
+   "originalFilename": "T20-62441_MPIF26_batch5_annotations.xml",
+   "md5Checksum": "138b767c9038e9ab5d4ea4f543e6213d"
+  },
+  {
+   "originalFilename": "T20-62441_MPIF26_batch5_summary_results.csv",
+   "md5Checksum": "5b8419008475e97c695328c470f346d2"
+  },
+  {
+   "originalFilename": "T20-62441_MPIF27_batch5_annotations.xml",
+   "md5Checksum": "a85bf6c1ec007a1eb64302eb32855937"
+  },
+  {
+   "originalFilename": "T20-62441_MPIF27_batch5_summary_results.csv",
+   "md5Checksum": "4098f4734e94fc0b1c44acac4ca1df1d"
+  },
+  {
+   "originalFilename": "T20-62456_MPIF27_batch5_summary_results.csv",
+   "md5Checksum": "418ab198bab929d38cbe2252141588b2"
+  },
+  {
+   "originalFilename": "T20-62456_MPIF26_batch5_object_results.csv",
+   "md5Checksum": "37597005449f102a3572aa630f342578"
+  },
+  {
+   "originalFilename": "T21-60607_MPIF26_batch4_object_results.csv",
+   "md5Checksum": "60edba7d0a6d4c3045ec06d7ceeee508"
+  },
+  {
+   "originalFilename": "T21-60607_MPIF27_batch4_object_results.csv",
+   "md5Checksum": "d16c398f29b4cee8cc49df4859c4866d"
+  },
+  {
+   "originalFilename": "T21-60162_MPIF27_batch7_annotations.xml",
+   "md5Checksum": "4d66ebf8eb0f6d33232c8ab474315bfe"
+  },
+  {
+   "originalFilename": "T21-60162_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "66c20c48e9540fb7e8702b3177d301b0"
+  },
+  {
+   "originalFilename": "T20-62178_MPIF27_batch7_annotations.xml",
+   "md5Checksum": "0ed54f3a50052e6079820e9fd2e5c36c"
+  },
+  {
+   "originalFilename": "T20-62178_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "491223df24c35d96969128723d0442fb"
+  },
+  {
+   "originalFilename": "T20-62173_MPIF27_batch7_annotations.xml",
+   "md5Checksum": "282b4d6998b98d776a5dd95dabf16ad3"
+  },
+  {
+   "originalFilename": "T20-62173_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "9827d3e183ecccc03c0978102e56c9af"
+  },
+  {
+   "originalFilename": "T20-62172_MPIF27_batch7_object_results.csv",
+   "md5Checksum": "e07ace9f9d2bd6bee4531fd57b58a935"
+  },
+  {
+   "originalFilename": "T20-62172_MPIF27_batch7_annotations.xml",
+   "md5Checksum": "4ec08c2fa4b2631e4eb6e2d4af6fe624"
+  },
+  {
+   "originalFilename": "T20-62172_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "806fcc00a4b36183577ac3658f526284"
+  },
+  {
+   "originalFilename": "T20-62171_MPIF27_batch7_object_results.csv",
+   "md5Checksum": "059b8be221a31650fae1795c4b3f4d62"
+  },
+  {
+   "originalFilename": "T20-62171_MPIF27_batch7_annotations.xml",
+   "md5Checksum": "148958fc2455e9093c16ece61a67baeb"
+  },
+  {
+   "originalFilename": "T20-62171_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "7db7b3dbf4a14ebf021d62a37efca67a"
+  },
+  {
+   "originalFilename": "T20-62170_MPIF27_batch7_object_results.csv",
+   "md5Checksum": "7c20dd7f5c8b6fbd70985bfb953d78da"
+  },
+  {
+   "originalFilename": "T20-62170_MPIF27_batch7_annotations.xml",
+   "md5Checksum": "6484c1a83315e895703452e995a68ee5"
+  },
+  {
+   "originalFilename": "T20-62170_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "d21e9b59f1e77f994622c67e7d4b4727"
+  },
+  {
+   "originalFilename": "T20-62169_II1_MPIF27_batch7_object_results.csv",
+   "md5Checksum": "a66347cb92d54089917174d50d6476f3"
+  },
+  {
+   "originalFilename": "T20-62169_II1_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "1d085e6a2e6759b9851ecc968d90136f"
+  },
+  {
+   "originalFilename": "T20-62169_I1_MPIF27_batch7_object_results.csv",
+   "md5Checksum": "588b514807eebf475d4dabb64a9db749"
+  },
+  {
+   "originalFilename": "T20-62169_I1_MPIF27_batch7_annotations.xml",
+   "md5Checksum": "8d1fdd5618dd6d6b6fa4d10fe9477774"
+  },
+  {
+   "originalFilename": "T20-62169_I1_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "cbe61f239b423799b6460268edb78049"
+  },
+  {
+   "originalFilename": "T20-62168_MPIF27_batch7_object_results.csv",
+   "md5Checksum": "40cfe22712fde81510a5af9cb9ed8e77"
+  },
+  {
+   "originalFilename": "T20-62168_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "82a248f70bafe29fd64f7f776db6ef46"
+  },
+  {
+   "originalFilename": "T20-62167_MPIF27_batch7_object_results.csv",
+   "md5Checksum": "a52c501e8ba40ab0a7ee5d5513e25855"
+  },
+  {
+   "originalFilename": "T20-62167_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "af970b141cf3722d0d776f4aa693b2fc"
+  },
+  {
+   "originalFilename": "T20-62166_MPIF27_batch7_object_results.csv",
+   "md5Checksum": "1e483bc45f7df44a1826680e7b9d6062"
+  },
+  {
+   "originalFilename": "T20-62166_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "3c852d48c162f5cb2d0ed2ed73ccfa65"
+  },
+  {
+   "originalFilename": "T20-62165_MPIF27_batch7_object_results.csv",
+   "md5Checksum": "a8edfd7b8e629836a31bfa813048f6f3"
+  },
+  {
+   "originalFilename": "T20-62165_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "2a029e01efbc69303ff9d2b11effc32c"
+  },
+  {
+   "originalFilename": "T20-62159_MPIF27_batch7_object_results.csv",
+   "md5Checksum": "21bc7e8e5d73304a8c0527bd1cb2e00e"
+  },
+  {
+   "originalFilename": "T20-62159_MPIF27_batch7_annotations.xml",
+   "md5Checksum": "43437857d1065ee930793cd013f01983"
+  },
+  {
+   "originalFilename": "T20-62159_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "6b26cc2c0c0f6a3fbc5e5499c2e16905"
+  },
+  {
+   "originalFilename": "T20-62158_MPIF27_batch7_object_results.csv",
+   "md5Checksum": "2ef90793798facae4b48ac4de681012b"
+  },
+  {
+   "originalFilename": "T20-62158_MPIF27_batch7_annotations.xml",
+   "md5Checksum": "8ec4c2b7399fc7d50aeb2fbece76f5ed"
+  },
+  {
+   "originalFilename": "T20-62158_MPIF27_batch7_summary_results.csv",
+   "md5Checksum": "faf902f861d0ec2225911ba0ee0f69bd"
+  }
+ ]
+}
+
