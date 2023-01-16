@@ -1,0 +1,113 @@
+---
+title: "Transcription factor enrichment analysis (TFEA)"
+Author: Kat Moore
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: yes
+    toc_float: no
+    df_print: paged
+    highlight: kate
+    canon: true
+params:
+  dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
+  one_vs_rest: "results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx"
+  sig_ovr: "results/rnaseq/diffex/08_one_vs_rest_sig_genes.xlsx"
+---
+
+Perform TFEA on the results of the differential expression analysis comparing inv vs rest using [CeTF](https://bmcgenomics.biomedcentral.com/articles/10.1186/s12864-021-07918-2).
+
+## Dependencies
+
+```{r}
+library(here)
+library(DESeq2)
+library(CeTF)
+library(org.Hs.eg.db)
+library(tidyverse)
+library(readxl)
+```
+
+## Load data
+
+```{r}
+dds <- readRDS(here(params$dds))
+readxl::excel_sheets(here(params$sig_ovr))
+ivr <- readxl::read_excel(here(params$sig_ovr), sheet = "sig_rep_inv_rest")
+```
+
+## TFEA
+
+See the vignette: http://bioconductor.org/packages/release/bioc/vignettes/CeTF/inst/doc/CeTF.html#workflow
+
+This function takes a while.
+
+```{r}
+# Creating a variable with annotation data
+anno <- as.data.frame(colData(dds))
+anno <- anno[order(anno$inv_vs_rest, decreasing = F), ]
+#table(anno$inv_vs_rest)
+
+# Creating a variable with count data
+counts <- assay(dds)
+
+# Sorting count data samples by conditions
+counts <- counts[, rownames(anno)]
+
+# Loading the Transcript Factors (TFs) character
+data("TFs")
+
+# Performing the complete analysis
+overwrite <- F
+outFile <-  here("data/rnaseq/processed/cetf_out.Rds")
+
+if(overwrite | !file.exists(outFile)){
+  print("Starting CeFT runAnalysis()...")
+  start <- Sys.time() 
+  out <- runAnalysis(mat = counts, 
+                   conditions=c("rest", "ppbcpw"),
+                   lfc = 0.5,
+                   padj = 0.05,
+                   TFs = TFs,
+                   nSamples1 = table(anno$inv_vs_rest)[[1]],
+                   nSamples2= table(anno$inv_vs_rest)[[2]],
+                   tolType = "mean",
+                   diffMethod = "DESeq2", 
+                   data.type = "counts")
+  saveRDS(out, outFile)
+  end <- Sys.time()
+  print(end-start)
+} else {
+  out <- readRDS(here(outFile))
+}
+
+```
+
+```{r}
+# Accessing the network for condition 1
+genes <- unique(c(as.character(NetworkData(out, "network1")[, "gene1"]), 
+                  as.character(NetworkData(out, "network1")[, "gene2"])))
+
+# Performing getEnrich analysis
+enrich <- getEnrich(genes = genes, organismDB = org.Hs.eg.db, 
+                    keyType = 'ENSEMBL', ont = 'BP', fdrMethod = "BH", 
+                    fdrThr = 0.05, minGSSize = 5, maxGSSize = 500)
+```
+
+
+```{r}
+# Accessing the network for condition 1
+genes <- unique(c(as.character(NetworkData(out, "network1")[, "gene1"]), 
+                  as.character(NetworkData(out, "network1")[, "gene2"])))
+
+# Performing getEnrich analysis
+enrich <- getEnrich(genes = genes, organismDB = org.Hs.eg.db, 
+                    keyType = 'ENSEMBL', ont = 'BP', fdrMethod = "BH", 
+                    fdrThr = 0.05, minGSSize = 5, maxGSSize = 500)
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```

@@ -676,6 +676,26 @@ rule flexgsea_report:
      " --gx_annot '{input.gx_annot}'"
      " --countMatrix '{input.countMatrix}'"
 
+# Some exploration of TF enrichment
+rule tfea:
+  input:
+    dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
+    one_vs_rest="results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx",
+    sig_ovr="results/rnaseq/diffex/08_one_vs_rest_sig_genes.xlsx",
+    rmd="reports/rnaseq/09d_cetf.Rmd",
+    script="src/utils/rmarkdown.R"
+  output:
+    #out="data/rnaseq/processed/cetf_out.Rds", #do not auto-delete on rerun
+    html="reports/rnaseq/09d_cetf.html"
+  shell:
+    """
+    export OMP_NUM_THREADS=1
+    Rscript {input.script} {input.rmd} $PWD/{output.html}
+     --dds '{input.dds}'
+     --one_vs_rest '{input.one_vs_rest}'
+     --sig_ovr '{input.sig_ovr}'
+    """
+
 #### Cibersort Deconvolution ####
 
 # Read in Cibersort results for plotting and survival analyses
@@ -1038,4 +1058,4 @@ rule app_setup:
     """
     Rscript shinyApp/VisualizePPBCgene/data_setup.R
     """ 
-  
+
