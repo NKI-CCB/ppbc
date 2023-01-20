@@ -80,6 +80,25 @@ TAPC_PPBC_cor <- figuredata %>%
 TAPC_PPBC_cor
 ```
 
+By reviewer request
+
+```{r}
+figuredata %>% 
+  filter(!is.na(TAPC_score)) %>%
+  ggplot(aes(x = study_group, y = TAPC_score)) +
+  geom_jitter(aes(color = study_group)) +
+  #geom_boxplot(alpha = 0) +
+  stat_compare_means(method = "wilcox.test",
+                     comparisons = list(c("PP-BCpw", "NP-BC"),
+                                        c("PP-BCpw", "Pr-BC"),
+                                        c("PP-BCpw", "PP-BCdl")
+                                        )) +
+  ggtitle("Wilcoxon test between TAPC scores of PPBC study group") +
+  scale_color_manual(values = study_colors) +
+  xlab("Study group") + ylab("TAPC score") + labs(color = "Study group")
+```
+
+
 ### Save output
 
 ```{r}
