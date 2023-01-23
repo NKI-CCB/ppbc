@@ -1,0 +1,421 @@
+---
+title: "GSEA transcription factors"
+Author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+    df_print: paged
+    highlight: kate
+params:
+  dds: "data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds"
+  ovr: "results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx"
+  gmt: "data/external/gmt/c3.tft.v2022.1.Hs.symbols.gmt"
+  gx_annot: "data/rnaseq/processed/bx_annot.Rds"
+  dedup: "src/rnaseq/summarize_duplicate_ids.R"
+  testing: FALSE
+  overwrite: FALSE
+---
+
+## Dependencies
+
+```{r}
+library(here)
+library(DESeq2)
+library(flexgsea)
+library(tidyverse)
+library(readxl)
+library(circlize)
+library(ComplexHeatmap)
+
+theme_set(theme_bw())
+```
+
+## Load data and params
+
+Count matrix.
+
+```{r load_dds}
+dds <- readRDS(here(params$dds))
+```
+
+GMT for TFs.
+
+```{r load_gmt}
+gmt <- flexgsea::read_gmt(here(params$gmt))
+gmt[1]
+
+names(gmt)[1:10]
+```
+
+Gene dictionary.
+
+```{r load_gx}
+gx_annot <- readRDS(here(params$gx_annot))
+glimpse(gx_annot)
+```
+
+DESeq2 inv vs rest results.
+
+```{r load_ivr}
+ivr <- readxl::read_excel(here(params$ovr), sheet = "rep_inv_rest_all") %>%
+  mutate(sig = ifelse(padj < 0.05 & abs(log2FoldChange) > 0.5, "*", NA))
+
+ivr$padj[is.na(ivr$padj)] <- 1 # for visualization
+glimpse(ivr)
+```
+
+Load gene symbol summarization function.
+
+```{r}
+source(here(params$dedup))
+```
+
+Set logical class for inherited params.
+
+```{r}
+testing <- as.logical(params$testing)
+testing
+```
+
+Number of permutations
+
+```{r}
+nperm <- ifelse(testing, 3, 1000)
+nperm
+```
+
+Rerun analysis if run before?
+
+```{r}
+overwrite <- as.logical(params$overwrite)
+overwrite
+```
+
+```{r}
+study_colors <- c("npbc"="#521262", "prbc"="#AA96DA",
+                  "ppbcdl"="#112D4E", "ppbcpw"="#46CDCF")
+```
+
+## Convert to gene symbol
+
+Extract raw counts, using fewer genes if testing.
+
+```{r}
+if(testing){dds <- head(dds,500)}
+counts <- assay(dds)
+```
+
+Convert ensembl ID to gene symbol
+
+```{r}
+df <- right_join(
+  gx_annot[,c("ensembl_gene_id","gene_name")],
+  rownames_to_column(as.data.frame(counts),"ensembl_gene_id"),
+  by="ensembl_gene_id"
+)
+
+dim(df)
+```
+
+Remove genes with no gene symbol.
+
+```{r}
+print(paste("Number of ensembl IDs with no corresponding gene symbol:", sum(is.na(df$gene_name))))
+df <- df[!is.na(df$gene_name),]
+```
+
+De-duplicate genes. When dealing with duplicated gene names, take the mean expression
+
+```{r}
+geneEx <- df %>% select(-ensembl_gene_id)
+```
+
+```{r}
+geneEx <- summarize_expression_duplicate_ids(mat = geneEx, id_column = "gene_name", f=colMeans)
+```
+
+## Gene scoring function
+
+The scoring function ranks genes by DESeq2 p value using a formula derived from the column names of `y`.
+In our case, this is `~batch + PAM50 + inv_vs_rest`. 
+It will return the p value of the last covariate in the design formula when `coef_of_interest` is set to NULL. This is most convenient when the covariate is a binary factor.
+When the covariate has multiple levels, such as `study_group`, using `coef_of_interest` will return all such levels at once. 
+This saves quite a bit of time.
+Regardless, the p value is multiplied by the sign of l2fc so that enriched and depleted genes are ranked accordingly.
+
+```{r}
+make_score_genes <- function(coef_of_interest="study_group") {
+  score_genes_deseq <- function(x, y, abs) {
+    
+    stopifnot(coef_of_interest %in% colnames(y))
+    
+    #Required for permutation test
+    rownames(x) <- rownames(y)
+    genes <- colnames(x)
+    
+    #Create dds with formula derived from column names
+    dds <- DESeq2::DESeqDataSetFromMatrix(t(x), y, as.formula(paste("~", paste(colnames(y), collapse="+"))))
+    #print(design(dds))
+    dds <- DESeq2::DESeq(dds)
+    
+    # Extract result names
+    coefficients <- DESeq2::resultsNames(dds) %>%
+      discard(~ . == 'Intercept') %>%
+      set_names(., .)
+    
+    #Subset down to column(s) of interest
+    if (!is.null(coef_of_interest)){
+      
+      #Retrieve the levels from each of the columns of interest
+      ourgroups = as.character(unlist(apply(y[,coef_of_interest, drop=F], 2, unique)))
+      
+      # Subset results names by pattern matching to levels in columns of interest
+      # Mapping returns multiple non-unique matches as levels will
+      # appear more than once in the design matrix
+      # Use ~keep instead of ~detect
+      # map_chr expects a single match and will crash when multiple hits are found
+      # Solution: Use map instead of map_chr and unlist
+      coefficients =
+        unique(
+          unlist(map(ourgroups, ~ keep(coefficients, str_detect, .x)))
+        )
+      #coefficients
+    } else {
+      coefficients = tail(coefficients, 1) #Last one in group
+    }
+    
+    #Shrink coefficients and extract pval and l2fc
+    #Include l2fc so we can adjust by sign
+    res <- coefficients %>%
+      map_dfc(~ as.data.frame(
+        lfcShrink(dds, coef=., type='apeglm', apeMethod='nbinomC')
+      )[,c("pvalue","log2FoldChange")]) 
+    rownames(res) <- genes
+    
+    #Separate p val
+    p <- res %>% select(contains("pval"))
+    colnames(p) <- coefficients
+    p <- data.matrix(p)
+    p[is.na(p)] <- 1.0
+    
+    #Create data frame indicating whether l2fc is above or below 0
+    l2fc <- res %>% select(contains("log2FoldChange"))
+    colnames(l2fc) <- coefficients
+    l2fc <- data.matrix(l2fc)
+    sign <- ifelse(l2fc > 0, 1, -1)
+    
+    if (abs) {
+      return(1-p)
+    } else {
+      return((1-p) * sign )} #Multiply pval by -1 if l2fc < 0
+  }}
+```
+
+## Flexgsea
+
+Use inv vs rest comparison.
+
+```{r}
+print(levels(dds$inv_vs_rest))
+print(table(dds$study_group, dds$inv_vs_rest))
+comp <- "inv_vs_rest"
+```
+
+Create a matrix, convert any decimals created by rounding to nearest integer (rounding down) and tranpose.
+
+```{r, matrix_integers}
+geneEx <- as.matrix(column_to_rownames(remove_rownames(geneEx), "GeneSymbol"))
+
+x <- t(geneEx)
+x <- apply(x, 2, as.integer)
+
+dim(x)
+```
+
+Select the relevant sample data to generate the design formula.
+
+```{r}
+y <- as.data.frame(colData(dds)) %>% select(batch, PAM50, !!comp)
+y %>% glimpse()
+stopifnot(nrow(x)==nrow(y))
+```
+
+```{r flexgsea}
+print(paste("Starting FlexGSEA for comparison", comp,
+            "with gene signature", basename(params$gmt)))
+
+#Test whether analysis has been run before
+outFile <- here("data/rnaseq/processed/TF_flexgsea_invVsRest.Rds")
+
+
+#To save time, we design the scoring function to return pairwise comparisons simultaneously
+#For one vs rest, selects the last column only (which corresponds to one vs rest)
+if (comp == "study_group"){
+  this.comp = "study_group"
+} else {
+  this.comp = NULL
+}
+
+if(!file.exists(outFile) | overwrite == T){
+  start <- Sys.time()
+  flexres <- flexgsea(x = x, y = y,
+                      gene.sets = gmt,
+                      gene.score.fn = make_score_genes(coef_of_interest=this.comp),
+                      es.fn = flexgsea_weighted_ks, #flexgsea_maxmean
+                      sig.fun=flexgsea_calc_sig,
+                      nperm=nperm, parallel = T,
+                      block.size = 1,
+                      abs = FALSE,
+                      return_values = c("gene_name","leading_edge",'running_es_pos',
+                                        'running_es_neg', "running_es_at"))
+  saveRDS(flexres, outFile)
+  end <- Sys.time()
+  print(end - start)
+} else {
+  flexres <- readRDS(outFile)
+}
+
+```
+
+## Results
+
+Available results:
+
+```{r}
+names(flexres)
+```
+
+Table of sorted results.
+
+```{r}
+flexres$table$inv_vs_rest_ppbcpw_vs_rest %>%
+  arrange(fdr)
+```
+
+TFs below fdr 0.05:
+
+```{r}
+flextable <- flexres$table$inv_vs_rest_ppbcpw_vs_rest %>%
+  mutate(sig = ifelse(fdr < 0.05, "sig", "n.s.")) %>%
+  mutate(comparison = "PPBCpw vs rest")
+
+flextable %>%
+  pull(sig) %>% table()
+```
+
+Names of significant TFs:
+
+```{r}
+flextable %>%
+  filter(fdr < 0.05) %>%
+  pull(GeneSet)
+```
+
+## NES bar plot
+
+Show normalized enrichment score of significant pathways.
+
+```{r}
+plot_top_pathway <- function(df, thresh, top_n, comparison){
+  
+  stopifnot(comparison %in% unique(df$comparison))
+  comp <- df[df$comparison == comparison, ]
+  comp_thresh <- comp[comp$fdr < thresh, ]
+  top_comp <- comp_thresh %>%
+    arrange(fdr, p) %>%
+    head(top_n)
+  
+  if(nrow(top_comp) <1 ){
+    return(paste("No sig pathways for", comparison,"at FDR threshold", thresh))
+  }
+  
+  top_comp %>%
+    #truncate long terms
+    mutate(GeneSet = substr(GeneSet,1,50)) %>%
+    ggplot(aes(x = GeneSet, y = nes, fill = fdr)) +
+    geom_bar(stat = "identity") + coord_flip() +
+    ggtitle(paste("Top", top_n, comparison, "TF gene sets at FDR", thresh,
+                  paste0("\n(", nrow(comp_thresh), " total hits)")))
+  
+}
+
+plot_top_pathway(flextable, thresh = 0.05, top_n = 10, comparison = "PPBCpw vs rest")
+```
+
+## Heatmap of TF targets
+
+Show only significant pathways.
+
+```{r}
+sigtfs <- flextable %>% filter(fdr < 0.05)
+sigtfs
+
+show_heatmaps <- nrow(sigtfs) > 0
+```
+
+Show the heatmaps only if some significant TFs are found.
+
+```{r}
+show_heatmaps
+```
+
+
+```{r heatmaps, fig.height=8, eval=show_heatmaps, echo=show_heatmaps}
+for(i in 1:nrow(sigtfs)){
+  tf <- sigtfs$GeneSet[i]
+  tfFDR <- signif(sigtfs$fdr[i], 2)
+  tfNES <- signif(sigtfs$nes[i], 2)
+  
+  htitle <- paste(str_replace_all(tf, "_", " "), "\nGSEA FDR:", tfFDR, "NES:", tfNES)
+  
+  tfmat <- geneEx[rownames(geneEx) %in% gmt[[tf]],]
+  
+  mat <- varianceStabilizingTransformation(tfmat)
+  
+  rowscalemat <- t(scale(t(mat)))
+  
+  pvalue_col_fun = colorRamp2(c(0, 2, 3), c("green", "white", "red"))
+  
+  # Reduce annotations to those contained in matrix, and discard duplicate symbols
+  anno <- ivr[ivr$hgnc_symbol %in% rownames(rowscalemat),]
+  anno <- anno[!duplicated(anno$hgnc_symbol),]
+  
+  anno$hgnc_symbol[duplicated(anno$hgnc_symbol)]
+  
+  stopifnot(all(sort(rownames(rowscalemat)) == sort(anno$hgnc_symbol)))
+  
+  hm <- Heatmap(rowscalemat, column_title = htitle,
+                top_annotation = ComplexHeatmap::HeatmapAnnotation(
+                  df=as.data.frame(colData(dds))[,c("study_group"), drop=F],
+                  which = "col", show_legend = T,
+                  col=list(study_group = study_colors),
+                  annotation_legend_param = list(study_group = list(direction = "horizontal"))),
+                right_annotation = HeatmapAnnotation(
+                  pvalue = anno_simple(-log10(anno$pvalue),
+                                       col = pvalue_col_fun, pch = anno$sig),
+                  which = "row"),
+                show_column_names = F,
+                row_names_gp = gpar(fontsize = 8),
+                heatmap_legend_param = list(
+                  title = "row Z vst", direction = "horizontal"
+                ))
+  
+  lgd_pvalue <- Legend(title = "p-value Deseq2", col_fun = pvalue_col_fun, at = c(0, 1, 2, 3), 
+                       labels = c("1", "0.1", "0.01", "0.001"), direction = "horizontal")
+  
+  lgd_sig <- Legend(pch = "*", type = "points", labels = "DESeq2 FDR < 0.05 & abs(l2fc) > 0.5")
+  draw(hm, annotation_legend_list = list(lgd_pvalue, lgd_sig),
+       merge_legend = TRUE, heatmap_legend_side = "bottom", 
+       annotation_legend_side = "bottom") 
+}
+
+```
+
+
+## Session info
+
+```{r}
+sessionInfo()
+```

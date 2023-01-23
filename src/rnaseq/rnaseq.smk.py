@@ -688,13 +688,30 @@ rule tfea:
     #out="data/rnaseq/processed/cetf_out.Rds", #do not auto-delete on rerun
     html="reports/rnaseq/09d_cetf.html"
   shell:
-    """
-    export OMP_NUM_THREADS=1
-    Rscript {input.script} {input.rmd} $PWD/{output.html}
-     --dds '{input.dds}'
-     --one_vs_rest '{input.one_vs_rest}'
-     --sig_ovr '{input.sig_ovr}'
-    """
+    "export OMP_NUM_THREADS=1;"
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --dds '{input.dds}'"
+    " --one_vs_rest '{input.one_vs_rest}'"
+    " --sig_ovr '{input.sig_ovr}'"
+
+rule gsea_tf:
+  input:
+    dds="data/rnaseq/processed/08_dds_ovr_inv_vs_rest.Rds",
+    ovr="results/rnaseq/diffex/08_one_vs_rest_allgenes.xlsx",
+    gmt="data/external/gmt/c3.tft.v2022.1.Hs.symbols.gmt",
+    gx_annot="data/rnaseq/processed/bx_annot.Rds",
+    rmd="reports/rnaseq/09d_flexgsea_TFs.Rmd",
+    script="src/utils/rmarkdown.R"
+  output:
+    #outFile="data/rnaseq/processed/TF_flexgsea_invVsRest.Rds", #do not auto-delete on rerun
+    html="reports/rnaseq/09d_flexgsea_TFs.html"
+  shell:
+    "export OMP_NUM_THREADS=1;"
+    "Rscript {input.script} {input.rmd} $PWD/{output.html}"
+    " --dds '{input.dds}'"
+    " --ovr '{input.ovr}'"
+    " --gmt '{input.gmt}'"
+    " --gx_annot '{input.gx_annot}'"
 
 #### Cibersort Deconvolution ####
 
