@@ -107,7 +107,7 @@ rule stainings:
     study_km="src/figures/study_km.R",
     script="src/utils/rmarkdown.R"
   output:
-    report="reports/figures/CD38_TAPC_TILs.pdf",
+    report="reports/figures/CD38_TAPC_TILs.html",
     TAPC_PPBC_cor="figures/Fig2h_TAPC_PPBC_cor.pdf",
     km_TAPC_OS="figures/Fig2i_TAPC_KM_OS.pdf",
     boxplot_CD38="figures/Fig2k_CD38_boxplot.pdf",
@@ -116,7 +116,8 @@ rule stainings:
     km_TAPC_DRS="figures/supfigs/Supfig13c_TAPC_KM_DRS.pdf",
     km_CD38_DRS="figures/supfigs/Supfig13d_CD38_KM_DRS.pdf",
     TAPC_CD38_cor="figures/supfigs/Supfig16_TAPC_CD38_cor.pdf",
-    TAPC_iso_cor="figures/supfigs/Supfig19_TAPC_isotype_cor.pdf"
+    TAPC_iso_cor="figures/supfigs/Supfig19_TAPC_isotype_cor.pdf",
+    reviewer_requests="figures/reviewer_requests.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
@@ -129,6 +130,7 @@ rule stainings:
     " --km_CD38_DRS {output.km_CD38_DRS}"
     " --TAPC_CD38_cor {output.TAPC_CD38_cor}"
     " --TAPC_iso_cor {output.TAPC_iso_cor}"
+    " --reviewer_requests {output.reviewer_requests}"
 
 rule isotypes:
   input:
