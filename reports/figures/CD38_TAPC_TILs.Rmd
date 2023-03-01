@@ -300,7 +300,7 @@ dev.off()
 ## Sup Fig 16- Correlation TAPC and CD38
 
 ```{r}
-cor_plot <- function(df=figuredata, x, y, colorby, ...){
+cor_plot <- function(df=figuredata, x, y, colorby, met="kendall", ...){
   
   df <- df[!is.na(df[,x]) & !is.na(df[,y]),]
 
@@ -308,7 +308,7 @@ cor_plot <- function(df=figuredata, x, y, colorby, ...){
     ggplot(aes(get(x), get(y))) +
     geom_jitter(aes(color = get(colorby)), height = 1, width = 0.2, shape = 15) +
     geom_smooth(method = "lm", formula = y ~ x) +
-    ggpubr::stat_cor(method = "kendall", #label.y = 3.5, label.x = -0.2,
+    ggpubr::stat_cor(method = met, #label.y = 3.5, label.x = -0.2,
                      aes(label = paste(..rr.label.., ..r.label.., ..p.label..,
                                        sep = "~`,`~"))) +
     xlab(str_replace_all(x, "_", " ")) +
@@ -412,9 +412,10 @@ boxplot_ig_CD38
 
 ```{r}
 CD38_Ig_cor_all <- lapply(c(names(igs)), function(ig){
-  cor_plot(figuredata, x= "TI_CD38_total", y=ig, colorby = "study_group") +
+  cor_plot(figuredata, x= "TI_CD38_total", y=ig, colorby = "study_group",
+           met = "spearman") +
     scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
-    ggtitle(paste("Kendall correlation between CD38 and", ig, "in all samples"))
+    ggtitle(paste("Spearman correlation between CD38 and", ig, "in all samples"))
 }) %>% set_names(igs)
 
 CD38_Ig_cor_all
@@ -422,9 +423,10 @@ CD38_Ig_cor_all
 
 ```{r}
 CD38_Ig_cor_group <- lapply(names(igs), function(ig){
-  cor_plot(figuredata, x="TI_CD38_total", y=ig, colorby = "study_group") +
+  cor_plot(figuredata, x="TI_CD38_total", y=ig, colorby = "study_group",
+           met = "spearman") +
     scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
-    ggtitle(paste("Kendall correlation between CD38 and", ig, "by study group")) +
+    ggtitle(paste("Spearman correlation between CD38 and", ig, "by study group")) +
     facet_wrap(~study_group)
 }) %>% set_names(names(igs))
 
