@@ -116,8 +116,7 @@ rule stainings:
     km_TAPC_DRS="figures/supfigs/Supfig13c_TAPC_KM_DRS.pdf",
     km_CD38_DRS="figures/supfigs/Supfig13d_CD38_KM_DRS.pdf",
     TAPC_CD38_cor="figures/supfigs/Supfig16_TAPC_CD38_cor.pdf",
-    TAPC_iso_cor="figures/supfigs/Supfig19_TAPC_isotype_cor.pdf",
-    reviewer_requests="figures/reviewer_requests.pdf"
+    TAPC_iso_cor="figures/supfigs/Supfig19_TAPC_isotype_cor.pdf"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
@@ -130,7 +129,6 @@ rule stainings:
     " --km_CD38_DRS {output.km_CD38_DRS}"
     " --TAPC_CD38_cor {output.TAPC_CD38_cor}"
     " --TAPC_iso_cor {output.TAPC_iso_cor}"
-    " --reviewer_requests {output.reviewer_requests}"
 
 rule isotypes:
   input:
@@ -201,6 +199,20 @@ rule figure_genes:
     "Rscript {input.script}"
     " --genes {input.genes}"
     " --outdir {params.outdir}"
+    
+rule reviewer_requests:
+  input:
+    figuredata="data/figures/00_figuredata.Rds",
+    rmd="reports/figures/reviewer_requests.Rmd",
+    rt="src/figures/faceted_risktable.R",
+    script="src/utils/rmarkdown.R"
+  output:
+    report="reports/figures/reviewer_requests.html",
+    reviewer_requests="figures/reviewer_requests.pdf"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.report}"
+    " --figuredata {input.figuredata}"
+    " --reviewer_requests {output.reviewer_requests}"
     
 rule copy_figs:
   input:

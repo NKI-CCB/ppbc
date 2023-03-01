@@ -19,7 +19,6 @@ params:
     km_CD38_DRS: "figures/supfigs/Supfig13d_CD38_KM_DRS.pdf"
     TAPC_CD38_cor: "figures/supfigs/Supfig16_TAPC_CD38_cor.pdf"
     TAPC_iso_cor: "figures/supfigs/Supfig19_TAPC_isotype_cor.pdf"
-    reviewer_requests: "figures/reviewer_requests.pdf"
 ---
 
 Temporary switch to html output to handle LaTeX compling error.
@@ -376,97 +375,7 @@ TAPC_Ig_cor_group
 dev.off()
 ```
 
-## Reviewer request: CD38 and Ig mRNA
 
-### CD38 high/low categories
-
-```{r}
-igs <- c("blue", "red","darkgreen","purple")
-names(igs) <- c("IgA", "IgG", "IgM", "IgD")
-
-tmpdf <- figuredata %>%
-  rename(CD38 = TI_CD38) %>%
-  filter(!is.na(CD38)) %>%
-  select(CD38, IgA, IgM, IgG, IgD) %>%
-  pivot_longer(cols = starts_with("Ig"), names_to = "isotype", values_to = "expression") %>%
-  filter(!is.na(expression)) 
-
-boxplot_ig_CD38 <- lapply(names(igs), function(x){
-  tmpdf %>%
-    filter(isotype == !!x) %>%
-    ggplot(aes(x = CD38, y = expression, color = isotype)) +
-    geom_point(position = position_jitter(height = 0), shape = 15) +
-    geom_boxplot(alpha = 0) +
-    xlab("CD38 category") + 
-    stat_compare_means(method = "wilcox.test",
-                       comparisons = list(c("low", "high"))) +
-    #stat_compare_means() +
-    ggtitle(paste("CD38+ and", x, "expression")) +
-    scale_color_manual(values = igs)
-  })
-
-boxplot_ig_CD38
-```
-
-### CD38 numeric correlation
-
-```{r}
-CD38_Ig_cor_all <- lapply(c(names(igs)), function(ig){
-  cor_plot(figuredata, x= "TI_CD38_total", y=ig, colorby = "study_group",
-           met = "spearman") +
-    scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
-    ggtitle(paste("Spearman correlation between CD38 and", ig, "in all samples"))
-}) %>% set_names(igs)
-
-CD38_Ig_cor_all
-```
-
-```{r}
-CD38_Ig_cor_group <- lapply(names(igs), function(ig){
-  cor_plot(figuredata, x="TI_CD38_total", y=ig, colorby = "study_group",
-           met = "spearman") +
-    scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
-    ggtitle(paste("Spearman correlation between CD38 and", ig, "by study group")) +
-    facet_wrap(~study_group)
-}) %>% set_names(names(igs))
-
-CD38_Ig_cor_group
-```
-
-## Reviewer request: TILs and TAPCs
-
-```{r}
-TIL_TAPC_cor_all <- 
-  figuredata %>% filter(!is.na(TILpercent)) %>%
-  cor_plot(figuredata, x= "TAPC_score", y="TILpercent", colorby = "study_group") +
-    scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
-    ggtitle("Kendall correlation between TAPCs and TILs in all samples")
-
-TIL_TAPC_cor_all
-```
-
-```{r}
-TIL_TAPC_cor_group <- 
-  figuredata %>% filter(!is.na(TILpercent)) %>%
-  cor_plot(figuredata, x= "TAPC_score", y="TILpercent", colorby = "study_group") +
-  scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
-  ggtitle("Kendall correlation between TAPCs and TILs per study group") +
-  facet_wrap(~study_group)
-
-TIL_TAPC_cor_group
-```
-
-### Save output
-
-```{r}
-pdf(file = here(params$reviewer_requests), width = 12, height = 7)
-CD38_Ig_cor_all
-CD38_Ig_cor_group
-TIL_TAPC_cor_all
-TIL_TAPC_cor_group
-#boxplot_ig_CD38 #is this one useful?
-dev.off()
-```
 
 ## Session info
 
