@@ -51,7 +51,11 @@ head(figuredata)
 ## Colors
 
 ```{r}
-study_colors <- c("NP-BC"="#521262", "Pr-BC"="#AA96DA", "PP-BCdl"="#112D4E", "PP-BCpw"="#46CDCF")
+levels(figuredata$study_group)
+study_colors <- c("NP-BC"="#521262", "Pr-BC"="#aa96da",
+                  "PP-BCdl"="#282c75", "PP-BCpw"="#46cdcf")
+levels(figuredata$IG_col_cluster)
+tertile_colors <- c("low"="#ffb600", "medium"="#ff7900","high"="#a10702")
 ```
 
 ## Functions
@@ -166,16 +170,49 @@ TIL_CD4_cor_all <-
   cor_plot(figuredata, x= "CD4naive_fraction", y="TILpercent", colorby = "study_group",
            met = "spearman", ht = 0, wd = 0) +
     scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
-    ggtitle("Spearman correlation between TAPCs and TILs in all samples")
+    ggtitle("Spearman correlation between Cibersort CD3 and TILs in all samples")
 
 TIL_CD4_cor_all
 ```
 
+## TIL Cibersort CD8
+
+```{r}
+TIL_CD8_cor_all <- 
+  figuredata %>% filter(!is.na(TILpercent) & !is.na(CD8_fraction)) %>%
+  #select("CD4")
+  cor_plot(figuredata, x= "CD8_fraction", y="TILpercent", colorby = "study_group",
+           met = "spearman", ht = 0, wd = 0) +
+    scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
+    ggtitle("Spearman correlation between Cibersort CD8 and TILs in all samples")
+
+TIL_CD8_cor_all
+```
+
+## TIL Ig clusters
+
+```{r}
+TIL_Ig_cor_all <- 
+  figuredata %>% filter(!is.na(TILpercent) & !is.na(IG_col_cluster)) %>%
+  #mutate(cluster_number = as.factor(cluster_number)) %>%
+  cor_plot(figuredata, x="cluster_number", y="TILpercent", colorby = "study_group",
+           met = "kendall", ht = 0, wd = 0.2) +
+    scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
+    ggtitle("Kendall correlation between Ig signature and TILs in all samples") + 
+  #scale_x_discrete(labels=c("1" = "low", "2" = "medium", "3" = "high"))
+  scale_x_continuous(breaks=seq(1, 3, 1)) +
+  xlab("Ig gene signature")
+
+TIL_Ig_cor_all
+```
 
 ## Save output
 
 ```{r}
 pdf(file = here(params$reviewer_requests), width = 12, height = 7)
+TIL_CD4_cor_all
+TIL_CD8_cor_all
+TIL_Ig_cor_all
 CD38_Ig_cor_all
 CD38_Ig_cor_group
 TIL_TAPC_cor_all
@@ -183,3 +220,10 @@ TIL_TAPC_cor_group
 #boxplot_ig_CD38 #is this one useful?
 dev.off()
 ```
+
+## Session info
+
+```{r}
+sessionInfo()
+```
+
