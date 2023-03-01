@@ -57,13 +57,13 @@ study_colors <- c("NP-BC"="#521262", "Pr-BC"="#AA96DA", "PP-BCdl"="#112D4E", "PP
 ## Functions
 
 ```{r}
-cor_plot <- function(df=figuredata, x, y, colorby, met, ...){
+cor_plot <- function(df=figuredata, x, y, colorby, met, ht = 1, wd = 0.2, ...){
   
   df <- df[!is.na(df[,x]) & !is.na(df[,y]),]
 
   df %>%
     ggplot(aes(get(x), get(y))) +
-    geom_jitter(aes(color = get(colorby)), height = 1, width = 0.2, shape = 15) +
+    geom_jitter(aes(color = get(colorby)), height = ht, width = wd, shape = 15) +
     geom_smooth(method = "lm", formula = y ~ x) +
     ggpubr::stat_cor(method = met, #label.y = 3.5, label.x = -0.2,
                      aes(label = paste(..rr.label.., ..r.label.., ..p.label..,
@@ -112,7 +112,7 @@ boxplot_ig_CD38
 ```{r}
 CD38_Ig_cor_all <- lapply(c(names(igs)), function(ig){
   cor_plot(figuredata, x= "TI_CD38_total", y=ig, colorby = "study_group",
-           met = "spearman") +
+           met = "spearman", ht = 0, wd = 0.2) +
     scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
     ggtitle(paste("Spearman correlation between CD38 and", ig, "in all samples"))
 }) %>% set_names(igs)
@@ -123,7 +123,7 @@ CD38_Ig_cor_all
 ```{r}
 CD38_Ig_cor_group <- lapply(names(igs), function(ig){
   cor_plot(figuredata, x="TI_CD38_total", y=ig, colorby = "study_group",
-           met = "spearman") +
+           met = "spearman", ht = 0, wd = 0) +
     scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
     ggtitle(paste("Spearman correlation between CD38 and", ig, "by study group")) +
     facet_wrap(~study_group)
@@ -138,7 +138,7 @@ CD38_Ig_cor_group
 TIL_TAPC_cor_all <- 
   figuredata %>% filter(!is.na(TILpercent)) %>%
   cor_plot(figuredata, x= "TAPC_score", y="TILpercent", colorby = "study_group",
-           met = "kendall") +
+           met = "kendall", ht = 0, wd = 0.2) +
     scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
     ggtitle("Kendall correlation between TAPCs and TILs in all samples")
 
@@ -148,13 +148,29 @@ TIL_TAPC_cor_all
 ```{r}
 TIL_TAPC_cor_group <- 
   figuredata %>% filter(!is.na(TILpercent)) %>%
-  cor_plot(figuredata, x= "TAPC_score", y="TILpercent", colorby = "study_group", met = "kendall") +
+  cor_plot(figuredata, x= "TAPC_score", y="TILpercent", colorby = "study_group",
+           met = "kendall", ht = 0, wd = 0.2) +
   scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
   ggtitle("Kendall correlation between TAPCs and TILs per study group") +
   facet_wrap(~study_group)
 
 TIL_TAPC_cor_group
 ```
+
+## TIL Cibersort CD4
+
+```{r}
+TIL_CD4_cor_all <- 
+  figuredata %>% filter(!is.na(TILpercent) & !is.na(CD4naive_fraction)) %>%
+  #select("CD4")
+  cor_plot(figuredata, x= "CD4naive_fraction", y="TILpercent", colorby = "study_group",
+           met = "spearman", ht = 0, wd = 0) +
+    scale_color_manual(values = study_colors[names(study_colors) != "rest"]) +
+    ggtitle("Spearman correlation between TAPCs and TILs in all samples")
+
+TIL_CD4_cor_all
+```
+
 
 ## Save output
 
