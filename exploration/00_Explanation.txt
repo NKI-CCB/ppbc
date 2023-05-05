@@ -1,2 +1,0 @@
-This folder includes analyses from Hanne that are not fully integrated into the rest of the pipeline.
-Elements of these notebooks that end up in the final publication will be reproduced separately as figures.

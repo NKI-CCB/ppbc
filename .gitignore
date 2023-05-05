@@ -4,6 +4,7 @@
 *.Rproj
 
 data/rnaseq/*
+data/rnaseq/RAW/
 data/vectra/*
 data/external/index
 data/external/gene_ref
@@ -37,6 +38,7 @@ reports/archive/
 reports/multiqc_data/
 reports/*.tar.xy
 reports/rnaseq/gene_reports/
+exploration/
 figures/*.pdf
 figures/*.csv
 figures/supfigs/
