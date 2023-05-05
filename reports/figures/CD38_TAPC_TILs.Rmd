@@ -69,7 +69,7 @@ study_colors <- c("NP-BC"="#521262", "Pr-BC"="#AA96DA", "PP-BCdl"="#112D4E", "PP
 ### Current version
 
 ```{r}
-TAPC_PPBC_cor <- figuredata %>%
+figuredata %>%
   filter(!is.na(TAPC_score)) %>%
   ggplot(aes(x = as.integer(study_group), y = TAPC_score)) +
   geom_jitter(aes(color = study_group)) + geom_smooth(method = "lm") +
@@ -86,7 +86,7 @@ TAPC_PPBC_cor
 By reviewer request
 
 ```{r}
-figuredata %>% 
+TAPC_PPBC_cor <- figuredata %>% 
   filter(!is.na(TAPC_score)) %>%
   ggplot(aes(x = study_group, y = TAPC_score)) +
   geom_jitter(aes(color = study_group)) +
