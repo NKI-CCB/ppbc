@@ -1,0 +1,46 @@
+---
+title: "Figure numbering"
+author: "Kat Moore"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: yes
+    df_print: tibble
+    highlight: kate
+params:
+  fileLoc: "reports/figures/figure_numbering.csv"
+---
+
+Number the figures as in the final manuscript.
+
+## Dependencies
+
+```{r}
+library(here)
+library(tidyverse)
+```
+
+## Load numbering
+
+```{r}
+fileLoc <- read_csv(here(params$fileLoc))
+```
+
+## Renumber files
+
+```{r}
+for(i in 1:length(fileLoc)){
+  if(file.exists(from = here(fileLoc$inFile[i]))){
+    file.rename(from = here(fileLoc$inFile[i]), to = here(fileLoc$outFile[i]))
+  } else {
+    next
+  }
+}
+```
+
+## Session info
+
+```{r}
+sessionInfo()
+```
+
