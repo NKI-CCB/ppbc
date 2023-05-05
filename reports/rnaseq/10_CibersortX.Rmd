@@ -3,12 +3,11 @@ title: "CibersortX"
 Author: Kat Moore
 date: "`r Sys.Date()`"
 output: 
-  pdf_document: 
+  html_document: 
     toc: true
     toc_depth: 4
     fig_width: 7
     fig_height: 6
-    df_print: tibble
 params:
   ciber_input: "results/rnaseq/cibersortX/CIBERSORTx_Job6_Results.csv"
   abs_ciber_input: "results/rnaseq/cibersortX/CIBERSORTx_Job7_Results.csv"

@@ -3,7 +3,7 @@ title: "Cibersort Figures"
 author: "Kat Moore"
 date: "`r Sys.Date()`"
 output: 
-  pdf_document:
+  html_document:
     toc: yes
     df_print: tibble
     highlight: kate
