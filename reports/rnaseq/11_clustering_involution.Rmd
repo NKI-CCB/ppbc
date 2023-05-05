@@ -18,10 +18,11 @@ params:
   risktable: "src/figures/faceted_risktable.R"
   cp: "data/rnaseq/interim/color_palettes.Rds"
   sp: "data/rnaseq/interim/survival_colors.Rds"
-  DEGhm: "figures/Fig1a_DEG_heatmap.pdf"
-  IGbarplot: "figures/Fig1d_IG_cluster_barplot.pdf"
-  IG_kaplan_PPBC_OS: "figures/Fig1e_IG_cluster_PPBC_KM_OS.pdf"
-  rtIG_kaplan_PPBC_OS: "figures/Fig1e_risktable.csv"
+  DEGhm1: "figures/Fig1a_DEG_heatmap.pdf"
+  DEGhm2: "figures/Fig1b_DEG_heatmap_kmeans.pdf"
+  IGbarplot: "figures/Fig1e_IG_cluster_barplot.pdf"
+  IG_kaplan_PPBC_OS: "figures/Fig1f_IG_cluster_PPBC_KM_OS.pdf"
+  rtIG_kaplan_PPBC_OS: "figures/Fig1f_risktable.csv"
   IG_kaplan_PPBC_DRS: "figures/supfigs/Supfig9_IG_cluster_PPBC_KM_DRS.pdf"
   rtIG_kaplan_PPBC_DRS: "figures/supfigs/Supfig9_risktable.csv"
   IG_kaplan_PAM50_OS: "figures/supfigs/Supfig10a_IG_cluster_PAM50_KM_OS.pdf"
@@ -221,18 +222,37 @@ inv.hm
 dev.off()
 ```
 
-## Figure 1A : Heatmap PPBCpw vs rest
+## Figures 1A and 1B : Heatmap PPBCpw vs rest
 
-Slight tweaks for manuscript figure. Show all non-ppbcpw as "rest", but `deseq_heatmap` does not set the colors properly with `inv_vs_rest`. This is because of some kind of very weird bug in ComplexHeamtap that prevents color hexes from being recognized...sometimes. It is not possible to perfectly match the colors, but it's close. This figure is otherwise identical to the one that shows all groups
+Slight tweaks for manuscript figures. Show all non-ppbcpw as "rest", but `deseq_heatmap` does not set the colors properly with `inv_vs_rest`. This is because of an issue in ComplexHeamtap that prevents color hexes from being recognized...sometimes. It is not possible to perfectly match the colors, but it's close. This figure is otherwise identical to the one that shows all groups.
+
+Fig 1a is without k-means clustering and includes a survival bar.
+Fig 1b is with k-means.
 
 ```{r, fig.height=8, fig.width=10}
 set.seed(1)
 
-fig.hm = deseq_heatmap(
+fig1a.hm = deseq_heatmap(
+  mat = geneEx, sampledata = mutate(sd, death = as.character(death)),
+  top_vars = c("inv_vs_rest", "death"),
+  top_colors = list(inv_vs_rest = c("rest"="purple4", "ppbcpw"="darkturquoise"),
+                    death = c("1" = "black", "0" = "white")),
+  sig_results = sig.invr,
+  title = "Significant DEGs from PPBCpw vs rest",
+  maxn_rownames = Inf,
+  intgroup = "inv_vs_rest",
+  groups_to_plot =c("ppbcpw", "rest")
+  )
+
+fig1a.hm
+```
+
+```{r, fig.height=8, fig.width=10}
+set.seed(1)
+
+fig1b.hm = deseq_heatmap(
   mat = geneEx, sampledata = sd,
   top_vars = "inv_vs_rest",
-  #top_colors = list(inv_vs_rest = inv_colors),
-  #top_colors = list(inv_vs_rest = c("rest"="#F73859", "ppbcpw"="#46CDCF")), # does not work
   top_colors = list(inv_vs_rest = c("rest"="purple4", "ppbcpw"="darkturquoise")),
   sig_results = sig.invr,
   title = "Significant DEGs from PPBCpw vs rest, K-means clustering",
@@ -242,14 +262,18 @@ fig.hm = deseq_heatmap(
   column_km=3, row_km = 3
   )
 
-fig.hm
+fig1b.hm
 ```
 
 ```{r}
 figureDir = file.path(here("figures"))
 dir.create(figureDir, showWarnings = F)
-pdf(file = here(params$DEGhm), width = 10, height = 10)
-fig.hm
+pdf(file = here(params$DEGhm1), width = 10, height = 10)
+fig1a.hm
+dev.off()
+
+pdf(file = here(params$DEGhm2), width = 10, height = 10)
+fig1b.hm
 dev.off()
 ```
 
@@ -313,19 +337,19 @@ The column clusters can be split into a low (1), medium(2) and high(3) Ig-expres
 We can retrieve the gene/sample names either with row/column_order functions, which return indices:
 
 ```{r, fig.height = 7, fig.width= 10}
-fig.hm = draw(fig.hm)
+fig1b.hm = draw(fig1b.hm)
 ```
 
 ```{r, collapse=F}
-#row_order(fig.hm)
-#column_order(fig.hm) #Shows that `3` is high, `2` is medium and `1` is low
-lapply(column_order(fig.hm), length)
+#row_order(fig1b.hm)
+#column_order(fig1b.hm) #Shows that `3` is high, `2` is medium and `1` is low
+lapply(column_order(fig1b.hm), length)
 
 col_clust = 
 bind_rows(
-  tibble(sample_name = colnames(geneEx)[column_order(fig.hm)$`1`],IG_col_cluster = "low", col_cluster=1),
-  tibble(sample_name = colnames(geneEx)[column_order(fig.hm)$`2`],IG_col_cluster = "medium", col_cluster=2),
-  tibble(sample_name = colnames(geneEx)[column_order(fig.hm)$`3`],IG_col_cluster = "high", col_cluster=3)
+  tibble(sample_name = colnames(geneEx)[column_order(fig1b.hm)$`1`],IG_col_cluster = "low", col_cluster=1),
+  tibble(sample_name = colnames(geneEx)[column_order(fig1b.hm)$`2`],IG_col_cluster = "medium", col_cluster=2),
+  tibble(sample_name = colnames(geneEx)[column_order(fig1b.hm)$`3`],IG_col_cluster = "high", col_cluster=3)
 ) %>% left_join(.,select(as.data.frame(colData(dds)), sample_name, study_group, PAM50), by="sample_name") %>%
   mutate(IG_col_cluster = factor(IG_col_cluster, levels = c("low", "medium", "high")))
 
@@ -344,7 +368,7 @@ names(IG_expression_colors) = c("low", "medium", "high")
 color_grid(IG_expression_colors)
 ```
 
-## Figure 1D - Barplot IG clusters
+## Figure 1E - Barplot IG clusters
 
 ```{r, fig.width=8}
 study_ig = col_clust %>% ggplot(aes(x = IG_col_cluster, fill=study_group)) + geom_bar(position = "fill") +
@@ -387,7 +411,7 @@ dev.off()
 Extract and store the row clusters:
 
 ```{r}
-rowdend.hm = row_dend(fig.hm)
+rowdend.hm = row_dend(fig1b.hm)
 
 row_clust = 
 bind_rows(

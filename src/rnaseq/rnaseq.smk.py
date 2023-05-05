@@ -772,9 +772,10 @@ rule inv_clustering:
     risktable="src/figures/faceted_risktable.R"
   output:
     cluster_heatmap="results/rnaseq/clustering/11_hm_clust_DEG_inv_vs_rest.pdf",
-    DEGhm="figures/Fig1a_DEG_heatmap.pdf",
+    DEGhm1="figures/Fig1a_DEG_heatmap.pdf",
+    DEGhm2="figures/Fig1b_DEG_heatmap_kmeans.pdf",
     IGbarplot="figures/Fig1d_IG_cluster_barplot.pdf",
-    IG_kaplan_PPBC_OS="figures/Fig1e_IG_cluster_PPBC_KM_OS.pdf",
+    IG_kaplan_PPBC_OS="figures/Fig1f_IG_cluster_PPBC_KM_OS.pdf",
     cluster_barplot="results/rnaseq/clustering/11_barplots_ig_clusters.pdf",
     cluster_results="results/rnaseq/clustering/11_inv_clusters.xlsx",
     cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",
@@ -792,7 +793,8 @@ rule inv_clustering:
     " --tools {input.tools}"
     " --coxdata '{input.coxdata}'"
     " --risktable '{input.risktable}'"
-    " --DEGhm '{output.DEGhm}'"
+    " --DEGhm1 '{output.DEGhm1}'"
+    " --DEGhm2 '{output.DEGhm2}'"
     " --IGbarplot '{output.IGbarplot}'"
     " --IG_kaplan_PPBC_OS '{output.IG_kaplan_PPBC_OS}'"
     " --IG_kaplan_PPBC_DRS '{output.IG_kaplan_PPBC_DRS}'"
