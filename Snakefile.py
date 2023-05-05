@@ -57,47 +57,10 @@ include: "src/rnaseq/rnaseq.smk.py"
 include: "src/spatial/spatial.smk.py"
 include: "src/figures/figures.smk.py"
 
-# genewise_cox =[
-#   "multi_genewise_os", "uni_genewise_os",
-#   "multi_genewise_drs", "uni_genewise_drs",
-#   "inv_multi_genewise_os", "inv_uni_genewise_os",
-#   "inv_multi_genewise_drs", "inv_uni_genewise_drs"
-#   ]
-#   
-# interaction_cox = [
-#   "uni_interaction_os",
-#   "uni_interaction_drs",
-#   "multi_interaction_os",
-#   "multi_interaction_drs"
-# ]   
-
 rule all:
   input:
-    # # RNAseq rules
-    # "reports/rnaseq/08_diffex_onevsrest.html",
-    # "reports/rnaseq/09_diffex_time_involution.html",
-    # "reports/rnaseq/09b_diffex_time_breastfeeding.html",
-    # expand("reports/rnaseq/14_subgroup_diffex_{comp}.html",
-    #   comp=["ppbcpw_vs_npbc","ppbcpw_vs_prbc","ppbcpw_vs_rest"]),
-    # "reports/rnaseq/10_CibersortX.pdf",
-    # "reports/rnaseq/11_clustering_involution.html",
-    # expand("reports/rnaseq/12_{cox}.html", cox=genewise_cox+interaction_cox),
-    # "results/rnaseq/TRUST/TRUST_results.xlsx",
-    # "reports/rnaseq/15b_antibody_isotypes.html",
-    # "reports/rnaseq/16_gene_unity_setup.html",
-    # # Spatial rules
-    # "reports/spatial/05_report_cell_types.html",
-    # "reports/spatial/07_kruskal_density.html",
-    # "reports/spatial/08_inv_time_density.html",
-    # expand("reports/spatial/09_cox_total_density_{outcome}.html", outcome = ['OS','DRS']),
-    # "reports/spatial/10_ig_clusters_cd20.html",
-    # "reports/spatial/12_spatstat_overview.html",
     # Figures
     "data/figures/00_figuredata.Rds",
-    "figures/Fig1a_DEG_heatmap.pdf",
-    "figures/Fig1b_ig_boxplot.pdf",
-    "figures/Fig1d_IG_cluster_barplot.pdf",
-    "figures/Fig1e_IG_cluster_PPBC_KM_OS.pdf",
     "figures/Fig2b_CD20_density_boxplot.pdf",
     "figures/Fig2c_CD20_density_km_OS.pdf",
     "figures/Fig2e_CD20_l_boxplot.pdf",
@@ -158,8 +121,7 @@ rule all:
     "figures/supfigs/Supfig20_cor_IgA_IgG.pdf",
     "figures/supfigs/Supfig21_clonality_km_OS_DRS.pdf",
     "figures/supfigs/Supfig23A_cibersort_CD8_km_DRS.pdf",
-    "figures/supfigs/Supfig23b-g_misc_spatial_km_drs.pdf",
-    "figures/reviewer_requests.pdf"
+    "figures/supfigs/Supfig23b-g_misc_spatial_km_drs.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)
