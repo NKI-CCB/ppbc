@@ -31,7 +31,7 @@ rule ig_clusters_km:
     rmd="reports/figures/IG_clusters_km.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    report="reports/figures/IG_clusters_km.pdf",
+    report="reports/figures/IG_clusters_km.html",
     fig1b="figures/Fig1b_ig_boxplot.pdf",
     supfig2="figures/supfigs/Supfig2_studygroup_km.pdf",
     supfig8="figures/supfigs/Supfig8_igSig_km_forest.pdf"
@@ -57,7 +57,7 @@ rule spatial_figures:
     rmd="reports/figures/spatial_figures.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    report="reports/figures/spatial_figures.pdf",
+    report="reports/figures/spatial_figures.html",
     boxplot_CD20_density="figures/Fig2b_CD20_density_boxplot.pdf",
     km_CD20_density_OS="figures/Fig2c_CD20_density_km_OS.pdf",
     boxplot_CD20_lstat="figures/Fig2e_CD20_l_boxplot.pdf",
@@ -145,7 +145,7 @@ rule isotypes:
     cor_IG_TAPC="figures/Fig3d_cor_Ig_TAPC.pdf",
     cor_IgA_milk="figures/supfigs/Supfig17_cor_IgA_milk.pdf",
     cor_IgA_IgG="figures/supfigs/Supfig20_cor_IgA_IgG.pdf",
-    report="reports/figures/isotypes.pdf"
+    report="reports/figures/isotypes.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
@@ -172,7 +172,7 @@ rule ciberfigs:
     km_plasmaB="figures/supfigs/Supfig12c_kaplan_cibersort_plasmaB_OS_DRS.pdf",
     km_memoryB="figures/supfigs/Supfig12d_kaplan_cibersort_memoryB_OS_DRS.pdf",
     km_cd8_DRS="figures/supfigs/Supfig23A_cibersort_CD8_km_DRS.pdf",
-    report="reports/figures/ciberfigs.pdf"
+    report="reports/figures/ciberfigs.html"
   shell:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
@@ -213,7 +213,7 @@ rule reviewer_requests:
     "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --figuredata {input.figuredata}"
     " --reviewer_requests {output.reviewer_requests}"
-    
+
 rule copy_figs:
   input:
     rnaseq_pcas="results/rnaseq/dimensionality/pca_rnaseq.pdf",
@@ -266,6 +266,23 @@ rule copy_figs:
     cp -v {input.uni_genewise_drs_heatmap} {output.uni_genewise_drs_heatmap}
     """
     
-    
-#vsd="data/rnaseq/interim/08_vsd_ovr.Rds",
-#cluster_survival="data/rnaseq/interim/11_ig_survdata.Rds",
+rule renumber_figs:
+  input:
+    deg_hm="figures/Fig1a_DEG_heatmap.pdf",
+    deg_hm2="figures/Fig1b_DEG_heatmap_kmeans.pdf",
+    igboxplot="figures/Fig1b_ig_boxplot.pdf",
+    igbarplot="figures/Fig1e_IG_cluster_barplot.pdf",
+    igclustkm="figures/Fig1f_IG_cluster_PPBC_KM_OS.pdf",
+    rmd="reports/figures/figure_numbering.Rmd",
+    fileLoc="reports/figures/figure_numbering.csv",
+    script="src/utils/rmarkdown.R"
+  output:
+    deg_hm="figures/Fig2a_DEG_heatmap.pdf",
+    deg_hm2="figures/Fig2b_DEG_heatmap_kmeans.pdf",
+    igboxplot="figures/Fig2c_ig_boxplot.pdf",
+    igbarplot="figures/Fig2e_IG_cluster_barplot.pdf",
+    igclustkm="figures/Fig2f_IG_cluster_PPBC_KM_OS.pdf",
+    report="reports/figures/figure_numbering.html"
+  shell:
+    "Rscript {input.script} {input.rmd} $PWD/{output.report}"
+    " --fileLoc {input.fileLoc}"

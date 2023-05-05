@@ -730,12 +730,12 @@ rule cibersortX:
     rmd="reports/rnaseq/10_CibersortX.Rmd",
     script="src/utils/rmarkdown.R"
   output:
-    pdf="reports/rnaseq/10_CibersortX.pdf",
+    report="reports/rnaseq/10_CibersortX.html",
     ciberdf="data/rnaseq/processed/10_ciberdf.Rds",
     abs_ciberdf="data/rnaseq/processed/10_abs_ciberdf.Rds",
     rel_hm="figures/supfigs/SupFig12a_cibersort_relative_heatmap.pdf"
   shell:
-    "Rscript {input.script} {input.rmd} $PWD/{output.pdf}"
+    "Rscript {input.script} {input.rmd} $PWD/{output.report}"
     " --ciber_input '{input.ciber_input}'"
     " --abs_ciber_input '{input.abs_ciber_input}'"
     " --hugo '{input.hugo}'"
@@ -774,7 +774,7 @@ rule inv_clustering:
     cluster_heatmap="results/rnaseq/clustering/11_hm_clust_DEG_inv_vs_rest.pdf",
     DEGhm1="figures/Fig1a_DEG_heatmap.pdf",
     DEGhm2="figures/Fig1b_DEG_heatmap_kmeans.pdf",
-    IGbarplot="figures/Fig1d_IG_cluster_barplot.pdf",
+    IGbarplot="figures/Fig1e_IG_cluster_barplot.pdf",
     IG_kaplan_PPBC_OS="figures/Fig1f_IG_cluster_PPBC_KM_OS.pdf",
     cluster_barplot="results/rnaseq/clustering/11_barplots_ig_clusters.pdf",
     cluster_results="results/rnaseq/clustering/11_inv_clusters.xlsx",
