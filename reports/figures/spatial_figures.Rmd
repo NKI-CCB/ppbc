@@ -31,6 +31,7 @@ params:
     km_CD20_Panck_lcross_km_OS: "figures/supfigs/Supfig14b_CD20_Panck_lcross_km_OS.pdf"
     km_CD20_Panck_lcross_km_DRS: "figures/supfigs/Supfig14c_CD20_Panck_lcross_km_DRS.pdf"
     misc_spatial_drs: "figures/supfigs/Supfig23b-g_misc_spatial_km_drs.pdf"
+    boxplot_others: "figures/supfigs/Supfig28_spatial_boxplot_other_celltypes.pdf"
 ---
 
 ## Dependencies
@@ -874,6 +875,54 @@ km_CD8_density_DRS
 misc_km_drs
 rt_km_CD8_density_DRS
 rt_misc_km_drs
+dev.off()
+```
+
+## Sup fig 28
+
+CD8+ T-cells/PanCK+ tumor cells; CD8- T-cells/PanCK+ tumor cells; or CD8-/CD8- T-cells
+
+CD8+/PanCk is fig 4F, but they've been requested again.
+
+### Boxplots
+
+```{r}
+boxplot_CD4_PanCk <- lcross_boxplot(lximmune, cell.1 = "CD3+CD8-", cell.2 = "PanCK+",
+                                           label.y = 0.01, returndata=F)
+boxplot_CD4_PanCk
+```
+
+```{r}
+boxplot_CD4_l <- lstat_boxplot(l, cell = "CD3+CD8-", label.y = 0.4)
+boxplot_CD4_l
+```
+
+```{r}
+boxplot_CD4_density <- density %>%
+  filter(cell_type == "CD3+CD8-" & classifier_label == "Total") %>%
+  ggplot(aes(x = factor(study_group,
+                        levels = c("NP-BC", "Pr-BC", "PP-BCdl","PP-BCpw")),
+             y = log10(density + 1), color = study_group)) +
+  geom_point(position = position_jitter(height = 0), shape = 15) +
+  geom_boxplot(alpha = 0) +
+  scale_color_manual(values = study_colors) +
+  xlab("Study group") + #ylab("CD20+ multiplex IF density") +
+  stat_compare_means(method = "wilcox.test",
+                     comparisons = list(c("PP-BCpw", "NP-BC"))) +
+  stat_compare_means(label.y = 3.7) +
+  ggtitle("CD3+CD8- density by study group")
+
+boxplot_CD4_density
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$boxplot_others), width = 12, height = 7)
+boxplot_CD4_PanCk
+boxplot_CD4_density
+boxplot_CD4_l
+boxplot_CD8_Panck_lcross
 dev.off()
 ```
 

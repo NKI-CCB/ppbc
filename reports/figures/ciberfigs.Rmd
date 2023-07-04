@@ -15,6 +15,7 @@ params:
     km_plasmaB: "figures/supfigs/Supfig12c_kaplan_cibersort_plasmaB_OS_DRS.pdf"
     km_memoryB: "figures/supfigs/Supfig12d_kaplan_cibersort_memoryB_OS_DRS.pdf"
     km_cd8_DRS: "figures/supfigs/Supfig23A_cibersort_CD8_km_DRS.pdf"
+    bp_other: "figures/supfigs/Supfig27_boxplot_cibersort_other_cells.pdf"
 ---
 
 ## Dependencies
@@ -313,6 +314,44 @@ rt_km_cd8_DRS
 pdf(file = here(params$km_cd8_DRS), width = 12, height = 7)
 km_cd8_DRS
 rt_km_cd8_DRS
+dev.off()
+```
+
+## Sup fig 27: Other cell types
+
+natural killer, monocytes, macrophages, mast, nor dendritic
+
+```{r, fig.height=14, fig.width=12}
+boxplot_other_cells <- figuredata %>%
+  filter(!is.na(NKrest_fraction)) %>%
+  select(study_group, NKrest_fraction, NKactiv_fraction, Monocytes_fraction,
+         M0_fraction, M1_fraction, M2_fraction, Mast_fraction=MA_fraction,
+         DR_fraction, DA_fraction) %>%
+  pivot_longer(cols = c(NKrest_fraction, NKactiv_fraction, Monocytes_fraction,
+         M0_fraction, M1_fraction, M2_fraction, Mast_fraction,
+         DR_fraction, DA_fraction),
+               names_to = "celltype", values_to = "relative_fraction") %>%
+  ggplot(aes(x = study_group, y = relative_fraction)) +
+  facet_wrap(~celltype) +
+  geom_jitter(aes(color = study_group), height = 0, width = 0.15) +
+  geom_boxplot(alpha = 0) +
+  scale_color_manual(values = study_colors) +
+  stat_compare_means(method = "wilcox.test", comparisons = list(
+    c("PP-BCpw", "Pr-BC"),
+    c("PP-BCpw", "NP-BC")
+  )) +
+  #stat_compare_means(label.y = 0.3) +
+  xlab("Study group") + ylab("Relative CibersortX Fraction") +
+  labs(color = "Study group")
+
+boxplot_other_cells
+```
+
+### Save output
+
+```{r}
+pdf(file = here(params$bp_other), width = 12, height = 12)
+boxplot_other_cells
 dev.off()
 ```
 

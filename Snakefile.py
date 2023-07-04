@@ -121,7 +121,9 @@ rule all:
     "figures/supfigs/Supfig20_cor_IgA_IgG.pdf",
     "figures/supfigs/Supfig21_clonality_km_OS_DRS.pdf",
     "figures/supfigs/Supfig23A_cibersort_CD8_km_DRS.pdf",
-    "figures/supfigs/Supfig23b-g_misc_spatial_km_drs.pdf"
+    "figures/supfigs/Supfig23b-g_misc_spatial_km_drs.pdf",
+    "figures/supfigs/Supfig27_boxplot_cibersort_other_cells.pdf",
+    "figures/supfigs/Supfig28_spatial_boxplot_other_celltypes.pdf"
 
 # Utility for converting Excel metadata to text
 # Text metadata can be tracked via git (if it's not too large)
